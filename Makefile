@@ -20,9 +20,9 @@ build:
 	@mkdir -p $(BIN)
 	$(GO) build -ldflags '$(LDFLAGS)' -o $(BIN)/glidergo ./cmd/glidergo
 
-## run: build and run windowed at 1:1
+## run: build and run windowed at 1:1; pass flags with ARGS='-scale 2'
 run: build
-	$(BIN)/glidergo
+	$(BIN)/glidergo $(ARGS)
 
 ## bench: 300 frames flat out, report frame rate (proves the blit path)
 bench: build

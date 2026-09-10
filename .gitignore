@@ -15,3 +15,7 @@ scripts/env.sh
 
 # Extracted assets are reproducible from GliderPRO/ via tools/ -- do not commit them.
 /assets/extracted/
+
+# Python bytecode from the extraction tools
+__pycache__/
+*.pyc
