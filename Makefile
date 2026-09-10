@@ -12,15 +12,29 @@ LDFLAGS := -s -w
 export GOPROXY      := off
 export GOTOOLCHAIN  := local
 
-.PHONY: all build run bench headless test vet fmt check clean clean-assets \
-	cross-windows assets assets-check tools help
+.PHONY: all build glidertool houses run bench headless test vet fmt check \
+	clean clean-assets cross-windows assets assets-check tools help
 
-all: build
+all: build glidertool
 
 ## build: compile the game for this host (x11 backend)
 build:
 	@mkdir -p $(BIN)
 	$(GO) build -ldflags '$(LDFLAGS)' -o $(BIN)/glidergo ./cmd/glidergo
+
+## glidertool: compile the house inspector (`bin/glidertool help`)
+glidertool:
+	@mkdir -p $(BIN)
+	$(GO) build -ldflags '$(LDFLAGS)' -o $(BIN)/glidertool ./cmd/glidertool
+
+## houses: round-trip and sanity-check every extracted house
+houses: glidertool
+	@if [ -d $(ASSETS)/houses ]; then \
+		$(BIN)/glidertool house check $(ASSETS)/houses/*.house && \
+		$(BIN)/glidertool house info $(ASSETS)/houses/*.house | tail -1; \
+	else \
+		echo "no extracted houses -- run \`make assets\` first"; \
+	fi
 
 ## run: build and run windowed at 1:1; pass flags with ARGS='-scale 2'
 run: build
@@ -56,7 +70,7 @@ fmt:
 	$(GO) fmt $(PKG)
 
 ## check: everything CI would do, plus an on-screen smoke test
-check: fmt vet test build headless cross-windows bench
+check: fmt vet test build glidertool houses headless cross-windows bench
 	@echo
 	@echo "gliderGo: environment OK -- toolchain, cgo, X11, headless and cross-build all work"
 

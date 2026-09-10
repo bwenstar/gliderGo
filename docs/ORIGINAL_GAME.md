@@ -52,6 +52,7 @@ their own earlier text or to other docs. These supersede whatever they contradic
 | `object-draw-all.md` §13 | Draw-order claims in sibling docs |
 | `editor-object-manipulation.md` §19 | Clamping claims in `editor.md` |
 | `scoring.md` §Data-I-could-not-decode item 23 | Its own earlier claim about `PICT` 1998 |
+| `house-format.md` §3.3.1 | Its own §3.3, which noted `timeStamp &= 0x7FFFFFFF` but read it as merely clearing a sign bit. It destroys the date: see §13.2 below |
 
 ---
 
@@ -1133,7 +1134,7 @@ are dead code here (§2).
 |---:|---|---|
 | 0 | `version` | 0x0200 |
 | 2 | `unusedShort` | **uninitialised garbage. Preserve verbatim** (D4) |
-| 4 | `timeStamp` | a date **and** bit 0 = the house **locked** flag |
+| 4 | `timeStamp` | a date **and** bit 0 = the house **locked** flag. `WriteHouse` stores it as `timeStamp & 0x7FFFFFFF` (`HouseIO.c:478`), and Mac seconds passed 2^31 in 1972, so **every** stored house date is ~68 years early: read it as `stored \| 0x80000000`. Restored, the 22 houses fall in 1995-06..1995-12 (Sampler 2000-05) and 11 of them match, to the day, the newest *unmasked* high-score stamp in the same file. `house-format.md` §3.3.1; `internal/house/mactime.go` |
 | 8 | `flags` | observed {0x00 x14, 0x02 x7, 0x06 x1 (`Art Museum`)}. bit 0 `wardBitSet`, bit 1 `phoneBitSet` (the House Info **No Phone** checkbox), bit 2 **inverted** `bannerStarCountOn` (`HouseIO.c:416-418`). So 8 houses suppress the ringing phone |
 | 12 / 14 | `initial.v` / `initial.h` | start point |
 | 16 | `banner` | Str255 |

@@ -9,9 +9,10 @@ later Carbon work-in-progress. `docs/ORIGINAL_GAME.md` §2 has the evidence.)
 You are a paper glider. You ride the air from furnace vents, dodge the household hazards of
 a very large house, and try to get further than you did last time.
 
-> **Status: in development.** Stage 0 (foundations, environment, source archaeology) and
-> Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies) are complete.
-> Stage 1.2 (house loading) is next. See [docs/PLAN.md](docs/PLAN.md).
+> **Status: in development.** Stage 0 (foundations, environment, source archaeology),
+> Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies) and Stage 1.2
+> (house loading: all 22 original houses read, written and round-tripped byte-for-byte)
+> are complete. Stage 1.3 (rendering a static room) is next. See [docs/PLAN.md](docs/PLAN.md).
 
 ---
 
@@ -24,7 +25,22 @@ make check                        # fmt, vet, test, build, headless, cross-build
 make assets                       # extract the 1994 art/sound/houses/movies (16 s)
 make run                          # window at the original's 640x480
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
+make houses                       # round-trip every original house through the codec
 ```
+
+Reading the 1994 level data:
+
+```bash
+make glidertool
+bin/glidertool house info assets/extracted/houses/*.house   # 22 houses, 4,070 rooms
+bin/glidertool house rooms "assets/extracted/houses/Demo House.house"
+bin/glidertool house dump  "assets/extracted/houses/Demo House.house" | less
+bin/glidertool types                                        # the 117 object types
+```
+
+`house dump` prints a house as annotated text; `house build` turns that text back into a
+1994-compatible binary, byte-for-byte with `-residue`. That is how new houses will be
+authored and how houses are diffed in git.
 
 The build needs no network access at run time and no third-party Go modules —
 see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
@@ -39,6 +55,8 @@ see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network
 | `docs/PLAN.md` | The staged implementation plan and the decisions behind it. |
 | `docs/DEV_ENVIRONMENT.md` | How to build here, what this airgapped network can reach, and the measured performance baseline. |
 | `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
+| `internal/house/` | The house model and its two codecs: the 1994 binary format (byte-exact both ways) and a line-oriented text format meant to be written by hand and read in a diff. |
+| `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms` and the `types` reference table. |
 | `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
 | `assets/extracted/` | **Generated, gitignored.** 908 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 16 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
 

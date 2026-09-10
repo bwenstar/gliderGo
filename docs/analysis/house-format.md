@@ -561,6 +561,55 @@ Because bit 0 is a flag, the stamp has 2-second granularity.
 Observed lock bits across the corpus: 15 locked, 7 unlocked. `Demo House`
 `timeStamp` = `0x2C53B041` = 743682113 (odd ⇒ locked).
 
+### 3.3.1 The `& 0x7FFFFFFF` destroys the date — restore bit 31 on read
+
+The masking above is not harmless. Mac epoch seconds crossed 2^31 in **May
+1972**, so every genuine house date has bit 31 set, and `&= 0x7FFFFFFF` throws it
+away. The stored value therefore decodes to a date **2^31 seconds ≈ 68 years
+early**, and the correction is to put the bit back:
+
+```
+real = stored | 0x80000000
+```
+
+`Demo House` is the worked example: stored `743682113` decodes to **1927-07-26**,
+which is before both the Macintosh and its authors; restored to `2891165761` it
+is **1995-08-13**.
+
+The corpus makes this conclusive rather than merely plausible:
+
+| Reading | Dates across the 22 shipped houses |
+|---|---|
+| as stored | 1927-05-21 … 1932-04-23 |
+| bit 31 restored | 1995-06-08 … 1995-12-23, plus `Sampler` at 2000-05-11 |
+
+and the check is independent of the hypothesis, because `scoresType.timeStamps[]`
+is an **unsigned** `long` that is *never* masked (§3.5 below). Comparing the
+restored house date against the newest high-score stamp in the same file:
+
+| Result | Houses |
+|---|---|
+| restored date == newest score date, to the day | 11 |
+| differs (house edited after the last score, or vice versa) | 9 |
+| no high scores to compare | 2 (`Empty House`, `Land of Illusion`) |
+
+Eleven exact agreements out of twenty possible, from a field the mask does not
+touch, against zero plausible dates under the as-stored reading.
+
+So a house file carries three timestamps under **three different conventions**,
+which is worth stating plainly because two of them look like bugs:
+
+| Field | Type | Convention | Decode |
+|---|---|---|---|
+| `houseType.timeStamp` | `long` | bit 31 cleared, bit 0 = lock | `MacTimeMasked` — restore bit 31 |
+| `scoresType.timeStamps[]` | `unsigned long` | as written | `MacTime` |
+| `gameType.timeStamp` | `long` | as written, so it reads negative | `MacTime` (via `uint32`) |
+
+gliderGo implements all three in `internal/house/mactime.go`; the corpus evidence
+above is re-derived on every test run by `TestHouseTimeStampIsMasked`. The bit is
+restored on read and re-cleared on write, so byte-exact round-tripping is
+unaffected.
+
 ## 3.4 `flags` bitfield
 
 | Bit | Mask | Meaning when set | Read at | Written at |

@@ -143,13 +143,41 @@ build. 1.1 promoted them to a pipeline and closed the coverage gaps:
   inspected by eye. Extraction is deterministic — `make assets-check` re-extracts and
   diffs the manifests to prove it.
 
-**1.2 House loading**
-- `internal/house`: the `House`/`Room`/`Object` model, plus a binary loader that reads the
-  original format byte-exactly (big-endian, Pascal strings — see `docs/analysis/house-format.md`).
-- `cmd/glidertool house dump` prints a house as text.
-- *Acceptance:* all 22 original houses load (4,070 rooms); room/object counts match the independently
-  produced table in `docs/analysis/houses-inventory.md`; round-tripping a house through
-  the text writer and back preserves every field (property test).
+**1.2 House loading** ✅ *done*
+
+`internal/house` is the model and both codecs; `cmd/glidertool` is the CLI over them.
+
+- **Byte-exact binary codec.** `Load`/`Save` treat the file as the 866-byte header
+  (`offsetof(houseType, rooms)`, not `sizeof`) plus `nRooms × 348`, tolerating exactly the
+  0 or 2 trailing bytes the format permits and rejecting any other tail with a message that
+  cites the document. `Save(Load(b)) == b` for all 22 shipped houses, residue and stale
+  saved games included.
+- **The union is bytes plus typed views.** `Object` is `{What int16; Data [10]byte}` with
+  nine getter/setter pairs, because the shipped data forbids anything tidier: an undefined
+  `what` must survive a round trip, empty slots carry meaning-free bytes in 66,236 of 66,240
+  cases, and slot indices are load-bearing (links address objects by index, and six shipped
+  rooms have holes). Variants are selected by inclusive range, never by the high nibble —
+  0x10 `kLiftArea` is a blower and 0x40 `kDeluxeTrans` is a transport.
+- **A text format that is both.** The default output is field-exact and readable — 24 KB for
+  Demo House against 16 KB of binary — with `-residue` restoring byte-exactness (80 KB, four
+  fifths hex). `Canonical()` states precisely what the readable form drops, so
+  `ParseText(WriteText(h)) == h.Canonical()` is a testable claim rather than a hope. The
+  writer is idempotent in both modes, which is what lets an authored house live in git.
+  Booleans are written as integers because the corpus proves they are not booleans (a blower
+  with `state` 23; `unusedBoolean` of 185 and 255).
+- **`houseType.timeStamp` is masked, and the analysis was wrong about it.** `WriteHouse` does
+  `timeStamp &= 0x7FFFFFFF`, which does not merely clear a sign bit — it discards bit 31 and
+  moves every house date ~68 years early. Restored, the 22 houses date 1995-06..1995-12
+  (Sampler 2000-05), and 11 of them match the newest *unmasked* score stamp in the same file
+  to the day. Written up as `house-format.md` §3.3.1 and pinned by a test.
+- *Acceptance met:* all 22 houses load, 4,070 rooms, 31,440 live objects. The corpus tests
+  **parse their golden numbers out of `docs/analysis/houses-inventory.md`** rather than
+  copying them in, so agreement with `tools/probe_house.py` — a different implementation, in
+  a different language, written first — is evidence about the format and the document cannot
+  rot: per-house sizes/versions/room/object/type counts, all 117 per-code instance and
+  houses-using counts, 69 stars, 6 non-compacted rooms, `visited` 3634/436, 15 locked / 7
+  unlocked. Both text round trips hold for every house. `make houses` re-checks all of it
+  through the CLI in under a second.
 
 **1.3 Rendering a static room**
 - `internal/render`: background, tiles, object layers, in the original's draw order.
@@ -291,9 +319,14 @@ is a one-line change with a visible blast radius.
 cd gliderGo
 ./scripts/bootstrap-dev-env.sh && . scripts/env.sh && make check
 make assets                  # assets/extracted/ is gitignored; regenerate it (16 s)
+make houses                  # 1.2's evidence: 22 houses through both codecs, unchanged
 git log --oneline            # every stage is a commit with a detailed message
 sed -n '1,60p' docs/PLAN.md  # you are here
 ```
+
+`bin/glidertool house dump <house>` is the fastest way to see what the 1994 data actually
+contains; its output is annotated with the `docs/analysis/house-format.md` sections that
+explain each field.
 
 Then read `docs/ORIGINAL_GAME.md` for the game, and the relevant `docs/analysis/*.md`
 for whatever subsystem you are about to touch. The original C is in `GliderPRO/` and is
