@@ -9,8 +9,9 @@ later Carbon work-in-progress. `docs/ORIGINAL_GAME.md` §2 has the evidence.)
 You are a paper glider. You ride the air from furnace vents, dodge the household hazards of
 a very large house, and try to get further than you did last time.
 
-> **Status: in development.** Stage 0 (foundations, environment, source archaeology) is
-> complete. Stage 1 (the faithful single-player port) is next. See [docs/PLAN.md](docs/PLAN.md).
+> **Status: in development.** Stage 0 (foundations, environment, source archaeology) and
+> Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies) are complete.
+> Stage 1.2 (house loading) is next. See [docs/PLAN.md](docs/PLAN.md).
 
 ---
 
@@ -20,6 +21,7 @@ a very large house, and try to get further than you did last time.
 ./scripts/bootstrap-dev-env.sh    # rootless: installs Go 1.23 into ~/.local/opt/go
 . scripts/env.sh                  # PATH, GOROOT, GOPROXY=off
 make check                        # fmt, vet, test, build, headless, cross-build, bench
+make assets                       # extract the 1994 art/sound/houses/movies (16 s)
 make run                          # window at the original's 640x480
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 ```
@@ -37,7 +39,8 @@ see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network
 | `docs/PLAN.md` | The staged implementation plan and the decisions behind it. |
 | `docs/DEV_ENVIRONMENT.md` | How to build here, what this airgapped network can reach, and the measured performance baseline. |
 | `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
-| `tools/` | Python asset extractors: BinHex, Rez, PICT → PNG, `'snd '` → PCM. |
+| `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
+| `assets/extracted/` | **Generated, gitignored.** 908 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 16 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
 
 ## Planned scope
 

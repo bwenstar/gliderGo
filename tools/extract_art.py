@@ -195,6 +195,66 @@ FLOWER_SRC = [(0, 23, 10, 51), (10, 16, 34, 51), (34, 16, 68, 51),
 
 
 # --------------------------------------------------------------------------
+# The 14 strip surfaces: art frames or scrolling bands that srcRects[] never
+# indexes, so they are reached through the named globals of graphics-assets 6.6
+# rather than through ATLAS.  name -> (GWorld, art PICT, mask PICT or None,
+# expected WxH).  The size column is an assertion, not a hint: all 14 were
+# measured and all 14 agree, so a mismatch means the resource changed.
+#
+# glider/glider2/gliderFoil/gliderFoil2 are four different 48x668 colour
+# sheets that share ONE mask (4999) because their frame geometry is identical;
+# Play.c:124-135 and Player.c:1146-1152 swap them between the two glider
+# GWorlds at runtime.
+# --------------------------------------------------------------------------
+STRIPS = [
+    ('glider',      'glidSrcMap',   3999, 4999, (48, 668)),
+    ('glider2',     'glid2SrcMap',  3974, 4999, (48, 668)),
+    ('gliderFoil',  'glidSrcMap',   3976, 4999, (48, 668)),
+    ('gliderFoil2', 'glid2SrcMap',  3963, 4999, (48, 668)),
+    ('shadow',      'shadowSrcMap', 3998, 4998, (48, 18)),
+    ('bands',       'bandsSrcMap',  4007, 5007, (16, 18)),
+    ('points',      'pointsSrcMap', 4006, 5006, (24, 120)),
+    ('toast',       'toastSrcMap',  4009, 5009, (32, 174)),
+    ('shred',       'shredSrcMap',  4010, 5010, (40, 35)),
+    ('fish',        'fishSrcMap',   4017, 5017, (16, 128)),
+    ('supp',        'suppSrcMap',   1999, None, (512, 44)),
+    ('angel',       'angelSrcMap',  1019, 1020, (96, 44)),
+    ('badge',       'badgeSrcMap',  1996, None, (32, 66)),
+    ('board',       'boardSrcMap',  1997, None, (1536, 20)),
+]
+
+# The 18 room backgrounds, 512x322 each, drawn with srcCopy into workSrcMap as
+# the first step of DrawRoomBackground (RoomGraphics.c:238-239).  Nothing can
+# render a room without these.  roomType.background holds the ID (offset 34).
+BACKGROUNDS = list(range(2000, 2018))
+
+# Room art that is neither a sheet, a strip nor an object: the manhole seen
+# through the floor.  LoadScaledGraphic maps its picFrame onto the caller's
+# rect (RoomGraphics.c:281) -- one of only two scaling sites in the game.
+MISC = {3957: 'manhole_thru_floor'}
+
+# The 38 UI plates: about box, splash, dialog banners, editor tool palettes,
+# Room Info thumbnails, game-over and scoreboard art.  All opaque -- every one
+# reaches the screen through DrawPicture or a srcCopy CopyBits.
+UI = ([150, 151, 153] + list(range(1000, 1019)) + [1021, 1022, 1023]
+      + [1202, 1211, 1216, 1217] + list(range(1988, 1996)) + [1998])
+
+# kCustomPict (0x6E) names its art at runtime -- the house supplies the ID, so
+# ATLAS carries 'data.g.height' rather than a number.  PICT 10000 is the
+# placeholder the editor shows for an unresolved custom picture, and it is what
+# the extractor emits (graphics-assets 7.9 rule 5).  Keyed on the object code so
+# the fallback is impossible to confuse with a real constant ID.
+KEY_DEFAULT_PICT = {0x6E: 10000}
+
+# Masks are consumed, never written out; the manifest records which sprite used
+# which.  Listed so the accounting self-test below can see all 152.
+SHEET_MASKS = [5000, 5001, 5002, 5004, 5005, 5008, 5011, 5012, 5013, 5014,
+               5015, 5016, 5018]
+STRIP_MASKS = [1020, 4998, 4999, 5006, 5007, 5009, 5010, 5017]
+OBJ_MASKS = [3903, 3904, 3912, 3913, 3914, 3915, 3921, 3927]
+
+
+# --------------------------------------------------------------------------
 # The only nine opcodes that occur in Glider PRO's 152 PICTs
 # (graphics-assets 3.3).  Anything else is a hard error, not a warning:
 # a picture that needs DirectBitsRect, BitsRgn, a PixPat, a QuickTime payload
@@ -212,6 +272,68 @@ ALLOWED_OPS = frozenset((
     0x00FF,   # OpEndPic
     0x0C00,   # HeaderOp      (v2 header, 24 bytes)
 ))
+
+
+# --------------------------------------------------------------------------
+# Accounting: every PICT in the fork must land in exactly one bucket
+# --------------------------------------------------------------------------
+
+def pict_buckets():
+    """The role partition of graphics-assets 7.8, computed from the tables
+    above rather than restated, so the two cannot drift apart."""
+    b = collections.OrderedDict()
+    b['sheet_art'] = sorted(art for _, _, art, _ in SHEETS.values())
+    b['sheet_mask'] = sorted(SHEET_MASKS)
+    b['strip_art'] = sorted(art for _, _, art, _, _ in STRIPS)
+    b['strip_mask'] = sorted(STRIP_MASKS)
+    obj = set()
+    for what, name, kind, key, fn, rect, note in ATLAS:
+        if kind in ('key', 'opaq', 'pair'):
+            for part in str(key).split('/'):
+                if part.isdigit():
+                    obj.add(int(part))
+    obj |= set(KEY_DEFAULT_PICT.values())
+    b['obj_art'] = sorted(obj - set(OBJ_MASKS))
+    b['obj_mask'] = sorted(OBJ_MASKS)
+    b['bg'] = sorted(BACKGROUNDS)
+    b['misc'] = sorted(MISC)
+    b['ui'] = sorted(UI)
+    return b
+
+
+def check_accounting(res, expect_total=152):
+    """Fail loudly if a PICT is unaccounted for, double-counted or missing.
+
+    This is the acceptance criterion for the asset step: 'every PICT either
+    extracts or is listed as deliberately skipped'.  Asserting it in the tool
+    means a resource nobody classified cannot slip through as silently
+    ignored -- which is exactly how the 18 room backgrounds went missing from
+    the first version of this pipeline.
+    """
+    buckets = pict_buckets()
+    seen = collections.Counter()
+    for ids in buckets.values():
+        seen.update(ids)
+    dupes = {i: n for i, n in seen.items() if n > 1}
+    # 4999 legitimately serves all four glider sheets, but it is listed once.
+    if dupes:
+        raise ValueError("PICT(s) in more than one bucket: %s" % dupes)
+
+    on_disk = set(int(f[:-4]) for f in os.listdir(os.path.join(res.dir, "PICT"))
+                  if f.endswith(".bin"))
+    classified = set(seen)
+    missing = sorted(on_disk - classified)
+    phantom = sorted(classified - on_disk)
+    if missing:
+        raise ValueError("%d PICT(s) present in the fork but classified by no "
+                         "bucket: %s" % (len(missing), missing))
+    if phantom:
+        raise ValueError("%d PICT(s) named by a bucket but absent from the "
+                         "fork: %s" % (len(phantom), phantom))
+    if len(classified) != expect_total:
+        raise ValueError("expected %d PICTs, accounted for %d"
+                         % (expect_total, len(classified)))
+    return buckets
 
 
 # --------------------------------------------------------------------------
@@ -351,8 +473,16 @@ def write_png_rgba(path, w, h, rgba):
 def run(resdir, outdir):
     res = Res(resdir)
     pal = res.palette()
-    manifest = {"sheets": {}, "objects": {}, "stats": {}}
+    manifest = {"sheets": {}, "strips": {}, "objects": {}, "backgrounds": {},
+                "ui": {}, "misc": {}, "buckets": {}, "stats": {}}
     stats = collections.Counter()
+
+    buckets = check_accounting(res)
+    manifest["buckets"] = {k: v for k, v in buckets.items()}
+    print("PICT accounting: %d resources, %d buckets, all classified"
+          % (sum(len(v) for v in buckets.values()), len(buckets)))
+    print("  " + "  ".join("%s=%d" % (k, len(v)) for k, v in buckets.items()))
+    print()
 
     sheet_rgba = {}
     for name in sorted(SHEETS):
@@ -389,14 +519,21 @@ def run(resdir, outdir):
             rec["from"] = "sheet:%s (named sub-rects; graphics-assets 6.6)" % key
         elif kind == "key":
             head_ = key.split("/")[0]
-            if head_.isdigit():                 # kCustomPict's ID is runtime data
-                art = res.pict(int(head_), pal)
+            # A numeric key is a constant PICT ID.  A non-numeric one names a
+            # runtime field, in which case KEY_DEFAULT_PICT supplies the
+            # placeholder the original itself falls back to.
+            pict_id = int(head_) if head_.isdigit() else KEY_DEFAULT_PICT.get(what)
+            if pict_id is not None:
+                art = res.pict(pict_id, pal)
                 rgba = rgba_from_key(art)
                 write_png_rgba(png, art[0], art[1], rgba)
                 n = art[0] * art[1]
-                rec.update({"from": "pict:%s" % head_, "file": "object/%s.png" % slug,
+                rec.update({"from": "pict:%d" % pict_id, "file": "object/%s.png" % slug,
                             "alpha": "colour key index 0", "total_px": n,
                             "transparent_px": n - opaque_count(art[0], art[1], rgba)})
+                if not head_.isdigit():
+                    rec["runtime_source"] = key
+                    rec["placeholder"] = True
             else:
                 rec["from"] = "pict:%s" % key
         elif kind == "opaq":
@@ -431,13 +568,76 @@ def run(resdir, outdir):
                 "flowerSrc[data.i.pict] (graphics-assets 6.5)"}
     stats["frames"] += 1
 
+    # ---- strips: frame bands srcRects never indexes (graphics-assets 6.6) ----
+    print()
+    for name, gw, art_id, mask_id, expect in STRIPS:
+        art = res.pict(art_id, pal)
+        w, h = art[0], art[1]
+        if (w, h) != expect:
+            raise ValueError("strip %s: PICT %d is %dx%d, expected %dx%d"
+                             % (name, art_id, w, h, expect[0], expect[1]))
+        if mask_id is None:
+            rgba, how = rgba_opaque(art), "opaque (no mask resource)"
+        else:
+            rgba, how = rgba_from_mask(art, res.pict(mask_id, pal)), "mask %d" % mask_id
+        write_png_rgba(os.path.join(outdir, "strip", name + ".png"), w, h, rgba)
+        op = opaque_count(w, h, rgba)
+        manifest["strips"][name] = {
+            "gworld": gw, "art_pict": art_id, "mask_pict": mask_id,
+            "size": [w, h], "alpha": how, "opaque_px": op, "total_px": w * h,
+            "file": "strip/%s.png" % name}
+        stats["strip"] += 1
+        print("strip %-12s %4dx%-4d art %d %-24s opaque %6d/%6d (%.1f%%)"
+              % (name, w, h, art_id, how, op, w * h, 100.0 * op / (w * h)))
+
+    # ---- room backgrounds: srcCopy into workSrcMap, always opaque ----
+    print()
+    for rid in BACKGROUNDS:
+        art = res.pict(rid, pal)
+        w, h = art[0], art[1]
+        if (w, h) != (512, 322):
+            raise ValueError("background %d is %dx%d, expected 512x322"
+                             % (rid, w, h))
+        write_png_rgba(os.path.join(outdir, "bg", "%d.png" % rid), w, h,
+                       rgba_opaque(art))
+        manifest["backgrounds"][str(rid)] = {
+            "size": [w, h], "alpha": "none (srcCopy)",
+            "file": "bg/%d.png" % rid}
+        stats["bg"] += 1
+    print("bg          %d backgrounds %d..%d, all 512x322"
+          % (len(BACKGROUNDS), BACKGROUNDS[0], BACKGROUNDS[-1]))
+
+    # ---- UI plates and the one misc room picture ----
+    for rid in UI:
+        art = res.pict(rid, pal)
+        w, h = art[0], art[1]
+        write_png_rgba(os.path.join(outdir, "ui", "%d.png" % rid), w, h,
+                       rgba_opaque(art))
+        manifest["ui"][str(rid)] = {"size": [w, h], "alpha": "none",
+                                    "file": "ui/%d.png" % rid}
+        stats["ui"] += 1
+    print("ui          %d plates" % len(UI))
+
+    for rid, name in sorted(MISC.items()):
+        art = res.pict(rid, pal)
+        w, h = art[0], art[1]
+        slug = "%d_%s" % (rid, name)
+        write_png_rgba(os.path.join(outdir, "misc", slug + ".png"), w, h,
+                       rgba_opaque(art))
+        manifest["misc"][str(rid)] = {"size": [w, h], "alpha": "none",
+                                      "file": "misc/%s.png" % slug}
+        stats["misc"] += 1
+    print("misc        %d (%s)" % (len(MISC), ", ".join(MISC.values())))
+
     manifest["stats"] = dict(stats)
     with open(os.path.join(outdir, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     print()
     print("kinds      :", dict(stats))
-    print("sheet PNGs :", len(os.listdir(os.path.join(outdir, "sheet"))))
-    print("object PNGs:", len(os.listdir(os.path.join(outdir, "object"))))
+    for d in ("sheet", "object", "strip", "bg", "ui", "misc"):
+        p = os.path.join(outdir, d)
+        print("%-11s: %d PNGs" % (d + " PNGs", len(os.listdir(p))))
+    return manifest
 
 
 def main(argv):

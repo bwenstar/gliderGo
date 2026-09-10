@@ -54,6 +54,9 @@ Usage:
     probe_snd.py list                 table of all 70 app 'snd ' resources
     probe_snd.py houses               all 'snd ' resources in GliderPRO/Houses/*
     probe_snd.py extract <outdir>     raw PCM + manifest.tsv for the Go port
+    probe_snd.py extract-houses <outdir>
+                                      raw PCM + manifest.tsv for the houses'
+                                      custom sound-trigger sounds
     probe_snd.py wav <ID> <out.wav>   optional: WAV, only for listening by ear
 """
 
@@ -407,6 +410,59 @@ def cmd_extract(argv):
     print("        %.4f Hz for every application resource." % fixed_to_hz(RATE_22K))
 
 
+def cmd_extract_houses(argv):
+    """Write the per-house custom "sound trigger" sounds as raw PCM.
+
+    Unlike the 70 application sounds, these are NOT all 22254.5455 Hz and NOT
+    all uncompressed: the sample rate is per-resource and five are MACE
+    (`cmpSH`).  MACE is not implemented here, so those five are reported as
+    explicit skips rather than silently dropped -- see the manifest's `skipped`
+    rows and audio.md section 3.5.
+    """
+    if not argv:
+        sys.exit("usage: probe_snd.py extract-houses <outdir>")
+    outdir = argv[0]
+    os.makedirs(outdir, exist_ok=True)
+    man = open(os.path.join(outdir, "manifest.tsv"), "w")
+    man.write("file\thouse\tid\tname\tframes\trate_hz\tloop_start\tloop_end\t"
+              "base_freq\tencode\tstatus\n")
+    n = skipped = 0
+    for house, rid, rname, blob in house_snds():
+        name = (rname or b"").decode("mac-roman") if isinstance(rname, bytes) \
+            else (rname or "")
+        try:
+            hdr, snd = parse(blob)
+        except Exception as exc:                       # noqa: BLE001
+            man.write("-\t%s\t%d\t%s\t-\t-\t-\t-\t-\t-\tparse error: %s\n"
+                      % (house, rid, name, exc))
+            skipped += 1
+            continue
+        pcm = snd.pcm_u8()
+        if pcm is None:
+            man.write("-\t%s\t%d\t%s\t%d\t%.4f\t%d\t%d\t%d\t0x%02X\t"
+                      "SKIPPED: MACE compressionID=%d not implemented\n"
+                      % (house, rid, name, snd.frames, snd.rate_hz,
+                         snd.loop_start, snd.loop_end, snd.base_frequency,
+                         snd.encode, snd.compression_id))
+            print("skip %s %d (%s): MACE compressed" % (house, rid, name),
+                  file=sys.stderr)
+            skipped += 1
+            continue
+        slug = "".join(c if c.isalnum() or c in "-_" else "_" for c in house)
+        fn = "%s_%d.pcm" % (slug, rid)
+        with open(os.path.join(outdir, fn), "wb") as fh:
+            fh.write(pcm)
+        man.write("%s\t%s\t%d\t%s\t%d\t%.4f\t%d\t%d\t%d\t0x%02X\tok\n"
+                  % (fn, house, rid, name, snd.frames, snd.rate_hz,
+                     snd.loop_start, snd.loop_end, snd.base_frequency,
+                     snd.encode))
+        n += 1
+    man.close()
+    print("wrote %d .pcm files + manifest.tsv to %s (%d skipped)"
+          % (n, outdir, skipped))
+    return n, skipped
+
+
 def cmd_wav(argv):
     """Only for verifying by ear; the Go port needs no WAV parser."""
     if len(argv) < 2:
@@ -427,7 +483,8 @@ def cmd_wav(argv):
 
 
 COMMANDS = {"show": cmd_show, "list": cmd_list, "houses": cmd_houses,
-            "extract": cmd_extract, "wav": cmd_wav}
+            "extract": cmd_extract, "extract-houses": cmd_extract_houses,
+            "wav": cmd_wav}
 
 
 def main(argv):

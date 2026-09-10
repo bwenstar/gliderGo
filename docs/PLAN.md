@@ -106,32 +106,42 @@ The order matters: data before pixels, pixels before physics, physics before pol
 Each step is independently verifiable, which is the only way to catch a fidelity
 regression before it is buried under three more subsystems.
 
-**1.1 Asset extraction (Python, one-time-per-checkout, reproducible)**
+**1.1 Asset extraction (Python, one-time-per-checkout, reproducible)** ✅ *done*
 
-Stage 0 left working prototypes in `tools/` — `probe_house.py` (BinHex + house dump),
-`probe_rez.py` (Rez → 538 resources), `probe_pict.py` (QuickDraw PICT), `probe_snd.py`
-(`'snd '` → 70 PCM files), `probe_mov.py` (QuickTime), `extract_art.py` (the driver).
-They were written to *answer questions*, not to feed a build, so 1.1 is mostly
-promotion and gap-closing rather than new work:
+Stage 0 left working prototypes in `tools/` written to *answer questions*, not to feed a
+build. 1.1 promoted them to a pipeline and closed the coverage gaps:
 
-- Promote the probes to a stable pipeline: one `tools/extract_all.py` driver writing
-  `assets/extracted/` plus a manifest JSON, with the probe scripts kept as the
-  inspection CLIs they already are.
-- **Close the coverage gap.** `extract_art.py` today emits only `sheet/` (14 PNGs) and
-  `object/` (93 PNGs). Still unextracted, and needed before 1.3 can draw anything:
-  - the **18 room backgrounds**, PICT 2000–2017 — without these every room is blank;
-  - the UI plates (splash 1000, scoreboard strip 1997, dialog art) and the loose
-    `ICON`/`CICN`/`PAT#` resources;
-  - the 15 house movies, if Stage 1 keeps the TV objects (`raw `, `rle ` and `smc `
-    codecs — `probe_mov.py` already decodes all three).
-- Carry the two decoder traps the analysis pass found the hard way: the extended
-  PICT v2 header (`version == -2`) must be consumed and ignored, never rejected —
-  21 of 152 pictures use it, including the glider sheet 3999 and the splash screen —
-  and where a sheet has a mask resource, use the mask; do not key on white.
-- *Acceptance:* every PICT and `'snd '` resource either extracts or is listed as
-  deliberately skipped, with counts matching `docs/analysis/resource-fork.md`; all 18
-  room backgrounds present; sprite sheets visually inspected against the original's
-  splash screen art.
+- `tools/extract_all.py` is the one command (`make assets`): 908 files, 36 MB, 16 s into
+  `assets/extracted/{res,art,sound,houses,movie}/` + `manifest.json`. The probe scripts
+  stay as the inspection CLIs they already were, each also exposing its extractor as a
+  function the driver calls.
+- **Coverage closed.** `extract_art.py` now emits 179 PNGs, not 107: `sheet/` 14,
+  `object/` 94, `strip/` 14, **`bg/` 18** (the room backgrounds — without these every
+  room is blank), `ui/` 38 and `misc/` 1. `check_accounting()` partitions all 152 PICTs
+  into the `graphics-assets.md` §7.8 buckets and raises on an unclassified, duplicated
+  or phantom id, which is how the one genuine hole was found: PICT 10000, the
+  `kCustomPict` placeholder, reached through a runtime atlas key rather than a numeric
+  one, so the emitting branch had never run.
+- Sound: 70 application `'snd '` + **58 of the 63 house sounds**; the 5 MACE 6:1
+  resources are named as explicit `SKIPPED` rows with the reason, and play as silence
+  until a MACE decoder exists. House sounds carry nine distinct sample rates, so the
+  manifest's `rate_hz` is load-bearing.
+- Houses: both forks written out, so **nothing in the Go port parses BinHex**. 22 houses,
+  4,070 rooms, all version 0x0200; `Sampler`'s documented 2-byte PowerPC tail is
+  tolerated by name and anything else is rejected.
+- Movies: extracted after all — 0.4 s and 1.1 MB for all 15 as flat 8-bit index buffers,
+  cheap enough that deferring them would have been the more expensive choice. Whether
+  Stage 1 *draws* them is a 1.5 decision, not a data problem.
+- The two decoder traps the analysis pass found the hard way are carried: the extended
+  PICT v2 header (`version == -2`) is consumed and ignored, never rejected — 21 of 152
+  pictures use it, including the glider sheet 3999 and the splash — and where a sheet has
+  a mask resource the mask is used rather than keying on white.
+- *Acceptance met:* all 152 PICTs and all 133 `'snd '` resources either extract or are
+  listed as deliberately skipped, machine-checked against 9 counts that
+  `docs/analysis/` derived independently; all 18 room backgrounds present and asserted
+  512×322; `bg/2000.png`, `ui/1000.png` (the 1994 splash) and `strip/glider.png`
+  inspected by eye. Extraction is deterministic — `make assets-check` re-extracts and
+  diffs the manifests to prove it.
 
 **1.2 House loading**
 - `internal/house`: the `House`/`Room`/`Object` model, plus a binary loader that reads the
@@ -163,9 +173,19 @@ promotion and gap-closing rather than new work:
   expected sound sequence (verified by ear off-box, since this host has no sound card).
 
 **1.7 The shell**
-- Splash, menus, house selection, preferences, scoreboard, high scores, game over.
+- Splash, menus, house selection, preferences, scoreboard, game over.
+- **High scores** (owner-requested, and the original had them): a **10-row board per house**,
+  each row `{name, score, timestamp, roomsVisited}` plus the house's `banner` — the original's
+  292-byte `scoresType` at house offset 528 (`docs/analysis/scoring.md` §7.2).
+  **Stored in our own per-house file, not in the house.** The original wrote the board back
+  into the house file's data fork, but `GliderPRO/Houses/` is vendored read-only, so the port
+  keeps the same ten rows and the same fields in its own container keyed by house name. The
+  original's unreachable `'gliS'` side-car (`houseIsReadOnly` is hard-wired `false`) is not
+  reproduced.
 - *Acceptance:* a new player can start the game, pick a house, play, die, and see a score
-  without touching a command line.
+  without touching a command line; a score good enough to place appears on that house's board
+  and survives a restart; the 22 original houses' shipped boards are read and displayed but
+  never written back.
 
 **1.8 Fidelity pass**
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of
@@ -194,9 +214,17 @@ promotion and gap-closing rather than new work:
 - Each side simulates only its own glider and sends a progress record on every meaningful
   change: room index, floor/suite, score, lives, alive/dead, finished.
 - "Furthest on one life wins": the winner is decided by the agreed progress metric when both
-  runs have ended; ties broken by score, then by time. The metric must be written down
-  before the code — `docs/analysis/progression.md` defines what "furthest" can even mean in a
-  house graph that is not linear.
+  runs have ended; ties broken by score, then by time. **The metric is rooms visited** — which
+  is not invented for the race: it is what the original's own high-score table records in
+  `scoresType.levels[]` (`docs/analysis/scoring.md` §7.2), despite the field's name. That
+  matters because a house graph is not linear, so "how far" has no obvious geometric answer;
+  counting distinct rooms entered is the definition the 1994 game itself used, and 1.7 already
+  has to compute it for the score board (`docs/analysis/progression.md:528` confirms the
+  reading of the field). Rejected alternatives, recorded here because nothing in
+  `docs/analysis/` argues the case: **room index** (meaningless — the house is a graph and
+  indices are authoring order), **floor number** (undefined across suites, and some houses run
+  sideways), and **score** (already the tie-breaker, and it rewards farming bonuses in one room
+  rather than travelling).
 - Both players see a live opponent panel (their room, score, and whether they are still alive).
 - *Acceptance:* two processes on this host race to completion; killing the guest mid-race
   leaves the host in a defined state; a house-set mismatch is rejected with a clear message.
@@ -247,7 +275,7 @@ is a one-line change with a visible blast radius.
 
 | Risk | Severity | Handling |
 |---|---|---|
-| PICT decoding is harder than expected (QuickDraw is a large format) | **high** — blocks all art | Only the opcodes actually present in these resources need implementing; `docs/analysis/graphics-assets.md` enumerates them from the real bytes. Fallback: render placeholder blocks and keep building the engine, since gameplay does not depend on final art. |
+| ~~PICT decoding is harder than expected (QuickDraw is a large format)~~ | **retired in 1.1** | Nine opcodes covered all 152 pictures. 179 PNGs extracted, accounting self-checked, art inspected on screen. Kept in the table because the reasoning generalises: only the opcodes actually present needed implementing, which `docs/analysis/graphics-assets.md` had enumerated from the real bytes before a line was written. |
 | Physics "feel" diverges subtly from 1994 | high — the point of the project | Constants ported literally with citations; trace tests; no refactoring of the update order. |
 | No reference implementation to diff against (no Mac, no emulator) | medium | Source is the oracle; ambiguities recorded and pinned by tests. A Mac emulator on another machine would be a cheap future win if one exists. |
 | House format has undocumented version variants | medium | Loader is written against the format spec *and* validated against all 22 shipped houses, which is the entire population of files that matter. |
@@ -262,6 +290,7 @@ is a one-line change with a visible blast radius.
 ```bash
 cd gliderGo
 ./scripts/bootstrap-dev-env.sh && . scripts/env.sh && make check
+make assets                  # assets/extracted/ is gitignored; regenerate it (16 s)
 git log --oneline            # every stage is a commit with a detailed message
 sed -n '1,60p' docs/PLAN.md  # you are here
 ```

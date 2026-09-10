@@ -1520,15 +1520,28 @@ Merged from the `## Open questions` section of all 28 docs (27 actually have one
 What must be extracted, in what order, into what target formats, and what already exists in
 `tools/`.
 
-### 21.1 Existing prototype scripts
+### 21.1 The extraction scripts
+
+`tools/extract_all.py` is the build step; everything else is an inspection CLI that also
+exposes its extractor as a function the driver calls. One command produces the whole tree:
+
+```
+python3 tools/extract_all.py            # or: make assets
+```
+
+→ `assets/extracted/{res,art,sound,houses,movie}/` + `manifest.json`, **908 files, 36 MB, 16 s**.
+The tree is gitignored: it is derived data and this script is the derivation. Two runs over the
+same `GliderPRO/` produce byte-identical output (no wall-clock in the manifest), so
+`make assets-check` re-extracts to a temp directory and diffs the manifests to prove it.
 
 | Script | Size | What it does |
 |---|---:|---|
+| `tools/extract_all.py` | 13,170 B / 324 lines | The driver. Runs the five buckets in dependency order, hashes every input out of `GliderPRO/` for provenance, records a `tree_sha256` per bucket, and checks 9 counts (538 resources / 35 types / 152 PICTs / 18 backgrounds / 70 app sounds / 58 house sounds / 22 houses / 4,070 rooms / 15 movies) against the numbers `docs/analysis/` counted independently. A mismatch exits non-zero rather than quietly shipping fewer assets |
 | `tools/probe_rez.py` | 11,794 B | Parses the `Glider PRO.r` DeRez dump into typed resources. Character-walking header parser at `:78`; **must read in binary mode** (`:145`). Sub-command `extract` writes `<out>/<TYPE>/<id>.bin` |
 | `tools/probe_house.py` | 21,042 B | BinHex 4.0 decode + Mac resource-map parsing. `binhex_crc` alphabet assert at `:29`; fork CRC checks at `:137`/`:140`. **Pass `check_crc=True`** (defaults to False); resource key is `rsrc` |
 | `tools/probe_pict.py` | 37,019 B | The PICT decoder. `Picture.parse` → `rasterise` (`:702`) returns `(W, H, RGB, info)` with `info["idxmap"]` the **palette-index plane**. `clut` parsing at `:824`, 256-entry RGB conversion at `:417`, defensive grey ramp at `:728-731` |
-| `tools/extract_art.py` | 29,622 B | Stages 1-3 of the art pipeline. Embeds the whole sheet table (`SHEETS`) and all 116 atlas rows (`ATLAS`), plus `ALLOWED_OPS` as a frozenset and the four alpha functions (`rgba_from_mask`, `rgba_from_key`, `rgba_opaque`, `crop`) |
-| `tools/probe_snd.py` | 18,111 B / 442 lines | Sub-commands `show`, `list`, `houses`, `extract`, `wav`. `extract` produced **70 `.pcm` files, 1,126,404 bytes**, plus `manifest.tsv` |
+| `tools/extract_art.py` | 39,221 B / 652 lines | The whole art pipeline. Embeds the sheet table (`SHEETS`), all 116 atlas rows (`ATLAS`), the strip/background/UI/misc tables, `ALLOWED_OPS` as a frozenset and the four alpha functions (`rgba_from_mask`, `rgba_from_key`, `rgba_opaque`, `crop`). `check_accounting()` partitions all 152 `PICT`s into the §7.8 buckets and raises on a duplicate, an unclassified id, a phantom id or a wrong total |
+| `tools/probe_snd.py` | 20,735 B / 499 lines | Sub-commands `show`, `list`, `houses`, `extract`, `extract-houses`, `wav`. `extract` produces **70 `.pcm` files, 1,126,404 bytes**; `extract-houses` produces **58 `.pcm` files, 2,133,612 bytes** and records the 5 MACE resources as explicit skips |
 | `tools/probe_houses_inventory.py` | 38,758 B | Generates `docs/analysis/houses-inventory.md` from the 22 house files |
 | `tools/probe_mov.py` | 59,692 B | QuickTime container + `rle `/`raw `/`smc ` decoding for the 15 house movies |
 
@@ -1552,17 +1565,24 @@ Expect 3,168,309 bytes of payload total. Authority: `resource-fork.md` Part 2.
 **Step 2 — art: PICT → RGBA PNG + manifest.**
 `python3 tools/extract_art.py /tmp/gp/res /tmp/gp/art`
 Internally three stages: decode each `PICT` to an index plane (9 opcodes, everything else
-fatal); apply one of four alpha rules; crop by the atlas table. Measured output: **`sheet/` (14
-PNGs), `object/` (93 PNGs) and `manifest.json` — and nothing else.** It does **not** yet emit
-`bg/`, `strip/`, `ui/` or `misc/`; the only directories it creates are those two
-(`extract_art.py:367, :381, :435`). In particular the **18 room backgrounds, PICT 2000-2017, are
-not extracted by any existing tool**, so nothing can draw a room until that gap is closed — see
-`docs/PLAN.md` step 1.1, which tracks it. Naming: `object/<WHAT>_<constant>.png` where `<WHAT>` is the **two-digit
+fatal); apply one of four alpha rules; crop by the atlas table. Measured output: **179 PNGs plus
+`manifest.json`** — `sheet/` 14, `object/` 94, `strip/` 14, `bg/` 18, `ui/` 38, `misc/` 1.
+The run begins with `check_accounting()`, which partitions all 152 `PICT`s in the fork into the
+§7.8 buckets (`sheet_art` 14, `sheet_mask` 13, `strip_art` 14, `strip_mask` 8, `obj_art` 38,
+`obj_mask` 8, `bg` 18, `ui` 38, `misc` 1) and raises if any id is unclassified, double-claimed or
+absent. That check is what makes "every PICT extracts or is deliberately skipped" a fact rather
+than a claim — it found the one real gap, `PICT` 10000 (the `kCustomPict` placeholder, reached
+through a *runtime* atlas key rather than a numeric one, so the branch that emits it never ran).
+
+Naming: `object/<WHAT>_<constant>.png` where `<WHAT>` is the **two-digit
 uppercase hex object code** (so a room dump joins against the sprite directory with no lookup
 table) and `<constant>` is the exact C identifier. Flowers get six files
 `85_kFlower_0..5.png`. `manifest.json`'s `stats` block is the pipeline's self-test and must
-read `{"sheet":50,"key":21,"none":13,"tmpl":12,"opaq":9,"pair":8,"proc":3,"frames":1}` — 116
-`srcRects` entries + 1 `kFlower` frames entry = 117 object records, of which 87 carry a file.
+read `{"sheet":50,"key":21,"none":13,"tmpl":12,"opaq":9,"pair":8,"proc":3,"frames":1}` plus the
+non-object counters `{"strip":14,"bg":18,"ui":38,"misc":1}` — 116
+`srcRects` entries + 1 `kFlower` frames entry = 117 object records, of which 88 carry a file.
+Backgrounds are asserted to be exactly 512x322 and strips to match their `GliderDefines.h`
+GWorld dimensions, so a decoder regression fails here instead of surfacing as a skewed room.
 Authority: `graphics-assets.md` §7.
 
 Do **not** emit PNGs for the 12 `kind == "tmpl"` entries: their `srcRects` value is a size/hit
@@ -1576,15 +1596,32 @@ because all 167 embedded tables agree, but the loader must still honour an embed
 `ColorTable` for **user house art**.
 
 **Step 4 — audio: `'snd '` → PCM.**
-`python3 tools/probe_snd.py extract …` → 70 `.pcm` files (1,126,404 bytes) + `manifest.tsv`.
-Target format for the port: `int16` mono at the **native 22254.5455 Hz**, converted with
+`probe_snd.py extract` → 70 `.pcm` files (1,126,404 bytes) + `manifest.tsv`, every one of them
+`stdSH` at 22254.5455 Hz. `probe_snd.py extract-houses` → the houses' custom sound-trigger
+resources: **58 of 63 extract** (2,133,612 bytes); the other **5 are MACE 6:1 (`cmpSH`,
+`compressionID` 4)** and appear in the manifest as `SKIPPED` rows naming the reason —
+`CD Demo House` 3007 *Door Chime*, `Demo House` 3011 *Meow*, `Nemo's Market` 3001 *Door Chime*,
+3003 *Cash Register*, 3004 *Cat Meow*. Those five play as silence until a MACE decoder exists;
+nothing in Stage 1 depends on them. Unlike the application sounds, house sounds carry a
+**per-resource sample rate**: **nine distinct values** occur across the 58 —
+5563.6364, 7418.1818, 9779.0000, 11127.2727, 11127.5000, 22050.0000, 22254.5454, 22254.5455 and
+22255.0000 Hz. Three of those are the same intended rate authored three ways (22254.5454 /
+22254.5455 / 22255.0000) and two are exact divisions of it (÷4 and ÷2), but a player must honour
+the stored `Fixed` rather than assume the application's single rate, so the manifest's `rate_hz`
+column is load-bearing, not decoration.
+Target format for the port: `int16` mono at each resource's **native rate**, converted with
 `s16 = (int16(b) - 128) << 8`, point-sampled if the audio backend needs another rate (a
 deliberate fidelity choice, not laziness). Layout: `sounds [64][]int16` indexed by the sound
-constant, `music [7][]int16` for `'snd '` 2000-2006. The five MACE 6:1 house sounds are
-silence for now. Authority: `audio.md` §11.
+constant, `music [7][]int16` for `'snd '` 2000-2006. Authority: `audio.md` §11.
 
 **Step 5 — houses: BinHex → data fork + resource fork.**
-`tools/probe_house.py` with `check_crc=True` over `GliderPRO/Houses/*.binhex`. Emit, per house:
+`extract_all.py` emits `houses/<name>.house` (data fork) and `houses/<name>.rsrc` (resource fork)
+so that **nothing in the Go port ever sees BinHex**. It re-derives `nRooms` from each header and
+refuses any house whose data fork is neither exactly `866 + 348·nRooms` nor that plus the
+documented 2-byte PowerPC slack (§12.4 of `house-format.md`; only `Sampler` has it), then checks
+the corpus totals: 22 houses, 4,070 rooms, all `version == 0x0200`.
+For deeper inspection, `tools/probe_house.py` with `check_crc=True` over
+`GliderPRO/Houses/*.binhex`. Emit, per house:
 the raw data fork **byte-for-byte** (this is the `houseType` image — do not normalise, do not
 re-pack, do not trim `Sampler`'s +2 bytes), plus the resource fork split by type (house
 `PICT`s, house `'snd '`s). Verify the corpus invariants of §13.6 as a regression test: 22
@@ -1593,8 +1630,14 @@ itself only checks 44 of them — §13.5), and the two shared 40-byte `savedGame
 (`CD Demo House`/`Slumberland`, `Nemo's Market`/`SpacePods`). Do **not** assert that any two
 files are byte-identical: all 22 data forks are distinct, and such a test can never pass.
 
-**Step 6 — movies (optional, last).**
-`tools/probe_mov.py` over the 15 `.mov` files → per-frame RGBA at 5 fps (see unknown #2).
+**Step 6 — movies.**
+Planned as "optional, last"; it turned out to cost **0.4 s and 1.1 MB**, so it is simply part of
+the pipeline. `probe_mov.py extract` writes one `movie/<name>.idx8` per film — every frame's
+8-bit palette indices back to back, no codec at runtime — plus a `manifest.tsv` giving codec,
+depth, size, frame count and fps. Whether Stage 1 *draws* them is a separate 1.5 decision; the
+data is ready either way.
+For reference, `tools/probe_mov.py` over the 15 `.mov` files also renders per-frame RGBA at 5 fps
+(see unknown #2).
 `kTV`'s screen rect is 64 x 49; `Demo House.mov` is 82 x 62 and gets cropped by
 `CenterRectInRect` — reproduce the crop, including the −6 vs −7 truncation
 (`quicktime-movies.md` §7.1, OQ5).

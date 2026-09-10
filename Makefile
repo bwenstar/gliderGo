@@ -6,12 +6,14 @@
 GO      ?= $(shell test -x $(HOME)/.local/opt/go/bin/go && echo $(HOME)/.local/opt/go/bin/go || echo go)
 BIN     := bin
 PKG     := ./...
+ASSETS  := assets/extracted
 LDFLAGS := -s -w
 # The build network has no Go module proxy, and nothing here needs one.
 export GOPROXY      := off
 export GOTOOLCHAIN  := local
 
-.PHONY: all build run bench headless test vet fmt check clean cross-windows tools help
+.PHONY: all build run bench headless test vet fmt check clean clean-assets \
+	cross-windows assets assets-check tools help
 
 all: build
 
@@ -58,13 +60,28 @@ check: fmt vet test build headless cross-windows bench
 	@echo
 	@echo "gliderGo: environment OK -- toolchain, cgo, X11, headless and cross-build all work"
 
-## tools: run the asset extraction pipeline (python3, no third-party modules)
+## assets: extract the 1994 art, sound, houses and movies into assets/extracted/
+assets:
+	python3 tools/extract_all.py
+
+## assets-check: re-extract to a temp tree and prove the pipeline is deterministic
+assets-check:
+	@rm -rf /tmp/glidergo-assets-check
+	@python3 tools/extract_all.py --out /tmp/glidergo-assets-check >/dev/null 2>&1
+	@diff $(ASSETS)/manifest.json /tmp/glidergo-assets-check/manifest.json \
+		&& echo "assets: reproducible -- manifests identical"
+
+## tools: list the extraction/inspection scripts (each is a standalone CLI)
 tools:
 	@ls tools/*.py 2>/dev/null || echo "no extraction tools yet"
 
-## clean: remove build output
+## clean: remove build output (not assets/extracted -- use clean-assets)
 clean:
 	rm -rf $(BIN)
+
+## clean-assets: remove extracted assets; `make assets` regenerates them
+clean-assets:
+	rm -rf $(ASSETS)
 
 ## help: list targets
 help:

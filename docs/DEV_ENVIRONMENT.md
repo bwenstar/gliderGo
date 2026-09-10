@@ -184,6 +184,8 @@ gliderGo/
 │   ├── PLAN.md             # staged implementation plan
 │   └── analysis/*.md       # per-subsystem byte-level specs (the detailed authority)
 ├── tools/                  # asset-extraction and probe scripts (python3)
+│   └── extract_all.py      #   the driver: `make assets` -> assets/extracted/
+├── assets/extracted/       # gitignored: 908 generated files, 36 MB, rebuilt in 16 s
 ├── scripts/                # bootstrap-dev-env.sh, env.sh (generated)
 └── .toolchain/             # gitignored: sysroot + deb cache
 ```
