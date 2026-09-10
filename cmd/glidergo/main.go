@@ -37,7 +37,7 @@ func main() {
 	}
 
 	win, err := backend.Open(platform.Config{
-		Title: "gliderGo",
+		Title: "gliderGo -- placeholder test pattern, not the game yet",
 		Scale: *scale,
 	})
 	if err != nil {
@@ -49,6 +49,8 @@ func main() {
 	fb := platform.NewFramebuffer(platform.ScreenWidth, platform.ScreenHeight)
 	fmt.Printf("glidergo: backend=%s surface=%dx%d scale=%d\n",
 		backend.Name, fb.W, fb.H, *scale)
+	fmt.Println("glidergo: PLACEHOLDER TEST PATTERN, not the game -- stage 1 (docs/PLAN.md)")
+	fmt.Println("glidergo: the white bar is a stand-in glider; arrow keys move it, Esc or Q quits")
 
 	tick := time.Duration(int64(time.Second) / tickHz)
 	next := time.Now()
