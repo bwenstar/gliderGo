@@ -23,12 +23,17 @@ a very large house, and try to get further than you did last time.
 ```bash
 ./scripts/bootstrap-dev-env.sh    # rootless: installs Go 1.23 into ~/.local/opt/go
 . scripts/env.sh                  # PATH, GOROOT, GOPROXY=off
-make check                        # fmt, vet, test, build, headless, cross-build, bench
+make check                        # fmt, vet, test, build, headless, cross-build (+ on-screen bench)
 make assets                       # extract the 1994 art/sound/houses/movies (57 s)
 make run                          # window at the original's 640x480
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 make houses                       # round-trip every original house through the codec
 ```
+
+Run these from this directory — the parent directory above has no Makefile, so `make check`
+there fails with `No rule to make target 'check'`. `make check` needs neither a display nor
+a network; `make run` and `make bench` need an X display, and `make check` runs the
+on-screen bench only when `DISPLAY` is set.
 
 Reading the 1994 level data:
 

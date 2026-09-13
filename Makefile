@@ -12,7 +12,7 @@ LDFLAGS := -s -w
 export GOPROXY      := off
 export GOTOOLCHAIN  := local
 
-.PHONY: all build glidertool houses run bench headless test vet fmt check \
+.PHONY: all build glidertool houses run bench smoke headless test vet fmt check \
 	clean clean-assets cross-windows assets assets-check tools help
 
 all: build glidertool
@@ -40,9 +40,22 @@ houses: glidertool
 run: build
 	$(BIN)/glidergo $(ARGS)
 
-## bench: 300 frames flat out, report frame rate (proves the blit path)
+## bench: 300 frames flat out on screen, report frame rate (proves the blit path)
 bench: build
 	$(BIN)/glidergo -frames 300 -bench
+
+# smoke is bench for `check`: the on-screen run is the only part of this Makefile
+# that needs a display, and `check` has to pass over SSH and in CI, so a missing
+# DISPLAY is reported and skipped rather than failing the build. `make bench`
+# still fails without one, because there it is what was asked for.
+smoke: build
+	@if [ -n "$$DISPLAY" ]; then \
+		$(BIN)/glidergo -frames 300 -bench; \
+	else \
+		echo "smoke: DISPLAY is unset -- skipped the on-screen bench;"; \
+		echo "       the blit path is still covered by \`make headless\`."; \
+		echo "       Run \`make bench\` from a desktop session to check X11."; \
+	fi
 
 ## headless: build the null backend and dump 3 frames as PNGs to /tmp/glidergo-frames
 headless:
@@ -69,10 +82,10 @@ vet:
 fmt:
 	$(GO) fmt $(PKG)
 
-## check: everything CI would do, plus an on-screen smoke test
-check: fmt vet test build glidertool houses headless cross-windows bench
+## check: everything CI would do; adds an on-screen bench when there is a display
+check: fmt vet test build glidertool houses headless cross-windows smoke
 	@echo
-	@echo "gliderGo: environment OK -- toolchain, cgo, X11, headless and cross-build all work"
+	@echo "gliderGo: check passed -- toolchain, cgo, tests, houses, headless and cross-build"
 
 ## assets: extract the 1994 art, sound, houses and movies into assets/extracted/
 assets:

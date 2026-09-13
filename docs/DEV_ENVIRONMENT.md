@@ -158,7 +158,8 @@ so correctness is verifiable offline; ALSA/`waveOut`/SDL sinks are then thin.
 
 ## 5. Measured performance baseline
 
-A cgo+Xlib probe (`/tmp/x11test`, reproduced by `make check`) on this host:
+A cgo+Xlib probe (`/tmp/x11test`, reproduced by `make bench`, or by `make check` when
+`DISPLAY` is set) on this host:
 
 ```
 depth=24  bitmap_pad=32  bytes_per_line=2560  byte_order=LSBFirst (0)
