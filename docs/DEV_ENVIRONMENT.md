@@ -14,7 +14,7 @@ cd gliderGo
 ./scripts/bootstrap-dev-env.sh      # rootless; installs Go into ~/.local/opt/go
 . scripts/env.sh                    # PATH/GOROOT/GOPROXY=off/GOTOOLCHAIN=local
 make check                          # builds and smoke-tests the platform layer
-make assets                         # extract the 1994 data (16 s, gitignored output)
+make assets                         # extract the 1994 data (57 s, gitignored output)
 make houses                         # read all 22 original houses and prove nothing changed
 ```
 
@@ -193,7 +193,7 @@ gliderGo/
 │   └── platform/           # 640x480 framebuffer, x11 (cgo) and null backends
 ├── tools/                  # asset-extraction and probe scripts (python3)
 │   └── extract_all.py      #   the driver: `make assets` -> assets/extracted/
-├── assets/extracted/       # gitignored: 908 generated files, 36 MB, rebuilt in 16 s
+├── assets/extracted/       # gitignored: 1,899 generated files, 46 MB, rebuilt in 57 s
 ├── scripts/                # bootstrap-dev-env.sh, env.sh (generated)
 └── .toolchain/             # gitignored: sysroot + deb cache
 ```

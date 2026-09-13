@@ -11,6 +11,8 @@
 //	glidertool house check assets/extracted/houses/*.house
 //	glidertool house info  assets/extracted/houses/*.house
 //	glidertool house rooms Demo.house
+//	glidertool render -scale 2 -o room.png Demo.house
+//	glidertool render -all -o /tmp/demo Demo.house  # every room, for eyeballing
 //	glidertool types vent                          # object type names, filtered
 //
 // Nothing here is needed to play. It exists because every later stage of the port
@@ -48,6 +50,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "house":
 		return houseCmd(args[1:])
+	case "render":
+		return renderCmd(args[1:])
 	case "types":
 		return typesCmd(args[1:])
 	case "help", "-h", "-help", "--help":
@@ -68,6 +72,7 @@ usage: %s <command> [flags] [file...]
   house check <house>...                    load, round-trip and sanity-check
   house info  <house>...                    one summary line per house
   house rooms [-objects] <house>            per-room table
+  render      [flags] <house>               compose a room to PNG, as the game does
   types       [substring]                   the object type names, by code
 
 Flags precede file names. The text format is documented by the header comment

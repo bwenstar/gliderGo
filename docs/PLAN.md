@@ -114,7 +114,8 @@ build. 1.1 promoted them to a pipeline and closed the coverage gaps:
 - `tools/extract_all.py` is the one command (`make assets`): 908 files, 36 MB, 16 s into
   `assets/extracted/{res,art,sound,houses,movie}/` + `manifest.json`. The probe scripts
   stay as the inspection CLIs they already were, each also exposing its extractor as a
-  function the driver calls.
+  function the driver calls. (1.3 added a sixth bucket, `houseart/`, for the 919 PICTs in
+  the houses' own resource forks, which takes the totals to 1,899 files, 46 MB, 57 s.)
 - **Coverage closed.** `extract_art.py` now emits 179 PNGs, not 107: `sheet/` 14,
   `object/` 94, `strip/` 14, **`bg/` 18** (the room backgrounds — without these every
   room is blank), `ui/` 38 and `misc/` 1. `check_accounting()` partitions all 152 PICTs
@@ -179,10 +180,59 @@ build. 1.1 promoted them to a pipeline and closed the coverage gaps:
   unlocked. Both text round trips hold for every house. `make houses` re-checks all of it
   through the CLI in under a second.
 
-**1.3 Rendering a static room**
-- `internal/render`: background, tiles, object layers, in the original's draw order.
-- *Acceptance:* a chosen room from Demo House rendered to PNG and compared, by eye and
-  then by checked-in reference hash, against the original's composition.
+**1.3 Rendering a static room** ✅ *done*
+
+`internal/render` composes a room exactly as `DrawLocale` does; `glidertool render` writes the
+result to PNG, which is how it was checked.
+
+- **Indexed, not RGBA, all the way to the last step.** The original's furniture shadows are
+  `PenPat(gray)` + `PenMode(patOr)`, which ORs *palette indices*: `k8DkstGrayColor` (254) over
+  an arbitrary background gives whatever `254|bg` names. Compositing in RGB would produce
+  plausible colours that are not the game's. `Surface` is therefore an 8-bit index plane plus a
+  mask plane, and the palette is applied once, in `ToRGBA`.
+- **The palette is generated and then proved.** `TestPaletteMatchesClut` checks all 256 entries
+  against the shipped `clut` 128 *and* 129 — they are byte-identical — and asserts the two
+  properties the rest of the renderer leans on: index 0 is pure white, so the white colour key
+  and a mask built from it are the same operation; and RGB→index is injective, so the extracted
+  RGBA PNGs go back to indices losslessly.
+- **All nine local rooms, because the 640x480 screen shows all nine.** `numNeighbors` is 9
+  unless the screen is 512 wide or less (`Main.c:191`), so slivers of eight neighbours and both
+  floor-support bands are visible and had to be drawn. Far rooms first, central last, which is
+  what lets an object overhang a room boundary and be overdrawn by its own room.
+- **Object draw order is a 117-case transcription** of `DrawARoomsObjects`, with the original's
+  oddities reproduced and commented rather than tidied: the eight objects that skip the
+  intersection test, `kMirror`'s region add sitting outside both guards, `kToaster` lacking the
+  `isLit` gate that `kShredder` beside it has, `kStereo` answering with `isPlayMusicGame` instead
+  of its own state, and the bare `originV` in `kTable`/`kDeckTable`.
+- **Two of the original's bugs are now visible here, and were the hardest part to be sure of.**
+  `DrawRoomBackground` sets the port to `workSrcMap` and never restores it, so every later
+  helper's "restore" restores to the scratch map — which means `DrawCabinet`'s outline and
+  `DrawCounter`'s drawer panels are drawn into scratch and then erased by `RestoreWorkMap`.
+  Cabinets have no border and counters no drawer panels in the shipped game, and they have none
+  here. Reproducing it needed proof that a lit room always reaches the tile loop before its
+  objects are drawn; it does.
+- **Resource caps are modelled because they change the picture, not just the bookkeeping.**
+  `kMaxSavedMaps` is 24, and candles, tikis, coals, pendulums, stars and grease each consume a
+  slot (a star consumes two). Objects are processed in slot order, so the cap decides *which*
+  clocks and prizes get drawn at all. The golden file pins the table sizes beside the pixels.
+- **House resource forks shadow the application's for every ID, not just IDs ≥ 3000.** 51 of the
+  919 shipped house `PICT`s override application art, and three of the overrides are drawn by
+  this code path: Metropolis's own floor-support beam (1999) and Fun House's own 2014 and 2015,
+  which are two of the eighteen *built-in* backgrounds. Written up as
+  `docs/analysis/graphics-assets.md` §7.12.1.
+- *Acceptance met:* every room of every shipped house composes — **4,070 rooms, 22 houses, no
+  missing resource and no off-palette pixel outside the 24 pictures that carry their own
+  `ColorTable`** — and each one's index plane is pinned by a hash in
+  `internal/render/testdata/locale_golden.txt` (4 s for the lot). Demo House, Slumberland and
+  Teddy World rooms were compared by eye against the original's composition.
+- *Deviations, stated plainly:* the hash pins **our** output, since there is no 1994 framebuffer
+  to hash — fidelity was established by eye and the hash freezes that judgement. `ColorOval` is
+  a per-pixel ellipse test rather than QuickDraw's region builder (affects only dithered
+  furniture shadows). `kCalendar`'s month name is not drawn yet — it needs a font engine, which
+  arrives with the shell in 1.7. The 24 off-palette house pictures get nearest-in-RGB matching
+  instead of the Color Manager's inverse table, counted and reported by
+  `Assets.Approximations()`. The `isDepth == 4` 16-grey branch of every helper is not ported.
+  `masterObjects` and the link table are deferred to 1.5; nothing they produce reaches a pixel.
 
 **1.4 Player physics**
 - `internal/game/player`: the glider state machine, gravity, air, banking, foil/bands/helium.
@@ -318,7 +368,7 @@ is a one-line change with a visible blast radius.
 ```bash
 cd gliderGo
 ./scripts/bootstrap-dev-env.sh && . scripts/env.sh && make check
-make assets                  # assets/extracted/ is gitignored; regenerate it (16 s)
+make assets                  # assets/extracted/ is gitignored; regenerate it (57 s)
 make houses                  # 1.2's evidence: 22 houses through both codecs, unchanged
 git log --oneline            # every stage is a commit with a detailed message
 sed -n '1,60p' docs/PLAN.md  # you are here

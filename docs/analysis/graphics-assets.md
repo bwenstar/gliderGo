@@ -2295,10 +2295,52 @@ repeated here. The extraction-specific facts are:
    narrower reads unpainted GWorld; anything wider is unreachable.
 
 For extraction, the practical consequence is a **two-level asset map**: resolve an ID against the
-house's own table first, then the application's. `original-houses.md` §1.5 gives the port note. The
-extractor in this document deliberately handles only the application fork, because the house forks are
-a separate document's subject; the hook is that `Res.raw()` takes a resource directory, so pointing it
-at a house's extracted fork and chaining two `Res` objects is a ten-line change.
+house's own table first, then the application's. `original-houses.md` §1.5 gives the port note.
+
+### 7.12.1 Measured: the 22 shipped forks, as extracted
+
+`tools/extract_house_art.py` runs the §7 pipeline over each house's resource fork and writes
+`assets/extracted/houseart/<house>/pict/<id>.png` plus a manifest. Totals: **919 `PICT`s** and
+**70 `bnds`** across the 22 houses.
+
+| role | count | what it is |
+|---|---|---|
+| `custom_pict` | 545 | ID ≥ 10000: `kCustomPict` art |
+| `background` | 323 | ID 3000..3799: user backgrounds, 315 of them the mandated 512x322 |
+| `app_override` | 51 | an ID the application also defines |
+
+Two houses (`Empty House`, `Sampler`) have a resource fork with no `PICT`s at all, so no directory is
+written for them and every lookup falls straight through to the application art.
+
+**The 51 overrides are the reason resolution has to consult the house fork for _every_ ID, not just
+IDs ≥ 3000.** By ID:
+
+| app `PICT` | houses | consequence if the fork is not consulted |
+|---|---|---|
+| 1991, 1992, 1993 | 13 each | the banner page art is the application's; cosmetic, and confined to the between-house banner |
+| 1017, 1018 | 3 and 4 | the "stars remaining" scoreboard glyphs are wrong in four houses |
+| 1015, 1016 | Teddy World | the Esc/Tab pause overlays are wrong |
+| **1999** | **Metropolis** | **every floor-support beam in the house is the wrong beam** |
+| **2014, 2015** | **Fun House** | **two of the eighteen built-in room backgrounds are wrong** |
+
+The last three are the load-bearing ones: they are drawn by the static room composition, in a house
+the player can select from the shipped list, and nothing about the room data hints that the art has
+been replaced. A loader gated on `id >= kUserBackground` would draw Metropolis and Fun House wrongly
+and every other house correctly — which is the shape of bug that survives a whole test suite.
+`PICT` 10000 is shadowed by four houses too, but the extractor files those under `custom_pict`
+because that is what they are; the resolution order handles them either way.
+
+**Colour.** 895 of the 919 pictures use only colours from `clut` 128 and go back to palette indices
+exactly. The remaining **24 carry their own `ColorTable`** — 23 in Teddy World, 1 in The Asylum Pro
+— and the original hands those to QuickDraw, which colour-matches them into the 8-bit destination
+through a Color Manager inverse table this port does not have. `internal/render.nearestIndex` stands
+in for it (unweighted RGB proximity, lowest index breaking a tie) and every pixel it touches is
+counted, so `Assets.Approximations()` reports the approximation instead of hiding it. Composing all
+of Teddy World reaches ~2.0M such pixels, essentially all of them in whole backgrounds.
+
+**`'Date'` resources: none.** No shipped house carries one, so step 2 of `LoadGraphicSpecial`'s
+fallback chain — the latent crash of §7.12 item 3 — is unreachable in every house that exists. Not
+porting it is therefore free as well as correct.
 
 ### 7.13 Backgrounds and the 8-tile room model
 

@@ -10,9 +10,11 @@ You are a paper glider. You ride the air from furnace vents, dodge the household
 a very large house, and try to get further than you did last time.
 
 > **Status: in development.** Stage 0 (foundations, environment, source archaeology),
-> Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies) and Stage 1.2
+> Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies), Stage 1.2
 > (house loading: all 22 original houses read, written and round-tripped byte-for-byte)
-> are complete. Stage 1.3 (rendering a static room) is next. See [docs/PLAN.md](docs/PLAN.md).
+> and Stage 1.3 (room rendering: all 4,070 rooms of all 22 houses compose in the
+> original's draw order) are complete. Stage 1.4 (player physics) is next.
+> See [docs/PLAN.md](docs/PLAN.md).
 
 ---
 
@@ -22,7 +24,7 @@ a very large house, and try to get further than you did last time.
 ./scripts/bootstrap-dev-env.sh    # rootless: installs Go 1.23 into ~/.local/opt/go
 . scripts/env.sh                  # PATH, GOROOT, GOPROXY=off
 make check                        # fmt, vet, test, build, headless, cross-build, bench
-make assets                       # extract the 1994 art/sound/houses/movies (16 s)
+make assets                       # extract the 1994 art/sound/houses/movies (57 s)
 make run                          # window at the original's 640x480
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 make houses                       # round-trip every original house through the codec
@@ -42,6 +44,19 @@ bin/glidertool types                                        # the 117 object typ
 1994-compatible binary, byte-for-byte with `-residue`. That is how new houses will be
 authored and how houses are diffed in git.
 
+Looking at the 1994 pixels:
+
+```bash
+make assets                                                 # needed once, for the art (57 s)
+bin/glidertool render -scale 2 -o /tmp/room.png "assets/extracted/houses/Demo House.house"
+bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
+```
+
+`render` composes a room the way the game does — nine local rooms, the original's object draw
+order, the original's two port bugs — and writes it out as a PNG. It is how the renderer was
+checked by eye, and `-all` over a whole house is the quickest way to notice that something has
+gone missing.
+
 The build needs no network access at run time and no third-party Go modules —
 see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
 
@@ -56,9 +71,10 @@ see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network
 | `docs/DEV_ENVIRONMENT.md` | How to build here, what this airgapped network can reach, and the measured performance baseline. |
 | `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
 | `internal/house/` | The house model and its two codecs: the 1994 binary format (byte-exact both ways) and a line-oriented text format meant to be written by hand and read in a diff. |
-| `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms` and the `types` reference table. |
+| `internal/render/` | The room composition: an 8-bit indexed surface with the game's own 256-colour palette, the sprite atlas, and `DrawLocale`'s draw order object for object. Indexed rather than RGBA because the original's shadows OR palette *indices* together. |
+| `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG) and the `types` reference table. |
 | `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
-| `assets/extracted/` | **Generated, gitignored.** 908 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 16 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
+| `assets/extracted/` | **Generated, gitignored.** 1,899 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 57 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
 
 ## Planned scope
 

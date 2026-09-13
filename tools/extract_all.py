@@ -19,6 +19,7 @@ Output tree
     sound/houses/         <house>_<id>.pcm + manifest.tsv     (custom triggers)
     houses/<name>.house   the 22 house data forks, BinHex removed
     houses/<name>.rsrc    their resource forks (where the custom sounds live)
+    houseart/<name>/      each house's own PICTs and 'bnds', decoded
     movie/<name>.idx8     the 15 TV movies as flat 8-bit index buffers
     manifest.json         counts, skips, provenance, per-bucket tree hashes
 
@@ -50,6 +51,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import extract_art                                            # noqa: E402
+import extract_house_art                                      # noqa: E402
 import probe_house                                            # noqa: E402
 import probe_mov                                              # noqa: E402
 import probe_rez                                              # noqa: E402
@@ -59,14 +61,15 @@ REZ = os.path.join(ROOT, "GliderPRO", "Glider PRO.r")
 HOUSES = os.path.join(ROOT, "GliderPRO", "Houses")
 DEFAULT_OUT = os.path.join(ROOT, "assets", "extracted")
 
-BUCKETS = ("res", "art", "sound", "houses", "movie")
+BUCKETS = ("res", "art", "sound", "houses", "houseart", "movie")
 
 # What the analysis pass counted, independently of this script.  Checked after
 # every run so that a decoder change, a re-vendored source or a silently
 # dropped resource fails the build instead of quietly shrinking the asset set.
 # Sources: docs/analysis/resource-fork.md (538/35/152), audio.md (70 app,
 # 63 house = 58 stdSH + 5 cmpSH), houses-inventory.md (22/4070),
-# quicktime-movies.md (15), graphics-assets.md 7.8 (18 backgrounds).
+# quicktime-movies.md (15), graphics-assets.md 7.8 (18 backgrounds).  The
+# houseart counts are this pipeline's own measurement of the 22 house forks.
 EXPECT = {
     ("res", "resources"): 538,
     ("res", "types"): 35,
@@ -76,6 +79,8 @@ EXPECT = {
     ("sound", "house_pcm"): 58,
     ("houses", "houses"): 22,
     ("houses", "rooms"): 4070,
+    ("houseart", "pict_total"): 919,
+    ("houseart", "bnds_total"): 70,
     ("movie", "movies"): 15,
 }
 
@@ -223,6 +228,24 @@ def do_houses(out):
             "detail": rows}
 
 
+def do_houseart(out):
+    """Each house's own PICTs.  Custom backgrounds and every kCustomPict object
+    name resources that live in the house fork, not in the application, so a
+    room using either cannot be drawn from the `art` bucket alone."""
+    housedir = os.path.join(out, "houses")
+    resdir = os.path.join(out, "res")
+    if not os.path.isdir(housedir):
+        sys.exit("extract_all: houseart needs houses/ first")
+    if not os.path.isdir(os.path.join(resdir, "clut")):
+        sys.exit("extract_all: houseart needs res/ first (for clut 128)")
+    d = os.path.join(out, "houseart")
+    m = extract_house_art.run(resdir, housedir, d)
+    return {"dir": "houseart", "houses": len(m["houses"]),
+            "pict_total": m["pict_total"], "bnds_total": m["bnds_total"],
+            "off_palette": m["off_palette"],
+            "unknown_types": m["unknown_types"]}
+
+
 def do_movie(out):
     """QuickTime raw/rle/smc -> one flat 8-bit index buffer per frame."""
     d = os.path.join(out, "movie")
@@ -232,7 +255,7 @@ def do_movie(out):
 
 
 STEPS = {"res": do_res, "art": do_art, "sound": do_sound,
-         "houses": do_houses, "movie": do_movie}
+         "houses": do_houses, "houseart": do_houseart, "movie": do_movie}
 
 
 # --------------------------------------------------------------------- main
