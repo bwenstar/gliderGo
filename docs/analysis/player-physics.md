@@ -272,8 +272,8 @@ open room is one whose threshold is *not* the wall value.
 
 | Constant | Value | Where | Note |
 | --- | --- | --- | --- |
-| `kGliderWide` | 48 | `GliderDefines.h:548` | `dest` width in every mode |
-| `kGliderHigh` | 20 | `GliderDefines.h:549` | `dest` height in every mode **except burning** |
+| `kGliderWide` | 48 | `GliderDefines.h:548` | *nominal* `dest` width, installed at mode entry; reduced by the reveal/hide clipping in the stairs, mail and duct handlers (§8.3–§8.17) |
+| `kGliderHigh` | 20 | `GliderDefines.h:549` | *nominal* `dest` height (26 while burning); reduced by the up-stairs, duct and shredder clipping (§8.3–§8.20) |
 | `kHalfGliderWide` | 24 | `GliderDefines.h:550` | used for the roof tile test and band spawn |
 | `kGliderBurningHigh` | 26 | `GliderDefines.h:551` | `dest` height while burning (flame plume above) |
 | `kShadowHigh` | 9 | `GliderDefines.h:552` | `destShadow` height |
@@ -283,6 +283,45 @@ The burning glider is 26 tall, anchored at the bottom:
 (`GliderPRO/Sources/Modes.c:413`). This is why `SectGlider` adds 6 to
 `glideBounds.top` for burning gliders (`GliderPRO/Sources/Interactions.c:107`–
 `:108`) — 26 − 20 = 6, restoring the *body* box and excluding the flame.
+
+The word *nominal* in the first two rows is load-bearing. 48 × 20 is the size the
+mode-entry functions install (`FlagGliderNormal` at `Modes.c:336`–`:337`,
+`StartGliderTransporting` at `:311`–`:312`) and the threshold the reveal/hide
+tests compare against; it is not an invariant of `dest`. Twelve handlers
+deliberately shrink `dest` frame by frame, so that a glider entering a stairwell,
+a duct or a mail slot appears to slide behind the wall instead of popping in at
+full size: up-stairs (`GliderPRO/Sources/Player.c:341`, height 0, and `:374`,
+height 1..19), `FinishGliderUpStairs` (`:410`, width 4, 8, … 44 — successive
+multiples of |`kHClimbStairsSpeed`| = 4, starting at 4 because
+`ReadyGliderForTripUpStairs` (`Modes.c:519`) parks `dest.left` exactly on
+`rightClip` (`:539`) and `FinishGliderUpStairs` offsets by −4 before computing
+`hNotClipped`), down-stairs (`Player.c:468`, width 0, and `:502`, plus `:539` in
+`FinishGliderDownStairs`, which trims `dest.left` rather than `dest.right`), the
+three duct handlers (`:745`, `:842`, `:943`), mail in and out (`:872` and
+`:1041`; `:910` and `:1132` trim `dest.left`) and the shredder (`:1307`). The
+clipped edge is recomputed from the *unclipped* opposite edge every frame, so the
+clip never accumulates -- but `dest` stays sub-nominal for the whole sequence,
+and only the `FlagGliderNormal`/`FlagGliderBurning` call on the mode-exit path
+restores it.
+
+Three details are lost by treating 48 × 20 as an invariant and deriving
+`dest.right = dest.left + 48` or `dest.bottom = dest.top + 20` each frame. First,
+`src` and `mask` are clipped in lockstep with `dest` on every one of those lines
+(`:411`–`:412`, `:375`–`:376`, and so on for the rest), so a port that clips only
+`dest` scales the sprite instead of cropping it. Second, `destShadow` is slaved to
+the clipped edge — `destShadow.right = dest.right` at `:413`, `:471`, `:505`,
+`:875` and `:1044`, `destShadow.left = dest.left` at `:542`, `:913` and `:1135` —
+so the shadow is not 48 wide in these modes either; `kShadowHigh` is safe only
+because nothing ever clips `destShadow.top` or `.bottom`. Third, `whole` and
+`wholeShadow` are written from the *unclipped* pre-move and post-move edges
+*before* the clipping runs (`:331` `whole.bottom = dest.bottom`, then `:334`
+`whole.top = dest.top`, and only then does `:341`/`:374` move `dest.top`, leaving
+`whole.top` alone), so the swept dirty rect stays full size while `dest` does not.
+That last one matters to any port that keeps `whole`, and specifically to
+`StartGliderFadingOut`'s `RectTall(&dest) > kGliderHigh` test (`Modes.c:87`) and
+`FlagGliderShredding`'s `dest.left > whole.left` test (`Modes.c:372`), both of
+which read these rects as state. The authoritative per-mode rect assignments are
+in §8.3–§8.20.
 
 ---
 
@@ -345,7 +384,7 @@ statement that consumes it.
 | `kLeftFadeOffset` | 7 | `GliderDefines.h:563` | added to a fade sprite index for the left-facing variant |
 | `kFirstAboutFaceFrame` | 18 | `GliderDefines.h:560` | first about-face sprite index (also the `frame` seed for facing right) |
 | `kLastAboutFaceFrame` | 20 | `GliderDefines.h:561` | last about-face sprite index (also the `frame` seed for facing left) |
-| `kWasBurning` | 2 | `GliderDefines.h:562` | sentinel stored in `frame` so a stairs/mail transition can restore burning |
+| `kWasBurning` | 2 | `GliderDefines.h:562` | sentinel *intended* to be stored in `frame` so a stairs or mail transition could restore burning; never actually written — its only writers (`Modes.c:128`, `:145`) sit behind `mode == kGliderBurning`, and every hot spot that would reach them kills a burning glider first. See §5.2 |
 | `kFramesToBurn` | 60 | `Modes.c:408` | frames a burning glider survives (2 s at 30 fps) |
 | `kKillWebbedGlider` | 150 | `Interactions.c:1738` | frames stuck in a spider web before dying (5 s) |
 | `kVGliderAppearsComingUp` | 100 | `Modes.c:521` | y at which the player appears when arriving up a staircase |
@@ -353,7 +392,7 @@ statement that consumes it.
 | `kNumCountDownFrames` | 16 | `GameOver.c:17` | frames between `FlagGameOver()` and the game-over screen |
 | (idle delay) | 30 | `Modes.c:638` | `hVel = 30` in `TagGliderIdle`, a 30-frame freeze for the non-leading player |
 | `kTicksPerFrame` | 2 | `GliderDefines.h:533` | 2 ticks = 1/30 s target frame time |
-| `kDemoLength` | 6702 | `GliderDefines.h:625` | frames of recorded demo input |
+| `kDemoLength` | 6702 | `GliderDefines.h:625` | **bytes**, not frames — the size of the `demoData` buffer and of the shipped `'demo'` 128 resource, i.e. 1117 six-byte `{frame, key}` records spanning game frames 46–3414. See §10.3 |
 
 ### 4.6 Supplies and scoring that touch player velocity
 
@@ -399,20 +438,31 @@ must be preserved (they are written to disk in the saved game — see §16.4).
 | 11 | `kGliderDuctingDown` | `MoveGliderDownDuct` | becomes yes | Sliding into a floor duct |
 | 12 | `kGliderDuctingUp` | `MoveGliderUpDuct` | becomes yes | Rising into a ceiling duct |
 | 13 | `kGliderDuctingIn` | `FinishGliderDuctingIn` | no | Dropping out of a ceiling duct |
-| 14 | `kGliderMailInLeft` | `MoveGliderInMailLeft` | no | Being sucked into a left-facing mail slot |
+| 14 | `kGliderMailInLeft` | `MoveGliderInMailLeft` | becomes yes | Being sucked into a left-facing mail slot |
 | 15 | `kGliderMailOutLeft` | `FinishGliderMailingLeft` | no | Being pushed out of a left-facing mail slot |
-| 16 | `kGliderMailInRight` | `MoveGliderInMailRight` | no | Being sucked into a right-facing mail slot |
+| 16 | `kGliderMailInRight` | `MoveGliderInMailRight` | becomes yes | Being sucked into a right-facing mail slot |
 | 17 | `kGliderMailOutRight` | `FinishGliderMailingRight` | no | Being pushed out of a right-facing mail slot |
 | 18 | `kGliderGoingFoil` | `MoveGliderFoilGoing` | no | Dissolve-out / dissolve-in to gain foil |
 | 19 | `kGliderLosingFoil` | `MoveGliderFoilLosing` | no | Dissolve-out / dissolve-in to lose foil |
 | 20 | `kGliderShredding` | `MoveGliderShredding` | no | Being eaten by a paper shredder |
-| 21 | `kGliderInLimbo` | (none — empty case) | yes | Two-player only: waiting for the other player |
-| 22 | `kGliderIdle` | `HandleIdleGlider` | yes | Two-player only: 30-frame freeze after a room change |
+| 21 | `kGliderInLimbo` | (none — empty case) | unchanged — see §8.21 | Two-player only: waiting for the other player |
+| 22 | `kGliderIdle` | `HandleIdleGlider` | no (true only for the `NewGame` spawn, `Play.c:190`) | Two-player only: 30-frame freeze after a room change |
 | 23 | `kGliderTransportingIn` | `TransportGliderIn` | no | Materialising out of a transporter |
 
 Only modes 0, 7, 8, 9 count as "in the room" for the wall/floor/ceiling logic
 (`GliderPRO/Sources/Interactions.c:691`–`:694`) and only 0, 7, 8, 9, 18, 19
 count for dynamic-object collision (`GliderPRO/Sources/Dynamics.c:45`–`:50`).
+
+The `dontDraw?` column records what a mode's own entry function or handler writes
+to the field, and nothing more. Visibility is never a function of `mode`:
+`RenderGlider` gates on `if (thisGlider->dontDraw) return;` alone
+(`GliderPRO/Sources/Render.c:457`–`:458`). Neither of the two-player parking modes
+touches the flag — `FlagGliderInLimbo` (`GliderPRO/Sources/Modes.c:458`–`:468`)
+writes only `wasMode`, `mode` and `firstPlayer`, and `TagGliderIdle`
+(`Modes.c:631`–`:639`) writes only `wasMode`, `mode` and `hVel`. So a limbo glider
+is hidden only when the mode it came *from* hid it, and an idle glider is drawn.
+A port that early-returns from its render path on mode 21 or 22 is wrong; see
+§8.21 and §8.22.
 
 ### 5.2 What `frame` means in each mode
 
@@ -424,34 +474,65 @@ Getting this wrong is one of the easiest ways to break a port.
 | 1 `kGliderFadingIn`, 23 `kGliderTransportingIn` | index into `fadeInSequence[16]` | 0 → 16, then mode 0 |
 | 2 `kGliderFadingOut`, 10 `kGliderTransporting` | index into `fadeInSequence[16]` | 15 → −1, then death / transit |
 | 3, 5 (stairs out) | **`kWasBurning` (2) sentinel or 0** — carries "I was on fire" across the room boundary | set once at mode entry |
-| 4, 6, 15, 17 (arrivals) | same sentinel, tested with `frame == kWasBurning` | read once on completion |
+| 4, 6, 13, 15, 17 (arrivals) | same sentinel, tested with `frame == kWasBurning` | read once on completion |
 | 7 `kGliderFaceLeft` | sprite index, counting down | 20 → 17, exits below 18 |
 | 8 `kGliderFaceRight` | sprite index, counting up | 18 → 21, exits above 20 |
 | 9 `kGliderBurning` | flame animation phase | 0,1,2,3,0,1,… (`wasMode` is the fuse) |
 | 18, 19 (foil) | dissolve phase | 0 → 9, exits above 8 |
 | 20 `kGliderShredding` | **a y coordinate** (`bounds->bottom - 3`) while positive, then a **negative countdown** from `kShredderCountdown` (−68) to 0 | see §8.20 |
-| 11, 12, 13, 14, 16 (ducts, mail-in) | unused (left at whatever the previous mode left) | — |
+| 11, 12, 14, 16 (duct departures, mail-in) | zeroed at mode entry, then never read | `Modes.c:236`, `:269`, `:173` |
 | 21, 22 | unused | — |
+
+Mode 13 sits on the arrivals row rather than with the other duct modes because
+`FinishGliderDuctingIn` runs the same sentinel test as the stairs and mail arrivals — `if
+(thisGlider->frame == kWasBurning) FlagGliderBurning(thisGlider); else
+FlagGliderNormal(thisGlider);` (`GliderPRO/Sources/Player.c:949`–`:952`). It is
+also the one mode that really does inherit `frame` rather than set it:
+`StartGliderDuctingIn` (`Modes.c:279`–`:284`) writes `mode`, `whole` and
+`dontDraw` and nothing else, so mode 13 sees whatever the mode-11 or mode-12
+starter left, which is always 0 (`Modes.c:236`, `:269`).
+
+The branch is nevertheless dead in the original, for two independent reasons: a
+burning glider can never reach a duct at all — every hot-spot case kills it first
+with `wasMode = 0; StartGliderFadingOut(...)`
+(`GliderPRO/Sources/Interactions.c:1425`–`:1430`, `:1468`–`:1473`,
+`:1511`–`:1516`, `:1544`–`:1549`) — and even if it could, the duct starters have
+already zeroed `frame`. The trap for a porter is to read "unused" here, drop the
+`frame = 0` writes at duct entry as dead stores, and keep the `:949` test that
+§8.13 correctly describes: any residual 2 left over from the mode-9 flame
+animation (`Player.c:205`–`:207`, and `kWasBurning` is itself 2) then drops the
+glider out of the ceiling duct on fire with a fresh 60-frame fuse.
+
+The sentinel is in fact dead on every route, not just the duct one, so no arrival
+in the original ever resumes burning. `kWasBurning` has exactly two writers,
+`StartGliderGoingUpStairs` and `StartGliderGoingDownStairs` (`Modes.c:128`,
+`:145`), and both sit inside `if (thisGlider->mode == kGliderBurning)` — yet the
+`kMoveItUp` and `kMoveItDown` cases already kill a burning glider before they can
+reach those starters (`Interactions.c:1253`–`:1258`, `:1288`–`:1293`). Nothing else
+in the program assigns 2 to `frame` as a sentinel, so all five tests
+(`Player.c:417`, `:546`, `:879`, `:917`, `:949`) always fall through to
+`FlagGliderNormal`. Transcribe them for fidelity; do not build fire propagation
+across stairs, mailboxes or ducts on top of them.
 
 ### 5.3 What `wasMode` means
 
 | Situation | Meaning | Set at | Read at |
 | --- | --- | --- | --- |
 | `kGliderBurning` | remaining frames before burning to death; counts **down** from `kFramesToBurn` (60) | `Modes.c:432` | `Player.c:220`–`:225` |
-| webbed (any mode) | frames stuck in the web; counts **up** to `kKillWebbedGlider` (150) | `Interactions.c:1770` | `Interactions.c:1771` |
+| webbed (any mode) | frames stuck in the web; counts **up** to `kKillWebbedGlider` (150) | `Interactions.c:1769` | `Interactions.c:1770` |
 | `kGliderInLimbo` | the mode to restore when limbo ends | `Modes.c:460` | `Modes.c:478` |
 | `kGliderIdle` | the mode to restore when the 30-frame freeze ends | `Modes.c:636` | `Player.c:1328` |
-| entering a wall/floor/ceiling while burning | zeroed so the burn timer cannot also fire | `Interactions.c:707` etc. | — |
+| entering a wall/floor/ceiling while burning | zeroed so the burn timer cannot also fire | `Interactions.c:700`, `:713`, `:729`, `:742` | — |
 
 Note the collision between "burning fuse" and "web counter": a **burning glider
 caught in a web** would have both meanings applied to `wasMode`. The code avoids
 this by special-casing it — `WebGlider` immediately kills a burning glider that
-is fully inside the web (`GliderPRO/Sources/Interactions.c:1743`–`:1748`).
+is fully inside the web (`GliderPRO/Sources/Interactions.c:1741`–`:1747`).
 
 ### 5.4 `HandleGlider` — the dispatcher
 
-`GliderPRO/Sources/Player.c:1335`–`:1439`. Pseudocode, preserving the original
-switch order:
+`GliderPRO/Sources/Player.c:1335`–`:1439`. Pseudocode, in the original switch
+order:
 
 ```
  1  HandleGlider(thisGlider):
@@ -486,11 +567,18 @@ switch order:
 30      thisGlider->ignoreGround = false          // Player.c:1438
 ```
 
-The switch order is *not* the mode-enum order: `kGliderBurning` (9) is the tenth
-case, after `kGliderFaceRight` (8), and `kGliderTransportingIn` (23) is last.
-Since every case `break`s and there is no `default:`, the order has no semantic
-effect — but a port that reproduces this as an ordered dispatch table must not
-assume enum order.
+The switch is in exact mode-enum order 0–23, with every mode present. Every case
+`break`s and there is no `default:`, so an unrecognised mode is a silent no-op
+followed by the `ignore*` clears — a Go port using a 24-entry table indexed by
+mode must therefore bounds-check rather than panic, and must keep the clears
+outside the dispatch.
+
+What *is* out of enum order in `Player.c` is the forward-declaration block
+(`:20`–`:40`) and the order the functions are defined in: `MoveGliderNormal` (0)
+at `:151`, `MoveGliderBurning` (9) at `:203`, `FadeGliderIn` (1) at `:231`,
+`TransportGliderIn` (23) at `:261`, `FadeGliderOut` (2) at `:291`. That is a
+reading-order curiosity with no bearing on dispatch, and it is easy to mistake
+for a dispatch-order subtlety that does not exist.
 
 Lines 28–30 are the critical part: **`ignoreLeft`, `ignoreRight` and
 `ignoreGround` are one-frame flags cleared unconditionally at the end of
@@ -742,14 +830,41 @@ rewritten every single call.
 
 ### 7.2 Consequences a port must reproduce exactly
 
-1. **No vertical clamp.** Lines 22 and 33 clamp `hVel` to ±`kMaxHVel` (16), but
+1. **No vertical clamp.** Lines 22 and 34 clamp `hVel` to ±`kMaxHVel` (16), but
    there is no equivalent for `vVel`. The vertical clamp is *emergent*: because
    `vDesiredVel` is reset to `+3` every frame and the ramp is ±2, a falling
-   glider converges on exactly `vVel = 3`. A large one-frame kick (e.g.
-   `kCeilingVentDrop` = 8, or a `kSlideIt` snap that can be tens of pixels — see
-   §13.2) *is* applied at full magnitude for that frame and then decays by 2 per
-   frame back to 3. A Go port that adds a symmetric `vVel` clamp will change the
-   feel of ceiling blowers and grease.
+   glider converges on exactly `vVel = 3`. The trap is to conclude from the
+   absence of a clamp that a large world force gets one uncapped frame at full
+   strength. It does not: `HandleInteraction` runs *before* `HandleGlider` in
+   the same frame (`GliderPRO/Sources/Play.c:482` then `:487`), so everything
+   the world writes is filtered by the ramp on its way into `dest`, and the two
+   kinds of write are filtered differently. `kDropIt` writes a *target*, not a
+   velocity — `thisGlider->vDesiredVel = kCeilingVentDrop;`
+   (`GliderPRO/Sources/Interactions.c:1207`) — which the ramp then walks towards
+   at `kVImpulse` = 2 per frame (`GliderPRO/Sources/Player.c:86`–`:91`), so a
+   glider that enters a ceiling blower already falling at `vVel = 3` is
+   displaced 5, then 7, then 8, then 8, and *holds* at 8 for as long as the hot
+   spot keeps overlapping: `CheckForHotSpots`
+   (`GliderPRO/Sources/Interactions.c:1627`–`:1687`) rewrites `vDesiredVel = 8`
+   again every frame after `MoveGlider` has reset it to `kGravity`
+   (`GliderPRO/Sources/Player.c:92`), so the decay back to `+3` only begins on
+   the first frame the hot spot no longer overlaps. `kSlideIt` does write `vVel`
+   directly (`GliderPRO/Sources/Interactions.c:1378`), but the vertical ramp
+   (`GliderPRO/Sources/Player.c:80`–`:91`) still runs before the move
+   (`:129`–`:146`), so the magnitude that actually reaches `dest` is smaller by
+   up to `kVImpulse` = 2 — see §13.2 for where that leaves the glider. The same
+   attenuation applies to every other direct velocity write in `Interactions.c`
+   that leaves the mode alone: `BounceGlider` (`:160`, `:162`), the ceiling stops
+   in `CheckEscapeUp` (`:272`, `:275`, `:278`) and `WebGlider` (`:1758`,
+   `:1759`) all set velocity and never touch `dest`, so each loses up to 2 px to
+   the ramp on the frame it fires. The floor and roof writes (`:353`, `:369`,
+   `:411`, `:426`, `:441`, `:463`, `:473`, `:483`, `:493`, `:500`) go further
+   still: each is followed immediately by `StartGliderFadingOut`, and
+   `FadeGliderOut` (`GliderPRO/Sources/Player.c:291`–`:311`) never calls
+   `MoveGlider`, so those `vVel` values are never fed to the integrator at all.
+   A Go port that adds a symmetric `vVel` clamp, or that applies any of these
+   writes straight to position, will change the feel of ceiling blowers and
+   grease and will shift every collision resting position by 2 px.
 
 2. **The clamp is inside the sign branches.** If `hVel` were somehow ±20 while
    `hDesiredVel` had the same sign, the clamp still fires because the branch is
@@ -1139,16 +1254,25 @@ below; the glider walks right and down out of the staircase.
 
 Entry (`FlagGliderFaceLeft`, `GliderPRO/Sources/Modes.c:438`–`:444`) sets
 `frame = kLastAboutFaceFrame` = 20 and the sprite to `gliderSrc[20]`. The
-sequence is therefore sprites 20, 19, 18 over three frames (0.1 s), and on the
-fourth frame `frame` becomes 17 and the mode flips to normal with
-`facing = kFaceLeft`.
+decrement and the exit test sit at the *end* of the same invocation that assigned
+the sprite (`:567`–`:571`), so the sequence is sprites 20, 19, 18 over three
+frames (0.1 s), and on the third of those frames — the one that renders sprite
+18 — `frame` becomes 17 after `MoveGlider` has run and the mode flips to normal
+with `facing = kFaceLeft`. There is no fourth invocation of the handler; the very
+next frame is already `MoveGliderNormal`. Nor is the entry frame free: `GetInput`
+calls `ToggleGliderFacing` (`GliderPRO/Sources/Input.c:308`) before `HandleGlider`
+in the frame loop (`GliderPRO/Sources/Play.c:452`–`:461` two-player,
+`:481`–`:487` one-player), so the frame on which the toggle is detected is already
+handler call 1, not a preparation frame.
 
 Crucially `MoveGlider` still runs, so physics continues during the tumble; and
 because `mode != kGliderNormal`, `MoveGliderNormal` does *not* run, so
 `facing`/`tipped`/`sliding` sprite selection is suspended — but
 `CheckGliderInRoom` **does** include modes 7 and 8
-(`GliderPRO/Sources/Interactions.c:698`–`:701`), so you can still die by hitting
-a wall mid-tumble.
+(`GliderPRO/Sources/Interactions.c:691`–`:694`), so you can still die by hitting
+a wall mid-tumble. (Do not look for the mode gate at `:698`–`:701`: that is the
+burning-glider fade-out inside the ceiling branch, one of four identical copies at
+`:698`, `:711`, `:727` and `:740`.)
 
 ### 8.8 Mode 8 — `kGliderFaceRight` / `MoveGliderFaceRight` (`:577`–`:590`)
 
@@ -1182,8 +1306,27 @@ on the frame the fuse expires.
 
 Entry (`FlagGliderBurning`, `GliderPRO/Sources/Modes.c:406`–`:434`) sets
 `wasMode = kFramesToBurn` = **60**, `frame = 0`, all four velocities 0,
-`tipped = false`, `dest.top = dest.bottom - kGliderBurningHigh` (26), and plays
-`kCaughtFireSound`. So a burning glider has exactly **60 frames (2 s)** to reach
+`tipped = false`, and plays `kCaughtFireSound` (`:410`). It also renormalises
+**four** rect edges, not just the one that makes the glider 26 tall:
+`dest.right = dest.left + kGliderWide` (`:412`),
+`dest.top = dest.bottom - kGliderBurningHigh` (`:413`),
+`destShadow.right = destShadow.left + kGliderWide` (`:414`) and
+`destShadow.bottom = destShadow.top + kShadowHigh` (`:415`). Those are the same
+four statements §9.1 calls load-bearing for `FlagGliderNormal`, which is the
+sibling arm of the same `if`/`else` at five arrival sites (`Player.c:417`–`:420`,
+`:546`–`:549`, `:879`–`:882`, `:917`–`:920`, `:949`–`:952`), and transcribing only
+`:413` is the easy mistake because the other three are no-ops for the common case
+of a floor vent catching a glider in flight. They are not no-ops when the glider
+being set alight still has clipped rects: `kBurnIt` gates on nothing but
+`mode != kGliderBurning && mode != kGliderFadingOut`
+(`GliderPRO/Sources/Interactions.c:1356`–`:1358`) and `CheckForHotSpots` runs every
+frame regardless of mode, so a glider still emerging from a staircase, a mailbox or
+a duct — `dest.right`, `src.right` and `destShadow.right` all pulled in to a
+part-width `hNotClipped`, e.g. `Player.c:410`–`:413` — can burn mid-emergence.
+Without `:412` and `:414` that glider stays part-width for the rest of its life,
+since `MoveGlider` only ever offsets `dest` afterwards, and `CopyMask` stretches
+the full-width 48 x 26 flame sprite and the shadow into it. So a burning glider has
+exactly **60 frames (2 s)** to reach
 water/a vent, and it is forced to fly in its `facing` direction the whole time
 (`GetInput` overrides all input for a burning glider —
 `GliderPRO/Sources/Input.c:290`–`:296`).
@@ -1222,10 +1365,43 @@ actual transit for both. Note the latched-code test is `== kPlayerTransportedOut
 (the code this exit writes), **not** `== kNoOneEscaped`. The same shape is used
 by the stair, duct and mail exits with their own codes; see §16.5.
 
-Entry (`StartGliderTransporting`, `GliderPRO/Sources/Modes.c:288`–`:330`) forces
-`dest` to exactly 48 x 20 and `destShadow` to 48 x 9 (in case the glider was
-burning and therefore 26 tall), sets `mode = kGliderTransporting`, and
-`frame = kLastFadeSequence - 1` = 15.
+Entry is `StartGliderTransporting` (`GliderPRO/Sources/Modes.c:288`–`:330`), and
+it does far more than seed the fade counter. It plays
+`PlayPrioritySound(kTransOutSound, kTransOutPriority)` (`:294`) and applies the
+same foil fix-up as every other exit — `DeckGliderInFoil` if the *old* mode was
+18, `RemoveFoilFromGlider` if it was 19 (`:296`–`:299`). It then resolves the
+destination link, in a block that is byte-for-byte the one in
+`StartGliderMailingIn` at `:163`–`:171`:
+
+```
+whoLinked    = who->who;                                          // :301
+transRoom    = masterObjects[whoLinked].roomLink;                 // :302
+objLinked    = masterObjects[whoLinked].objectLink;               // :303
+linkedToWhat = WhatAreWeLinkedTo(transRoom, objLinked);           // :304
+GetObjectRect(&(*thisHouse)->rooms[transRoom].objects[objLinked], // :308
+              &transRect);
+```
+
+That block is the load-bearing part of the routine and the easiest thing to lose
+in a port. `transRoom`, `linkedToWhat` and `transRect` are process-lifetime
+globals shared with the mailbox and duct paths (§23 item 10), and this is the only
+place they are written on the transporter route — `StartGliderTransporting` is
+reached solely from the `kTransportIt` case
+(`GliderPRO/Sources/Interactions.c:1399`, `:1407`, `:1412`). When `frame` goes
+negative, `TransportRoomToRoom` reads `transRoom` (`Transit.c:321`–`:323`) and
+hands `linkedToWhat` to `ReadyGliderFromTransit` (`:332`), whose `kLinkedToOther`
+arm positions the glider with `CenterRectInRect(&tempRect, &transRect)` (`:79`).
+Omit the block and the failure is not a clean crash on the first transporter: the
+globals still hold whatever the previous mailbox or duct trip left, so the player
+lands in a plausible-looking wrong room, in the wrong arrival mode, centred on a
+stale rect — a fault that is intermittent and house-dependent.
+
+Only after that does the routine touch the glider: it forces `dest` to exactly
+48 x 20 and `destShadow` to 48 x 9 (`:311`–`:314`, in case the glider was burning
+and therefore 26 tall), sets `mode = kGliderTransporting` (`:315`),
+`whole = dest` (`:316`) and `frame = kLastFadeSequence - 1` = 15 (`:317`), and
+installs `gliderSrc[fadeInSequence[15]]` into both `src` and `mask`, with
+`+ kLeftFadeOffset` when `facing == kFaceLeft` (`:318`–`:329`).
 
 ### 8.11 Mode 11 — `kGliderDuctingDown` / `MoveGliderDownDuct` (`:657`–`:750`)
 
@@ -1235,33 +1411,53 @@ the duct mouth at **1 pixel per frame** while descending 4 px/frame.
 ```
  1  MoveGliderDownDuct(thisGlider):
  2      src = mask = gliderSrc[0]  (or [2] facing left)
- 3      // horizontal creep toward clip.left, 1 px per frame (:674-697)
- 4      if (dest.left > clip.left):
- 5          whole.right = dest.right
- 6          dest.left--;  dest.right--
- 7          whole.left = dest.left
- 8      else if (dest.left < clip.left):
- 9          whole.left = dest.left
-10          dest.left++;  dest.right++
-11          whole.right = dest.right
-12      // vertical
-13      whole.top = dest.top
-14      dest.top    += kVDropDuctSpeed              // +4
-15      dest.bottom += kVDropDuctSpeed
-16      whole.bottom = dest.bottom
-17      vNotClipped = 315 - dest.top                // :704
-18      if (vNotClipped <= 0):
-19          (erase via CopyRectWorkToMain as in TransportGliderOut)
-20          dontDraw = true
-21          (two-player handshake with kPlayerDuckedOut = -11, else)
-22          MoveDuctToDuct(thisGlider)
-23      else if (vNotClipped < kGliderHigh):        // 20
-24          src.bottom  = src.top  + vNotClipped
-25          mask.bottom = mask.top + vNotClipped
-26          dest.bottom = dest.top + vNotClipped
+ 3      // horizontal creep toward clip.left, 1 px per frame; dest and
+ 4      // destShadow move in lockstep (:674-697)
+ 5      if (dest.left < clip.left):                 // :674
+ 6          whole.left = dest.left
+ 7          dest.left++;  dest.right++
+ 8          whole.right = dest.right
+ 9          wholeShadow.left = destShadow.left      // :681
+10          destShadow.left++;  destShadow.right++
+11          wholeShadow.right = destShadow.right
+12      else if (dest.left > clip.left):            // :686
+13          whole.right = dest.right
+14          dest.left--;  dest.right--
+15          whole.left = dest.left
+16          wholeShadow.right = destShadow.right    // :693
+17          destShadow.left--;  destShadow.right--
+18          wholeShadow.left = destShadow.left
+19      // vertical
+20      whole.top = dest.top
+21      dest.top    += kVDropDuctSpeed              // +4
+22      dest.bottom += kVDropDuctSpeed
+23      whole.bottom = dest.bottom
+24      vNotClipped = 315 - dest.top                // :704
+25      if (vNotClipped <= 0):
+26          (erase via CopyRectWorkToMain as in TransportGliderOut)
+27          dontDraw = true
+28          (two-player handshake with kPlayerDuckedOut = -11, else)
+29          MoveDuctToDuct(thisGlider)
+30      else if (vNotClipped < kGliderHigh):        // 20
+31          src.bottom  = src.top  + vNotClipped
+32          mask.bottom = mask.top + vNotClipped
+33          dest.bottom = dest.top + vNotClipped
 ```
 
-**315** at line 17 is a bare literal. It is `kShadowTop + kShadowHigh`
+Each creep branch is eight statements, not four: the shadow rect is stepped by the
+same pixel as `dest` and its `wholeShadow` bookkeeping mirrors `whole`'s. It is
+easy to drop the second half of each branch as redundant, and it is not —
+`RenderGlider` draws the shadow from `destShadow` on every frame in which the
+global `shadowVisible` is set, and mode 11 falls through to the unclipped branch
+that does so (`GliderPRO/Sources/Render.c:491`–`:495`), while `wholeShadow` is the
+rect it feeds to `AddRectToWorkRects` (`Render.c:496`–`:498`) and the one
+`MoveGliderDownDuct` later hands to `CopyRectWorkToMain` to erase the shadow on
+the way out (`:712`–`:714`). Skip those four lines and the shadow simply stays
+put while the glider slides to the duct centre, then fails to be erased. The
+branches are `if` / `else if`, not `if` / `else`: at `dest.left == clip.left`
+neither fires and the creep is finished.
+
+**315** at line 24 is a bare literal. It is `kShadowTop + kShadowHigh`
 (306 + 9) numerically, but semantically it is the floor plane the duct sits in;
 `kSewerGrateTop` is 303 and `kFloorTransTop` is 302 (`GliderDefines.h:471`,
 `:473`) and the floor transporter graphic is 15 tall
@@ -1270,20 +1466,56 @@ an unexplained tuned constant and copy it verbatim.
 
 `clip` is set at mode entry by `StartGliderDuctingDown`
 (`GliderPRO/Sources/Modes.c:213`–`:242`) with
-`clip.left = bounds->left + ((RectWide(bounds) - kGliderWide) / 2)`, i.e. the
-glider aims for the horizontal centre of the duct.
+`clip.left = bounds->left + ((RectWide(bounds) - kGliderWide) / 2)` (`:238`–`:239`),
+i.e. the glider aims for the horizontal centre of the duct. That routine also does
+the rest of the exit bookkeeping, which is easy to overlook precisely because none
+of it concerns mode 11's own motion:
+`PlayPrioritySound(kTransOutSound, kTransOutPriority)` (`:219`); the foil fix-up,
+`DeckGliderInFoil` if the old mode was 18 and `RemoveFoilFromGlider` if it was 19
+(`:221`–`:224`, and reachable — the `kDuctItDown` guard excludes only
+`kGliderDuctingDown` and `kGliderFadingOut`,
+`GliderPRO/Sources/Interactions.c:1517`–`:1519`); `frame = 0` (`:236`); and the
+link resolution into `transRoom`, `linkedToWhat` and `transRect` (`:226`–`:234`,
+the identical block quoted in §8.10, with `GetObjectRect` at `:233`).
+
+`transRect` is the one that will bite. It is the *only* input that positions the
+far end of the trip: `ReadyGliderFromTransit`'s `kLinkedToCeilingDuct` arm centres
+the arriving glider in it (`Transit.c:126`). Because it is a shared global (§23
+item 10), a port that writes it on the mailbox path only will emerge from every
+duct at whatever rect the previous mailbox trip pointed to, rather than at the
+linked duct.
+
+`StartGliderDuctingUp` (`Modes.c:246`–`:275`) is byte-identical to
+`StartGliderDuctingDown` apart from the mode constant: sound at
+`:252`, foil at `:254`–`:257`, the link block at `:259`–`:267` with `transRect` at
+`:266`, `frame = 0` at `:269`, `mode = kGliderDuctingUp` written last at `:274`.
+"Upward" describes only the mode; nothing in the routine is mirrored vertically, and
+in particular `leftSought` at `:271`–`:272` is the same
+`bounds->left + ((RectWide(bounds) - kGliderWide) / 2)` centring expression, with no
+vertical counterpart to `StartGliderMailingIn`'s `clip.top`. The `frame = 0` is inert on this route — neither
+duct handler ever reads `frame`, and the arrival runs `FlagGliderNormal`, which
+zeroes it again, before `StartGliderDuctingIn` — but transcribe it anyway; §5.2
+explains what dropping it costs.
 
 ### 8.12 Mode 12 — `kGliderDuctingUp` / `MoveGliderUpDuct` (`:754`–`:847`)
 
 `kVRiseDuctSpeed` = **−4** (`:756`). Identical structure with the vertical
-direction reversed and
+direction reversed — including the horizontal creep, whose two branches are
+byte-identical to mode 11's, shadow statements and all (`dest` at `:773`–`:776`
+and `:785`–`:788`, `destShadow` at `:778`–`:781` and `:790`–`:793`) — and
 
 ```
 vNotClipped = dest.bottom - (kCeilingTransTop + 1)      // :801  = dest.bottom - 7
 ```
 
 `kCeilingTransTop` = 6 (`GliderDefines.h:472`). Completion routes to
-`MoveDuctToDuct` with the same `kPlayerDuckedOut` handshake.
+`MoveDuctToDuct` with the same `kPlayerDuckedOut` handshake. Neither duct handler
+ever moves `destShadow` vertically, so the shadow stays on the floor plane and only
+creeps sideways; mode 12 is where dropping that creep is most visible, because the
+climb from floor level to `dest.bottom <= 7` takes on the order of seventy-five
+frames and the horizontal creep finishes in the first few, leaving a stranded
+shadow on screen for the whole ascent. Mode 11 only has to fall to `dest.top` 315,
+so there the lag lasts a handful of frames.
 
 ### 8.13 Mode 13 — `kGliderDuctingIn` / `FinishGliderDuctingIn` (`:927`–`:956`)
 
@@ -1311,13 +1543,31 @@ Arrival out of a ceiling duct, dropping at `kVDropDuctSpeed` = 4 (`:936`).
 19          FlagStillOvers(thisGlider)              // :954
 ```
 
-Line 16 matters: mode 13 is one of the arrival handlers that honours the
-`frame == kWasBurning` sentinel, so a glider that entered a duct on fire comes out
-of the far duct still on fire (with a fresh 60-frame fuse from
-`FlagGliderBurning`). The `#define kVDropStairsSpeed 4` at `:929` is dead — the
+Lines 13 and 14 are destructive and self-referential: every frame they recompute
+`src.top` from an `src.bottom` that this handler never writes. Mode 13 therefore
+renders correctly only because the sprite it inherits is the full-height
+`gliderSrc[0]` / `[2]` that `FlagGliderNormal` installed on the way in
+(`GliderPRO/Sources/Modes.c:343`–`:349`, reached unconditionally from
+`ReadyGliderFromTransit` at `Transit.c:72`, i.e. before the sole call to
+`StartGliderDuctingIn` at `:124`). `StartGliderDuctingIn` itself writes only
+`mode`, `whole` and `dontDraw` (`Modes.c:279`–`:284`) and assigns no sprite at all;
+see the §9 row. The trap is to read that as an oversight and "fix" it by copying
+`StartGliderTransporting` and seeding a `fadeInSequence` frame here — the resulting
+short `src.bottom` clips the glider wrongly for the whole duct-in animation.
+
+Line 16 matters, but not for the reason it appears to. Mode 13 is one of the arrival
+handlers that honours the `frame == kWasBurning` sentinel, and yet the branch is
+unreachable in the original: a burning glider is killed outright at every duct and
+mailbox hot spot before it can enter (`wasMode = 0; StartGliderFadingOut(...)` at
+`GliderPRO/Sources/Interactions.c:1511`–`:1516` and `:1544`–`:1549`), and the duct
+starters zero `frame` on the way out anyway (`Modes.c:236`, `:269`). Transcribe the
+test regardless: dropping the `frame = 0` writes as dead stores while keeping this
+test is precisely how a port ends up with a glider dropping out of a ceiling duct on
+fire with a fresh 60-frame fuse (§5.2). The `#define kVDropStairsSpeed 4` at `:929`
+is dead — the
 body uses `kVDropDuctSpeed` from `MoveGliderDownDuct`'s earlier `#define`.
 
-Line 13 is unique to this handler: `FlagStillOvers`
+Line 19 is unique to this handler: `FlagStillOvers`
 (`GliderPRO/Sources/Interactions.c:1715`–`:1732`) pre-marks every hot spot the
 glider currently overlaps as `stillOver = true`, so the glider does **not**
 immediately re-trigger the duct it just came out of. A port that omits this will
@@ -1380,30 +1630,91 @@ the bottom of the mailbox's hot rect.
 
 ```
  1  FinishGliderMailingLeft(thisGlider):
- 2      src = mask = gliderSrc[0] / [2]
- 3      if (dest.left == dest.right):               // first frame, zero-width
- 4          PlayPrioritySound(kTransInSound, kTransInPriority)
- 5      whole.right = dest.right
- 6      dest.left  += kHPushMailSpeed               // -4
- 7      dest.right += kHPushMailSpeed
- 8      whole.left = dest.left
- 9      hNotClipped = clip.right - dest.left        // :869
-10      if (hNotClipped >= kGliderWide):            // 48
-11          if (frame == kWasBurning) FlagGliderBurning else FlagGliderNormal
-12          enteredRect = dest
-13      else:
-14          src.right = src.left + hNotClipped;  (mask, dest likewise)
+ 2      if (dest.left == dest.right):               // first frame, zero-width  :856
+ 3          PlayPrioritySound(kTransInSound, kTransInPriority)   // :857
+ 4      whole.right = dest.right                    // :859
+ 5      dest.left  += kHPushMailSpeed               // -4  :860
+ 6      dest.right += kHPushMailSpeed               // :861
+ 7      whole.left = dest.left                      // :862
+ 8      wholeShadow.right = destShadow.right        // :864  the shadow is pushed too
+ 9      destShadow.left  += kHPushMailSpeed         // :865
+10      destShadow.right += kHPushMailSpeed         // :866
+11      wholeShadow.left = destShadow.left          // :867
+12      hNotClipped = clip.right - dest.left        // :869
+13      if (hNotClipped < kGliderWide):             // 48  :870
+14          dest.right = dest.left + hNotClipped    // :872
+15          src.right  = src.left  + hNotClipped    // :873
+16          mask.right = mask.left + hNotClipped    // :874
+17          destShadow.right = dest.right           // :875
+18      else:
+19          if (frame == kWasBurning) FlagGliderBurning else FlagGliderNormal  // :879-882
+20          enteredRect = dest                      // :883
 ```
+
+The handler never assigns a sprite. Unlike modes 14 and 16, which re-pick
+`gliderSrc[0]`/`[2]` from `facing` on every frame (`:967`–`:976`, `:1058`–`:1067`),
+the only writes
+to `src`/`mask` here are the width clamps at `:873`–`:874`; the left-facing sprite
+was established once at mode entry by `StartGliderMailingOut`
+(`GliderPRO/Sources/Modes.c:190`–`:193`, which also forces `facing = kFaceLeft`).
+Nothing during the mode can change `facing`, because the handler runs neither
+input nor `MoveGlider`, so re-picking the sprite each frame would be inert -- but a
+porter who assumes this mode owns the sprite and therefore leaves the assignment
+out of mode entry gets a glider that emerges from a left-hand mailbox wearing
+whatever sprite mail-in left it with, facing backwards for the whole 12-frame
+push-out.
+
+Lines 8-11 are the load-bearing part. `destShadow.left` is never re-derived from
+`dest.left` anywhere in normal flight -- `MoveGlider` only integrates it
+incrementally (`:106`–`:109` / `:123`–`:126`) and `FlagGliderNormal` only rewrites
+the far edges from the near ones (`GliderPRO/Sources/Modes.c:338`–`:339`) -- so a
+port that pushes `dest` out of the mailbox without pushing `destShadow` with it
+leaves the shadow pinned at the mailbox slot while `dest` travels 48 px (12 frames
+x 4 px), and the shadow stays 48 px displaced from the glider for the rest of its
+life in that room: 48 px to the right after a mail-out-left, 48 px to the left
+after a mail-out-right. Line 17 is the shadow's half of the emergence clip: it
+keeps `destShadow.right` pinned to the already-clipped `dest.right` so the shadow
+widens in lockstep with the glider instead of snapping to full width, and it must
+run *after* line 14 because it reads the clipped value, not the unclipped one (the
+mirror at `:913` likewise follows `:910`).
+
+Transcribe lines 4-11 in statement order rather than "intent" order.
+`wholeShadow.right` is read from the *old* `destShadow.right` before the shadow is
+advanced (`:864` precedes `:865`–`:866`) and `wholeShadow.left` from the *new*
+value after (`:867`) -- the same read-before-update sweep idiom as `whole` at
+`:859`–`:862`. A port that moves `destShadow` first and then unions the pre- and
+post-move rects, or that reorders the four assignments, computes a different erase
+rect. In the C the result is exactly right: `ReadyGliderFromTransit` seeds
+`destShadow` as a zero-width rect at the slot and copies it into `wholeShadow`
+(`GliderPRO/Sources/Transit.c:101`–`:104`, and `:117`–`:120` for the right
+mailbox), and thereafter each frame's `wholeShadow` spans from the new
+`destShadow.left` to the previous `destShadow.right`, which is precisely the ground
+the widening shadow covers. Drop lines 8-11 and nothing writes `wholeShadow` at all
+for the duration of the mode, so it stays that zero-width seed rect: the shadow's
+dirty rect covers nothing, and the stale shadow smears until the first `MoveGlider`
+call rewrites `wholeShadow`.
 
 ### 8.16 Mode 16 — `kGliderMailInRight` / `MoveGliderInMailRight` (`:1051`–`:1138`)
 
 `kHMailPullRtSpeed` = **−4** (`:1053`), `kVMailDropSpeed` = 2 (`:1054`).
-Mirror of §8.14 with `hNotClipped = dest.right - clip.left` (`:1097`).
+Mirror of §8.14 with `hNotClipped = dest.right - clip.left` (`:1091`), the shadow
+carried along by the mirrored sweep at `:1086`–`:1089` (`wholeShadow.right` read
+from the old `destShadow.right` first, `wholeShadow.left` written last), and the
+clipped branch working from the far edge inwards: `dest.left = dest.right - hNotClipped`,
+`src`/`mask` likewise, `destShadow.left = dest.left` (`:1132`–`:1135`).
 
 ### 8.17 Mode 17 — `kGliderMailOutRight` / `FinishGliderMailingRight` (`:889`–`:923`)
 
 `kHPushMailRtSpeed` = **4** (`:891`). Mirror of §8.15 with
-`hNotClipped = dest.right - clip.left` (`:907`).
+`hNotClipped = dest.right - clip.left` (`:907`). The mirroring is exact, so the
+shadow block matters here for the same reason: `wholeShadow.left = destShadow.left;
+destShadow.left += kHPushMailRtSpeed; destShadow.right += kHPushMailRtSpeed;
+wholeShadow.right = destShadow.right;` (`:902`–`:905`), with
+`destShadow.left = dest.left` in the clipped branch (`:913`, after the `dest.left`
+clip at `:910`). Like §8.15 this handler does not assign a sprite -- `facing` and
+`gliderSrc[0]` are set once by `StartGliderMailingOut`
+(`GliderPRO/Sources/Modes.c:197`–`:200`) -- and its only `src`/`mask` writes are the
+clamps at `:911`–`:912`.
 
 ### 8.18 Mode 18 — `kGliderGoingFoil` / `MoveGliderFoilGoing` (`:1170`–`:1198`)
 
@@ -1452,44 +1763,90 @@ the most intricate handler because `frame` changes meaning halfway through.
 ```
  1  MoveGliderShredding(thisGlider):
  2      if (frame > 0):                             // frame is a TARGET Y
- 3          vNotClipped = frame - dest.top          // :1279  distance to shredder
- 4          if (vNotClipped < kGliderHigh):         // 20 - already being eaten
- 5              whole.top = dest.top
- 6              dest.top    += kDropShredSlow       // +1 px/frame
- 7              dest.bottom += kDropShredSlow
- 8              whole.bottom = dest.bottom
- 9              shadowVisible = false               // :1286  GLOBAL, hide the shadow
-10              PlayPrioritySound(kShredSound, kShredPriority)   // every frame
-11          else:                                   // still falling toward it
-12              whole.top = dest.top
-13              dest.top    += kDropShredFast       // +4 px/frame
-14              dest.bottom += kDropShredFast
-15              whole.bottom = dest.bottom
-16          vNotClipped = frame - dest.top          // :1297 recompute after moving
-17          if (vNotClipped > 0):
-18              if (vNotClipped < kGliderHigh):
-19                  src.bottom  = src.top  + vNotClipped     // :1308
-20                  mask.bottom = mask.top + vNotClipped
-21                  dest.bottom = dest.top + vNotClipped
-22          else:
-23              AddAShreddedGlider(&dest)           // :1302  spawn the confetti
-24              frame = kShredderCountdown          // :1303  = -68
-25      else:                                       // frame <= 0: death delay
-26          frame++                                 // :1315
-27          if (frame >= 0):
-28              OffAMortal(thisGlider)              // :1317
+ 3          src = mask = gliderSrc[0] / [2]         // :1268-1277  by facing, EVERY frame
+ 4          vNotClipped = frame - dest.top          // :1279  distance to shredder
+ 5          if (vNotClipped < kGliderHigh):         // 20 - already being eaten
+ 6              whole.top = dest.top
+ 7              dest.top    += kDropShredSlow       // +1 px/frame  :1283
+ 8              dest.bottom += kDropShredSlow       // :1284
+ 9              whole.bottom = dest.bottom
+10              shadowVisible = false               // :1286  GLOBAL, hide the shadow
+11              PlayPrioritySound(kShredSound, kShredPriority)   // every frame
+12          else:                                   // still falling toward it
+13              whole.top = dest.top
+14              dest.top    += kDropShredFast       // +4 px/frame
+15              dest.bottom += kDropShredFast
+16              whole.bottom = dest.bottom
+17          vNotClipped = frame - dest.top          // :1297 recompute after moving
+18          if (vNotClipped > 0):
+19              if (vNotClipped < kGliderHigh):
+20                  src.bottom  = src.top  + vNotClipped     // :1308
+21                  mask.bottom = mask.top + vNotClipped
+22                  dest.bottom = dest.top + vNotClipped
+23          else:
+24              AddAShreddedGlider(&dest)           // :1302  spawn the confetti
+25              frame = kShredderCountdown          // :1303  = -68
+26      else:                                       // frame <= 0: death delay
+27          frame++                                 // :1315
+28          if (frame >= 0):
+29              OffAMortal(thisGlider)              // :1317
 ```
 
 Entry (`FlagGliderShredding`, `GliderPRO/Sources/Modes.c:366`–`:402`) sets
 `frame = bounds->bottom - 3` — the y at which the glider is fully consumed — and
 `dest.left = bounds->left + 36` (the glider is dragged to a fixed x inside the
 shredder), width 48, height 20 measured from the top, all four velocities 0,
-sprite `gliderSrc[2]`/`[0]` by facing, and plays `kCaughtFireSound`.
+sprite `gliderSrc[2]`/`[0]` by facing (same function, `:386`–`:395`), and plays
+`kCaughtFireSound`. Do not read that as the only place the sprite is chosen: the
+handler re-asserts the same choice from `facing` on every frame of the grind
+(`Player.c:1268`–`:1277`, pseudocode line 3), which matters on exactly one frame —
+see below.
 
-So the total shredding animation is: fall at 4 px/frame until within 20 px of the
-target, then grind down 1 px/frame for 20 frames while `kShredSound` plays every
-frame, then `AddAShreddedGlider` and a **68-frame (2.27 s) pause** before the
-life is actually lost.
+So the total shredding animation is: fall at 4 px/frame while the distance to
+`frame` is 20 px or more, then grind down 1 px/frame — `kShredSound` on every one
+of those frames, the sprite clipped to `vNotClipped` px tall — then
+`AddAShreddedGlider` and a **68-frame (2.27 s) pause** before the life is
+actually lost. The grind is *not* a fixed 20 frames and can never be 20: it lasts
+exactly as many frames as `vNotClipped` holds when the slow branch is first
+taken, which is always 16 to 19. Two facts pin it there. The initial distance is
+`(bounds->bottom - 3) - dest.top` (`GliderPRO/Sources/Modes.c:400`, with
+`dest.bottom = dest.top + kGliderHigh` at `:371`), and the only caller of
+`FlagGliderShredding` is the `kShredIt` case
+(`GliderPRO/Sources/Interactions.c:1339`), which fires only when `GliderInRect`
+succeeds (`:1326`, definition `:140`–`:147`); that confines `dest.top` to
+`[bounds.top, bounds.bottom - 20]` for the shredder's 40-px active rect
+(`GliderPRO/Sources/ObjectRects.c:19`, `:942`) and so the initial distance to 17
+to 37. The fast branch then subtracts 4 only while the distance is 20 or more, so
+the slow branch is always entered at 16 to 19 — 17 to 19 when the glider was
+caught close enough that no fast frame ran at all. A porter who hard-codes a
+20-frame grind timer instead of driving the loop off `vNotClipped` spawns the
+confetti, and starts the 68-frame countdown, one to four frames late.
+
+The per-frame sprite reset at `:1268`–`:1277` looks redundant, and on every frame
+but one it is: `src.top` is never written inside the handler, so
+`src.bottom = src.top + vNotClipped` (`:1308`) lands on the same value whether or
+not the rect was just restored, and `facing` cannot change mid-shred because every
+assignment to it belongs to some other mode (`:571` and `:588` in the about-face
+handlers; `GliderPRO/Sources/Modes.c:190`, `:197`, `:526`, `:557`). The frame
+where it matters is the terminal one. Once clipping has engaged, every frame ends
+with `dest.bottom` pinned to `frame`, so when the recomputed distance finally
+reaches 0 or less (`:1300`) the clipping `else` at `:1305`–`:1310` does not run:
+the C is left holding a full 20-px-tall `src`/`mask` against a `dest` that the
+previous frame pinned at `dest.bottom = frame` and this frame's `+1`
+(`:1283`–`:1284`) has left just 1 px tall, while a port that omits the reset is
+still holding the previous frame's 1-px `src`. Nothing touches any of those rects
+again — `FlagGliderShredding` never sets `dontDraw` and the `frame <= 0` branch
+only counts up — so `RenderGlider` keeps drawing (it early-returns on `dontDraw`
+alone, `GliderPRO/Sources/Render.c:457`) and passes `src`, `mask` and `dest`
+straight to `CopyMask` (`:505`–`:524`), which scales when source and destination
+differ in size. The original therefore squashes a 48-by-20 source *and its mask*
+into a 48-by-1 line; the port blits the glider's top row 1:1. The wrong line then
+persists frozen for the terminal frame plus all 68 countdown frames
+(`kShredderCountdown` = −68, `:17`), about 2.3 s at 30 Hz, and because the mask is
+squashed too the two can differ by a solid 48-px line versus almost nothing rather
+than by a shade. There is no benign path: the initial
+distance is always at least 17, so the clipping branch has always run at least
+once by the time the terminal frame arrives.
 
 `AddAShreddedGlider` (`GliderPRO/Sources/DynamicMaps.c:726`–`:746`):
 
@@ -1508,7 +1865,7 @@ Note the off-by-one guard: `> kMaxShredded` rather than `>=`, so up to **5**
 shreds can exist in a `kMaxShredded`-sized array. Whether the array is
 oversized is a question for the dynamic-maps document; for the player, the
 relevant fact is that `OffAMortal` calls `RemoveShreds()` if `numShredded > 0`
-(`GliderPRO/Sources/Player.c:1490`–`:1491`).
+(`GliderPRO/Sources/Player.c:1489`–`:1490`).
 
 `RenderShreds` (`GliderPRO/Sources/Render.c:559`–`:612`) grows the shred rect's
 bottom by 1 px per frame until `high >= 35`, then sets `frame = 1` and thereafter
@@ -1516,19 +1873,23 @@ moves the confetti down 4 px/frame for 20 frames.
 
 ### 8.21 Mode 21 — `kGliderInLimbo` (no handler)
 
-`GliderPRO/Sources/Player.c:1423`–`:1424` is an empty `case`. A glider in limbo
-is frozen and invisible (`dontDraw = true`). This mode exists only for the
+`GliderPRO/Sources/Player.c:1423`–`:1424` is an empty `case`. A glider in limbo is
+frozen — no handler runs, so every rect keeps whatever the previous mode's last
+frame left in it — but it is *not* automatically invisible. `FlagGliderInLimbo`
+never touches `dontDraw`, and `RenderGlider` gates on that flag alone
+(`GliderPRO/Sources/Render.c:457`–`:458`), so whether the parked glider is hidden
+depends entirely on the mode it came from. This mode exists only for the
 two-player "one player has left the room and is waiting" state.
 
 `FlagGliderInLimbo` (`GliderPRO/Sources/Modes.c:458`–`:468`):
 
 ```
  1  FlagGliderInLimbo(thisGlider, sayIt):
- 2      wasMode = mode                              // :460-462
- 3      mode = kGliderInLimbo
- 4      if (sayIt && saidFollow < 3):               // :464
- 5          PlayPrioritySound(kFollowSound, kFollowPriority)
- 6          saidFollow++                            // :466
+ 2      wasMode = mode                              // :460
+ 3      mode = kGliderInLimbo                       // :461
+ 4      if (sayIt && saidFollow < 3):               // :462
+ 5          PlayPrioritySound(kFollowSound, kFollowPriority)   // :464
+ 6          saidFollow++                            // :465
  7      firstPlayer = thisGlider->which             // :467
 ```
 
@@ -1536,8 +1897,38 @@ two-player "one player has left the room and is waiting" state.
 (`GliderPRO/Sources/Play.c:116`), so the "follow me" prompt plays at most
 **three times per game**.
 
-`UndoGliderLimbo` (`GliderPRO/Sources/Modes.c:472`–`:480`) restores
-`mode = wasMode` and `dontDraw = false`.
+Line 7 is counter-intuitive and worth pausing on: `firstPlayer` names the glider
+that has just *stopped* and is waiting, not the one still flying. That is what makes
+the `TagGliderIdle` calls in `MoveRoomToRoom`
+(`GliderPRO/Sources/Transit.c:292`–`:295`) freeze the *other* glider — the trailing
+one that actually triggered the room change.
+
+On the transporter, duct and mail paths a limbo glider genuinely is invisible, but
+only because the departing handler set the flag a few lines before it called
+`FlagGliderInLimbo`: `Player.c:607` (transport out), `:715` (duct down), `:812`
+(duct up), `:1011` and `:1102` (mail in). `OffAMortal` sets it too, immediately
+after the call (`Player.c:1505`–`:1506`). On the two staircase paths
+(`FlagGliderInLimbo` at `Player.c:365` and `:493`) `dontDraw` stays **false** and
+`RenderGlider` runs every frame of the wait. The glider's own blit is a visual
+no-op there because `dest`, `src` and `mask` were collapsed a few lines earlier —
+`dest.top = dest.bottom` at `:341` on the way up, `dest.right = dest.left` at
+`:468` on the way down — not because the mode suppressed the draw. Two things
+therefore survive the freeze and a port must keep both. The shadow: the up path never
+collapses `destShadow` (the down path does, at `:471`), so while `shadowVisible` is
+set a stationary shadow goes on being blitted at the last position for the whole
+wait. And the dirty-rect bookkeeping: `whole` and `dest` are still handed to
+`AddRectToWorkRects`/`AddRectToBackRects` unconditionally
+(`GliderPRO/Sources/Render.c:526`–`:529`), and `wholeShadow`/`destShadow` likewise
+inside the `shadowVisible` guard (`:496`–`:499`). A render function that
+early-returns on mode 21 loses the shadow and leaves the background unrestored.
+
+`UndoGliderLimbo` (`GliderPRO/Sources/Modes.c:472`–`:480`) restores `mode = wasMode`
+and clears `dontDraw`, and it is deliberately not a clean inverse of the entry
+function. The `dontDraw = false` at `:479` sits *outside* the
+`if (mode == kGliderInLimbo)` test at `:477` but *inside* the dead-player early
+return at `:474`–`:475`. So it un-hides any glider it is handed, in limbo or not,
+while doing nothing whatsoever for the dead player of a one-player-left game.
+Tidying the assignment into the `if` is the obvious refactor and it is wrong.
 
 ### 8.22 Mode 22 — `kGliderIdle` / `HandleIdleGlider` (`:1323`–`:1331`)
 
@@ -1564,9 +1955,22 @@ Entry (`TagGliderIdle`, `GliderPRO/Sources/Modes.c:631`–`:639`):
 float or in a separate struct must replicate the aliasing, because when the idle
 ends `hVel` is exactly 0 and the glider starts from rest.
 
-Note that `TagGliderIdle` does *not* set `dontDraw`; the callers do
-(`GliderPRO/Sources/Play.c:191`). But `HandleIdleGlider` unconditionally clears
-`dontDraw` when the countdown ends.
+Note that `TagGliderIdle` does *not* set `dontDraw`, and neither do three of its
+four callers. Only `NewGame` does, at `GliderPRO/Sources/Play.c:190`, for the
+second glider's initial spawn; the three `Transit.c` calls
+(`GliderPRO/Sources/Transit.c:146`, `:293`, `:295`) leave the flag exactly as they
+found it, and in `MoveRoomToRoom` that means **false**, because the immediately
+preceding `UndoGliderLimbo(&theGlider); UndoGliderLimbo(&theGlider2);`
+(`Transit.c:162`–`:163`) has just executed `dontDraw = false` (`Modes.c:479`). An
+idle glider is therefore *drawn*, frozen at its new-room entry position, for all 30
+frames, and it is drawn at full size: a side transition translates the existing rect
+by a room width (`OffsetGlider`, `Player.c:1443`–`:1480`) and a stair transition
+rebuilds it from the sprite (`ReadyGliderForTripUpStairs` / `…DownStairs`,
+`Modes.c:537`–`:543` and `:568`–`:574`), so nothing is left collapsed. A port that keys
+visibility off mode 22 makes the second player vanish for the whole 30-frame freeze
+after every two-player room change. `HandleIdleGlider` clears `dontDraw` when the
+countdown reaches 0 whatever set it (`Player.c:1329`), and that is what un-hides the
+`NewGame` spawn.
 
 ### 8.23 Mode 23 — `kGliderTransportingIn` / `TransportGliderIn` (`:261`–`:287`)
 
@@ -1586,21 +1990,21 @@ field writes; the numbers in the "Line" column are `GliderPRO/Sources/Modes.c`.
 | `StartGliderFadingIn` | 25 | 1 | `if (foilTotal <= 0) showFoil = false;` `whole = dest;` `frame = 0;` `dontDraw = false;` sprite `fadeInSequence[0]` (+7 left) |
 | `StartGliderTransportingIn` | 50 | 23 | same as above |
 | `StartGliderFadingOut` | 75 | 2 | returns immediately if already mode 2; `DeckGliderInFoil` if mode was 18, `RemoveFoilFromGlider` if mode was 19; if `RectTall(dest) > kGliderHigh` adds the old rect to the dirty lists (and the mirror rect at `playOrigin−20,−16`) and then forces `dest.right = dest.left + kGliderWide; dest.top = dest.bottom - kGliderHigh;`; `whole = dest;` `frame = kLastFadeSequence − 1` (15) |
-| `StartGliderGoingUpStairs` | 120 | 3 | `frame = (mode == kGliderBurning) ? kWasBurning : 0` |
-| `StartGliderGoingDownStairs` | 137 | 5 | same `frame` rule; `rightClip = GetUpStairsRightEdge()` |
+| `StartGliderGoingUpStairs` | 120 | 3 | `DeckGliderInFoil` if mode was 18, `RemoveFoilFromGlider` if mode was 19 (`:122`–`:125`); `frame = (mode == kGliderBurning) ? kWasBurning : 0` (`:127`–`:130`, *after* the foil fix-up has already read the old `frame`) |
+| `StartGliderGoingDownStairs` | 137 | 5 | same foil fix-up (`:139`–`:142`); same `frame` rule (`:144`–`:147`); `rightClip = GetUpStairsRightEdge()` |
 | `StartGliderMailingIn` | 155 | 14 or 16 (by caller) | plays `kTransOutSound`; `transRoom`, `objLinked`, `linkedToWhat` and `transRect` from the linked object via `GetObjectRect`; `frame = 0`; `clip = *bounds`; `clip.top = bounds->bottom − RectTall(dest)` |
-| `StartGliderMailingOut` | 181 | 15 or 17 | `facing` and `mode` chosen by `linkedToWhat`; sprite `[2]` (left slot) or `[0]`; `hVel = vVel = hDesiredVel = vDesiredVel = 0`; `tipped = false`; `dontDraw = false` |
-| `StartGliderDuctingDown` | 213 | 11 | `clip = *bounds` with `clip.left = bounds->left + ((RectWide(bounds) − kGliderWide) / 2)`; `transRoom`/`linkedToWhat` from the link |
-| `StartGliderDuctingUp` | 246 | 12 | same, upward |
-| `StartGliderDuctingIn` | 279 | 13 | just `mode` and the sprite |
-| `StartGliderTransporting` | 288 | 10 | forces `dest` to 48 x 20 and `destShadow` to 48 x 9; `frame = 15` |
+| `StartGliderMailingOut` | 181 | 15 or 17 | `DeckGliderInFoil` if mode was 18, `RemoveFoilFromGlider` if mode was 19 (`:183`–`:186`); `facing` and `mode` chosen by `linkedToWhat`; sprite `[2]` (left slot) or `[0]`; `hVel = vVel = hDesiredVel = vDesiredVel = 0`; `tipped = false`; `dontDraw = false` |
+| `StartGliderDuctingDown` | 213 | 11, written **last** (`:241`) | plays `kTransOutSound`; `DeckGliderInFoil` if mode was 18, `RemoveFoilFromGlider` if mode was 19 (`:221`–`:224`, both reading the *old* mode); `transRoom`, `objLinked`, `linkedToWhat` and `transRect` from the linked object via `GetObjectRect` (`:226`–`:234`, `GetObjectRect` at `:233`); `frame = 0` (`:236`); `clip = *bounds` (`:237`) with `clip.left = bounds->left + ((RectWide(bounds) − kGliderWide) / 2)` (`:238`–`:239`) |
+| `StartGliderDuctingUp` | 246 | 12, written **last** (`:274`) | byte-identical to `StartGliderDuctingDown` bar the mode constant — nothing is mirrored vertically: `kTransOutSound` at `:252`, foil transitions at `:254`–`:257`, the link block including `transRect` at `:259`–`:267` (`GetObjectRect` at `:266`), `frame = 0` at `:269`, the *same* `clip.left` expression at `:271`–`:272` |
+| `StartGliderDuctingIn` | 279 | 13 | `whole = dest`; `dontDraw = false` (`:281`–`:283`). No sprite assignment and no `frame` write — mode 13 inherits `frame` from the mode-11/12 starter, which is why the `kWasBurning` test at `Player.c:949` sees 0 |
+| `StartGliderTransporting` | 288 | 10 (`:315`) | plays `kTransOutSound` (`:294`); `DeckGliderInFoil` if mode was 18, `RemoveFoilFromGlider` if mode was 19 (`:296`–`:299`); `transRoom`, `objLinked`, `linkedToWhat` and `transRect` from the linked object via `GetObjectRect` (`:301`–`:309`, `GetObjectRect` at `:308`) — the same block as `StartGliderMailingIn`, and the *only* place the transporter route writes those globals; forces `dest` to 48 x 20 and `destShadow` to 48 x 9 (`:311`–`:314`); `whole = dest` (`:316`); `frame = kLastFadeSequence − 1` = 15 (`:317`); sprite `fadeInSequence[15]` (+`kLeftFadeOffset` if facing left) into both `src` and `mask` (`:318`–`:329`) |
 | **`FlagGliderNormal`** | 334 | 0 | `dest.right = dest.left + kGliderWide; dest.bottom = dest.top + kGliderHigh;` `destShadow.right = destShadow.left + kGliderWide; destShadow.bottom = destShadow.top + kShadowHigh;` (does **not** write `whole`, `wholeShadow`, `destShadow.left` or `destShadow.top`); sprite `[2]`/`[0]` by facing; `hVel = vVel = hDesiredVel = vDesiredVel = 0`; `tipped = ignoreLeft = ignoreRight = ignoreGround = dontDraw = false`; `frame = 0`; `shadowVisible = IsShadowVisible()` |
 | `FlagGliderShredding` | 366 | 20 | `kCaughtFireSound`; `dest.left = bounds->left + 36`, width 48, height 20 from the top; extends `whole`/`wholeShadow` toward whichever side the glider jumped to (tested with `dest.left > whole.left`); `destShadow` follows `dest.left`; sprite `[2]`/`[0]`; velocities 0; `frame = bounds->bottom − 3`; `tipped = false` |
-| `FlagGliderBurning` | 406 | 9 | `kCaughtFireSound`; `dest.top = dest.bottom − kGliderBurningHigh` (26); sprite `[25]`/`[21]`; velocities 0; `frame = 0`; `wasMode = kFramesToBurn` (60); `tipped = false` |
+| `FlagGliderBurning` | 406 | 9 | `kCaughtFireSound` (`:410`); **four** rect writes, the same normalisation as `FlagGliderNormal` but with `dest` anchored at the *bottom* — `dest.right = dest.left + kGliderWide` (`:412`), `dest.top = dest.bottom − kGliderBurningHigh` (26, `:413`), `destShadow.right = destShadow.left + kGliderWide` (`:414`), `destShadow.bottom = destShadow.top + kShadowHigh` (`:415`); sprite `[25]`/`[21]`; velocities 0; `frame = 0`; `wasMode = kFramesToBurn` (60); `tipped = false` |
 | `FlagGliderFaceLeft` | 438 | 7 | `frame = kLastAboutFaceFrame` (20); sprite `[20]` |
 | `FlagGliderFaceRight` | 448 | 8 | `frame = kFirstAboutFaceFrame` (18); sprite `[18]` |
 | `FlagGliderInLimbo` | 458 | 21 | `wasMode = mode`; optional `kFollowSound` (max 3 per game); `firstPlayer = which` |
-| `UndoGliderLimbo` | 472 | `wasMode` | `dontDraw = false` |
+| `UndoGliderLimbo` | 472 | `wasMode`, but **only if** currently mode 21 (`:477`–`:478`) | returns for the dead player of a `onePlayerLeft` game (`:474`–`:475`); `dontDraw = false` (`:479`) sits outside the mode-21 test, so it fires for any glider that gets past the early return |
 | `ToggleGliderFacing` | 484 | 7 or 8 | **returns unless `mode == kGliderNormal`**; calls `FlagGliderFaceRight` if `facing == kFaceLeft`, else `FlagGliderFaceLeft` |
 | `InsureGliderFacingRight` | 497 | 8 (maybe) | no-op for the dead player in a two-player game with `onePlayerLeft` (`:499`–`:500`); no-op if `mode == kGliderBurning`; else `FlagGliderFaceRight` if currently facing left |
 | `InsureGliderFacingLeft` | 508 | 7 (maybe) | mirror |
@@ -1609,6 +2013,54 @@ field writes; the numbers in the "Line" column are `GliderPRO/Sources/Modes.c`.
 | `StartGliderFoilGoing` | 581 | 18 | returns if mode is already 18 or 21; `QuickFoilRefresh(false)`; `whole = dest`; `frame = 0`; sprite `[10 − frame]` (+7 left) |
 | `StartGliderFoilLosing` | 605 | 19 | returns if mode is already 19 or 21; `QuickFoilRefresh(false)`; `kFizzleSound`; `whole = dest`; `frame = 0`; sprite `[10 − frame]` |
 | `TagGliderIdle` | 631 | 22 | returns for the dead player; `wasMode = mode`; `hVel = 30` |
+
+The foil fix-up that keeps recurring in that table is one copy-pasted prologue,
+
+```
+if (thisGlider->mode == kGliderGoingFoil)
+    DeckGliderInFoil(thisGlider);
+else if (thisGlider->mode == kGliderLosingFoil)
+    RemoveFoilFromGlider(thisGlider);
+```
+
+and it opens **seven** of these functions: `StartGliderFadingOut` (`:82`–`:85`),
+`StartGliderGoingUpStairs` (`:122`–`:125`), `StartGliderGoingDownStairs`
+(`:139`–`:142`), `StartGliderMailingOut` (`:183`–`:186`),
+`StartGliderDuctingDown` (`:221`–`:224`), `StartGliderDuctingUp` (`:254`–`:257`)
+and `StartGliderTransporting` (`:296`–`:299`). The four arrival starters —
+`StartGliderFadingIn` (`:25`), `StartGliderTransportingIn` (`:50`),
+`StartGliderMailingIn` (`:155`) and `StartGliderDuctingIn` (`:279`) — genuinely
+lack it, so the pattern is "every routine that can be entered *out of* the 9-frame
+foil dissolve commits that dissolve first". It is reachable in ordinary play:
+`CheckForHotSpots` runs every frame from `HandleInteraction`
+(`GliderPRO/Sources/Interactions.c:1693`) with no mode filter, and
+`MoveGliderFoilGoing` keeps calling `MoveGlider` (`Player.c:1197`), so a glider
+touching a staircase, mailbox, duct or transporter hot spot during modes 18/19 is
+routine.
+
+Two details a transcription has to preserve. First, the prologue reads the glider
+*before* the function rewrites `frame`, so `DeckGliderInFoil`/`RemoveFoilFromGlider`
+index the atlas with the stale dissolve frame — `src = mask =
+gliderSrc[frame + 2]` (+`kLeftFadeOffset` facing left), `frame` in 0..8 giving
+indices 2..10 (`Player.c:1154`–`:1165`, `:1214`–`:1225`). In
+`StartGliderGoingUpStairs` the `frame` reset sits at `:127`–`:130`, after the
+prologue has already consumed the old value. Second, whose sprite survives varies:
+`StartGliderMailingOut` (`:192`–`:193` / `:199`–`:200`) and
+`StartGliderTransporting` (`:318`–`:329`) overwrite
+`src`/`mask` a few lines later, so only the global `showFoil` and the two-player atlas
+reload outlive the prologue there, whereas in both stairs starters and both ducting
+starters the prologue's write is the last sprite write the function makes.
+
+Dropping the prologue is a rendering and save-state bug rather than a physics one.
+`showFoil` is a global (`GliderPRO/Headers/GliderVars.h:58`); `RenderGlider`
+selects the atlas with `if ((!twoPlayerGame) && (showFoil))`
+(`GliderPRO/Sources/Render.c:507`) and
+`DrawReflection` tests `if (showFoil)` with no `twoPlayerGame` guard (`:163`), so a
+stale value draws the glider plain while foiled or foil-clad after the foil is
+gone, for the remainder of the foil supply; it is also written into save games
+(`GliderPRO/Sources/SavedGames.c:106`, `:335`), and in a two-player game the wrong PICTs stay loaded
+in `glidSrcMap`/`glid2SrcMap`. `showFoil` is never consulted for damage immunity —
+every read is render, save or init — so this does not make the glider invulnerable.
 
 ### 9.1 `FlagGliderNormal` in detail (`Modes.c:334`–`:362`)
 
@@ -1641,11 +2093,55 @@ do it themselves afterwards (e.g. `OffAMortal`, `GliderPRO/Sources/Player.c:1535
 for the momentum modes the next `MoveGlider` call rewrites all four edges of
 `whole` anyway (§7.2.5).
 
-Note lines 2–3: **`dest` is re-anchored at its top-left.** A burning glider
-(26 tall) that walks up a staircase and re-emerges normal will therefore have its
-bottom edge move *up* by 6 px, because the height is re-derived from the top.
-`StartGliderFadingOut` does the opposite (anchors at the bottom,
-`Modes.c:98`–`:99`). This asymmetry is real and visible.
+Note lines 2–3: **`dest` is re-anchored at its top-left.** A glider that was 26
+tall (burning, `kGliderBurningHigh` against `kGliderHigh` 20 —
+`GliderPRO/Headers/GliderDefines.h:549`, `:551`) and then runs `FlagGliderNormal`
+therefore has its bottom edge jump *up* by 6 px, because the height is re-derived
+from the top. `StartGliderFadingOut` does the opposite, anchoring at the bottom
+(`dest.top = dest.bottom - kGliderHigh`, `Modes.c:99`, and only inside the
+`RectTall(&dest) > kGliderHigh` guard at `:87`). The asymmetry is real, and both
+halves of it must be transcribed exactly as written.
+
+The route to it, however, is *not* the staircase. A burning glider cannot take the
+stairs at all: `case kMoveItUp:` and `case kMoveItDown:` both intercept
+`mode == kGliderBurning` first and fade the glider out instead
+(`GliderPRO/Sources/Interactions.c:1253`–`:1258` and `:1288`–`:1293`), and those two
+cases are the only callers of `StartGliderGoingUpStairs`/`DownStairs`, so
+`frame = kWasBurning` (`Modes.c:128`, `:145`) never fires and the
+`frame == kWasBurning` arms at `Player.c:417`–`:418` and `:546`–`:547` are dead.
+Even if they were reached, they would not show the 6 px step: the arrival rebuilds `dest` from
+the sprite (`dest = src; ZeroRectCorner(&dest); QOffsetRect(&dest, rightClip, 100)`,
+`Modes.c:537`–`:539`), so the glider is 20 tall on arrival, and the `kWasBurning`
+arm calls `FlagGliderBurning`, not `FlagGliderNormal`.
+
+The reachable route is the foil pickup. `case kFoil:`
+(`Interactions.c:900`–`:913`, reached from `case kRewardIt:` at `:1246`–`:1247` via
+`HandleRewards`) has no mode gate, and neither do `HandleHotSpotCollision`,
+`CheckForHotSpots` or `HandleInteraction`. `StartGliderFoilGoing` returns only for
+modes 18 and 21 (`Modes.c:583`–`:584`) and never resizes `dest`, so a burning
+26-tall glider enters `kGliderGoingFoil` still 26 tall; `HandleGlider` then
+dispatches `MoveGliderFoilGoing` rather than `MoveGliderBurning`
+(`Player.c:1411`–`:1412`), which freezes the `wasMode` fuse at `Player.c:220` so the
+glider survives all nine dissolve frames, and frame 9 calls `FlagGliderNormal`
+(`Player.c:1175`) — bottom edge up 6 px. The sibling
+`MoveGliderFoilLosing` → `FlagGliderNormal` (`Player.c:1234`) is reachable the same
+way. A fidelity test for this asymmetry has to be written against the foil path;
+one written against the staircase can never run.
+
+Do not, on the strength of that, delete the dead `frame == kWasBurning` branches or
+the `frame = kWasBurning` writes that feed them. `frame` survives the room
+transition untouched — `StartGliderGoingUpStairs` sets it, `MoveGliderUpStairs`
+never writes it, and `ReadyGliderForTripUpStairs` (`Modes.c:519`–`:546`) does not
+reset it before calling `FinishGliderUpStairs` — so the unreachability rests
+entirely on the two interaction guards above, not on anything in the stairs code
+itself. Transcribe both arms.
+
+One further trap in this neighbourhood, and it is the one that makes the asymmetry
+easy to lose in a port. `FlagGliderNormal` and `FlagGliderBurning` rebuild `dest`
+from *opposite* corners but rebuild `destShadow` from the same corner in both cases
+(`destShadow.bottom = destShadow.top + kShadowHigh`, `Modes.c:339` and `:415`), so
+factoring the two into one shared resize helper parameterised on an anchor silently
+breaks the shadow.
 
 `shadowVisible` is a **global** (`GliderPRO/Sources/Player.c:52`), not per-glider.
 In a two-player game whichever glider most recently ran `FlagGliderNormal` — or
@@ -1776,15 +2272,17 @@ Observations a port must honour:
 * **`GetKeys` is only called for player 1** (line 3). Player 2's input is read
   from the *same* `theKeys` snapshot, which is a file-scope global
   (`GliderPRO/Sources/Input.c:31`). `PlayGame` calls `GetInput(&theGlider)`
-  before `GetInput(&theGlider2)` (`GliderPRO/Sources/Play.c:459`–`:470` region),
-  so the ordering is: sample once, then both gliders read the sample. A Go port
+  before `GetInput(&theGlider2)` (`GliderPRO/Sources/Play.c:452`–`:453`,
+  immediately before `HandleInteraction` at `:454`), so the ordering is: sample once, then both gliders read the sample. A Go port
   must sample the keyboard exactly once per frame and share it.
 * **The burning override is total** (lines 8–13). A burning glider cannot be
   steered, cannot use the battery, cannot fire bands, and `heldLeft`/`heldRight`
   are *not cleared* — they keep whatever value they had when the fire started.
   Since `heldRight` blocks the up-stairs hot spot
-  (`GliderPRO/Sources/Interactions.c:1254`) and `heldLeft` blocks the down-stairs
-  one (`:1289`), a glider that catches fire while holding right can be
+  (`if (!thisGlider->heldRight && GliderInRect(...))`,
+  `GliderPRO/Sources/Interactions.c:1251`) and `heldLeft` blocks the down-stairs
+  one (`:1286`) — the only two reads of either flag outside `Input.c` — a glider
+  that catches fire while holding right can be
   permanently unable to take the up-stairs for the whole 60-frame burn.
 * **Pressing both direction keys turns the glider around** (lines 20–22) but only
   sets `heldLeft`, never `heldRight`. And `ToggleGliderFacing` silently returns
@@ -1815,15 +2313,88 @@ Observations a port must honour:
 
 | logged key | effect in `GetDemoInput` | line |
 | --- | --- | --- |
-| 0 | `hDesiredVel += kNormalThrust`, `tipped = (facing == kFaceLeft)`, `heldRight = true` | `:228`–`:233` |
-| 1 | `hDesiredVel -= kNormalThrust`, `tipped = (facing == kFaceRight)`, `heldLeft = true` | `:236`–`:241` |
-| 2 | battery / helium | `:244`–`:255` |
-| 3 | rubber band | `:258`–`:270` |
+| 0 | `hDesiredVel += kNormalThrust`, `tipped = (facing == kFaceLeft)`, `heldRight = true`, `fireHeld = false` | `:228`–`:233` |
+| 1 | `hDesiredVel -= kNormalThrust`, `tipped = (facing == kFaceRight)`, `heldLeft = true`, `fireHeld = false` | `:235`–`:240` |
+| 2 | battery / helium, then `fireHeld = false` | `:242`–`:248` |
+| 3 | rubber band — the only case that does **not** clear `fireHeld`; a successful `AddBand` sets it | `:250`–`:263` |
 
 The source comments on cases 0 and 1 say `// left key` and `// right key`
 respectively, which is **backwards** relative to what the code does (case 0
-thrusts right). Follow the code, not the comments. `kDemoLength` = 6702
-(`GliderDefines.h:625`).
+thrusts right). Follow the code, not the comments.
+
+The switch is only half the story, and the half around it is what a replay
+transcribed from the table alone gets wrong. `GetDemoInput` clears three flags
+before it even looks at the demo record — `thisGlider->heldLeft = false;
+thisGlider->heldRight = false; thisGlider->tipped = false;` (`:220`–`:222`) —
+which is *not* what `GetInput` does: `GetInput` clears only
+`heldLeft`/`heldRight` up front (`:299`–`:300`), clears `tipped` in the `else` of
+the direction tests (`:328`), and leaves `tipped` untouched altogether on the
+both-keys-held path (`:306`–`:310`). Then the record is consumed only if
+`gameFrame == (long)demoData[demoIndex].frame` (`:224`), with `demoIndex++`
+*inside* that branch (`:266`) and `else thisGlider->fireHeld = false;`
+(`:268`–`:269`) on every frame that has no matching record.
+
+Those `fireHeld` clears exist because a replay has no key state to release. In
+`GetInput` the band key's own `else` rearms the edge trigger (`:363`–`:364`); in
+the demo the three non-band cases and the no-record path have to do it by hand,
+which is why case 3 is the only one that leaves the flag alone. Transcribe the
+table without them and `fireHeld` latches true after the first band, so the
+`if (!thisGlider->fireHeld)` guard at `:251` swallows every later recorded shot;
+drop the `tipped` reset and `tipped` latches true after the first backwards push,
+which silently reverses battery thrust (§10.4) and changes which mail slot the
+glider may enter (§13.5) for the remainder of the replay.
+
+Three further traps surround the switch. The burning override sits *before* the
+reset block (`:211`–`:217`), so a burning glider keeps its old
+`heldLeft`/`heldRight`/`tipped`/`fireHeld` and consumes no record at all —
+`demoIndex` does not advance, and because the frame test at `:224` is an equality
+rather than a `>=`, the pending record is stranded until `gameFrame` happens to
+reach it. `LogDemoKey` is called once per pressed key per frame (`:304`, `:321`,
+`:334`, `:348`), so one recorded frame can hold several records, yet
+`GetDemoInput` consumes at most one per frame; a port that drains every record
+matching the current frame will not replay the same run. And `theKeys` is still
+read during playback for the pause key (`:271`–`:272`) even though the demo
+drives movement, while it is only refreshed by `GetKeys` when
+`thisGlider->which == kPlayer1` (`:188`–`:190`).
+
+`kDemoLength` = 6702 (`GliderDefines.h:625`) is a **byte** count, not a frame
+count: it is the argument to `NewPtr` and to `BlockMove` for the whole buffer
+(`GliderPRO/Sources/StructuresInit2.c:287`, `:295`) and is summed as bytes in the
+memory estimate at `GliderPRO/Sources/Environ.c:657`. Since `demoType` is
+`{ long frame; char key; char padding; }` = 6 bytes
+(`GliderPRO/Headers/GliderStructs.h:334`–`:339`) under the 68k's two-byte
+alignment — 6702 divides by 6 but not by 8, which rules out a padded eight-byte
+record — the shipped `'demo'` 128 resource's 6702 bytes are exactly 1117 records;
+parsing it out of `GliderPRO/Glider PRO.r:199389` gives `frame` rising
+monotonically from 46 to 3414 and only keys 0 (910 records), 1 (198) and 3 (9):
+the recorded run never touches the battery. The event count therefore has to be
+derived from the resource's own length divided by 6, never from `kDemoLength`
+read as a count, which would claim 6702 events, six times the truth, and walk
+5585 records of heap garbage past the end of the buffer. The recording
+build sizes the buffer differently again,
+`NewPtr(sizeof(demoType) * 2000)` (`StructuresInit2.c:282`), and dumps
+`sizeof(demoType) * demoIndex` bytes (`GliderPRO/Sources/Play.c:217`), which is
+where the 6702 = 6 × 1117 figure came from in the first place.
+
+Because `LogDemoKey` assigns only `frame` and `key` (`Input.c:44`–`:49`), the record's
+third field is never initialised, and the shipped resource duly carries whatever
+was in that heap block when the demo was recorded: mostly zeroes, but also 0xFF
+and fragments of ASCII text in no pattern. Read six bytes per record and ignore
+the sixth; a port that compares, hashes or checksums whole records will disagree
+with the resource for reasons that have nothing to do with the demo.
+
+`demoIndex` is a `short` zeroed in `NewGame` (`Play.c:114`), and `GetDemoInput`
+never tests it against `kDemoLength` or against any record count
+(`Input.c:224`, `:266`),
+so the original has no end-of-demo condition at all: past the 1117th record it
+keeps reading off the end of the buffer and simply never sees another `gameFrame`
+match. Playback ends only when the frame loop itself ends,
+`while ((playing) && (!quitting))` (`Play.c:432`), or when `gameOver` closes the
+guard around the call, `if (!gameOver) { if (demoGoing) GetDemoInput(&theGlider); … }`
+(`Play.c:476`–`:479`) — in practice when the demo house kills the glider. A Go
+port does need a bounds check to avoid a panic, but it must only stop the port
+consuming records; clearing `playing` or setting `gameOver` when the records run
+out would end the attract mode earlier than the original does.
 
 Under `#if BUILD_ARCADE_VERSION` the demo aborts on any player key press
 (`GliderPRO/Sources/Input.c:192`–`:201`).
@@ -1867,8 +2438,31 @@ The truth table for direction is `facing XOR tipped`:
 So the battery always pushes **in the direction of travel**, which is exactly the
 direction the held key is pushing (`tipped` is only true when the key opposes
 `facing`). Thrust is applied **directly to `hVel`**, bypassing the `kHImpulse`
-ramp, which is why the battery feels instantaneous. `kThrustSound` plays every
-4th frame while held.
+ramp, which is why the battery feels instantaneous.
+
+`kThrustSound` plays on `batteryFrame == 0` of a 0..3 cycle, so in a one-player
+game it sounds every 4th frame of a sustained hold and immediately on a fresh
+press. That cadence does not survive a second player. `batteryFrame` and
+`batteryWasEngaged` are file-scope globals shared by both gliders
+(`GliderPRO/Sources/Input.c:33`–`:34`), not glider fields, and the reset
+`else batteryWasEngaged = false;` (`:341`–`:342`) is the `else` of the *whole*
+battery test at `:330`–`:331`, so it fires for any glider that did not thrust this
+frame rather than only when the key is released. Because `PlayGame` calls
+`GetInput(&theGlider); GetInput(&theGlider2);` back to back
+(`GliderPRO/Sources/Play.c:452`–`:453`), there are three cadences, not one: one
+player, every 4th frame; two players with only one thrusting, `batteryWasEngaged`
+is false at every `DoBatteryEngaged` call, so `batteryFrame` is forced back to 0
+and the sound plays **every** frame; two players both thrusting,
+`DoBatteryEngaged` runs twice per frame, so `batteryFrame` advances by 2, the
+sound plays every 2nd frame and `batteryTotal` drains at 2/frame. The one
+exception is a burning partner: the reset at `:342` sits inside the non-burning
+`else` that opens at `:298`, so while the other glider is in `kGliderBurning`
+`GetInput` takes the override at `:290`–`:296`, never touches
+`batteryWasEngaged`, and the thrusting player gets the plain 4-frame cadence back
+for the length of the burn. `DoHeliumEngaged` and `kHissSound` behave identically
+(`:173`–`:180`). A port that moves `batteryFrame`/`batteryWasEngaged` into the
+per-glider struct — the obvious Go design — cannot reproduce any of this; keep
+them package-level (§23 item 10).
 
 ### 10.5 `DoHeliumEngaged` (`GliderPRO/Sources/Input.c:160`–`:182`)
 
@@ -1897,9 +2491,14 @@ ramp the way the battery does.
 
 The energy pickups are mutually destructive: taking a battery when you hold
 helium sets `batteryTotal = kBatterySupply` (50) outright rather than adding
-(`GliderPRO/Sources/Interactions.c:854`–`:858`), and taking helium when you hold
+(`GliderPRO/Sources/Interactions.c:860`–`:863`), and taking helium when you hold
 battery sets `batteryTotal = -kHeliumSupply` (−150)
-(`GliderPRO/Sources/Interactions.c:960`–`:964`).
+(`GliderPRO/Sources/Interactions.c:966`–`:969`). Both sign tests are strict
+(`batteryTotal > 0` and `batteryTotal < 0`), so an exhausted `batteryTotal == 0`
+takes the assignment branch — which happens to give the same answer as
+accumulating, but only by coincidence. Note also that both cases halve `hVel` and
+`vVel` two lines earlier (`:858`–`:859`, `:964`–`:965`), as every supply pickup
+does; see §14.
 
 ### 10.6 Rubber bands and recoil
 
@@ -1925,15 +2524,16 @@ battery sets `batteryTotal = -kHeliumSupply` (−150)
 
 Called from `GetInput` with `h = dest.left + 24` (the glider's horizontal
 centre — `kHalfGliderWide`) and `v = dest.top + 10` (its vertical centre)
-(`GliderPRO/Sources/Input.c:362`–`:363`).
+(`GliderPRO/Sources/Input.c:352`–`:353`).
 
 Line 13 is the player-facing part: **firing a band applies exactly 10 px/frame of
 recoil** in the opposite direction, added straight to `hVel` with no ramp. With
 `kMaxRubberBands` = 2 (`GliderDefines.h:261`) you can only have two in flight.
 Line 5 gives a band fired while flying backwards a slight upward velocity (−2).
 
-Bands can also hit *you*. `CheckBandCollision`
-(`GliderPRO/Sources/RubberBands.c:148`–`:194`):
+Bands can also hit *you*. `CheckBandCollision` is
+`GliderPRO/Sources/RubberBands.c:37`–`:204`, of which the glider-overlap test is
+only the tail, `:148`–`:194`:
 
 ```
  1  // only if bands[who].hVel != 0
@@ -1948,12 +2548,46 @@ player 1 and the mirrored condition for player 2. So in a two-player game you ca
 shoot your partner for a 10 px/frame shove, and the band stops dead (its `hVel`
 becomes 0 so it cannot hit twice).
 
+What that tail hides is that the function *opens* with a rebound, not a kill. If
+the room has a real left wall — `leftThresh == kLeftWallLimit`, set per room at
+`GliderPRO/Sources/Room.c:837`, `:859`, `:872`, `:885` and `:909` — and
+`dest.left < kLeftWallLimit`, then `hVel` is negated **only if the band is still
+moving into the wall** (`if (bands[who].hVel < 0)`), `dest.left` is snapped to
+exactly `kLeftWallLimit` with `dest.right = dest.left + 16`, `kBandReboundSound`
+plays at `kBandReboundPriority` and `collided` is set (`:44`–`:52`). The right
+wall is the mirror image, snapping `dest.right = kRightWallLimit` and
+`dest.left = dest.right - 16` (`:53`–`:61`). The two are `if` / `else if`, so at
+most one fires per frame.
+
+Between that and the glider test sits a pass over every `isOn` hot spot
+(`:63`–`:143`), which is the second, object-driven way a band comes back at the
+player. For `kDissolveIt` and `kBounceIt` the band is reversed only if the
+lookahead `(dest.right - bands[who].hVel) < bounds.left` (mirrored for leftward
+bands) says it began the frame clear of the object, and is otherwise given
+`mode = kKillBandMode` (−1) (`:89`–`:117`); `kRewardIt` on a `kGreaseRt`/`kGreaseLf`
+object calls `SetObjectState` then `SpillGrease` and clears the hot spot's `isOn`
+(`:118`–`:130`); `kSwitchIt` calls `HandleSwitches` and `kTriggerIt` calls
+`ArmTrigger` (`:131`–`:138`). The whole pass is debounced by the file-scope
+`bandHitLast`, so a band overlapping one object toggles it once rather than once
+per frame.
+
 `HandleBands` (`GliderPRO/Sources/RubberBands.c:208`–`:252`) advances each band:
 `mode++` (wrapping 0,1,2 for the 3 sprite frames), `count++` and every 4 frames
 (`kBandFallCount`) `vVel++` — so bands accelerate downward at 1 px per 4 frames,
-i.e. 0.25 px/frame², a much gentler gravity than the glider's. A band dies when
-`dest.left < kLeftWallLimit`, `dest.right > kRightWallLimit`, or
-`dest.bottom > kFloorLimit` (`:195`–`:203`).
+i.e. 0.25 px/frame², a much gentler gravity than the glider's.
+
+The kill tests close `CheckBandCollision`: `dest.left < kLeftWallLimit` or
+`dest.right > kRightWallLimit` (`:195`–`:199`), else
+`dest.bottom > kFloorLimit` (312) (`:200`–`:203`), each setting
+`mode = kKillBandMode` with no sound. They read the absolute constants 12 and 500,
+**not** `leftThresh`/`rightThresh`, and it is that pairing with the rebound above
+that decides the behaviour. In a walled room the rebound has already snapped
+`dest.left` to exactly 12 (or `dest.right` to exactly 500) and the tests are
+strict, so neither side test can fire: bands ping-pong horizontally and die only
+on the floor. In an open-sided room, where `leftThresh` is `kNoLeftWallLimit`
+(−24) and `rightThresh` is `kNoRightWallLimit` (536), the rebound is skipped and
+the band vanishes silently at the 12/500 plane — a band cannot follow the player
+out of the room the way the glider does.
 
 ---
 
@@ -2001,11 +2635,13 @@ port that writes the idiomatic half-open `image.Rectangle.Overlaps` (which uses
 strict `<`) will miss exactly the one-pixel-touching case, and that case happens
 constantly because the integrator moves in whole pixels.
 
-`scrutinize` comes from the hot spot's `doScrutinize` flag
-(`GliderPRO/Sources/Interactions.c:1651`, `:1662`, `:1674`, `:1683`), set
-per-object in `ObjectRects.c` (e.g. the shredder sets it true,
+`scrutinize` comes from the hot spot's `doScrutinize` flag. Four call sites pass
+it: three in `CheckForHotSpots` — `GliderPRO/Sources/Interactions.c:1639`–`:1640`
+and `:1657`–`:1658` for the two gliders of a two-player game, `:1679`–`:1680` for
+the one-player case — and one in `FlagStillOvers` (`:1723`–`:1724`). The flag is
+set per-object in `ObjectRects.c` (e.g. the shredder sets it true,
 `GliderPRO/Sources/ObjectRects.c:949`). Dynamic-object collisions always
-scrutinize (`GliderPRO/Sources/Dynamics.c:44`).
+scrutinize (`GliderPRO/Sources/Dynamics.c:42`).
 
 ### 11.2 `GliderInRect` — full containment (`GliderPRO/Sources/Interactions.c:134`–`:150`)
 
@@ -2017,14 +2653,43 @@ scrutinize (`GliderPRO/Sources/Dynamics.c:44`).
  5             (thisGlider->dest.bottom <= theRect->bottom)
 ```
 
-No burning adjustment, no scrutinize. Used where the glider must be *entirely*
-inside: stairs (`:1252`, `:1287`), shredder (`:1326`), transporter (`:1383`),
-and the web-death test (`:1741`).
+No burning adjustment, no scrutinize. It is used wherever the glider must be
+*entirely* inside a rect before the object is allowed to act on it, and that list
+is much longer than the handful of objects one would guess. Twelve call sites in
+all: the stairs (`:1251`, `:1286`), the shredder (`:1326`), the transporter
+(`:1388`), both mailboxes (`:1431`, `:1474`), both transporter ducts (`:1517`,
+`:1550`), the microwave (`:1582`), the web (`:1603` for a live glider and `:1607`
+for a burning one), and the vestigial test inside `WebGlider` itself (`:1741`).
+
+That completeness is the most important thing in this section for a porter,
+because the sections that describe those objects each name only the *other* half
+of their gate: §13.5 is about the mailbox's facing and `tipped` combination, §13.7
+about the duct's `!who->stillOver` latch, §14 about the microwave's. A
+port that gates those six objects on the `SectGlider(..., doScrutinize)` overlap
+`CheckForHotSpots` performs (§13.8) will swallow the glider the moment its nose
+touches the 72 x 40 mailbox rect or the 76 x 48 duct rect, rather than waiting
+until the whole 48 x 20 `dest` box is inside it, and will web or microwave it on
+mere contact. Mail and duct entry positions come out visibly wrong and every one
+of those objects becomes far easier to trigger than it should be.
+
+The web case deserves spelling out, because the C is redundant there and the
+redundancy is easy to copy the wrong way round. `WebGlider` opens with
+`if ((thisGlider->mode == kGliderBurning) && (GliderInRect(thisGlider,
+webBounds)))` (`:1741`), but it has exactly one caller (`:1605`) and that call is
+already guarded by `mode != kGliderBurning` (`:1604`), so `:1741` can never be
+true in practice. The branch that actually burns a webbed glider to death is the
+caller's `else if ((mode == kGliderBurning) && GliderInRect(...))` at
+`:1606`–`:1611`. Observable behaviour is the same either way, but a port that
+implements only the inner test puts the burning check in the wrong function *and*
+loses the containment gate on the ordinary webbing path.
 
 ### 11.3 `GliderHitTop` — the "did I hit the underside" test (`GliderPRO/Sources/Interactions.c:54`–`:97`)
 
-Used only for `kDissolveIt` objects (a glider with foil bounces off things that
-would otherwise dissolve it — `GliderPRO/Sources/Interactions.c:1218`–`:1246`).
+Used only for `kDissolveIt` objects, and only once the glider has been found to
+have foil (`GliderPRO/Sources/Interactions.c:1218`–`:1244`). The name invites the
+reading that foil lets you bounce off things that would otherwise dissolve you,
+but the return value is used the other way round: `true` means you die anyway.
+See the discussion after the pseudocode.
 
 ```
  1  GliderHitTop(thisGlider, theRect) -> Boolean:            // :54
@@ -2055,10 +2720,17 @@ would otherwise dissolve it — `GliderPRO/Sources/Interactions.c:1218`–`:1246
 
 The un-sweep at lines 7–8 rewinds the box by last frame's horizontal velocity so
 the test asks "was I already overlapping this object *before* I moved
-horizontally?" — if yes (`hitTop` true) the collision is treated as vertical (you
-landed on it) and the caller handles it; if no, you ran into its *side*, and
-lines 19–23 reflect `hVel` and push you out by `offset` (the penetration depth
-plus 2). Note that the four-way test is written as a chain of `else if`s that set
+horizontally?" If yes, `hitTop` is true, the contact is not attributable to this
+frame's horizontal motion — you landed on it, rose into it, or were engulfed by
+it — and the caller **kills you**: `StartGliderFadingOut` plus `kFadeOutSound`
+(`:1225`–`:1226`), foil or no foil. If no, you ran into its *side*, and lines
+19–23 reflect `hVel` and push you out by `offset` (the penetration depth plus 2).
+Only that side case is survivable, so foil is not a shield against a
+`kDissolveIt` object at all; it is a shield against flying into one sideways.
+A port that treats the vertical case as absorbed turns foil into
+near-invincibility against every stool, table and microwave body in the game.
+
+Note that the four-way test is written as a chain of `else if`s that set
 `hitTop = false`, i.e. the *negation* of a rect intersection, and that the
 function returns `hitTop` unconditionally (`:96`) — the `!hitTop` block falls
 through to the same return. Note `-hVel - offset`: for `hVel > 0` and a penetration of `p`,
@@ -2066,13 +2738,47 @@ through to the same return. Note `-hVel - offset`: for `hVel > 0` and a penetrat
 amplified** by the penetration. This is a spring-like ejection, not an elastic
 bounce.
 
+A survivable side hit costs **two** foil, not one. Line 15 decrements
+unconditionally inside `GliderHitTop`, and the caller decrements a second time in
+its `else` branch (`:1230`–`:1235`, that one guarded by `if (foilTotal > 0)`). So
+`kFoilSupply` = 8 (`:19`) buys four side hits rather than eight, and only the last
+unit costs 1, because the caller's guard sees the value line 15 has already taken
+down. Worse, the cost is per *frame* of contact and not per bounce:
+`CheckForHotSpots` re-invokes `HandleHotSpotCollision` every frame the scrutinized
+box still overlaps (`:1679`–`:1681`) and `kDissolveIt` never consults
+`stillOver`, so a glider pressed against the side of a stool burns 2 foil a frame.
+Two edge cases follow from line 15 being unguarded: entering with `foilTotal == 1`
+costs 1 and fires `StartGliderFoilLosing` from line 16, and entering with
+`foilTotal == 0` and `mode == kGliderLosingFoil` — which the outer guard at
+`:1221` admits — drives `foilTotal` to −1 and calls `StartGliderFoilLosing` a
+second time, harmless only because that function returns early when the mode is
+already `kGliderLosingFoil`. A Go port that clamps `foilTotal` at zero will
+diverge from anything that later tests its value or sign.
+
 ### 11.4 Raw `dest` edge tests
 
 `CheckGliderInRoom` and the four `CheckEscape*` functions compare `dest` edges
 directly against the room thresholds with **no inset and no burning
 adjustment** (`GliderPRO/Sources/Interactions.c:696`, `:709`, `:722`, `:725`,
-`:738`). So a burning glider's flame plume (the top 6 px) *does* count for the
-ceiling test — it can escape upward 6 px "early".
+`:738`). A burning glider's `dest` really is 6 px taller at the top —
+`FlagGliderBurning` sets `dest.top = dest.bottom - kGliderBurningHigh`, 26 rather
+than `kGliderHigh` 20 (`GliderPRO/Sources/Modes.c:413`) — so its flame plume
+*does* trip the `dest.top < kCeilingLimit` test (8) six pixels earlier than an
+unlit glider at the same altitude.
+
+What the plume does not buy is an early escape. Each of the four threshold
+branches tests `mode == kGliderBurning` first and answers with
+`wasMode = 0; StartGliderFadingOut(); PlayPrioritySound(kFadeOutSound, ...)` —
+`:698`–`:703` at the ceiling, `:711`–`:716` at the floor, `:727`–`:732` at the
+left threshold, `:740`–`:745` at the right — pre-empting the
+`CheckEscapeUpTwo`/`CheckEscapeUp` calls at `:705`/`:707`, which are the only call
+sites of those functions anywhere in the source. So a burning glider fades out 6 px
+"early" at the ceiling and can never transit to the room above (§12.1 describes
+the same behaviour from the driver's side). The roof is the single exception: the
+`(thisBackground == kRoof) && (dest.bottom > kRoofLimit)` branch at `:722`–`:723`
+carries no burning guard, and because it sits after the `kFloorLimit` (312) test in
+the same `else if` chain while `kRoofLimit` is only 122, a burning glider in a roof
+room does reach `CheckRoofCollision`.
 
 ### 11.5 `BounceGlider` (`GliderPRO/Sources/Interactions.c:154`–`:167`)
 
@@ -2087,10 +2793,35 @@ ceiling test — it can escape upward 6 px "early".
  8      else:               PlayPrioritySound(kHitWallSound, kHitWallPriority)
 ```
 
-The new `hVel` is the **overlap distance** — set, not added. So the next
-`MoveGlider` teleports the glider exactly clear of the obstacle in one frame, and
-the velocity then decays by 2/frame. Used for `kBounceIt` hot spots
-(`GliderPRO/Sources/Interactions.c:1591`).
+The new `hVel` is the **overlap distance** — set, not added. The obvious reading
+is that the next `MoveGlider` then teleports the glider exactly clear of the
+obstacle in one frame. It does not, because the decay happens *before* the move
+rather than after it. `HandleInteraction` runs ahead of `HandleGlider` in the same
+frame (`GliderPRO/Sources/Play.c:482` then `:487`, and `:454` then `:460`–`:461`
+in the two-player branch), and `MoveGlider` ramps `hVel` toward `hDesiredVel` by
+`kHImpulse` = 2 (`GliderPRO/Sources/Player.c:66`–`:77`, clamped so it cannot
+overshoot the target) and clamps to ±`kMaxHVel` = 16 (`:96`–`:97`, `:113`–`:114`)
+*before* adding it to `dest` (`:102`–`:103`, `:119`–`:120`). With
+`hDesiredVel == 0` the displacement on the bounce frame is therefore
+`max(min(|overlap|, 18) − 2, 0)` — two pixels short of exactly clear — and an
+overlap wider than 18 is spread over several frames at 16 px each, with
+`BounceGlider` re-firing and replaying `kFoilHitSound`/`kHitWallSound` on every one
+of them. Wide overlaps are not hypothetical: a `kInvisBounce` rect is whatever size
+the level author drew, so the push can be as large as about `(rectWidth + 48) / 2`.
+Nor is `hDesiredVel` necessarily 0 on the bounce frame — a held direction key
+contributes ±5 (`GliderPRO/Sources/Input.c:313`, `:323`) and a fan ±12
+(`GliderPRO/Sources/Interactions.c:1211`, `:1215`) — so the ramp target, and hence
+the ejection distance, depends on what the player and the room are doing that
+frame.
+
+The 2 px shortfall does not normally leave the glider pinned, because
+`kInvisBounce` registers with `doScrutinize` = true
+(`GliderPRO/Sources/ObjectRects.c:649`–`:651`) and `SectGlider` insets 5 px per
+side (`GliderPRO/Sources/Interactions.c:110`–`:115`), so a 2 px residual falls
+inside the inset and next frame's overlap test fails. What a port that implements
+the stated intent loses is the 2 px offset at every resting position and the extra
+`kHitWallSound`/`kFoilHitSound` plays while a wide rect ejects. Used for
+`kBounceIt` hot spots (`GliderPRO/Sources/Interactions.c:1591`).
 
 ---
 
@@ -2126,86 +2857,182 @@ the velocity then decays by 2/frame. Used for `kBounceIt` hot spots
 
 The two chains are **separate `if` statements**, so a glider in a corner is
 processed both vertically and horizontally in the same frame — but each chain
-only fires its first matching branch. A burning glider dies on contact with *any*
-of these five boundaries (`wasMode = 0` first, so the burn timer cannot also
-fire).
+only fires its first matching branch. A burning glider dies on contact with four
+of these five boundaries — the ceiling, the floor and both side thresholds — since
+each of those branches tests `mode == kGliderBurning` before anything else, and
+clears `wasMode` first so the burn timer cannot also fire. The roof (line 14) is
+the exception: that branch carries no burning guard, so a burning glider in a roof
+room reaches `CheckRoofCollision` in the ordinary way (§11.4).
 
 ### 12.2 `CheckEscapeUp` (one player) (`GliderPRO/Sources/Interactions.c:244`–`:279`)
 
 ```
  1  CheckEscapeUp(thisGlider):
- 2      if (topOpen && dest.top < kNoCeilingLimit):        // -10   :246
- 3          if (thisBackground == kDirt):                  // :248
- 4              leftTile  = dest.left  >> 6                // :250  / kTileWide
- 5              rightTile = dest.right >> 6                // :251
- 6              if ((tiles[leftTile] == 5 || tiles[leftTile] == 6) &&
- 7                  (tiles[rightTile] == 5 || tiles[rightTile] == 6)):
- 8                  MoveRoomToRoom(thisGlider, kAbove)
- 9              else:
- 10                 vVel = kCeilingLimit - dest.top        // :262  snap back
- 11         else:
- 12             MoveRoomToRoom(thisGlider, kAbove)         // :268
- 13     else:
- 14         vVel = kCeilingLimit - dest.top                // :275  snap back
+ 2      if (topOpen):                                      // :248
+ 3          if (dest.top < kNoCeilingLimit):               // -10   :250
+ 4              MoveRoomToRoom(thisGlider, kAbove)         // :252
+ 5          // no else — keep rising
+ 6      else if (thisBackground == kDirt):                 // :255
+ 7          leftTile  = dest.left  >> 6                    // :257  / kTileWide
+ 8          rightTile = dest.right >> 6                    // :258
+ 9          if (leftTile >= 0 && leftTile < 8 &&
+ 10             rightTile >= 0 && rightTile < 8):          // :260-261
+ 11             if ((tiles[leftTile] == 5 || tiles[leftTile] == 6) &&
+ 12                 (tiles[rightTile] == 5 || tiles[rightTile] == 6)):   // :263-266
+ 13                 if (dest.top < kNoCeilingLimit):       // :268
+ 14                     MoveRoomToRoom(thisGlider, kAbove) // :269
+ 15                 // no else
+ 16             else:
+ 17                 vVel = kCeilingLimit - dest.top        // :272  snap back
+ 18         else:
+ 19             vVel = kCeilingLimit - dest.top            // :275  snap back
+ 20     else:
+ 21         vVel = kCeilingLimit - dest.top                // :278  snap back
 ```
 
-`vVel = kCeilingLimit - dest.top` sets the velocity to exactly the distance
-needed to place `dest.top` at 8 — a hard positional snap disguised as a velocity.
-For a glider at `dest.top = -5` this gives `vVel = 13`, which is applied in full
-by the next `MoveGlider` (no vertical clamp!) and then decays.
+The outer chain dispatches on the **room**, not on where the glider is: `topOpen`
+(`:248`), else `kDirt` (`:255`), else everything else (`:277`). Only that third arm
+is an ordinary solid ceiling. The `dest.top < kNoCeilingLimit` test is an *inner*
+guard that appears once inside each of the first two arms (`:250`, `:268`) and has
+no `else` in either place, so when the ceiling is open and `dest.top` is between
+`kCeilingLimit` (8) and `kNoCeilingLimit` (−10) this function does nothing at all
+and the glider simply keeps rising — that 18-px band is the last stretch it coasts
+before the room changes. Fusing the two tests into a single
+`if (topOpen && dest.top < kNoCeilingLimit)` and hanging the snap-back on *its*
+`else` is the one mistake that must not be made: `CheckGliderInRoom` re-enters here
+on every frame that `dest.top < 8` (`:696`), so the glider would be re-snapped to
+the ceiling line each frame and could never reach −10. Every open-ceilinged room —
+`kGarden`, `kMeadow`, `kField`, `kRoof`, `kSky`, `kStratosphere`, `kStars`
+(`GliderPRO/Sources/Room.c:1189`–`:1197`, via `topOpen = !DoesRoomHaveCeiling()` at
+`Room.c:929`–`:932`) — would be sealed at the top.
 
-For `kDirt` backgrounds (a dug tunnel) tiles **5 and 6** are the passable
-ceiling tiles for going up; both the left and right edge tiles must qualify.
+The `kDirt` arm is an `else if` on `topOpen`, so it is reached only when the room
+*has* a ceiling. That is not a contradiction: `kDirt` (2011) is a built-in
+background and is absent from the `DoesRoomHaveCeiling` exception list, so a dirt
+room always reports `topOpen == false` and the tile test is exactly what stands in
+for its ceiling. Nesting the `kDirt` test *inside* the `topOpen` branch instead
+makes the whole dug-tunnel path unreachable. Tiles **5 and 6** are the passable
+ceiling tiles for going up, and both the left and right edge tiles must qualify.
+
+The tile-index range check at `:260`–`:261` is load-bearing rather than defensive.
+`dest.left` is legitimately negative whenever the glider straddles an open left
+side (`leftThresh` is then `kNoLeftWallLimit` = −24, `Room.c:908`–`:919`), and
+`dest.right` reaches `kNoRightWallLimit` = 536 on the other side; `>> 6` is an
+arithmetic shift on a signed `short`, so those become −1 and 8. The C diverts both
+to the snap-back at `:275`; a port that omits the guard indexes `thisTiles[-1]` or
+`thisTiles[8]`, and one that "repairs" the omission by clamping to 0..7 reads the
+wrong tile and can pass straight through solid dirt.
+
+`vVel = kCeilingLimit - dest.top` is an assignment, not an accumulation, and it
+looks like a hard positional snap to `dest.top = 8` — but it is not one, because
+`MoveGlider` ramps `vVel` toward `vDesiredVel` *before* adding it to `dest.top`
+(`GliderPRO/Sources/Player.c:80`–`:92`, then `:143`). With the usual
+`vDesiredVel = kGravity` = 3 and `kVImpulse` = 2, a snap of `s = 8 - dest.top`
+lands the glider at `dest.top` = 6 for any `s >= 5`, 7 for `s == 4`, 8 for
+`s == 3` (the only exact case), 9 for `s == 2` and 10 for `s == 1`. So for a
+glider at `dest.top = -5` the snap of 13 is decayed to 11 and `dest.top` becomes 6,
+not 8; 6 is still under the ceiling line, so `CheckEscapeUp` fires again next frame
+with `s = 2` and pushes it to 9. Ceiling contact is a two-frame event filtered
+through the same ±2 ramp as everything else. A port that writes
+`dest.top = kCeilingLimit` directly is off by up to 2 px per contact and loses the
+residual `vVel` (11, then 3) that persists into later frames.
 
 ### 12.3 `CheckEscapeDown` (`GliderPRO/Sources/Interactions.c:378`–`:446`)
 
 ```
  1  CheckEscapeDown(thisGlider):
- 2      if (bottomOpen && dest.bottom > kNoFloorLimit):    // 332
- 3          if (thisBackground == kDirt):
- 4              leftTile  = dest.left  >> 6
- 5              rightTile = dest.right >> 6
- 6              if ((tiles[leftTile] == 2 || tiles[leftTile] == 3) &&
- 7                  (tiles[rightTile] == 2 || tiles[rightTile] == 3)):
- 8                  MoveRoomToRoom(thisGlider, kBelow)
- 9              else:
- 10                 vVel = kFloorLimit - dest.bottom
- 11                 StartGliderFadingOut;  kFadeOutSound
- 12         else:
- 13             MoveRoomToRoom(thisGlider, kBelow)
- 14     else:
- 15         if (ignoreGround):                             // :433  a manhole
- 16             if (dest.bottom > kNoFloorLimit):
- 17                 MoveRoomToRoom(thisGlider, kBelow)
+ 2      if (bottomOpen):                                   // :382
+ 3          if (dest.bottom > kNoFloorLimit):              // 332   :384
+ 4              MoveRoomToRoom(thisGlider, kBelow)         // :386
+ 5          // no else — keep falling
+ 6      else if (thisBackground == kDirt):                 // :389
+ 7          leftTile  = dest.left  >> 6                    // :391
+ 8          rightTile = dest.right >> 6                    // :392
+ 9          if (leftTile >= 0 && leftTile < 8 &&
+ 10             rightTile >= 0 && rightTile < 8):          // :394
+ 11             if ((tiles[leftTile] == 2 || tiles[leftTile] == 3) &&
+ 12                 (tiles[rightTile] == 2 || tiles[rightTile] == 3)):   // :396-397
+ 13                 if (dest.bottom > kNoFloorLimit):      // :399
+ 14                     MoveRoomToRoom(thisGlider, kBelow) // :400
+ 15                 // no else
+ 16             else:
+ 17                 groundOrDie()                          // :404-414
  18         else:
- 19             vVel = kFloorLimit - dest.bottom           // :441
- 20             StartGliderFadingOut;  kFadeOutSound       // :442-443
+ 19             groundOrDie()                              // :419-429
+ 20     else:
+ 21         groundOrDie()                                  // :434-444
+ 22
+ 23  groundOrDie():           // written out in full at all three sites, not a call
+ 24      if (ignoreGround):                                // :434  a manhole
+ 25          if (dest.bottom > kNoFloorLimit):             // :436
+ 26              MoveRoomToRoom(thisGlider, kBelow)        // :437
+ 27          // no else — keep falling
+ 28      else:
+ 29          vVel = kFloorLimit - dest.bottom              // :441
+ 30          StartGliderFadingOut;  kFadeOutSound          // :442-443
 ```
 
+The shape is `CheckEscapeUp` (§12.2) with the snap-back replaced by
+`groundOrDie`: a three-way `else if` chain on the room — `bottomOpen` (`:382`),
+else `kDirt` (`:389`), else solid floor (`:432`) — with the
+`dest.bottom > kNoFloorLimit` test as an else-less inner guard at `:384` and `:399`.
+`bottomOpen` comes from `bottomOpen = !DoesRoomHaveFloor()`
+(`GliderPRO/Sources/Room.c:924`–`:927`), true only for `kSky`, `kStratosphere`,
+`kStars` and user rooms carrying the no-floor bounds bit (`Room.c:1143`–`:1163`),
+so a `kDirt` room is always `bottomOpen == false` and its dug tunnels live in the
+second arm.
+
+Getting this chain wrong is fatal in the literal sense. Terminal free-fall speed is
+`kGravity` = 3 px/frame (`GliderPRO/Sources/Player.c:13`, `:92`), so `dest.bottom`
+crosses `kFloorLimit` (312) at about 314 and needs roughly another seven frames to
+pass `kNoFloorLimit` (332). Through all of those frames `CheckGliderInRoom` calls
+this function (`:709`) and the C does *nothing*: the glider visibly sinks through
+the floor line and only then transitions. A port that fuses `bottomOpen` with the
+332 test and hangs `groundOrDie` on the fused `else` fades the player out on the
+first frame past 312, which turns every downward transition through an open floor
+into a death.
+
 **Hitting the floor kills you.** There is no landing. The only exceptions are an
-open-bottomed room, a `kDirt` tunnel with tiles 2 or 3 under both edges, or the
-one-frame `ignoreGround` flag from a manhole hot spot. Note that in the
-`ignoreGround` case the glider must still be past `kNoFloorLimit` (332) — from
+open-bottomed room, a `kDirt` tunnel with tiles 2 or 3 under both edges (versus 5
+and 6 going up), or the `ignoreGround` flag from a manhole hot spot. Note that in
+the `ignoreGround` case the glider must still be past `kNoFloorLimit` (332) — from
 312 to 332 it simply keeps falling.
 
-For `kDirt` going *down*, the passable tiles are **2 and 3** (versus 5 and 6
-going up).
+`ignoreGround` is what makes the dirt arm's tile-mismatch `else` non-fatal: at
+`:404` the C runs the same `groundOrDie` pair as the solid-floor arm, so a manhole
+placed in a dirt room over tiles that are not 2 or 3 still drops the player to the
+room below rather than killing them. The tile-index range check at `:394` matters
+for the same reason as in §12.2, except that here its `else` at `:417`–`:430` is a
+third copy of `groundOrDie` — out of range the glider dies (or falls through, with
+`ignoreGround`), it does not snap.
 
 ### 12.4 `CheckEscapeLeft` (`GliderPRO/Sources/Interactions.c:572`–`:595`)
 
 ```
  1  CheckEscapeLeft(thisGlider):
- 2      if (leftThresh == kLeftWallLimit):                 // 12: there IS a wall
- 3          if (ignoreLeft && dest.left < kNoLeftWallLimit):    // -24
- 4              MoveRoomToRoom(thisGlider, kToLeft)
- 5          else:
- 6              if (foilTotal > 0): kFoilHitSound
- 7              else:               kHitWallSound
- 8              offset = kLeftWallLimit - dest.left        // penetration
- 9              hVel = -hVel + offset                     // reflect + eject
- 10     else:                                              // open room
- 11         MoveRoomToRoom(thisGlider, kToLeft)
+ 2      if (leftThresh == kLeftWallLimit):                 // 12: there IS a wall  :576
+ 3          if (ignoreLeft):                               // :578
+ 4              if (dest.left < kNoLeftWallLimit):         // -24   :580
+ 5                  MoveRoomToRoom(thisGlider, kToLeft)    // :581
+ 6              // no else — the wall is inert this frame
+ 7          else:
+ 8              if (foilTotal > 0): kFoilHitSound          // :585-586
+ 9              else:               kHitWallSound          // :587-588
+ 10             offset = kLeftWallLimit - dest.left        // :589  penetration
+ 11             hVel = -hVel + offset                     // :590  reflect + eject
+ 12     else:                                              // open room  :593
+ 13         MoveRoomToRoom(thisGlider, kToLeft)            // :594
 ```
+
+The bounce is the `else` of `ignoreLeft` alone (`:583`), not of a fused
+`ignoreLeft && dest.left < kNoLeftWallLimit`, and the positional test at `:580` has
+no `else`. That distinction is what makes doors and windows work. `ignoreLeft` is
+re-set every frame the glider overlaps a `kIgnoreLeftWall` hot spot (§13), and the
+glider has to carry `dest.left` all the way from 11 down past −24 before the exit
+fires; through that whole run the wall must be inert — no sound, no reflection.
+Fuse the two tests and the first frame at `dest.left = 10` plays `kHitWallSound`
+and sets `hVel = -hVel + 2`, throwing the glider back out of the doorway it is
+standing in, so left and right exits through doors and windows never fire at all.
 
 Note `hVel = -hVel + offset` (not `-hVel - offset` as in `GliderHitTop`): for a
 leftward `hVel = -6` at `dest.left = 8`, `offset = 4`, giving `hVel = 10`. So the
@@ -2216,28 +3043,35 @@ unless you are on fire.
 ### 12.5 `CheckEscapeRight` (`GliderPRO/Sources/Interactions.c:662`–`:685`)
 
 Mirror, with `kRightWallLimit` (500) and `kNoRightWallLimit` (536), and
-`offset = kRightWallLimit - dest.right; hVel = -hVel + offset;`.
+`offset = kRightWallLimit - dest.right; hVel = -hVel + offset;` (`:679`–`:680`).
+"Mirror" includes the nesting: `if (ignoreRight)` at `:668` wraps an else-less
+`if (dest.right > kNoRightWallLimit)` at `:670`, and the sound-and-bounce block is
+the `else` of `ignoreRight` at `:673`, so the right wall is equally inert while the
+glider carries `dest.right` from 501 out past 536.
 
 ### 12.6 The two-player variants
 
 `CheckEscapeUpTwo` (`:171`–`:240`), `CheckEscapeDownTwo` (`:283`–`:374`),
 `CheckEscapeLeftTwo` (`:509`–`:568`), `CheckEscapeRightTwo` (`:599`–`:658`) add
-the limbo handshake. The pattern, using Up as the example:
+the limbo handshake. Each keeps its one-player sibling's structure *unchanged* —
+the same room-type dispatch, the same else-less `kNo*Limit` inner guards, the same
+tile-range checks, the same snap-back and `groundOrDie` arms — and substitutes a
+three-armed handshake for each `MoveRoomToRoom` call. Using Up as the example, the
+substitution is:
 
 ```
- 1  if (this glider may escape):
- 2      if (onePlayerLeft):                       // partner already dead
- 3          MoveRoomToRoom(thisGlider, kAbove)
- 4      else if (otherPlayerEscaped == kNoOneEscaped):
- 5          otherPlayerEscaped = kPlayerEscapedUp     // -4
- 6          FlagGliderInLimbo(thisGlider, true)       // plays "follow me"
- 7          dontDraw = true
- 8      else:                                     // partner is already waiting
- 9          MoveRoomToRoom(thisGlider, kAbove)     // both go
-10  else:
-11      PlayPrioritySound(kDontExitSound, kDontExitPriority)
-12      offset = kNoCeilingLimit - dest.top
-13      vVel = -vVel + offset                     // bounce off the invisible barrier
+ 1  // in place of each  MoveRoomToRoom(thisGlider, kAbove)  in §12.2:
+ 2  if (otherPlayerEscaped == kNoOneEscaped):         // :179  nobody waiting yet
+ 3      otherPlayerEscaped = kPlayerEscapedUp         // -4     :181
+ 4      RefreshScoreboard(kEscapedTitleMode)          // :182
+ 5      FlagGliderInLimbo(thisGlider, true)           // :183  plays "follow me"
+ 6  else if (otherPlayerEscaped == kPlayerEscapedUp): // :185  waiting at THIS exit
+ 7      otherPlayerEscaped = kNoOneEscaped            // :187  clear the latch
+ 8      MoveRoomToRoom(thisGlider, kAbove)            // :188  both go
+ 9  else:                                             // :190  waiting somewhere else
+10      PlayPrioritySound(kDontExitSound, kDontExitPriority)   // :192
+11      offset = kNoCeilingLimit - dest.top           // :193
+12      vVel = -vVel + offset                         // :194
 ```
 
 So in a two-player game the **first** glider to reach an exit goes into limbo at
@@ -2246,6 +3080,55 @@ same exit triggers the transition for both. A glider that reaches a *different*
 exit while the partner waits gets a `kDontExitSound` and bounces off an invisible
 barrier at the `kNo*Limit` plane.
 
+Three details of that chain are easy to lose. The middle arm tests the exit's *own*
+code rather than being a bare `else`, which is what makes `kPlayerIsDeadForever`
+(−69, set by `OffAMortal` at `GliderPRO/Sources/Player.c:1602`) and the stairs,
+transporter, duct and mail codes (§15.6) fall through to the third arm instead of
+teleporting a lone glider out of the room; each function substitutes its own
+constant (`kPlayerEscapedUp` −4, `kPlayerEscapedDown` −5,
+`kPlayerEscapedLeft` −3, `kPlayerEscapedRight` −2). The latch is cleared at `:187`
+*before* the transition, and dropping that line leaves `otherPlayerEscaped` armed
+into the next room, where the first glider to touch any exit takes the middle arm
+and leaves without its partner. And the third arm is the "wrong exit" bounce, not
+the "has not crossed the plane yet" case — it sits *inside* the `kNo*Limit` guard,
+so `offset` always points back into the room (positive going up and left, negative
+going down and right) and the glider really is thrown off the barrier; below the
+plane the C is silent and does nothing, exactly as in §12.2.
+
+There is no `onePlayerLeft` test in any of the four functions. That guard lives in
+the caller: `CheckGliderInRoom` picks the `*Two` variant only under
+`(twoPlayerGame) && (!onePlayerLeft)` (`:704`, `:717`, `:733`, `:746`), so a
+`onePlayerLeft` arm transcribed into the handshake would be dead code.
+
+"Same structure as the one-player sibling" is exact for Up, but the horizontal pair
+carry the handshake **twice**: once inside `leftThresh == kLeftWallLimit` under
+`ignoreLeft`, gated on `dest.left < kNoLeftWallLimit` (`:519`–`:536`), and once in
+the open-side `else` with no positional gate at all (`:550`–`:566`), mirrored at
+`:609`–`:626` and `:640`–`:656`. The ordinary wall arm in between (`:538`–`:546`,
+`:628`–`:636`) is untouched, and still uses `kLeftWallLimit`/`kRightWallLimit` with
+`kFoilHitSound`/`kHitWallSound` — do not let the handshake's `kNoLeftWallLimit` and
+`kDontExitSound` bleed into it. `CheckEscapeUpTwo` and `CheckEscapeDownTwo` carry
+the handshake twice as well, once in the open arm and once in the `kDirt` arm
+(`:211`–`:230`, `:323`–`:342`). One asymmetry survives all of this and must not be
+factored away: `CheckEscapeDownTwo` has the tile-range check at `:315`–`:316` but
+**no `else` for it**, so out of range the glider just keeps falling, where
+`CheckEscapeDown` runs `groundOrDie` (`:417`–`:430`).
+
+`otherPlayerEscaped` is a single global that is read and written within the frame,
+and §12.1's two chains are separate `if` statements, so a glider in a corner can
+run `CheckEscapeUpTwo` and then `CheckEscapeLeftTwo` in the same frame with the
+second call seeing the first call's write. The vertical-then-horizontal order is
+load-bearing.
+
+Note what the limbo branch does *not* contain: there is no `dontDraw` write in it.
+No line of `Interactions.c` assigns that field at all, so the glider that reaches
+a wall exit first goes on being rendered for the entire wait, frozen at the
+position that tripped the test — and since the `kNo*Limit` planes sit half a
+glider beyond the wall (`kNoCeilingLimit` −10, `kNoFloorLimit` 332,
+`kNoLeftWallLimit` −24, `kNoRightWallLimit` 536, against a 48 x 20 glider) roughly
+half of it is still inside the room, shadow included. A port that suppresses
+drawing on mode 21 makes the waiting player vanish from the room edge; see §8.21.
+
 ### 12.7 `CheckRoofCollision` (`GliderPRO/Sources/Interactions.c:450`–`:505`)
 
 Only on `thisBackground == kRoof`, only when `dest.bottom > kRoofLimit` (122).
@@ -2253,7 +3136,7 @@ Only on `thisBackground == kRoof`, only when `dest.bottom > kRoofLimit` (122).
 ```
  1  CheckRoofCollision(thisGlider):
  2      offset = (dest.left + kHalfGliderWide) >> 6        // :454  centre tile index
- 3      if (offset < 0 || offset > 7 || sliding): return   // :456-457
+ 3      if (offset < 0 || offset > 7 || sliding): return   // :455 (inverted)
  4      tileOver = tiles[offset]
  5      switch (tileOver):
  6        case 1:   // roof sloping one way
@@ -2289,7 +3172,7 @@ the mirrored tiles).
 | 6 | `(64 - xInTile) > (250 - dest.bottom)` | 250 (`:491`) | down to the left |
 | anything else (including 0, 3, 4, 7) | unconditional | — | flat / solid: kills on contact |
 
-`sliding` grants immunity (the `!thisGlider->sliding` term at `:456`), which is
+`sliding` grants immunity (the `!thisGlider->sliding` term at `:455`), which is
 how a glider on a greased roof slides along it instead of dying.
 ---
 
@@ -2300,13 +3183,26 @@ Objects act on the player through the `hotSpots[]` array of `hotObject` records
 
 ```c
 typedef struct {
-	Rect		bounds;			// screen-local, already offset by playOrigin
+	Rect		bounds;			// room-local (same space as gliderType.dest); add playOrigin only to draw
 	short		action;			// one of the kIgnoreIt..kSoundIt action codes
 	short		who;			// index of the owning object
 	Boolean		isOn, stillOver;
 	Boolean		doScrutinize;	// use the 5-px-inset hit box
 } hotObject, *hotPtr;
 ```
+
+(The struct in `GliderStructs.h` carries no comments of its own; those are ours.)
+The coordinate space of `bounds` is the one thing here a port can get
+catastrophically wrong, so it is worth the evidence. `AddActiveRect` stores the
+rect verbatim (`GliderPRO/Sources/ObjectRects.c:283`) from geometry built purely
+out of `theObject.data.*.topLeft`, and `SectGlider`, `GliderInRect` and
+`GliderHitTop` compare it against an un-offset copy of `thisGlider->dest`
+(`GliderPRO/Sources/Interactions.c:101`, `:134`, `:54`). `playOrigin` is added only
+when a hot rect is turned into pixels (`GliderPRO/Sources/Interactions.c:1001`–`:1002`,
+`GliderPRO/Sources/Grease.c:282`–`:287`), and `Grease.c:66` correspondingly
+*subtracts* it to convert a screen-space spill rect back into hot-spot space. A
+port that offsets hot rects by `playOrigin` before testing them shifts the entire
+interaction layer by one origin, and nothing in the room can be triggered at all.
 
 `kMaxHotSpots` = **56** (`GliderPRO/Headers/GliderDefines.h:259`).
 
@@ -2322,7 +3218,7 @@ touches the player's motion:
 | 2 | `kDropIt` | `vDesiredVel = kCeilingVentDrop` (+8) |
 | 3 | `kPushItLeft` | `hDesiredVel += −kFanStrength` (−12) |
 | 4 | `kPushItRight` | `hDesiredVel += +kFanStrength` (+12) |
-| 5 | `kDissolveIt` | death, unless foil (then `GliderHitTop` bounce) |
+| 5 | `kDissolveIt` | death; with foil, death anyway unless the contact is a side hit, which reflects `hVel` (§11.3) |
 | 6 | `kRewardIt` | `HandleRewards` (see §14) |
 | 7 | `kMoveItUp` | up the stairs; requires `!heldRight` and `GliderInRect` |
 | 8 | `kMoveItDown` | down the stairs; requires `!heldLeft` and `GliderInRect` |
@@ -2335,15 +3231,15 @@ touches the player's motion:
 | 15 | `kTransportIt` | `StartGliderTransporting` |
 | 16 | `kIgnoreLeftWall` | `ignoreLeft = true` (one frame) |
 | 17 | `kIgnoreRightWall` | `ignoreRight = true` (one frame) |
-| 18 | `kMailItLeft` | `StartGliderMailingIn`, mode 14; requires a `facing`/`tipped` combination |
-| 19 | `kMailItRight` | `StartGliderMailingIn`, mode 16; the opposite combination |
-| 20 | `kDuctItDown` | `StartGliderDuctingDown`, mode 11 |
-| 21 | `kDuctItUp` | `StartGliderDuctingUp`, mode 12 |
-| 22 | `kMicrowaveIt` | destroys bands / battery / foil |
+| 18 | `kMailItLeft` | `StartGliderMailingIn`, mode 14; requires `GliderInRect` and a `facing`/`tipped` combination |
+| 19 | `kMailItRight` | `StartGliderMailingIn`, mode 16; requires `GliderInRect` and the opposite combination |
+| 20 | `kDuctItDown` | `StartGliderDuctingDown`, mode 11; requires `GliderInRect` |
+| 21 | `kDuctItUp` | `StartGliderDuctingUp`, mode 12; requires `GliderInRect` |
+| 22 | `kMicrowaveIt` | destroys bands / battery / foil; requires `GliderInRect` |
 | 23 | `kIgnoreGround` | `ignoreGround = true` (one frame) |
 | 24 | `kBounceIt` | `BounceGlider` |
 | 25 | `kChimeIt` | nothing |
-| 26 | `kWebIt` | `WebGlider` |
+| 26 | `kWebIt` | `WebGlider`; requires `GliderInRect` |
 | 27 | `kSoundIt` | nothing |
 
 (`kLgTrigger` shares the `kTriggerIt` case at `GliderPRO/Sources/Interactions.c:1351`–`:1352`.)
@@ -2359,10 +3255,29 @@ touches the player's motion:
 Two frames of consequence:
 
 1. `vVel` is **set** (not added) to the signed distance from the glider's bottom
-   edge to the top of the slide surface. Because there is **no vertical clamp**
-   in `MoveGlider` (§7.2), the very next frame teleports the glider so its bottom
-   sits exactly on the surface — however far away it was. A glider falling onto
-   grease from 40 px up snaps down 40 px in one frame.
+   edge to the top of the slide surface. It is tempting to read that as a
+   teleport onto the surface, but it is not one, for two separate reasons.
+   First, the write is attenuated: `HandleInteraction` runs before `HandleGlider`
+   in the same frame (`GliderPRO/Sources/Play.c:482` then `:487`), and
+   `MoveGlider` runs its vertical ramp (`GliderPRO/Sources/Player.c:80`–`:91`)
+   before it adds `vVel` to `dest` (`:129`–`:146`), so with the usual
+   `vDesiredVel` of `+3` a `vVel` of `-d` is ramped to `2 - d` before it is
+   applied. That arithmetic has a fixed point: for a glider whose bottom sits `d`
+   px below the surface top the displacement is `2 - d` for *every* `d`, so the
+   bottom always lands exactly 2 px below `who->bounds.top`, and it then holds
+   there, because the next frame writes `vVel = -2`, the ramp takes that to 0,
+   and nothing moves. (If something else wrote `vDesiredVel` that frame — helium
+   `-4`, `kLiftIt` `-6`, `kDropIt` `+8` — the 2 px is applied towards *that*
+   value instead, so the resting offset flips sign for a negative
+   `vDesiredVel`.) Second, the snap is never downwards. `kSlideIt` rects are
+   registered with `doScrutinize = false`
+   (`GliderPRO/Sources/ObjectRects.c:696`, `:715`, `:731`, against the signature
+   at `:277`), so `SectGlider` (`GliderPRO/Sources/Interactions.c:118`–`:127`)
+   only reports a hit once `theRect->top <= glideBounds.bottom` — that is, once
+   the glider's bottom is already at or below the surface top. The expression
+   `who->bounds.top - thisGlider->dest.bottom` is therefore always `<= 0`, and a
+   glider falling onto grease from 40 px up does not see the hot spot at all
+   until it has arrived.
 2. `sliding = true` does three things: selects the sliding sprite
    (`gliderSrc[30]` facing left at `GliderPRO/Sources/Player.c:157`,
    `gliderSrc[29]` facing right at `:179`), grants immunity from
@@ -2433,6 +3348,14 @@ reaches `stop`. The jar's tip animation is 4 frames of a 32 x 27 sprite from
 22          StartGliderFadingOut(thisGlider);  kFadeOutSound   // :1773-1774
 ```
 
+Lines 2–5 are dead code. `WebGlider` has exactly one caller, `:1605`, and that
+call is already guarded by `mode != kGliderBurning` at `:1604`, so the burning
+branch inside the function can never be entered. A burning glider in a web is
+actually killed by the caller's own `else if ((mode == kGliderBurning) &&
+GliderInRect(...))` at `:1606`–`:1611`; the effect is identical but the
+containment gate that matters for the *live* glider lives at `:1603`, not here
+(§11.2).
+
 `hDist` and `vDist` are **twice the offset from the glider's centre to the web's
 centre, divided by 8** — i.e. `((webCentre - gliderCentre) * 2) >> 3` =
 `(webCentre - gliderCentre) / 4`. So a struggling glider is snapped a quarter of
@@ -2449,11 +3372,12 @@ frames (5 s)**.
 | Action | Without foil | With foil |
 | --- | --- | --- |
 | `kBurnIt` (`Interactions.c:1356`) | `FlagGliderBurning` | `vDesiredVel = kFloorVentLift` (−6), `kSizzleSound`, `foilTotal--` |
-| `kDissolveIt` (`Interactions.c:1218`) | `StartGliderFadingOut` + `kFadeOutSound` | `GliderHitTop` — vertical hit is absorbed; horizontal hit reflects `hVel` and costs 1 foil |
+| `kDissolveIt` (`Interactions.c:1218`) | `StartGliderFadingOut` + `kFadeOutSound` | `GliderHitTop` — a contact still overlapping after the `wasHVel` un-sweep counts as vertical and is **fatal even with foil** (`StartGliderFadingOut` + `kFadeOutSound`, `Interactions.c:1225`–`:1226`); only a side hit is survivable, reflecting `hVel` at a cost of 2 foil per frame of contact (§11.3) |
 | `kShredIt` (`Interactions.c:1324`) | `FlagGliderShredding` (requires `GliderInRect` and `mode != kGliderShredding`) | one foil is consumed instead |
 
 `foilTotal` reaching 0 triggers `StartGliderFoilLosing`
-(`GliderPRO/Sources/Interactions.c:80`–`:81`).
+(`GliderPRO/Sources/Interactions.c:83`–`:84` inside `GliderHitTop`, `:1233`–`:1234`
+in the `kDissolveIt` caller, `:1334`–`:1335` in `kShredIt`).
 
 The shredder hot rect (`GliderPRO/Sources/ObjectRects.c:940`–`:950`):
 
@@ -2477,9 +3401,15 @@ glider is caught as it approaches.
 `:1467` ("mailbox open to left"):
 
 ```
-kMailItLeft  requires: (facing == kFaceRight && !tipped) || (facing == kFaceLeft  && tipped)
-kMailItRight requires: (facing == kFaceLeft  && !tipped) || (facing == kFaceRight && tipped)
+kMailItLeft  requires: GliderInRect(thisGlider, &who->bounds)                      // :1431
+                       && (facing == kFaceRight && !tipped) || (facing == kFaceLeft  && tipped)
+kMailItRight requires: GliderInRect(thisGlider, &who->bounds)                      // :1474
+                       && (facing == kFaceLeft  && !tipped) || (facing == kFaceRight && tipped)
 ```
+
+The `GliderInRect` term is easy to miss and gameplay-visible: the glider must be
+*wholly* inside the 72 x 40 rect before it is mailed, not merely overlapping it
+(§11.2).
 
 Both conditions reduce to "**you must be travelling in the correct direction**",
 because `tipped` means "flying opposite to `facing`". `kMailItLeft` (a mailbox
@@ -2496,8 +3426,8 @@ another one.
 ### 13.6 `kMoveItUp` / `kMoveItDown` — stairs
 
 ```
-kMoveItUp   (Interactions.c:1250): requires !heldRight && GliderInRect(thisGlider, &who->bounds)
-kMoveItDown (Interactions.c:1285): requires !heldLeft  && GliderInRect(thisGlider, &who->bounds)
+kMoveItUp   (Interactions.c:1251): requires !heldRight && GliderInRect(thisGlider, &who->bounds)
+kMoveItDown (Interactions.c:1286): requires !heldLeft  && GliderInRect(thisGlider, &who->bounds)
 ```
 
 The `heldRight`/`heldLeft` guards let you fly *past* a staircase without being
@@ -2513,9 +3443,11 @@ Hot rects (`GliderPRO/Sources/ObjectRects.c:775`–`:797`):
 `kFloorTrans` → `QSetRect(&bounds, 0, -48, 76, 0)` offset
 `(-8, RectTall(srcRects[kFloorTrans]))` — 76 x 48 sitting *above* the floor duct;
 `kCeilingTrans` → `QSetRect(&bounds, 0, 0, 76, 48)` offset `(-8, 0)` — 76 x 48
-below the ceiling duct. `kDuctItUp` additionally requires `!who->stillOver` and
-sets `stillOver = true` in the one-player branch
-(`GliderPRO/Sources/Interactions.c:1543`+).
+below the ceiling duct. Both actions require `GliderInRect`
+(`GliderPRO/Sources/Interactions.c:1517`, `:1550`) — the glider must be wholly
+inside the 76 x 48 rect, not merely overlapping it (§11.2) — and `kDuctItUp`
+additionally requires `!who->stillOver` and sets `stillOver = true` in the
+one-player branch (`:1543`+).
 
 ### 13.8 `CheckForHotSpots` and `stillOver`
 
@@ -2613,14 +3545,14 @@ player-visible effects are listed; the object bookkeeping (`SetObjectState`,
 | `kYellowClock` (`:798`) | `+= 500` (`kYellowClockPoints`) | same — `kDingSound` |
 | `kCuckoo` (`:814`) | `+= 1000` (`kCuckooClockPoints`) | same — `kCuckooSound`, `StopPendulum` |
 | `kPaper` (`:831`) | — | `hVel /= 2; vVel /= 2;` and **`mortals++`** (a second `mortals++` if `twoPlayerGame && !onePlayerLeft`) |
-| `kBattery` (`:850`) | — | `batteryTotal += kBatterySupply` if already positive, else `= kBatterySupply` (50); +50 again in two-player |
-| `kBands` (`:872`) | — | `bandsTotal += kBandsSupply` (8); doubled in two-player |
+| `kBattery` (`:850`) | — | `hVel /= 2; vVel /= 2;` then `batteryTotal += kBatterySupply` if already positive, else `= kBatterySupply` (50); +50 again in two-player |
+| `kBands` (`:872`) | — | `hVel /= 2; vVel /= 2;` then `bandsTotal += kBandsSupply` (8); doubled in two-player |
 | `kGreaseRt` / `kGreaseLf` (`:891`–`:892`) | — | `SpillGrease(...)` — starts the slick |
-| `kFoil` (`:900`) | — | `foilTotal += kFoilSupply` (8) then `StartGliderFoilGoing(thisGlider)`; doubled in two-player |
+| `kFoil` (`:900`) | — | `hVel /= 2; vVel /= 2;` then `foilTotal += kFoilSupply` (8) then `StartGliderFoilGoing(thisGlider)`; doubled in two-player |
 | `kInvisBonus` (`:919`) | `+= data.c.points` | same `/4` velocity damping as the clocks |
 | `kStar` (`:933`) | `+= 5000` (`kStarPoints`) | `StopStar`, `numStarsRemaining--`, `FlagGameOver()` at ≤ 0 |
 | `kSparkle` (`:953`) | — | nothing |
-| `kHelium` (`:956`) | — | `batteryTotal -= kHeliumSupply` if already negative, else `= -kHeliumSupply` (−150); −150 again in two-player |
+| `kHelium` (`:956`) | — | `hVel /= 2; vVel /= 2;` then `batteryTotal -= kHeliumSupply` if already negative, else `= -kHeliumSupply` (−150); −150 again in two-player |
 | `kSlider` (`:978`) | — | nothing (handled as `kSlideIt` elsewhere) |
 
 Score constants: `kRoomVisitScore` 100 (`GliderDefines.h:536`),
@@ -2630,10 +3562,28 @@ Score constants: `kRoomVisitScore` 100 (`GliderDefines.h:536`),
 The velocity damping on a clock pickup is a deliberate "thunk": grabbing a clock
 divides both velocity components by 4 (integer division, so it truncates toward
 zero), and half of the pre-damping velocity is transferred to the flying score
-number. Paper (an extra life) divides by 2 instead.
+number: in `kCuckoo`, `AddFlyingPoint(&bounds, 1000, hVel / 2, vVel / 2)` (`:822`)
+runs *before* `hVel /= 4; vVel /= 4;` (`:823`–`:824`). Paper (an extra life)
+divides by 2 instead.
 
-`HandleMicrowaveAction` (`GliderPRO/Sources/Interactions.c:1159`–`:1194`), gated
-on `!who->stillOver`, reads a bitmask:
+So do all four supply pickups, and this is the easiest effect in the section to
+overlook because nothing else in those cases hints at it: `kBattery`
+(`:858`–`:859`), `kBands` (`:880`–`:881`), `kFoil` (`:908`–`:909`) and `kHelium`
+(`:964`–`:965`) each halve `hVel` and `vVel` inside the same
+`if (SetObjectState(...))` guard, in the fixed order `PlayPrioritySound` →
+`RestoreFromSavedMap` → `AddSparkle(&bounds)` → `hVel /= 2` → `vVel /= 2` →
+inventory update. Unlike the clocks they discard the other half; there is no
+`AddFlyingPoint` to receive it. Collecting a battery while battery-thrusting
+therefore halves your speed on the pickup frame — a thunk that shapes the
+trajectory for many frames afterwards, and one that interacts with the ±16
+`kMaxHVel` clamp. The division is C `/` on a `short` and truncates toward zero, so
+`hVel == -1` becomes `0`; Go's `int16(-1) / 2` matches, but "tidying" it into
+`>> 1` gives −1 and a permanent drift.
+
+`HandleMicrowaveAction` (`GliderPRO/Sources/Interactions.c:1159`–`:1194`) is
+reached only when `GliderInRect` holds (`:1582`), i.e. when the glider is wholly
+inside the microwave's rect and not merely touching it (§11.2), and then returns
+immediately unless `!who->stillOver` (`:1164`–`:1165`). It reads a bitmask:
 
 | Bit | Effect |
 | --- | --- |
@@ -2975,20 +3925,38 @@ Four things a port must get right:
 are structurally identical:
 
 ```
-1  SetMusicalMode(kKickGameScoreMode)
-2  HandleRoomVisitation()
-3  sameRoom = (transRoom == thisRoomNumber)
-4  if (!sameRoom): ForceThisRoom(transRoom)
-5  UndoGliderLimbo(&theGlider);  UndoGliderLimbo(&theGlider2)
-6  ReadyGliderFromTransit(&theGlider,  linkedToWhat)
-7  ReadyGliderFromTransit(&theGlider2, linkedToWhat)
-8  if (!sameRoom): ReadyLevel();  WipeScreenOn(kAbove, &justRoomsRect)
-9  RenderFrame()
+ 1  SetMusicalMode(kKickGameScoreMode)                            // :318
+ 2  HandleRoomVisitation()                                        // :319
+ 3  sameRoom = (transRoom == thisRoomNumber)                      // :321
+ 4  if (!sameRoom): ForceThisRoom(transRoom)                      // :322-323
+ 5  if (twoPlayerGame):                                           // :324
+ 6      UndoGliderLimbo(&theGlider)                               // :326
+ 7      UndoGliderLimbo(&theGlider2)                              // :327
+ 8      ReadyGliderFromTransit(&theGlider,  linkedToWhat)         // :328
+ 9      ReadyGliderFromTransit(&theGlider2, linkedToWhat)         // :329
+10  else:
+11      ReadyGliderFromTransit(thisGlider, linkedToWhat)          // :332
+12  if (!sameRoom): ReadyLevel()                                  // :334-335
+13  RefreshScoreboard(kNormalTitleMode)                           // :336  unconditional
+14  if (!sameRoom): WipeScreenOn(kAbove, &justRoomsRect)          // :337-338
+15  RenderFrame()                                                 // :341, in #ifdef COMPILEQT
+16  if (thisMac.hasQT && hasMovie && tvInRoom && tvOn):           // :342
+17      GoToBeginningOfMovie(theMovie);  StartMovie(theMovie)     // :344-345
 ```
 
-`transRoom` and `linkedToWhat` are globals filled at mode entry by
-`StartGliderMailingIn` / `StartGliderDuctingDown` / `StartGliderDuctingUp` from
-the linked object's record. `WhatAreWeLinkedTo`
+The `twoPlayerGame` test at line 5 is not decoration: in a one-player game only
+`thisGlider` is readied and neither glider is taken out of limbo. Note also that the
+three `!sameRoom` tests are separate, with the unconditional
+`RefreshScoreboard(kNormalTitleMode)` sitting between `ReadyLevel` and
+`WipeScreenOn` — the scoreboard is refreshed even for a transit that lands back in
+the room it started from.
+
+`transRoom`, `linkedToWhat` and `transRect` are globals filled at mode entry by
+`StartGliderMailingIn`, `StartGliderDuctingDown`, `StartGliderDuctingUp` **and
+`StartGliderTransporting`** from the linked object's record — all four run the
+identical resolution block, and the transporter is the one a porter forgets,
+because the fade counter is the visible part of that routine (§8.10).
+`WhatAreWeLinkedTo`
 (`GliderPRO/Sources/Transit.c:31`–`:61`):
 
 | Destination object class | `linkedToWhat` | Value |
@@ -3172,11 +4140,19 @@ Globals involved:
 
 Sequence for a normal two-player room change:
 
-1. Player A reaches an exit. `CheckEscape*Two` sees
-   `otherPlayerEscaped == kNoOneEscaped`, so it records the exit code, calls
-   `FlagGliderInLimbo(A, true)` (saving A's mode in `wasMode`, playing
-   `kFollowSound` up to 3 times, and setting `firstPlayer = A.which`) and sets
-   `A.dontDraw = true`. **The room does not change.**
+1. Player A reaches an exit. For the four walls that is `CheckEscape*Two`
+   (`GliderPRO/Sources/Interactions.c:171`, `:283`, `:509`, `:599`); the
+   staircases, transporters, ducts and mail slots run the same handshake inline in
+   their `Player.c` handlers. Either way it sees
+   `otherPlayerEscaped == kNoOneEscaped`, records the exit code, and calls
+   `FlagGliderInLimbo(A, true)` — saving A's mode in `wasMode`, playing
+   `kFollowSound` up to 3 times, and setting `firstPlayer = A.which`. It does
+   **not** set `A.dontDraw`: nothing in `Interactions.c` writes that field at all.
+   A is hidden only on the exits whose handler had already hidden it a few lines
+   earlier (`Player.c:607`, `:715`, `:812`, `:1011`, `:1102`); on a wall exit A
+   stays fully drawn, frozen at the room edge, and on a staircase exit only its
+   shadow survives, because `dest` was collapsed rather than the flag set — see
+   §8.21. **The room does not change.**
 2. Player B reaches the *same* exit. Now `otherPlayerEscaped != kNoOneEscaped`,
    so `MoveRoomToRoom` runs for both.
 3. `MoveRoomToRoom` calls `UndoGliderLimbo` on both gliders (restoring A's mode),
@@ -3656,8 +4632,8 @@ For a glider in `kGliderNormal` with no special objects nearby:
  6  elif right:            hDesiredVel += 5; tipped = (facing == left);  heldRight = true
  7  elif left:             hDesiredVel -= 5; tipped = (facing == right); heldLeft  = true
  8  else:                  tipped = false
- 9  if battKey && batteryTotal > 0:  hVel += (facing^tipped ? -8 : +8); batteryTotal--
-10  if battKey && batteryTotal < 0:  vDesiredVel = -4; batteryTotal++
+ 9  if battKey && batteryTotal > 0 && mode == kGliderNormal:  hVel += (facing^tipped ? +8 : -8); batteryTotal--
+10  if battKey && batteryTotal < 0 && mode == kGliderNormal:  vDesiredVel = -4; batteryTotal++
 11  if bandKey && bandsTotal > 0 && !fireHeld:  AddBand(...); hVel -= bandHVel/2
 12  // --- HandleInteraction ---
 13  for each active hot spot overlapping the glider: apply its action
@@ -3671,7 +4647,7 @@ For a glider in `kGliderNormal` with no special objects nearby:
 21  hVel  = approach(hVel, hDesiredVel, 2);   hDesiredVel = 0
 22  vVel  = approach(vVel, vDesiredVel, 2);   vDesiredVel = 3
 23  clamp |hVel| <= 16   (only inside the sign branches; no vertical clamp)
-24  wasHVel = hVel (if hVel != 0);   wasVVel = vVel (if vVel != 0)
+24  wasHVel = hVel;  wasVVel = vVel   // both unconditional -- a zero-velocity axis takes the else branch and is reset to 0
 25  dest += (hVel, vVel);  destShadow += (hVel, 0);  update whole/wholeShadow
 26  // --- end of HandleGlider ---
 27  ignoreLeft = ignoreRight = ignoreGround = false
@@ -3679,6 +4655,16 @@ For a glider in `kGliderNormal` with no special objects nearby:
 29  draw reflection, scenery, dynamics, then the glider, then shreds and bands
 30  busy-wait to 2 ticks
 ```
+
+Steps 9 and 10 are one statement in the C, not two: the guard is
+`battKey && batteryTotal != 0 && mode == kGliderNormal`
+(`GliderPRO/Sources/Input.c:330`–`:331`) and the sign of `batteryTotal` then
+picks `DoBatteryEngaged` over `DoHeliumEngaged` inside it (`:336`–`:339`). The
+`else` on that guard sets `batteryWasEngaged = false` (`:341`–`:342`), which is
+what makes the next engaged frame restart the `kThrustSound`/`kHissSound` phase;
+see §10.4 and §10.5. Note also that steps 13–15 run *before* step 21, so
+everything the world writes in `HandleInteraction` is filtered by the ramp on
+its way into `dest` — see §7.2 item 1.
 
 ---
 
@@ -3774,8 +4760,17 @@ Ordered by how likely each is to be got wrong.
    `hDesiredVel` to 0 and `vDesiredVel` to `kGravity` *inside* the mover; the
    overshoot clamps in the ramp; the `kMaxHVel` clamp living inside the sign
    branches; the **absence of any vertical clamp**; the fact that `wasHVel` /
-   `wasVVel` are only updated on a non-zero-velocity frame; and the one-sided
-   `whole` edge writes.
+   `wasVVel` are rewritten on **every** call, including a frame the glider spent
+   stationary; and the one-sided `whole` edge writes.
+
+   The last of those is easy to get backwards, because the assignments sit inside
+   the two halves of a sign test and look conditional. They are not: the split is
+   `if (vel < 0) {…} else {…}` (Player.c:96-146), so a velocity of zero takes the
+   positive branch and the assignment still runs. It matters because
+   `GliderHitTop` rewinds the hit box by `wasHVel` to decide whether the glider
+   landed on an object or ran into its side (Interactions.c:65) — a glider that was
+   stationary last frame must rewind by 0, not by its last non-zero velocity, or
+   every landing after a stop is misread as a side impact.
 
 3. **`vVel` is used as a positional snap in three places** — `kSlideIt`
    (`vVel = surfaceTop - dest.bottom`), `CheckEscapeUp`/`Down`
@@ -3820,9 +4815,12 @@ Ordered by how likely each is to be got wrong.
 10. **Shared globals, not per-player state.** `batteryTotal`, `bandsTotal`,
     `foilTotal`, `mortals`, `showFoil`, `shadowVisible`, `theScore`,
     `otherPlayerEscaped`, `takingTheStairs`, `firstPlayer`, `rightClip`,
-    `leftClip`, `transRoom`, `linkedToWhat`, `transRect` are all single globals
-    shared by both gliders. Moving any of them into a per-player struct will
-    change behaviour.
+    `leftClip`, `transRoom`, `linkedToWhat`, `transRect`, `batteryFrame` and
+    `batteryWasEngaged` are all single globals shared by both gliders. Moving any
+    of them into a per-player struct will change behaviour. The last two look most
+    like per-glider state and are not: they are the battery/helium sound phase
+    (`GliderPRO/Sources/Input.c:33`–`:34`), and putting them in the struct silently
+    changes the two-player thrust cadence (§10.4).
 
 11. **`GetKeys` is sampled once per frame for player 1 only**, and player 2 reads
     the same snapshot. Player 2's keys are hard-coded modifiers (Control,
@@ -3860,9 +4858,12 @@ Ordered by how likely each is to be got wrong.
     (`GliderPRO/Sources/Player.c:1287`) and again *every frame* while each
     confetti pile grows (`GliderPRO/Sources/Render.c:585`, ~35 frames per pile).
     `kThrustSound` / `kHissSound` play only on `batteryFrame == 0` of a 0..3 cycle
-    that is reset whenever the key is released
-    (`GliderPRO/Sources/Input.c:147`–`:153`, `:173`–`:179`), i.e. every 4th frame
-    of a sustained hold, and immediately on a fresh press.
+    (`GliderPRO/Sources/Input.c:147`–`:153`, `:173`–`:179`), which in a one-player
+    game means every 4th frame of a sustained hold and immediately on a fresh
+    press. In a two-player game the cycle collapses, because `batteryFrame` and
+    `batteryWasEngaged` are globals and the reset at `:342` fires for whichever
+    glider did *not* thrust this frame: one thruster then sounds every frame, two
+    thrusters every 2nd frame (§10.4).
     `kFollowSound` plays at most 3 times per game
     (`saidFollow < 3` at `GliderPRO/Sources/Modes.c:462`, incremented at `:465`,
     zeroed by `NewGame` at `GliderPRO/Sources/Play.c:115`). A port that

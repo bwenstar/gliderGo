@@ -234,10 +234,79 @@ result to PNG, which is how it was checked.
   `Assets.Approximations()`. The `isDepth == 4` 16-grey branch of every helper is not ported.
   `masterObjects` and the link table are deferred to 1.5; nothing they produce reaches a pixel.
 
-**1.4 Player physics**
-- `internal/game/player`: the glider state machine, gravity, air, banking, foil/bands/helium.
-- *Acceptance:* a trace test — scripted inputs produce a position/velocity trace that matches
-  hand-derived expectations from `docs/analysis/player-physics.md` frame for frame.
+**1.4 Player physics** ✅ *done*
+
+`internal/game/player` is the glider: the 24-mode state machine, the integrator, input, the hit
+box and the four room boundaries. 3,140 lines of code and 1,533 of tests, transcribed from
+`Player.c`, `Modes.c`, `Input.c` and `Interactions.c:54-752`.
+
+- **Integer pixels per frame, everywhere, deliberately.** No floats, no fixed point, no
+  sub-pixel accumulator, no delta time. Position lives entirely in QuickDraw rects and the whole
+  of the damping is a ±2 ramp toward a desired velocity. Free fall is 0, 2, 3, 3 — terminal
+  speed 3 px/frame is *emergent* from the ramp meeting `kGravity`, not a constant anyone wrote.
+- **`MoveGlider` resets `hDesiredVel` to 0 and `vDesiredVel` to `kGravity` inside itself**, so
+  every accelerating influence has to be re-applied every frame. This is the single most likely
+  way to get the subsystem wrong: set thrust once and the glider coasts forever.
+  `TestHoldRightTrace` exists to fail loudly if that ever happens.
+- **The horizontal clamp is ±16 and there is no vertical clamp at all.** The clamp lives *inside*
+  the sign branches, which is why the battery — which adds to `hVel` directly, bypassing the ramp
+  — still gets pinned at exactly 16. Vertically nothing is capped: `vVel` doubles as a positional
+  snap in three places and can be arbitrarily large. A symmetric "for safety" clamp would break
+  grease, wall bounces and ceiling snaps at once, so `TestNoVerticalClamp` drives a velocity of 40
+  through a frame and checks all 40 pixels arrive. What the missing clamp does *not* mean is that
+  the world can kick the glider by a whole amount in one frame: a ceiling vent assigns
+  `vDesiredVel`, so its 8 is a ramp target reached over three frames, and the writes that do target
+  `vVel` directly are still docked one `kVImpulse` on the way, because the interaction pass runs
+  before `HandleGlider` in the same frame. That asymmetry — no clamp, but never a clean kick — is
+  the subtlest thing in the subsystem and the one the spec had backwards.
+- **The overloaded fields are kept overloaded.** `frame` is a fade index, a sprite index, an
+  animation phase, a `kWasBurning` sentinel, a **y coordinate** and a negative countdown depending
+  on mode; `wasMode` is a burn fuse *and* a saved mode; `hVel` is the idle countdown. Splitting
+  them would look tidier and would break the place the aliasing is load-bearing:
+  `MoveGliderShredding` tells its two phases apart with `frame > 0`. The `kWasBurning` sentinel is
+  transcribed too, and is dead — a burning glider is faded out by the interaction gates before it
+  can reach a staircase — but the reason it is dead lives in 1.5, not here, so it stays.
+- **`batteryTotal` is one signed counter for two power-ups**: positive is battery charges,
+  negative is helium, and the same keypress does mechanically unrelated things either side of
+  zero (`hVel` directly for one, `vDesiredVel` through the ramp for the other). Both walk it
+  toward zero, which is why `DoHeliumEngaged` *increments*.
+- **`GliderHitTop`'s name is the opposite way round from what it does**, twice over. It rewinds the
+  hit box by `wasHVel`, undoing the frame's horizontal motion, and re-tests: still overlapping means
+  the contact was not caused by moving sideways (return true), overlap gone means it ran into the
+  side — which the function then handles itself, spending foil and reflecting `hVel`, and returns
+  false. So the *false* return is the one that has been dealt with. And at its only caller the
+  *true* return is fatal: foil protects a glider against the side of a dissolving object and not
+  against landing on it. That rewind is also why `wasHVel` must be rewritten on a stationary frame
+  too.
+- **Every boundary has two thresholds, and they are different numbers.** `CheckGliderInRoom`
+  triggers on the inner limit (ceiling 8, floor 312) but the escape functions require the outer
+  one (−10, 332) before letting the glider through; the gap is what makes walking out of a room
+  take several frames. Open *sides* are the exception and have no distance check at all.
+- **Two-player exits are a race, and there are two different strictnesses of it.** The transit
+  handlers let the second arrival through unconditionally; the wall/ceiling/floor checks add a
+  third outcome that *refuses* a glider whose partner left by a different exit, so the first one
+  out chooses the route for both. Both are reproduced separately rather than merged.
+- *Acceptance met:* **57 assertions pass**, every expected number hand-derived from the C before
+  the test was run. The traces from `player-physics.md` §7.3 are pinned frame for frame (free
+  fall, hold-and-release, helium, battery steady state), as are the fade lengths, the 60-frame
+  burn fuse, the two-phase shred (45 fast frames, 17 grinding, then a 68-frame countdown), the
+  sound throttle's 1/5/9 pattern, and one test per boundary verdict.
+- *Independently audited against the C.* A 73-agent pass over `player-physics.md` found **57
+  confirmed errors in the spec** — fused `if` conditions, omitted range guards, inverted outcomes,
+  drifted line citations — and a second pass then re-derived every one of them against the Go, with
+  three adversarial refuters standing by for any claimed divergence. **None was needed: 46 findings
+  are code-faithful and 11 describe behaviour that is Stage 1.5's.** The port survived its own spec
+  being wrong because it was transcribed from `Interactions.c` and `Player.c` with the document as a
+  map rather than a source; the 57 corrections are now in the document, which grew by a thousand
+  lines in the process. Thirteen Go doc comments that had repeated the spec's claims were corrected
+  too — the code was right and the comments above it were not, which is the failure mode this kind
+  of transcription is most prone to.
+- *Deviations, stated plainly:* the outward calls (sound, transitions, scoreboard, inventory) are
+  an `Env` interface with a `NopEnv` for tests, because the original is one mutually recursive
+  tangle of file-scope globals — 1.5 implements it for real. `GetInput` takes a resolved `Keys`
+  value per glider instead of a shared `KeyMap`, which preserves the original's one-poll-two-
+  gliders property while removing its ordering hazard. Nothing else is refactored: where the C
+  has eight functions that four would cover, this has eight.
 
 **1.5 Objects, collision, room transitions**
 - Object behaviours class by class, then the collision pipeline in the original's evaluation

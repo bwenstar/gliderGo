@@ -12,8 +12,11 @@ a very large house, and try to get further than you did last time.
 > **Status: in development.** Stage 0 (foundations, environment, source archaeology),
 > Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies), Stage 1.2
 > (house loading: all 22 original houses read, written and round-tripped byte-for-byte)
-> and Stage 1.3 (room rendering: all 4,070 rooms of all 22 houses compose in the
-> original's draw order) are complete. Stage 1.4 (player physics) is next.
+> Stage 1.3 (room rendering: all 4,070 rooms of all 22 houses compose in the
+> original's draw order) and Stage 1.4 (player physics: the 24-mode glider state
+> machine, integer integrator, input, hit box and room boundaries) are complete.
+> Stage 1.5 (objects, collision and room transitions) is next — which is when the
+> glider first meets the rooms it can already draw.
 > See [docs/PLAN.md](docs/PLAN.md).
 
 ---
@@ -71,7 +74,7 @@ see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network
 |---|---|
 | `GliderPRO/` | The original 1994 C source, vendored **read-only** as the reference. Includes `Glider PRO.r` (the whole resource fork: 538 resources, every sprite and sound) and `Houses/` (the 22 shipped levels, 4,070 rooms). |
 | `docs/ORIGINAL_GAME.md` | Consolidated source of truth for how the original behaves. **Read this first.** |
-| `docs/analysis/` | 28 per-subsystem, byte-level specs reverse-documented from the C (123k lines). The detailed authority. |
+| `docs/analysis/` | 28 per-subsystem, byte-level specs reverse-documented from the C (124k lines). The detailed authority. |
 | `docs/PLAN.md` | The staged implementation plan and the decisions behind it. |
 | `docs/DEV_ENVIRONMENT.md` | How to build here, what this airgapped network can reach, and the measured performance baseline. |
 | `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
