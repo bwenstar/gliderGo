@@ -10,9 +10,12 @@ package player
 // one package. So the calls the player makes outward are collected here, named
 // after the original functions, and stage 1.5 implements them for real.
 //
-// Every method is a call the C actually makes from Player.c, Modes.c or Input.c.
-// Nothing was invented to make the interface tidy, and nothing the player only
-// reads from its own struct appears here.
+// Of the 46 methods, the function-shaped ones each name a C free function that
+// Player.c, Modes.c or Input.c really calls. The remaining ~20 are accessors --
+// BatteryTotal, Tile, TopOpen, LeftThresh, TwoPlayerGame and the like -- which
+// stand in for the C's direct reads and writes of a file-scope global, since
+// there is no function to name. Nothing was invented to make the interface tidy,
+// and nothing the player only reads from its own struct appears here.
 type Env interface {
 	// ---- sound -------------------------------------------------------------
 	// PlayPrioritySound is the original's only sound entry point from this code.
@@ -100,8 +103,17 @@ type Env interface {
 	// which is what makes the shot not cost a band (Input.c:352-361).
 	AddBand(g *Glider, h, v int16, facing bool) bool
 	AddAShreddedGlider(r Rect)
-	// FlagStillOvers re-tests what the glider is standing on after it arrives
-	// somewhere without moving, so a glider dropped onto a switch triggers it.
+	// FlagStillOvers marks every hot spot the glider currently overlaps as
+	// already-stood-on, which SUPPRESSES it rather than triggering it. The
+	// dispatcher's one-shot cases are all shaped `if (!who->stillOver) { do it;
+	// who->stillOver = true; }` (Interactions.c:1344, :1595, :1616), so
+	// pre-setting the flag is what stops the arrival frame from counting as a
+	// fresh contact (Interactions.c:1723-1725).
+	//
+	// It has exactly one caller and it is not room entry: FinishGliderDuctingIn
+	// (Player.c:954), a glider dropping out of a ceiling duct. So a glider that
+	// lands on a switch by falling out of a duct does not flip it, while one that
+	// walks onto the same switch does.
 	FlagStillOvers(g *Glider)
 
 	// ---- life and death ---------------------------------------------------

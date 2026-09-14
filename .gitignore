@@ -19,3 +19,10 @@ scripts/env.sh
 # Python bytecode from the extraction tools
 __pycache__/
 *.pyc
+
+# Intermediate per-subsystem reverse-engineering drafts. They are superseded by the
+# harmonised spec next to them (e.g. docs/analysis/stage-15-spec.md), and they still
+# contain the errors that the review pass found and the spec corrected -- committing
+# both would leave two disagreeing sources of truth, which is the failure mode the
+# stage 1.4 audit existed to fix.
+/docs/analysis/stage15-raw/

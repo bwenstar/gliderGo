@@ -308,16 +308,127 @@ box and the four room boundaries. 3,140 lines of code and 1,533 of tests, transc
   gliders property while removing its ordering hazard. Nothing else is refactored: where the C
   has eight functions that four would cover, this has eight.
 
-**1.5 Objects, collision, room transitions**
-- Object behaviours class by class, then the collision pipeline in the original's evaluation
-  order, then room-to-room movement and per-room state persistence.
-- *Acceptance:* a house can be traversed end to end headlessly; each object class has a test
-  pinning its trigger condition and effect.
+**1.5 Objects, collision, room transitions** — ~9,100 lines of C, six sub-stages
+
+The largest stage in the project: about twice everything committed so far, at 1.4's C-to-Go ratio
+roughly 9,000 lines of Go and 4,000 of tests. It was one four-line bullet until a reverse-
+verification pass sized it; the decomposition, the dependency argument and the per-type behaviour
+tables are `docs/analysis/stage-15-spec.md` (5,530 lines) §5.
+
+Four decisions have to be taken inside it rather than left floating, each with an owning
+sub-stage: the build configuration (`COMPILEQT` and `BUILD_ARCADE_VERSION` are both defined and
+between them add four `RenderFrame` call sites); the fact that **`RenderFrame` is not idempotent
+and runs twice on any frame a transition completes**; hoisting the pending-transit triple
+`transRect`/`transRoom`/`linkedToWhat` off the glider, where 1.4 put it, and onto the world, where
+the C has it as one shared global that `FollowTheLeader` reads from the *dead* leader; and the
+`DrawLocale` reset order, which two source reports had wrong.
+
+**1.5a The world and the room: live state, object graph, hot-spot table, room load** — ~2,230
+lines of C
+- `internal/game` gains `World` (session-, game- and house-scope state) and `Room` (what
+  `DrawLocale` rebuilds), scoped on **the C's own reset sites** rather than on intuition: session =
+  `CreatePointers`, game = `Play.c:112-118` + `InitGlider`, room = `DrawLocale`
+  (`RoomGraphics.c:51-60`). `Room` embeds `*render.Scene`.
+- Ports `Objects.c:89-699` (the link resolvers, `ListAllLocalObjects`, `SetObjectState`),
+  `ObjectRects.c:277-1063` (`AddActiveRect` and all 117 cases of `CreateActiveRects`), `Room.c`'s
+  runtime half (`DetermineRoomOpenings`, `GetNeighborRoomNumber`, `IsRoomAStructure`, the
+  floor/ceiling/shadow predicates), `RoomGraphics.c`'s `ReadyLevel` and `DrawLocale` reset head,
+  the four `savedMaps` primitives, and `Play.c`'s `SetObjectsToDefaults` and `InitGlider`.
+- `CreateActiveRects` was the single largest unspecified piece: **93 of the 117 types produce a hot
+  spot and 24 produce none**, and fifteen of the undocumented ones are lethal `kDissolveIt` solids
+  — `kTable`, `kCounter`, `kInvisObstacle` among them. A port that omits them ships a house full of
+  pass-through furniture. The per-type table now lives in the spec §3.2-§3.10.
+- `Rebuild` must be a **method** on `World`, not a constructor: `RestoreEntireGameScreen` reaches
+  `DrawLocale` (`Play.c:814`) during normal play without `NilSavedMaps` or `InitGarbageRects`.
+- *Acceptance:* **all 4,070 rooms of all 22 houses build a `masterObjects`/`hotSpots` pair**, each
+  pinned by a per-room hash over the counts, every master entry's seven indices and every hot
+  spot's `(bounds, action, who, isOn, doScrutinize)` — the same corpus-scale proof 1.2 and 1.3
+  were accepted on. Each of the 93 hot-spot-producing types is exercised by a shipped room or
+  listed as never instantiated. `DetermineRoomOpenings` and `GetNumberOfLights` are asserted
+  against hand-derived values for one named room per house. `SetObjectState` is driven with all
+  four actions against all 117 `what` codes without panicking.
+
+**1.5b The frame and the traversal: frame loop, hot-spot dispatcher, room transitions** — ~2,510
+lines of C
+- `Play.c`'s `PlayGame` loop and game-over tail, `Render.c`'s frame spine and dirty-rect protocol,
+  `Interactions.c:1198-1777` (`HandleHotSpotCollision`'s 28 cases, `CheckForHotSpots`,
+  `FlagStillOvers`, `WebGlider`), all of `Transit.c` and `Transitions.c`, `OffAMortal`.
+- **This is where the game becomes playable**, because it is where `Env`'s 46 methods get real
+  implementations. Land it in two commits: the movement actions and `Transit.c` first, then the
+  lethal and cosmetic ones. `kRewardIt`/`kSwitchIt`/`kTriggerIt` stay stubbed until 1.5d.
+- *Acceptance:* `*game.World` implements `player.Env` in full and `NopEnv` appears only in
+  `_test.go`. **Demo House's first room is left by each of the seven exit kinds** — left door,
+  right door, both staircases, transporter, ceiling duct, mailbox — as seven scripted replays
+  asserting destination room, arrival mode and arrival rect against hand-derived numbers. A
+  600-frame replay pins `gameFrame`, `evenFrame`, the two dirty-rect counts and `clockFrame` per
+  frame, which is what pins the double `RenderFrame`.
+
+**1.5c Dynamics: the `dinahs` table, appliances, movers, toggles, triggers** — ~2,510 lines of C
+- `Dynamics3.c`'s `AddDynamicObject`/`HandleDynamics`/`RenderDynamics`, all of `Dynamics.c` and
+  `Dynamics2.c`, all of `Trip.c` and `Triggers.c`, sparkles and flying points.
+- Before rewards and switches **on purpose**: the dependency graph has one genuine cycle, since
+  `HandleSwitches` dispatches into 21 `Toggle*`/`Trigger*` cases while `Trip.c`'s `TriggerSwitch`
+  calls back into `HandleSwitches`. Dynamics first leaves one stub; switches first leaves 21.
+- `CheckDynamicCollision` is a **second, earlier** collision channel and must not share an
+  implementation with `kDissolveIt`: different mode gate, and one sheet of foil per two frames
+  against two sheets every frame.
+- *Acceptance:* each of the 17 registrable types pins its post-registration slot fields and one
+  frame of its handler; all fourteen `Toggle*` and eight `Trigger*` have a test, and the seven
+  target types `FireTrigger` silently ignores are pinned as no-ops; trigger timing asserted at
+  three delays; the 18-slot cap asserted against a checked-in census of the busiest shipped room.
+
+**1.5d Rewards, switches, per-room persistence** — ~465 lines of C
+- `Interactions.c:756-1194` (`HandleRewards`' fifteen prizes, `HandleSwitches`, `HandleMicrowave-
+  Action`) plus `DisplayStarsRemaining`. Unstubs the three actions 1.5b left and `TriggerSwitch`.
+- Small in lines, large in surface: this is where **per-room persistence becomes observable**,
+  because every prize and switch writes a `state` byte back into the house through `SetObjectState`
+  and that write is what survives leaving and re-entering a room.
+- *Acceptance:* **each of the fifteen reward cases and each of the 21 switch-dispatch cases has a
+  test pinning its trigger condition and effect** — score delta, inventory delta, sound, and the
+  `state` byte written back — which is the per-object-class criterion the old 1.5 bullet asked for.
+  Collecting a prize, leaving and re-entering finds it gone, for one of each of the twelve
+  state-gated types. Taking the last star sets `gameOver` within one frame.
+
+**1.5e Bands and grease** — ~630 lines of C
+- All of `RubberBands.c` and `Grease.c`, plus `RenderBands`.
+- The last two writers into `hotSpots[]`, and what makes the table **mutable mid-frame**:
+  `HandleGrease` runs *inside* `RenderFrame` and rewrites hot-spot bounds after the interaction
+  sweep, so a slide rect created on frame N is not collidable until N+1.
+- *Acceptance:* a band fired into each of the five actions `CheckBandCollision` filters for
+  produces the C's effect and no other; the debounce, the two-band cap, the wall bounce and the
+  floor kill each have a test, including that a band clamped by phase 1 **survives** phase 5. A
+  grease jar is stepped through all four modes with the slide rect pinned per frame.
+
+**1.5f Background animations and the saved-map economy** — ~800 lines of C
+- The rest of `DynamicMaps.c` — the five `BackUp`/`ReBackUp`/`Add` triples, shreds — and
+  `Render.c`'s four animation passes.
+- Last, and the only purely cosmetic sub-stage — with one exception that earns it real care. The
+  five room-load `RandomInt` draws are each *inside* `if (savedNum != -1)`, so when the 24-slot
+  `savedMaps` table saturates the draw does not happen and **the whole downstream RNG stream
+  shifts**. Registration is screen-size dependent through `SectRect`, so the RNG stream is a
+  function of resolution. That matters for Stage 3.
+- *Acceptance:* each of the six animated families steps a full wrap cycle with the strip index and
+  `src` rect pinned per frame; saturation asserted on the room a checked-in census names, with the
+  dropped registrations enumerated. **Two headless replays of 1,200 frames from one seed produce
+  byte-identical index planes.**
+
+*Independently specified before any code.* Eight parallel readers reverse-verified one subsystem
+each against the C, three adversarial critics attacked the result, and six writers produced the
+spec from the corrected reports — about 2.3M tokens. It found what the one-bullet plan could not:
+the 117-type hot-spot table nobody had written down, `SetObjectState`'s missing bounds check
+against shipped houses that pass it `-1`, the non-idempotent `RenderFrame`, and that
+`FlagStillOvers` **suppresses** a trigger rather than firing one — which `env.go` had documented
+backwards and is now corrected. Two of its load-bearing claims were re-verified by hand against
+`Objects.c` and `Interactions.c` before being acted on.
 
 **1.6 Audio**
 - `internal/audio`: mixer, the sound-event table, channel policy.
+- **Music too, which is a separate subsystem** (`Music.c`, not `Sound.c`): its own channel, its own
+  on/off preference, and 1.3 already depends on it — `kStereo` answers the draw sweep with
+  `isPlayMusicGame` rather than its own state (`ObjectDrawAll.c`, noted in 1.3 above).
 - *Acceptance:* a headless playthrough produces a WAV whose event ordering matches the
-  expected sound sequence (verified by ear off-box, since this host has no sound card).
+  expected sound sequence (verified by ear off-box, since this host has no sound card); music
+  starts, stops and survives a room change independently of the effects channels.
 
 **1.7 The shell**
 - Splash, menus, house selection, preferences, scoreboard, game over.
@@ -337,8 +448,74 @@ box and the four room boundaries. 3,140 lines of code and 1,533 of tests, transc
 **1.8 Fidelity pass**
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of
   reference frames.
+- **Demo replay is the harness, not a feature.** The original records input as `demoType`
+  (`{long frame; char key; char padding}`, `GliderStructs.h`) — a keystroke stream keyed to frame
+  numbers. Replaying one is a frame-exact determinism test, which is what Stage 3's race needs and
+  what 1.5f's shifting RNG stream threatens. Build the replay for the test; the attract-mode screen
+  that uses it is 1.7 shell work and optional.
 - *Acceptance:* the "fidelity contract" list in `docs/ORIGINAL_GAME.md` is either satisfied
-  or has an explicit, written exception.
+  or has an explicit, written exception; a recorded input trace replays to a byte-identical frame
+  sequence twice in a row, and across a rebuild.
+
+**1.9 Local two-player** — *added after the plan was audited; see "What this plan was missing" below*
+- Two gliders in **one** room on one keyboard, which is what the original's two-player mode is.
+  Most of it is already built: 1.4 ported the `*Two` escape variants, `twoPlayerGame`,
+  `onePlayerLeft`, the `otherPlayerEscaped` handshake, `ForceKillGlider` on the Delete key, and the
+  shared signed `batteryTotal`, `foilTotal`, `bandsTotal` and sound throttle. Nothing consumes any
+  of it yet.
+- Needs: a second resolved `Keys` per frame from one poll (1.4's `GetInput` already takes a
+  resolved `Keys` per glider for exactly this reason), the second glider's key set in preferences,
+  and the two-player branches of 1.5b's transit handlers exercised for real.
+- *Acceptance:* two gliders play one house from one keyboard; the two race strictnesses are
+  distinguishable in a test — a transit exit admits the second arrival unconditionally, while a
+  wall, ceiling or floor exit **refuses** a glider whose partner left by a different route, so the
+  first one out chooses for both; the shared inventory is provably one counter (one player's
+  battery use is visible to the other); and Delete kills a straggler only when pressed by player 1.
+
+**1.10 Saved games** *(may slip past Stage 1 — it is the least load-bearing item here)*
+- Mid-game save and resume. Half-built already: `internal/house` has parsed `gameType` (offset 820)
+  and `hasGame` (860) since 1.2, and Titanic.house carries a live one — room 104, score 4700, two
+  gliders, which `make check` already reports.
+- The reason it is listed **before** 1.5 finishes rather than after: the original saves a whole
+  house as `savedRoom` records (292 bytes each) carrying **per-room object state**, which is exactly
+  what 1.5d builds. Shaping 1.5's room state so it serialises into that form costs nothing now and
+  is a painful retrofit later. That is the whole of the dependency; the UI can come whenever.
+- *Acceptance:* a game saved mid-house and resumed restores room, score, lives, inventory, glider
+  mode and every room's object state; the format round-trips against the original's 40-byte
+  `gameType` so Titanic.house's shipped save can be resumed.
+
+#### What this plan was missing, and what it got right
+
+Audited against the C after 1.4 landed. Four real gaps, now 1.6's music bullet, 1.8's demo replay,
+1.9 and 1.10:
+
+1. **Local two-player was in no stage at all.** Stage 1 promised "behaving exactly like the
+   original" and Stage 3 committed to *separate worlds, each machine simulating only its own
+   glider* — so nothing in the plan ever produced the original's actual two-player mode, even
+   though 1.4 had already ported its entire handshake. Now 1.9.
+2. **Music** was absent; 1.6 named only effects. Now in 1.6.
+3. **Saved games** existed only as bytes the codec round-trips. Now 1.10, placed early for a
+   dependency reason rather than a UI one.
+4. **Demo replay** was absent, and it is the determinism harness 1.8 and Stage 3 both want. Now
+   in 1.8.
+
+Two things the audit went looking for and found already correct, recorded so they are not
+re-litigated: **`Transitions.c`** (the visual wipes) is inside 1.5b, and **high scores** were
+already fully specified in 1.7 — including the `roomsVisited` field that Stage 3 reuses as the race
+metric, and the judgement that the original's `'gliS'` side-car is unreachable, which is right:
+`IsFileReadOnly` is `return false` with its real body commented out (`HouseIO.c:659-664`), so
+`houseIsReadOnly` is never true and neither `WriteScoresToDisk` nor `ReadScoresFromDisk` can run.
+
+One open item that is a decision, not a discovery: **gliderGo is its own git repo inside the
+parent repository**, as instructed, so the parent repository's CI, Pages and release machinery cannot see it —
+`git ls-files gliderGo` is empty, gliderGo appears in none of `release.sh`, its CI config, the
+root `README.md`, `public-root/index.html` or `wiki/home.md`, and `public/index.html` and
+`CHANGELOG.md` do not exist, against the 11-point checklist in the parent repository's `CLAUDE.md`. Either
+is defensible; nothing downstream can be released until it is chosen.
+
+`Map.c` was checked and is **editor-only**, so it belongs to Stage 5 and not Stage 1:
+`OpenMapWindow` has one caller, `OpenCloseEditWindows` (`Menu.c:792-799`), gated on
+`theMode == kEditMode && houseUnlocked`.
 
 ### Stage 2 — new houses
 
@@ -353,6 +530,13 @@ box and the four room boundaries. 3,140 lines of code and 1,533 of tests, transc
   scripted run, and is playable start to finish by hand.
 
 ### Stage 3 — 2-player race
+
+**This is the *networked* mode, and it is a different game from the original's two-player.** The
+original puts two gliders in one room sharing one inventory (that is 1.9). Here each machine
+simulates only its own glider in its own copy of the house and the network carries progress. Both
+are wanted; neither substitutes for the other, and conflating them was the plan's biggest hole.
+1.9 first is also the cheaper order: it exercises every two-player branch locally, so what remains
+here is genuinely just transport.
 
 - `internal/net`: host listens on TCP, guest joins by address; length-prefixed JSON or a
   small binary framing over one connection. LAN discovery is a nice-to-have, not required.
