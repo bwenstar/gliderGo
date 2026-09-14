@@ -58,10 +58,26 @@ type Env interface {
 	// ---- room geometry ----------------------------------------------------
 	// GetUpStairsRightEdge and GetDownStairsLeftEdge find the staircase in the
 	// current room and give the x the glider is clipped against as it walks
-	// behind it. IsShadowVisible decides whether the ground shadow is drawn at
-	// all in this room.
+	// behind it.
 	GetUpStairsRightEdge() int16
 	GetDownStairsLeftEdge() int16
+
+	// IsShadowVisible and SetShadowVisible are the *cached* `shadowVisible`
+	// global, not the predicate of the same name.
+	//
+	// The original has both, spelled almost identically, and they are not
+	// interchangeable. Room.c's IsShadowVisible() recomputes the answer from the
+	// room's background. RoomGraphics.c's `shadowVisible` is a Boolean global with
+	// exactly four writers: three set it from that predicate (DrawLocale
+	// RoomGraphics.c:126, RedrawRoomLighting :459, and the glider placement at
+	// Modes.c:361), and the fourth forces it false -- Player.c:1286, the frame a
+	// glider starts being pulled into a shredder, so that its shadow does not go
+	// on lying on the floor while it is dragged off the floor plane.
+	//
+	// So the two disagree from that frame until the glider is next placed, which
+	// is a second or so of real play, and Render.c:465 is reading the global the
+	// whole time. This pair is the global. A port that wired it to the predicate
+	// would leave a shadow under a glider being shredded.
 	IsShadowVisible() bool
 	SetShadowVisible(v bool)
 	// HasMirror is true in a room with a mirror object, which doubles every dirty

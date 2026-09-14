@@ -325,7 +325,10 @@ func (g *Glider) CheckEscapeDownTwo(e Env) {
 // Any tile that is not one of the four is an immediate crash. And the whole function
 // is skipped while Sliding: a glider on grease slides along the roof instead of
 // falling through it, which is the only place Sliding does anything outside choosing
-// a sprite.
+// a sprite. Note that the skip is not limited to the frame the grease was touched --
+// only mode Normal clears Sliding, and this function also runs in FaceLeft, FaceRight
+// and Burning, so a glider that slips and then tumbles about-face stays immune for
+// those frames as well. See the Sliding field comment.
 func (g *Glider) CheckRoofCollision(e Env) {
 	col := tileUnder(g.Dest.Left + HalfGliderWide)
 	if col < 0 || col > NumTiles-1 || g.Sliding {

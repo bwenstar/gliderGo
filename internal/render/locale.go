@@ -198,6 +198,18 @@ type Scene struct {
 	// numGrease is the count Grease.c keeps beside its own array, which is Stage
 	// 1.5's; only the cap is visible here.
 	numGrease int
+
+	// ListLocalObjects is ListAllLocalObjects (Objects.c:300-348), called from the
+	// middle of DrawLocale. It is a hook because the object graph belongs to
+	// internal/game and the composition belongs here, and the two genuinely
+	// interleave: DrawLocale builds the graph *before* it draws, because
+	// DrawARoomsObjects writes each object's dynaNum back into it
+	// (ObjectDrawAll.c:952-960).
+	//
+	// So this cannot be hoisted to either side of the composition. nil is fine and
+	// is what the renderer's own tests use -- nothing the graph holds reaches a
+	// pixel, which is why internal/render could be finished without it.
+	ListLocalObjects func()
 }
 
 // NewScene sets up a composition. Nothing is drawn until DrawLocale.
@@ -244,8 +256,12 @@ func (s *Scene) DrawLocale() {
 		s.LocalNumbers[i] = s.GetNeighborRoomNumber(i)
 		s.IsStructure[i] = s.IsRoomAStructure(s.LocalNumbers[i])
 	}
-	// ListAllLocalObjects() builds the masterObjects table here. See the file
-	// header: nothing it produces reaches a pixel.
+	// ListAllLocalObjects() builds the masterObjects table here -- before the
+	// drawing, because DrawARoomsObjects writes dynaNum back into it. Nothing it
+	// produces reaches a pixel, so a nil hook composes the same image.
+	if s.ListLocalObjects != nil {
+		s.ListLocalObjects()
+	}
 
 	s.Back.Fill(s.V.BackRect, Black8)
 

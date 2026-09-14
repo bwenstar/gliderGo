@@ -1,0 +1,23 @@
+Art Museum                    109 rooms  19080 master   365 hot  f1190eef8451ff4d12b12baabecef88c
+CD Demo House                 206 rooms  31344 master   596 hot  c7631b6ad70af2e0a32dc8a5ff163e3d
+California or Bust!            16 rooms   1104 master   162 hot  061823bb9c5520393c824941c7f178fe
+Castle o' the Air              85 rooms  15288 master   385 hot  97c57af927d1757fc70f8d04d6514222
+Davis Station                  65 rooms   8520 master   323 hot  e04efc90e5f2b3fd8026f210f92c1d9b
+Demo House                     45 rooms   7560 master    86 hot  85f87487224c8930843ed3732242ab11
+Empty House                    35 rooms   5688 master    58 hot  627530bf4633b9135d0bc5802e2f931c
+Fun House                      43 rooms   6408 master   320 hot  e3b3792afd91497a208512824d338d34
+Grand Prix                    175 rooms  32472 master   928 hot  a555545bfaa9c0ae39c0ba5f1ec9748e
+ImagineHouse PRO II           279 rooms  51432 master  1154 hot  9ea91a85e557a3c1679a92b7fb7f2652
+In The Mirror                  97 rooms  16824 master   488 hot  320bf768eb4fcd6a9cb3914f92f17706
+Land of Illusion              303 rooms  54408 master  1344 hot  f52e6832da1865b7da50f44021da4b60
+Leviathan                     472 rooms  85632 master  2436 hot  3da2b7ba1545426a87eafd82ce405f58
+Metropolis                    127 rooms  23400 master   596 hot  2a5eee20127b99cb5f7184918ff05e12
+Nemo's Market                 124 rooms  20496 master   312 hot  a54fb89d48dd0201ba9637205e9c161e
+Rainbow's End                 223 rooms  41688 master  1340 hot  bcc8c00523b5cae74bb4b30d4f78c983
+Sampler                         2 rooms     96 master     9 hot  31375cbe53c61634a8d56548ec3aaccd
+Slumberland                   383 rooms  71496 master  2348 hot  4d8476cf742730b482816140b870230b
+SpacePods                     402 rooms  76896 master  2147 hot  21fc8e4ef8a2498c5c9c12cfc3043e86
+Teddy World                   531 rooms  85512 master  2698 hot  762dcc05eeb0a89dd4e603220b39f8c1
+The Asylum Pro                140 rooms  26880 master   795 hot  3d1278e4c7f5baf55d288e528669a1a3
+Titanic                       208 rooms  37920 master   959 hot  36c49d15f1bd310026c3f5dd2f8f91eb
+TOTAL                        4070 rooms 720144 master 19849 hot

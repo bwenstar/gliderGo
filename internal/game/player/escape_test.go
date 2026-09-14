@@ -258,6 +258,32 @@ func TestGreaseSlidesOverTheRoof(t *testing.T) {
 	}
 }
 
+// TestSlidingOutlivesItsFrame pins the half of Sliding that reads like a one-frame flag
+// and is not one. Only MoveGliderNormal clears it, and HandleGlider reaches that in mode
+// Normal alone -- while CheckGliderInRoom, and so the roof check that consults the flag,
+// runs in four modes. A glider that slips on grease and then tumbles about-face keeps its
+// immunity to the roof for the three frames of the tumble.
+func TestSlidingOutlivesItsFrame(t *testing.T) {
+	for _, m := range []Mode{GliderFaceLeft, GliderFaceRight, GliderBurning} {
+		e := sealedRoom()
+		g := newGliderAtRest(100, 140)
+		g.Mode = m
+		g.Sliding = true
+		g.HandleGlider(e)
+		if !g.Sliding {
+			t.Errorf("mode %d cleared Sliding; only Normal does", m)
+		}
+	}
+
+	e := sealedRoom()
+	g := newGliderAtRest(100, 140)
+	g.Sliding = true
+	g.HandleGlider(e)
+	if g.Sliding {
+		t.Error("mode Normal left Sliding set; MoveGliderNormal must consume it")
+	}
+}
+
 // TestNonInRoomModesAreNotBounded is the mechanism that lets the transit modes work at
 // all. A glider walking up the stairs is deliberately driving Dest past the ceiling
 // limit every frame; if CheckGliderInRoom applied to it, it would be killed or bounced

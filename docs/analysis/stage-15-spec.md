@@ -3673,6 +3673,40 @@ be. Use `Object.Bonus().Length`.
 *Symptom:* feed it to `ExtractFloorSuite`/`GetRoomNumber` and you get a nonsense room, and the
 `where != -1` gate that every other switch type uses does not apply.
 
+**71a. That gate is *stateful*, and it silently caps a room at one working sound trigger.**
+Added after 1.5a; not in the original assembly. `LoadTriggerSound` (`Sound.c:265-303`) loads into a
+**single reserved slot**, `theSoundData[kMaxSounds - 1]`, and its first line is
+
+```c
+if ((dontLoadSounds) || (theSoundData[kMaxSounds - 1] != nil))
+    theErr = -1;
+```
+
+so it fails outright when the slot is already occupied. `DumpTriggerSound()` (`:305-310`) is the only
+thing that frees it, and it is called from **`DrawLocale`'s reset head** (`RoomGraphics.c:58`, twelve
+lines before `ListAllLocalObjects()` at `:72`). Three consequences, all observable:
+
+- A room's **first** `kSoundTrigger` takes the slot and gets a `kSoundIt` rect. Every later one in
+  the same room fails the `!= nil` test and gets **no hot spot at all** — it is not a silent
+  trigger, it is not a trigger. This is a real per-room limit, not an artefact of a port.
+- The limit is per *locale*, not per game: the slot is re-armed on every room change, so the same
+  authored object works again when the player comes back.
+- A trigger whose `snd ` resource does not exist leaves the slot **free** (the `theSound == nil`
+  branch returns -1 without allocating). So a room whose first sound trigger names a missing sound
+  and whose second names a real one gets a working rect on the *second* — order matters, and it is
+  the order of the `objects[]` slots, not of anything visible in the editor.
+
+*Symptom of getting it wrong:* model the gate as a pure `soundExists(id)` predicate and every sound
+trigger in a room composes a rect, so a room authored with three of them fires three chords at once
+and its hot-spot indices are shifted against the original's for every object listed after them —
+which moves every `hotNum` in the room and therefore what every switch in it switches.
+
+*Port:* `World.TriggerSoundExists func(soundID int16) bool` is the resource lookup (nil = the C's
+`dontLoadSounds` short circuit) and `Room.TriggerSoundHeld` is the slot. `Room`, not `World`,
+precisely because `DumpTriggerSound` runs in `DrawLocale`'s head, so the slot's lifetime *is* a
+locale's even though the C's array is a file-scope global. `game.loadTriggerSound` is the two lines
+that join them; `TestSoundTriggerIsOnePerRoom` pins all three consequences.
+
 **72. `case kLgTrigger:` in the hot-spot action dispatcher is an object type, not an action.**
 `Interactions.c:1352`, inside `switch (who->action)`. `kLgTrigger` is 0x48 = 72
 (`GliderDefines.h:384`) and the 28 actions run 0..27 (`:282-309`). No hot spot is ever created with
@@ -5483,6 +5517,16 @@ mode Stage 1.4's audit hit thirteen times.
 | `internal/game/player/glider.go:133` | `Sliding` is "set for one frame when standing on grease" | The following sentence saves it and `handle.go:157-159` is precise, but the summary line is loose: the flag survives indefinitely if the glider is not in `kGliderNormal` | `Interactions.c:1376-1379`; `Player.c:151-200` |
 | `internal/game/player/glider.go:87` | (deviation, admitted in the comment) | `rightClip`/`leftClip` are one shared pair in the C. Either restore the sharing or expand the comment to say the deviation is unobservable and why — see §6.4 item 4 | `Player.c:52` |
 | `internal/game/player/env.go` (whole) | — | Not an error, but the claim that "every one of the ~30 method names corresponds to a real C free function" does not hold for the interface as it stands: 46 methods, of which roughly twenty are global reads and writes with no C function behind them (`BatteryTotal`/`SetBatteryTotal`, `Tile`, `TopOpen`, `LeftThresh`, `SetTakingTheStairs`, `TwoPlayerGame`, …). State it as "the function-shaped methods match a C free function; these ~20 accessors stand in for direct global access" | `env.go` |
+
+**All five rows are resolved as of Stage 1.5a.** `FlagStillOvers` and the `env.go` interface
+preamble were rewritten during 1.5's implementation; `IsShadowVisible`/`SetShadowVisible` were
+split out into their own comment naming all four writers of the cached global, including the one
+that forces it false (`Player.c:1286` — the shredder, *not* a transport, which is what the first
+draft of that comment got wrong); `RightClip`/`LeftClip` states the deviation, why it is
+unobservable in the original's configuration, and why Stage 3 needs it anyway. The `Sliding`
+summary line was replaced with the two facts that make it not a one-frame flag — only mode Normal
+clears it, and `CheckRoofCollision` runs in four modes and reads it — pinned by
+`TestSlidingOutlivesItsFrame`.
 
 `internal/render/locale.go:1079-1084` was checked and is **correct**: it returns 0 from
 `GetNumberOfLights` for a nil room, with a comment naming the C's `rooms[-1]`. The C really does

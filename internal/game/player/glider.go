@@ -130,9 +130,25 @@ type Glider struct {
 	// the bank. Recomputed by GetInput every frame.
 	Tipped bool
 
-	// Sliding is set for one frame when standing on grease. Unlike the three
-	// Ignore flags it is cleared inside MoveGliderNormal rather than at the end
-	// of HandleGlider, after it has been used to pick the sprite.
+	// Sliding is set by the kSlideIt hot spot -- spilt grease -- which also snaps
+	// VVel so the glider is seated on the spill (Interactions.c:1376-1378).
+	//
+	// It looks like a fourth Ignore flag and is not one, in two ways. The Ignores
+	// are cleared unconditionally at the end of HandleGlider for every mode;
+	// Sliding is cleared inside MoveGliderNormal (Player.c:155-159, :177-181),
+	// which HandleGlider reaches only in mode Normal (Player.c:1339). So it is a
+	// one-frame flag only while the glider is walking. A glider that slips and
+	// then turns around or catches fire carries it for the whole of that mode.
+	//
+	// And it is read outside the mover: CheckRoofCollision skips its entire
+	// tile-1 fall-through test while it is set (Interactions.c:455), which is
+	// what makes grease on a roof a slide rather than a hole. That read happens
+	// in the same frame as the set -- HandleInteraction is CheckForHotSpots then
+	// CheckGliderInRoom (Interactions.c:1691-1710), both before HandleGlider --
+	// and CheckGliderInRoom runs in Normal, FaceLeft, FaceRight and Burning
+	// (:690-694). Only the first of those four clears the flag, so a glider that
+	// slips on a roof and then tumbles about-face is immune to the roof for those
+	// three frames too. See escape.go's CheckRoofCollision.
 	Sliding bool
 
 	// IgnoreLeft, IgnoreRight and IgnoreGround are one-frame flags set by the

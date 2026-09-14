@@ -89,6 +89,38 @@ func (a *Assets) Pict(id int16) *Surface {
 	return a.load(rel)
 }
 
+// Bnds is GetResource('bnds', id): a house background's own opening flags.
+//
+// The resource is eight bytes laid out as a Rect and used as four independent
+// booleans -- a non-zero field means that side is open. It is never read as a
+// rectangle, which is why the four values in the shipped houses are 0 and 1 rather
+// than coordinates. GetOriginalBounding packs it into the same 1/2/4/8 bit code the
+// room's own `bounds` field carries.
+//
+// 'bnds' exists only in house forks, never in the application's -- the eighteen
+// built-in backgrounds are handled by name in the switches that would otherwise ask
+// for one. So this is the one lookup with no fallback to application art: a missing
+// resource means the author never saved openings for that background, and
+// GetOriginalBounding's answer is then 0, meaning closed on all four sides.
+func (a *Assets) Bnds(id int16) (Rect, bool) {
+	a.mu.Lock()
+	dir := a.houseDir
+	a.mu.Unlock()
+	if dir == "" {
+		return Rect{}, false
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "bnds", fmt.Sprintf("%d.bin", id)))
+	if err != nil || len(raw) < 8 {
+		// Not an error. The original's GetResource returns nil here and
+		// GetOriginalBounding raises a yellow alert only if a PICT of the same id
+		// does exist -- i.e. only when the author drew a background and forgot its
+		// bounds. That alert is advisory and is not reproduced.
+		return Rect{}, false
+	}
+	be := func(i int) int16 { return int16(raw[i])<<8 | int16(raw[i+1]) }
+	return Rect{Top: be(0), Left: be(2), Bottom: be(4), Right: be(6)}, true
+}
+
 // PictFrame is the picFrame of a picture, zero-cornered. GetObjectRect needs it
 // for kCustomPict, whose size is the art's size and nothing else's.
 func (a *Assets) PictFrame(id int16) (Rect, bool) {
