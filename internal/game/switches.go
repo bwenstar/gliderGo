@@ -50,10 +50,10 @@ package game
 //	                  spurious puff lands at the corner of the play area instead of
 //	                  somewhere random. The *correct* sparkle is emitted a line earlier
 //	                  by RestoreFromSavedMap's own doSparkle arm, so this one is pure
-//	                  noise -- which is what makes it safe to reproduce and easy to
-//	                  remove later. **The 22 shipped houses reach it 145 times**, so it
-//	                  is a thing players of the original content see, not a curiosity;
-//	                  TestShippedHousesWireSwitchesToPrizes is the count.
+//	                  noise -- which is what makes it safe to reproduce and safe to turn
+//	                  off, which Fixes.SwitchSparkle does. **The 22 shipped houses reach it
+//	                  145 times**, so it is a thing players of the original content see,
+//	                  not a curiosity; TestShippedHousesWireSwitchesToPrizes is the count.
 //	the missing star  the star arm is grouped with the eight other prizes, so a star
 //	                  removed by a switch gets neither StopStar nor a decrement of
 //	                  StarsLeft. Two consequences: its six-cel spin keeps animating over
@@ -183,8 +183,11 @@ func (w *World) switchLinkedObject(roomLinked, objectLinked, linkIndex int16, bo
 	case RedClock, BlueClock, YellowClock, Paper, Battery, Bands, Foil, Star, Helium:
 		w.RestoreFromSavedMap(roomLinked, objectLinked, true)
 		// The spurious second sparkle, on the zero rect. The one the player is meant to
-		// see was emitted by the line above.
-		w.AddSparkle(bounds)
+		// see was emitted by the line above, which is why Fixes.SwitchSparkle can drop
+		// this one without the switch losing its puff of light.
+		if !w.Fix.SwitchSparkle {
+			w.AddSparkle(bounds)
+		}
 
 	// The cuckoo is the one prize whose arm differs, and the difference is the pendulum
 	// rather than the sparkle -- it gets no AddSparkle at all, spurious or otherwise, so

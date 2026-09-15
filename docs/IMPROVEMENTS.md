@@ -99,12 +99,27 @@ wrong for a shipped build. Each of those says what the original does, why it is 
 what the fix is, so that the fix is a decision someone can make later rather than a
 rediscovery.
 
-### 2.1 Window scaling — **partly done; fullscreen and a runtime toggle planned, 1.7**
+### 2.1 Window scaling — **remembered, 1.7b; fullscreen and a runtime toggle still open**
 
 Already there: `cmd/glidergo -scale N` does integer nearest-neighbour magnification,
 which is the right filter — the art is 8-bit indexed pixel art and bilinear would smear
 it. What is missing for a release is fullscreen with letterboxing, a runtime toggle rather
 than a launch flag, and remembering the choice. See 2.8 for where the transform has to go.
+
+**1.7b took care of remembering it.** `prefs.Scale` is on the settings screen, is what
+`openWindow` reads, and is the one row on that screen carrying a "next launch" note — because
+the window is made once, at launch, and resizing it mid-session is a backend change (2.8) rather
+than a preference change. The note is deliberately *not* on the other rows whose effect is
+invisible from the settings screen (the bindings, the pause key, rooms in view, the music): all
+four are read when a game starts, which is the only thing a player can do next, so a note on
+each would say "as you would expect" four times and stop the one row that is genuinely different
+from standing out.
+
+Both `-scale` and `prefs.Scale` exist and they do not fight: `overrideFromFlags` folds the flag
+into the settings before the window opens. The one place the flag is still read directly is
+`-shot`, because a screenshot's magnification is a property of the file being asked for rather
+than of the player's window — otherwise `-shot -prefs some.json` could change a golden image's
+dimensions out from under the comparison it exists for.
 
 **A fidelity trap to avoid when that work happens, which the port has so far avoided by
 luck rather than intent.** `Main.c:191` forces `numNeighbors` to 1 on a 512px-wide screen
@@ -125,7 +140,7 @@ reads, and no future display refresh rate may change either. Frame *interpolatio
 60/120/144 Hz displays is a separate question — it belongs at the presentation step (2.10)
 and must not touch the simulation. The limiter's own cost is 2.17.
 
-### 2.3 Player 2's keys are modifier keys — **worked around in `cmd/glidergo`; documented in the About box, 1.7a; a remapping UI is 1.7b**
+### 2.3 Player 2's keys are modifier keys — **DONE, 1.7b (all eight bindings are the player's)**
 
 The original hard-codes player 2 to Control, Command, Option and Shift
 (`InterfaceInit.c:148-151`), which a modern window manager or desktop environment may
@@ -133,10 +148,26 @@ swallow before the game sees them, and which many keyboards cannot report indepe
 1.4 anticipated this: the four key indices are per-glider *data* on `player.Glider`, not
 constants baked into `GetInput`, specifically so they can be remapped.
 
-`cmd/glidergo` currently binds player 2 to A/D/S/W, which is a documented deviation and is
-in the package comment there. 1.7 owes a remapping UI for all eight bindings and a
-persisted config. Related: a release needs gamepad support, which the original had no
-concept of.
+`cmd/glidergo` binds player 2 to A/D/S/W by default, which is a documented deviation and is
+in the package comment there.
+
+**1.7b made all eight bindings the player's**, in `internal/prefs` and on the settings
+screen (`S` from the title screen), and persisted them in the native configuration
+directory. Three things about the shape of that are deliberate:
+
+- **A binding is a key *name*, not a scancode.** `prefs.Controls` holds strings
+  (`"left"`, `"a"`), which `platform.ParseKey` resolves; a name that will not parse becomes
+  `KeyUnknown`, and `Window.KeyDown` answers false for that on every backend, so a
+  hand-edited file with a typo in it gives a dead control rather than a wrong one or a crash.
+- **A player who wants the 1994 bindings back can have them**, which is what this item asked
+  for: the modifier keys are bindable like any other, and whether the window manager lets
+  them through is now the player's problem rather than the port's decision.
+- **The bindings are resolved once per game**, not once per poll (`cmd/glidergo/play.go`),
+  because the settings screen is only reachable from the title screen. So a rebind can never
+  be half applied to a game in progress.
+
+Still owed for a release: gamepad support, which the original had no concept of and which
+`internal/platform` has no device layer for.
 
 ### 2.4 Transitions run at memory speed, so a wipe is a blink — **planned, 1.7**
 
@@ -173,7 +204,7 @@ the glider drifted is not a flag anyone can benchmark or replay with; `wrapPrese
 now tests `World.Frame`. The `-dump` PNG count is deliberately still per present, because
 one file per wipe strip is what you want when looking at a transition.
 
-### 2.5 Pausing blocks the process, and unpausing leaves the screen black — **planned, 1.7**
+### 2.5 Pausing blocks the process, and unpausing leaves the screen black — **DONE, 1.7b**
 
 `DoPause` is called from inside `GetInput` and *blocks* until the player unpauses, which is
 why a paused game does not advance a frame. Faithful, and fine on a cooperatively
@@ -190,6 +221,32 @@ fall. That is a visible bug in the original in its default configuration.
 
 A release needs a pause overlay that says what to press, a pause that yields to the OS
 instead of blocking, and a `RestoreEntireGameScreen` that publishes what it composed.
+
+**1.7b built the first two and left the third alone.** The pause is split at the line between
+the game and its host: `internal/game/pause.go` draws the placard, holds `World.Paused` up and
+restores the rect from the work map afterwards, and `World.Pause` — a hook `cmd/glidergo`
+fills in — does the waiting, pumping host events every pass and repainting after each one. So
+the window answers the compositor, its own close button and an expose while the game is
+paused, and none of that is in `internal/game`. Four consequences worth recording:
+
+- **The pause key acts on its press edge**, in both halves. The C's three `GetKeys` release
+  loops exist because `theKeys` is a global that `DoPause` overwrites — see
+  `docs/analysis/input.md` §10.2-10.3 — and a host that reported the key level-triggered
+  instead would pause, resume and pause again on a single press.
+- **One deliberate ordering change.** The C erases the placard and *then* waits for the key to
+  come up, so holding the pause key after unpausing shows a frozen game with no placard on it.
+  This port waits and then erases: a held key shows a paused game.
+- **The artwork names a key this port does not have.** Both PICTs read "or Cmd-Q to Quit the
+  game" and there is no Command key here, so `World.PauseHint` draws a row under the placard
+  naming the substitute (Q), and the restore covers the union of the two. 2.7 is why that row
+  is load-bearing rather than a nicety.
+- **A nil `Pause` hook is no pause at all**, which is what the fidelity corpus needs: a replay
+  has no keyboard, so a faithful transcription would hang on the first recorded frame with the
+  pause key down.
+
+`RestoreEntireGameScreen` still composes without publishing, faithfully. It is unreachable in
+this port today — the modal dialogues it tears down are 1.7c's and 1.10's — and the honest
+place to fix it is the commit that first calls it, where the fix can be seen to work.
 
 ### 2.6 A missing or wrong asset directory must not be a crash — **DONE, 1.7a**
 
@@ -219,7 +276,14 @@ one:
   developing here ever sees by accident — and the first version of it put "no artwork
   found" half underneath the menu panel.
 
-### 2.7 No way to quit that a stranger would find — **mostly DONE, 1.7a; the overlay and the confirmation are 1.7b**
+**1.7b extended the same rule into the game.** The pause placard is PICT 1015 or 1016, and a
+checkout with no art now gets a drawn panel in the same 214×54 the picture would have filled —
+"PAUSED" and the key that resumes — so nothing else on screen moves depending on whether the
+art is there. `internal/game/pause.go` is the only place `internal/game` draws text, and
+`TestPausePanelIsDrawnWithoutArt` and `TestPausePanelNamesTheKeyThatResumes` are what keep the
+fallback from quietly becoming a blank rect.
+
+### 2.7 No way to quit that a stranger would find — **DONE, 1.7a and 1.7b**
 
 `cmd/glidergo` maps Escape to quit and that is undiscoverable. The original's answer was a
 menu bar, which a port does not have. A release needs a title screen with a Quit item
@@ -227,15 +291,28 @@ menu bar, which a port does not have. A release needs a title screen with a Quit
 game in progress.
 
 **The title screen's Quit item exists**, on `Q` and on Escape, and the About box lists both
-along with every other binding. Escape *in a game* changed meaning to make room for it: it
-ends the game and hands the title screen back, where it used to end the process. Closing the
-window still ends the process, which is why `shell.Outcome` carries a `Closed` flag — the
-two exits look identical to the `World` and must not to the shell.
+along with every other binding. Escape *in a game* changed meaning in 1.7a to make room for
+it — it ended the game and handed the title screen back, where it used to end the process —
+and then changed again in 1.7b, below. Closing the window still ends the process, which is why
+`shell.Outcome` carries a `Closed` flag: the two exits look identical to the `World` and must
+not to the shell.
 
-Still owed, both 1.7b: the pause overlay with a visible way out (2.5, 2.28), and the
-confirmation before abandoning a game in progress. Escape today discards a game in one
-keystroke with no prompt, which is worse than the original — the original made you go to a
-menu.
+**1.7b closed the rest of it, and not the way this item expected.** The plan was a
+confirmation dialogue in front of the give-up. What shipped instead is one rule with no new
+screen in it: **Escape pauses.**
+
+Escape pauses whether or not it is the player's pause key, either key resumes, and `Q` from
+inside the pause is the give-up. So the keystroke a stranger reaches for to get out of a game
+now stops the game and shows them a placard with the way out written under it, instead of
+throwing the game away — which is the confirmation, one keypress earlier and with nothing extra
+drawn. Two things fell out of it:
+
+- **`prefs.PauseKey` keeps its 1994 meaning exactly.** It picks the placard
+  (`isEscPauseKey`) and nothing else; the host no longer has to ask which key is spoken for,
+  and the old `escPauses` branch in `cmd/glidergo/play.go` is gone.
+- **The give-up key is not the quit key.** Q ends the game and hands the title screen back;
+  closing the window ends the process. `shell.Outcome.Closed` is still what tells those two
+  apart, because they look identical to the `World`.
 
 ### 2.8 The scale transform belongs at the present step and nowhere else — **planned, 1.7**
 
@@ -353,12 +430,20 @@ A house can carry its own 'snd ' resources for triggers. If one fails to load th
 plays nothing and says nothing, so a house author gets no signal that their sound is
 broken. The house linter (4.1) should report it, and the game should log it once.
 
-### 2.15 Leaving a game requires a physical key release — **planned, 1.7**
+### 2.15 Leaving a game requires a physical key release — **DONE, 1.7b**
 
 `WaitCommandQReleased` spins until the player physically lets go of Command-Q before the
 game will proceed. On a Mac with a real menu bar that prevented a held chord from firing
 twice; in a port it is a hang waiting for a key event that may never come (the window can
 lose focus mid-chord). It is deliberately **not** transcribed in `NewGame`.
+
+**1.7b kept it untranscribed and answered the question it was asking.** What the spin is for
+is "do not act twice on one press", and the port's answer is an edge rather than a wait: the
+pause key is reported on its press edge (`cmd/glidergo/play.go`'s `pauseHeld`), and the give-up
+Q arrives as a single `EventKeyDown` rather than as a held-key poll. Neither can fire twice on
+one press, and neither can wait for an event that never comes — which is the property this item
+wanted and the spin only approximated. The pause's own wait loop does track a release, but it
+is `held` on a key the player is holding *now*, and it exits on the window closing too.
 
 ### 2.16 The two-player idle freeze has no visual tell — **planned, 1.9**
 
@@ -367,7 +452,7 @@ this is deliberate. Player 2 in particular starts every two-player game idled an
 (`Play.c:198-203`), so the first thing a new player experiences is a second of not
 existing. A fade, a shimmer, or anything at all would do.
 
-### 2.17 The frame limiter is a busy-wait, and there is no catch-up — **DONE (the hook), 1.5b; the setting is 1.7**
+### 2.17 The frame limiter is a busy-wait, and there is no catch-up — **DONE (the hook), 1.5b; the setting is declared, 1.7b; the catch-up is 1.8**
 
 The original's limiter is `while (TickCount() < nextFrame) { }`, which on a modern machine
 pins a core at 100% for whatever fraction of the two ticks the frame did not need, for the
@@ -385,6 +470,15 @@ game in more wall-clock seconds instead of a different game, and it is the right
 A release should make it an explicit setting — "keep real time" versus "keep game time" —
 because a modern player on a machine that stutters expects the former. Any variable-
 timestep work changes that one line and nothing else.
+
+**1.7b declared the setting and deliberately left it unwired.** `prefs.KeepRealTime` is in the
+file, defaults to false — the C's behaviour — and nothing reads it yet, which is stated on the
+field rather than left for a reader to discover. The reason is that a catch-up worth having
+needs a resync clamp: without one, the first long stall — a room wipe, a pause, a house load —
+is followed by a burst of unpaced frames, which is a worse artefact than the dropped time it
+was meant to recover. That is frame-pacing work, it belongs with 1.8's timing pass, and a
+setting that is written down and honest about being inert is cheaper to finish than one that
+has to be invented later along with the file-format change to carry it.
 
 ### 2.18 The random stream is unverified against real hardware — **planned, 1.8**
 
@@ -420,7 +514,7 @@ carry all four. The alternative — giving the sparkles and the coffee maker the
 generator — would be a real deviation and is not proposed; it is recorded here as the escape
 hatch if the demo replay proves impossible otherwise.
 
-### 2.19 The mirror-room flame blink — **planned, 1.7 (opt-in), 2.x (default)**
+### 2.19 The mirror-room flame blink — **DONE as an opt-in fix, 1.7b; default is 2.x**
 
 `DrawReflection` registers the *unclipped* reflected-glider rect with
 `AddRectToBackRects`, so the erase covers the whole rect while the draw covered only the
@@ -434,7 +528,14 @@ The fix is to clip the back rect to the mirror rects, which also relieves 2.11 i
 the rooms that need it most. It is a visible change to what the original drew, so it is
 opt-in first.
 
-### 2.20 A mirror shows the wrong player's foil — **planned, 1.7 (opt-in)**
+**Shipped in 1.7b as `fixes.mirror_flame`**, off by default. It registers one back rect per
+mirror the reflection actually intersects, and none at all when the reflection is entirely
+outside every mirror — the defect in its purest form, an erase with no draw behind it. Two
+entries in a 47-slot list where the C had one is the cost, and it is still cheaper than what
+the unclipped rect costs in erased flames. `game.TestMirrorFlameClipsTheBackRect` asserts
+*both* states, because the unflagged path is what 1.8's corpus is recorded against.
+
+### 2.20 A mirror shows the wrong player's foil — **DONE as an opt-in fix, 1.7b**
 
 `DrawReflection` tests `if (showFoil)` with no `!twoPlayerGame` guard, unlike
 `RenderGlider`'s. In a two-player game with foil showing, `glid2SrcMap` holds
@@ -443,7 +544,14 @@ with player 2's artwork. Clearly unintended, and a player watching a mirror in a
 two-player game does see it. A fidelity replay would diverge if it were fixed, so it is
 kept and offered as an opt-in correction alongside 2.19 and 2.22.
 
-### 2.21 `doBackground` should not be a user option — **worked around in `cmd/glidergo`; the setting is 1.7**
+**Shipped in 1.7b as `fixes.mirror_foil`**, off by default: it adds `RenderGlider`'s missing
+`!twoPlayerGame` guard and nothing else. The test that matters is the one for the case the fix
+does *not* apply to — `game.TestMirrorFoilChangesNothingInAOnePlayerGame` — because a
+correction that turned the foil reflection off in the game almost everybody plays would be a
+worse bug than the one it fixed, and it would pass any test that only asserted "the two flags
+differ".
+
+### 2.21 `doBackground` should not be a user option — **DONE as a split, 1.7b**
 
 `doBackground` is a preference (`Main.c:186`, default **false**) that gates the entire
 event pump: `PlayGame` only calls `HandlePlayEvent` when it is set. With it off the game
@@ -457,6 +565,15 @@ release should drop the preference entirely and always pause on focus loss. The 
 to preserve is that the pump loop spins *mid-frame*, after both clocks have been bumped,
 so every deactivation costs exactly one frame of animation phase — invisible, but it is
 what the original did.
+
+**1.7b split the flag in two instead of dropping it**, because it was doing two unrelated
+jobs. `World.DoBackground` is the pump and stays true unconditionally — that is the port's
+business and not a choice. `prefs.PauseWhenUnfocused` is the player's half, "keep playing while
+switched out", and it gates only the `Suspend` call in the host's focus-loss arm. It defaults to
+pausing and is deliberately **not** on the settings screen, for the reason this item gives; a
+file that turns it off really does keep the game running in the background, which is where an
+imported 1994 `doBackground` lands. The mid-frame spin is preserved, and 2.28 is what now draws
+on the screen while it spins.
 
 ### 2.22 The two-player handshake has three bugs — **planned, 1.9 (opt-in fixes)**
 
@@ -560,7 +677,7 @@ of an expose series (`count == 0`, so a multi-rect damage is one redraw), handle
 Any other backend owes the same event. A backend on a platform that guarantees retained
 contents may legitimately never send one.
 
-### 2.28 A paused game is indistinguishable from a hung game — **planned, 1.7**
+### 2.28 A paused game is indistinguishable from a hung game — **DONE, 1.7b**
 
 Suspend-on-focus-loss is right (2.21) and it is also invisible: the window holds a frozen
 frame with no overlay, no dimming and no text. A player who alt-tabs away and back sees
@@ -576,8 +693,22 @@ Nothing on screen or in the terminal said so. `cmd/glidergo` now exempts timed r
 (`-frames`) from suspending at all, since a measurement or a replay has no user to pause
 for, but that is a fix for the tooling and not for the player.
 
-1.7 owes the pause a visible state: a dimmed frame and a "paused — click to resume" line,
-shared with `DoPause` (2.5) so both kinds of pause look the same.
+**1.7b gave it one, shared with `DoPause` as this item asked.** `pumpWhileSwitchedOut`
+(`internal/game/pause.go`) is the C's `do { HandlePlayEvent(); } while (switchedOut)` with a
+panel drawn every pass and the frame restored from the work map on the way out. Three details:
+
+- **It borrows the placard's rect and its no-art panel, and neither picture.** Both PICTs name
+  a key to press and the thing that ends this pause is not a key, so the panel says "click the
+  window to resume" — the only place in the port that refuses the original's artwork on purpose.
+  `game.TestTheSwitchedOutPanelIsNotThePausePlacard` is what stops that regressing to the
+  placard, which would tell a player to press a key that does nothing.
+- **Every pass, not once**, for the same reason the pause loop repaints: an expose answered
+  mid-suspend copies the whole play area up from the work map and would wipe it.
+- **A build with no `Present` hook gets the C's loop exactly** — no draw, no restore, no extra
+  rect copy per frame in the one configuration that runs millions of them.
+
+A dimmed frame is still not offered, and not for want of trying: 2.50 is why a 50% dim is not
+available on an 8-bit indexed surface with no alpha.
 
 ### 2.29 The scoreboard had no font, so its three text panels were blank — **DONE, 1.5b; the metrics are still owed at 1.7**
 
@@ -662,7 +793,7 @@ glyphs. One finding came out of it and is pinned by
 the calendar picture is **63** wide, so the original's own text sits a pixel right of centre.
 The port keeps the 64.
 
-### 2.32 Three things stop the world from inside a frame — **planned, 1.7**
+### 2.32 Three things stop the world from inside a frame — **one of the three DONE, 1.7b; the banners are 1.7d**
 
 `DisplayStarsRemaining` (`Banner.c:205-243`) is the clearest case. It is called from
 `Interactions.c:946`, inside the star-collection arm of `HandleInteraction` — so from the
@@ -691,6 +822,17 @@ The port's stubs are `internal/game/play.go` (`BringUpBanner`, `DisplayStarsRema
 `internal/game/env.go` (`DoPause`), and each carries a comment pointing here. When 1.7
 implements them, the frame count they consume has to be a simulated count — a mode the loop
 runs in for N frames — and not a sleep.
+
+**`DoPause` is done (1.7b) and it is the easy one**, because a pause has no duration to
+reproduce: it lasts as long as the player holds it up, so there is nothing to convert into a
+frame count. What it does establish is the shape the other two should take — the game draws and
+hands the waiting to the host through a hook, and a nil hook means "do not wait at all", which
+is exactly what a replay needs. The two banners are 1.7d and they *do* have durations (60 and 15
+ticks), so they are the ones that need the simulated-frame form.
+
+One consequence of the pause landing first: a fidelity trace can now contain the pause key
+without hanging the harness, because `World.Pause` is nil in every headless build. That was the
+first thing this item warned about and it is closed by construction rather than by care.
 
 ### 2.33 The port declines out-of-range reads the original performs — **DONE as a reported deviation, 1.5b**
 
@@ -941,7 +1083,7 @@ Three actions, in the order they are needed:
    trigger link that can remove a star, and should do it whether or not the runtime is fixed.
 3. **Stage 5, the editor:** the link picker should not offer a star as a switch target at all.
 
-### 2.39 The switch's spurious corner sparkle fires 145 times in the shipped houses — **planned, 1.7 (opt-in fix)**
+### 2.39 The switch's spurious corner sparkle fires 145 times in the shipped houses — **DONE as an opt-in fix, 1.7b**
 
 `HandleSwitches` declares `bounds` and never assigns it before the prize arm's `AddSparkle`
 reads it (`Interactions.c:995` against `:1043`). On 68k that was whatever was on the stack; in
@@ -961,6 +1103,14 @@ Kept for now, because 1.8's fidelity replays compare sparkle tables and this is 
 difference in them. Removed behind the same modern-options flag as 2.19, 2.20 and 2.22, where
 one line deletes it. `game.TestTheSpuriousSparkleLandsAtTheCorner` asserts the current
 behaviour, including that the puff is at the origin rather than merely somewhere.
+
+**Shipped in 1.7b as `fixes.switch_sparkle`**, off by default, and it is one `if`. The tested
+property is that it drops *exactly* the second puff and keeps the one on the prize
+(`game.TestSwitchSparkleDropsTheSpuriousPuffAndKeepsTheRealOne`): a switch that removed a prize
+with no puff of light at all would be a worse outcome than the stray flash, because the puff is
+how a player learns that something they were not looking at has just vanished. It also frees a
+slot in a three-entry table that silently drops the fourth request, which is the half of the
+argument that is not cosmetic.
 
 ### 2.40 Three of the twenty-three switch arms have never run in any build — **note; matters to Stage 5's editor**
 
@@ -1287,6 +1437,87 @@ Go string literal and the bindings are data** (`player.Glider`'s key set). The m
 them configurable the two will disagree, and a wrong key list is worse than none. 1.7b must
 generate the list from the bindings — the same argument as 4.4's dangling-test linter, one step
 earlier.
+
+**1.7b generated it.** `drawAbout` reads `Shell.host.Prefs` and formats each player's four keys
+from it, falling back to `prefs.Default()` when there is no host — which is what `-shot` and the
+tests see, and is still true of a fresh install. So the box is right for whoever is holding the
+keyboard, including a player who has rebound everything, and the only literal left in it is the
+sentence structure. The two unbindable lines moved with the same change: it now says
+"Tab or Esc pauses" and "Q while paused gives up the game", which is what 2.7 made true.
+
+### 2.53 A measurement that reads the player's settings is not a measurement — **DONE as a rule, 1.7b**
+
+The moment there is a preferences file, every golden image and every benchmark in `make check`
+depends on the machine it runs on. A developer who has turned the volume down, picked a
+one-room view or magnified the window would get different PNGs and a different frame rate from
+everyone else, and the difference would look like a regression in whatever they were working on.
+
+The rule `cmd/glidergo` implements is that **the four measurement modes start from this build's
+defaults and cannot save**: `-shot`, `-frames`, `-bench` and `-dump` (`hermetic()` in
+`cmd/glidergo/prefs.go`). That is one function and no special pleading at any Makefile call
+site, which matters because the alternative — `-prefs none` on eight lines of the Makefile — is
+a rule nobody can see being followed.
+
+Three edges are deliberate and each is pinned by a test in `cmd/glidergo/prefs_test.go`, the
+only tests in that package:
+
+- **An explicit `-prefs <file>` beats even a measurement**, because that is how a golden image
+  of the settings screen gets settings to show. Without it, 1.8's screenshot of that screen
+  would silently draw the defaults and compare nothing.
+- **`-house` is *not* a measurement.** Naming a house is asking to play, and a player who plays
+  that way wants their own bindings — so hermeticity follows the *mode*, not the presence of a
+  flag.
+- **`-prefs none` reads and writes nothing**, so a run on a machine that has a settings file can
+  be made reproducible from the outside, and cannot create one either.
+
+The general rule for the rest of the project: **anything that reproducible output depends on has
+to be a property of the invocation, never of the machine.** 1.8's corpus is the next thing this
+binds; the seed (`-seed`), the house, the room and the window size are already in that category
+(2.42).
+
+### 2.54 The pictures drawn over a running game are the house's, not the application's — **DONE, 1.7b**
+
+`render.Assets` had two resolution orders and 1.7b needed a third. `Pict` consults the open
+house's resource fork first and records a missing file as a fault, which is right for a room
+background. `UI` looks only at the application and stays silent when a plate is absent, which is
+right for the shell — a house that could repaint the title screen could hide the way out of it
+(`TestUIIgnoresTheOpenHouseFork`), and a checkout with no art still has to reach a menu (2.6).
+
+Neither is right for the pictures drawn *over a running game*: the pause placards, the
+stars-remaining panels and the banner plates. On a Mac the open house's fork really does sit in
+front of the application's for those ids, and the shipped houses use it — **Teddy World carries
+its own PICT 1015 and 1016**. So `Assets.Plate` is the third order: the fork first, then the
+application, and silence when neither has it, because these have a drawn fallback.
+
+Counted on disk while settling this, and it is what 1.7d needs before it starts: **thirteen** of
+the twenty shipped houses carry their own 1991-1993 (the banner plates) and **four** their own
+1017 or 1018 (stars remaining). So `BringUpBanner` and `DisplayStarsRemaining` go through `Plate`
+as well, and a port that reached for `UI` there would look right in every house nobody had
+customised.
+
+### 2.55 Nothing may destroy the player's settings, including the game itself — **DONE as a decision, 1.7b**
+
+The settings file is the one thing on disk that is about the *player* rather than about the game:
+eight bindings somebody chose and got used to. Three decisions protect it, and each is a
+deliberate refusal of a more convenient behaviour:
+
+- **Saving happens at the change, not at quit.** The original writes its preferences once, in
+  `WriteOutPrefs` at quit (`Main.c:381`), so a crash loses everything the player set that
+  session. This port saves in exactly two places — the settings screen closing, and `runShell`
+  noticing a different house was chosen — which costs one small file write and cannot lose one.
+- **`-import-prefs` refuses to overwrite.** Converting a 1994 `Glider Prefs` file into a
+  destination that already exists is an error, not a backup and not a prompt: there is no prompt
+  to give (it runs before any window opens), and telling somebody to move their file aside is
+  cheaper than a backup scheme they would have to learn.
+- **A session with nowhere to write says so on the way out**, rather than pretending: closing the
+  settings screen with no saver shows "settings changed for this session only — there is nowhere
+  to save them". A screen that silently discarded a rebind would be indistinguishable from one
+  that had saved it.
+
+A related rule that costs nothing and prevents the worst case: a preferences file that will not
+load, or a configuration directory that does not exist, leaves *usable* settings in hand and a
+line on stderr. Refusing to start a game over a file the game itself wrote is not an acceptable
+failure mode (`prefs.Load`, `loadPrefs`).
 
 ---
 

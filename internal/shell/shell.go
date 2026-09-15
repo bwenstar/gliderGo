@@ -44,6 +44,7 @@ import (
 	"fmt"
 
 	"glidergo/internal/platform"
+	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 )
 
@@ -80,6 +81,25 @@ type Host struct {
 	// fatal: the shell shows it and stays up, because the player's next move is to
 	// pick a different house (docs/IMPROVEMENTS.md 2.33).
 	Play func(Choice) (Outcome, error)
+
+	// Prefs is the player's settings: what the settings screen edits and what the
+	// About box reads its key list out of.
+	//
+	// Optional, and the two absences mean different things. A nil Prefs makes the
+	// Settings item unavailable and leaves the About box describing this build's
+	// defaults, which is right for -shot and for the tests. A non-nil Prefs with no
+	// SavePrefs is a session that can be changed and not kept -- `-prefs none`, or a
+	// read-only config directory -- and the screen says so on the way out rather than
+	// pretending.
+	Prefs *prefs.Prefs
+
+	// SavePrefs writes Prefs where it came from. Optional; see Prefs.
+	SavePrefs func() error
+
+	// ApplyPrefs is called after every change, for the settings the machine has to be
+	// told about rather than asked for: the volume, chiefly, which the mixer holds its
+	// own copy of. Optional.
+	ApplyPrefs func()
 
 	// Title sets the window caption. Optional.
 	Title func(string)
@@ -120,6 +140,7 @@ type mode int
 const (
 	modeSplash mode = iota
 	modeHouses
+	modeSettings
 	modeAbout
 )
 
@@ -134,6 +155,12 @@ type Shell struct {
 	pick int // the picker's cursor, an index into lib.Houses
 	msg  string
 	quit bool
+
+	// The settings screen's own three: the cursor, which row is waiting for a
+	// keystroke (-1 for none), and whether anything has changed since it was opened.
+	set      int
+	capture  int
+	setDirty bool
 
 	// Frames counts passes through the loop. The tests use it as a clock, and it is
 	// the only way to tell from outside that the shell is alive.
@@ -164,7 +191,7 @@ func New(h Host, lib *Library) (*Shell, error) {
 		lib = &Library{}
 	}
 
-	s := &Shell{host: h, lib: lib, cur: -1}
+	s := &Shell{host: h, lib: lib, cur: -1, capture: -1}
 	if len(lib.Houses) > 0 {
 		s.cur = 0
 	}
@@ -201,10 +228,15 @@ func (s *Shell) Show(screen string) error {
 		if s.mode != modeHouses {
 			return fmt.Errorf("shell: cannot show the house picker: %s", s.msg)
 		}
+	case "settings":
+		s.openSettings()
+		if s.mode != modeSettings {
+			return fmt.Errorf("shell: cannot show the settings: %s", s.msg)
+		}
 	case "about":
 		s.mode = modeAbout
 	default:
-		return fmt.Errorf("shell: no screen called %q (splash, houses or about)", screen)
+		return fmt.Errorf("shell: no screen called %q (splash, houses, settings or about)", screen)
 	}
 	return nil
 }
@@ -239,17 +271,22 @@ func (s *Shell) Run() error {
 
 // event routes one host event.
 //
-// Key *presses* only, and repeats are dropped for everything except the two
+// Key *presses* only, and repeats are dropped for everything except the four
 // navigation keys: a held Return on the splash screen would otherwise start a game,
 // end it, and start another. The original has the same problem and solves it by
 // blocking until the key is physically released (WaitCommandQReleased, Play.c:255),
 // which docs/IMPROVEMENTS.md 2.15 argues a modern build should not do.
+//
+// Left and Right are navigation too, on two of the three screens: they page the house
+// picker and they move a value on the settings screen, and both are things somebody
+// holds the key down for. A rebind is safe from them because the key that *starts* a
+// rebind is Return, whose repeats are dropped.
 func (s *Shell) event(ev platform.Event) {
 	switch ev.Kind {
 	case platform.EventQuit:
 		s.quit = true
 	case platform.EventKeyDown:
-		if ev.Repeat && ev.Key != platform.KeyUp && ev.Key != platform.KeyDown {
+		if ev.Repeat && !arrow(ev.Key) {
 			return
 		}
 		switch s.mode {
@@ -257,6 +294,8 @@ func (s *Shell) event(ev platform.Event) {
 			s.splashKey(ev.Key)
 		case modeHouses:
 			s.pickerKey(ev.Key)
+		case modeSettings:
+			s.settingsKey(ev.Key)
 		case modeAbout:
 			s.mode = modeSplash
 		}
@@ -271,13 +310,24 @@ func (s *Shell) event(ev platform.Event) {
 // The menu
 // ---------------------------------------------------------------------------
 
+// arrow reports whether a key is one of the four the shell navigates with.
+func arrow(k platform.Key) bool {
+	switch k {
+	case platform.KeyUp, platform.KeyDown, platform.KeyLeft, platform.KeyRight:
+		return true
+	}
+	return false
+}
+
 // item is one menu row: its letter, its label, whether it can be chosen now, and
-// what it does.
+// what it does. why overrides the reason an unavailable item gives, for the items whose
+// reason is not "there are no houses".
 type item struct {
 	key   platform.Key
 	label string
 	ok    bool
 	do    func()
+	why   string
 }
 
 // menu is this shell's UpdateMenus (Menu.c:62-96, §3.5.2, and P8's advice to port
@@ -294,6 +344,8 @@ func (s *Shell) menu() []item {
 		{key: platform.KeyN, label: "New Game", ok: have, do: func() { s.play(false) }},
 		{key: platform.Key2, label: "Two Player Game", ok: have, do: func() { s.play(true) }},
 		{key: platform.KeyL, label: "Load House...", ok: len(s.lib.Houses) > 0, do: s.openPicker},
+		{key: platform.KeyS, label: "Settings...", ok: s.host.Prefs != nil, do: s.openSettings,
+			why: "this build has no preferences file"},
 		{key: platform.KeyA, label: "About...", ok: true, do: func() { s.mode = modeAbout }},
 		{key: platform.KeyQ, label: "Quit", ok: true, do: func() { s.quit = true }},
 	}
@@ -332,6 +384,10 @@ func (s *Shell) choose(m []item, i int) {
 		return
 	}
 	if !m[i].ok {
+		if m[i].why != "" {
+			s.msg = m[i].why
+			return
+		}
 		s.msg = s.why(m[i].label)
 		return
 	}

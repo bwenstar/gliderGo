@@ -214,30 +214,39 @@ func (w *World) Survivor() *player.Glider {
 }
 
 // ---------------------------------------------------------------------------
-// Not yet implemented: the nine that belong to later work
+// Not yet implemented: the one that belongs to later work
 // ---------------------------------------------------------------------------
 //
-// Two of the 48, both with empty bodies. These are honest stubs, not approximations. Each
-// says which commit or sub-stage fills it and what the stub's behaviour means in the
-// meantime, because a stub that silently does something plausible is worse than one that
-// does nothing: the first hides a gap and the second is visible in a test.
+// One of the 48, with an empty body. It is an honest stub, not an approximation: it says
+// which sub-stage fills it and what the stub's behaviour means in the meantime, because a
+// stub that silently does something plausible is worse than one that does nothing -- the
+// first hides a gap and the second is visible in a test.
 //
-// The one this commit removed is AddAShreddedGlider, now real in shreds.go. Its empty body
-// was the least visible of any stub in the file: a glider still flew into the shredder, was
-// still clipped away four pixels a frame, and still died -- it simply left no confetti. The
-// one before that was AddBand, whose `return false` was load-bearing rather than merely safe
-// (the C's false is what makes a refused shot *not cost a band*). The four before that were
-// Scoreboard.c's -- QuickBatteryRefresh, QuickBandsRefresh, QuickFoilRefresh and
-// RefreshScoreboard -- and the nine before them were the dirty-rect protocol, the four
-// transit handlers, OffAMortal, FlagStillOvers and ForceKillGlider.
+// The one this commit removed is DoPause, now real in pause.go. The one before that was
+// AddAShreddedGlider, now real in shreds.go; its empty body was the least visible of any
+// stub in the file: a glider still flew into the shredder, was still clipped away four
+// pixels a frame, and still died -- it simply left no confetti. The one before that was
+// AddBand, whose `return false` was load-bearing rather than merely safe (the C's false is
+// what makes a refused shot *not cost a band*). The four before that were Scoreboard.c's --
+// QuickBatteryRefresh, QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard -- and the
+// nine before them were the dirty-rect protocol, the four transit handlers, OffAMortal,
+// FlagStillOvers and ForceKillGlider.
 
-// DoPause and DoCommandKey belong to 1.7, the shell: both open modal UI that does not
-// exist yet. DoPause in particular *blocks* in the original, called from inside GetInput,
-// which is why a paused game does not advance a frame -- see docs/IMPROVEMENTS.md 2.5 for
-// why a released build needs more than a faithful transcription of it, and 2.32 for the two
-// other places (BringUpBanner, DisplayStarsRemaining) that stop the world the same way and
-// want the same answer: a pause the frame loop knows about, not a sleep.
-func (w *World) DoPause()      {}
+// DoCommandKey is Input.c:53-73: the two Command-key chords the frame loop watches for,
+// Command-Q to give up and Command-S to save. It stays empty because on this port's hosts
+// neither arrives here.
+//
+// Command-Q is the window manager's quit, which reaches the port as the platform's quit
+// event and sets Quitting through the shell -- polling for it a second time inside GetInput
+// would be a second, worse answer to a question already answered. Command-S is 1.10's saved
+// games, which do not exist yet; when they do, this is where the in-game save hangs, and
+// the C's scoreboard flip (RefreshScoreboard(kSavingTitleMode), the rect copy, then back to
+// kNormalTitleMode) comes with it.
+//
+// What the original really uses this for during a pause -- Command-Q as the way out of a
+// paused game -- the port answers instead with a plain Q, because that is a key a host can
+// see; pause.go says why, and internal/game/pause.go is where that decision lives. So
+// player.Input's `Command` is left false by every host and this method is never called.
 func (w *World) DoCommandKey() {}
 
 // _ asserts the whole interface at compile time. This is the acceptance criterion for

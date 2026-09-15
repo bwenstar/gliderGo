@@ -270,15 +270,16 @@ func (w *World) gliderSheet(oneOrTwo, foilTest bool) *render.Surface {
 // rooms the original ships, and Modes.c:95 uses the same two numbers to double the
 // glider's dirty rect so that the reflection is erased along with it.
 //
-// Three things here are wrong in the original and all three are kept:
+// Three things here are wrong in the original and all three are kept. Two of them are
+// visible to a player, and those two have a flag that corrects them -- off by default,
+// read at the line it changes, argued in Fixes:
 //
 // **The foil test.** `if (showFoil)` with no `!twoPlayerGame` guard, unlike
 // RenderGlider's. In a two-player game with foil showing, glid2SrcMap holds
 // kGliderFoil2PictID -- the *other* player's foil sheet -- so player 1's reflection
 // is drawn with player 2's artwork. Harmless-looking and clearly unintended, but a
 // player watching a mirror in a two-player game sees it, so a fidelity replay would
-// diverge if it were fixed. docs/IMPROVEMENTS.md 2.20 offers it as an opt-in
-// correction.
+// diverge if it were fixed. Fixes.MirrorFoil (docs/IMPROVEMENTS.md 2.20).
 //
 // **The unclipped back rect.** `AddRectToBackRects(&dest)` registers the *unclipped*
 // destination, so the erase covers the whole reflected glider rect while the draw
@@ -286,8 +287,8 @@ func (w *World) gliderSheet(oneOrTwo, foilTest bool) *render.Surface {
 // is restored from a background that never had a reflection in it, which is correct;
 // but a candle flame or a pendulum inside that rect is erased a frame early, because
 // those register no back rects of their own and rely on their own opaque redraw. That
-// is the mirror-room flame blink. IMPROVEMENTS.md 2.19 has the fix (clip the back
-// rect to the mirrors), which also relieves the 47-rect cap in a mirror room.
+// is the mirror-room flame blink. Fixes.MirrorFlame clips the back rect to the mirrors,
+// which also relieves the 47-rect cap in a mirror room (IMPROVEMENTS.md 2.19).
 //
 // **The unrestored port.** The C does `SetPort(workSrcMap)` and never restores the
 // previous port, so whatever ran before RenderFrame is left drawing into the work
@@ -314,13 +315,32 @@ func (w *World) DrawReflection(thisGlider *player.Glider, oneOrTwo bool) {
 	// SetClip(mirrorRgn) + CopyMask + SetClip(wasClip). Scene.MirrorRects is the
 	// list mirrorRgn was UnionRgn'd together from, so iterating it is the region
 	// rather than a stand-in for it; see Surface.CopyClipped.
-	if sheet := w.gliderSheet(oneOrTwo, w.ShowFoil); sheet != nil {
+	//
+	// `w.ShowFoil` is the C's bare test. Fixes.MirrorFoil adds RenderGlider's guard.
+	foil := w.ShowFoil
+	if w.Fix.MirrorFoil {
+		foil = foil && !w.TwoPlayer
+	}
+	if sheet := w.gliderSheet(oneOrTwo, foil); sheet != nil {
 		w.R.Work.CopyClipped(sheet, Rect(thisGlider.Src), Rect(dest), render.Masked, w.R.MirrorRects)
 	}
 
 	src := thisGlider.Whole.Offset(oh, ov)
 	w.AddRectToWorkRects(src)
-	w.AddRectToBackRects(dest)
+
+	// The unclipped back rect, and Fixes.MirrorFlame's clip. The fixed form registers
+	// the same rects the draw above actually wrote -- dest intersected with each mirror --
+	// so a room with two mirrors can register two, which is still fewer than the one
+	// unclipped rect costs in erased flames.
+	if !w.Fix.MirrorFlame {
+		w.AddRectToBackRects(dest)
+		return
+	}
+	for _, m := range w.R.MirrorRects {
+		if s, ok := render.Sect(Rect(dest), m); ok {
+			w.AddRectToBackRects(player.Rect(s))
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

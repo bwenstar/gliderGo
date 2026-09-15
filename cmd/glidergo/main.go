@@ -16,6 +16,8 @@
 //	go run ./cmd/glidergo -audio list              # which external players this machine has
 //	go run ./cmd/glidergo -sound=false             # the original's dontLoadSounds
 //	go run ./cmd/glidergo -wav /tmp/session.wav    # record the mix as well as play it
+//	go run ./cmd/glidergo -prefs none              # this build's defaults, saving nothing
+//	go run ./cmd/glidergo -import-prefs "Glider Prefs"   # bring 1994's settings across
 //	go run -tags nullbackend ./cmd/glidergo -frames 300 -dump /tmp/f   # headless
 //
 // Any of -house, -frames, -bench and -dump means "play, do not stop at a title
@@ -30,19 +32,27 @@
 // which is how a session on such a machine can be listened to somewhere else.
 //
 // Keys. On the title screen the arrows move and Return chooses, and every item has a
-// letter (N, 2, L, A, Q); see internal/shell on why that differs from the original's
-// arcade key map. In a game player one has the four arrows, as the original does: left
-// and right to steer, up to fire a rubber band, down for the battery. Tab pauses --
-// which is the original's default, `isEscPauseKey` being false at Main.c:184 -- and
-// Delete abandons a glider that is waiting in limbo for the other player. Escape ends
-// the game and gives the title screen back; closing the window ends the program.
+// letter (N, 2, L, S, A, Q); see internal/shell on why that differs from the original's
+// arcade key map. **In a game the keys are settings**, eight bindings plus the pause key,
+// and S on the title screen is where they are changed; internal/prefs holds them and
+// prefs.Default is the list of what they start as.
 //
-// Player two has A and D to steer, W for bands and S for the battery. **That is a
-// deliberate departure.** The original binds player two to Control, Command, Option and
-// Shift (InterfaceInit.c:148-151), which a modern window manager intercepts before the
-// application sees it and which many keyboards cannot report independently. The bindings
-// are per-glider data in player.Glider precisely so that 1.7b's settings screen can make
-// all eight of them the player's choice; see docs/IMPROVEMENTS.md 2.3.
+// Out of the box player one has the four arrows, as the original does: left and right to
+// steer, up to fire a rubber band, down for the battery. Player two has A and D to steer,
+// W for bands and S for the battery, and **that is a deliberate departure** -- the
+// original binds player two to Control, Command, Option and Shift
+// (InterfaceInit.c:148-151), which a modern window manager intercepts before the
+// application sees it and which many keyboards cannot report independently. A player who
+// wants the 1994 bindings back can now have them, which is what docs/IMPROVEMENTS.md 2.3
+// asked for.
+//
+// Three keys are the port's own and are not bindable. Tab pauses by default, as the
+// original does (`isEscPauseKey` is false at Main.c:184), and the settings screen offers
+// Escape instead because those are the two the artwork exists for -- but **Escape pauses
+// either way**, so that the key a stranger reaches for cannot throw a game away
+// (docs/IMPROVEMENTS.md 2.7). Q gives up a paused game, standing in for the original's
+// Command-Q, which a window manager now owns; and Delete abandons a glider waiting in limbo
+// for the other player. Closing the window ends the program.
 package main
 
 import (
@@ -58,6 +68,7 @@ import (
 
 	"glidergo/internal/audio"
 	"glidergo/internal/platform"
+	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 	"glidergo/internal/shell"
 )
@@ -98,6 +109,9 @@ type options struct {
 	shot       string
 	shotScreen string
 
+	prefsPath   string
+	importPrefs string
+
 	sound    bool
 	sounds   string
 	music    bool
@@ -123,7 +137,10 @@ func parseFlags() (*options, error) {
 	flag.BoolVar(&o.quiet, "quiet", false, "do not print the startup and shutdown summaries")
 
 	flag.StringVar(&o.shot, "shot", "", "draw one title-screen frame to this PNG and exit; needs no display")
-	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses or about")
+	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses, settings or about")
+
+	flag.StringVar(&o.prefsPath, "prefs", "", "preferences file to use instead of the one in the config directory (\""+prefsNone+"\" = this build's defaults, saving nothing)")
+	flag.StringVar(&o.importPrefs, "import-prefs", "", "convert an original 226-byte \"Glider Prefs\" file into this port's settings, then exit")
 
 	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
 	flag.StringVar(&o.sounds, "sounds", "assets/extracted/sound", "directory of extracted sound assets")
@@ -176,13 +193,26 @@ func run() error {
 		return nil
 	}
 
+	// The other one-shot, and it exits for a stronger reason: it *writes* the
+	// preferences file, and a run that imported somebody's 1994 bindings and then came
+	// up on a title screen would leave them wondering whether it had worked.
+	if o.importPrefs != "" {
+		return importPrefs(o)
+	}
+
+	// The settings, before anything reads one. See cmd/glidergo/prefs.go for the three
+	// sources and their order.
+	p, canSave := loadPrefs(o)
+	overrideFromFlags(o, p)
+	reportPrefsNotes(p)
+
 	switch {
 	case o.shot != "":
-		return shot(o)
+		return shot(o, p)
 	case o.house != "" || o.frames > 0 || o.bench || o.dump != "":
-		return playDirect(o)
+		return playDirect(o, p)
 	default:
-		return runShell(o)
+		return runShell(o, p, canSave)
 	}
 }
 
@@ -191,7 +221,7 @@ func run() error {
 // ---------------------------------------------------------------------------
 
 // runShell is the ordinary one: a window, a title screen, and games started from it.
-func runShell(o *options) error {
+func runShell(o *options, p *prefs.Prefs, canSave bool) error {
 	lib, err := shell.Discover(o.houses)
 	if err != nil {
 		// **Not fatal.** A missing or empty houses directory is what a fresh clone
@@ -202,7 +232,7 @@ func runShell(o *options) error {
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 	}
 
-	a := newApp(o)
+	a := newApp(o, p, canSave)
 	if err := a.openWindow("gliderGo"); err != nil {
 		return err
 	}
@@ -215,18 +245,40 @@ func runShell(o *options) error {
 	if err != nil {
 		return err
 	}
-	// The original's opening house, when it is there. 1.7b replaces this with the
-	// saved preference, which is what the original actually reads.
-	sh.Select(defaultHouse)
+
+	// The house the player last played, which is what the original opens with too:
+	// `wasDefaultName` (Main.c:130), shipped as Slumberland. A name that is no longer
+	// there is not an error -- houses are files and files get moved -- so it falls back
+	// to the shipped default and says what happened.
+	if p.House != "" && !sh.Select(p.House) {
+		fmt.Fprintf(os.Stderr, "glidergo: %s is not in %s any more\n", p.House, o.houses)
+		sh.Select(defaultHouse)
+	} else if p.House == "" {
+		sh.Select(defaultHouse)
+	}
 
 	if err := sh.Run(); err != nil {
 		return err
+	}
+
+	// WriteOutPrefs' `PasStringCopy(thisHouseName, prefs.wasDefaultName)` (Main.c:377):
+	// the house you were last on is remembered. Only when it changed, so that quitting
+	// the title screen is not a file write, and only when there is somewhere to put it.
+	if h, ok := sh.House(); ok && h.Name != p.House && canSave {
+		p.House = h.Name
+		if err := p.Save(); err != nil {
+			fmt.Fprintf(os.Stderr, "glidergo: cannot save the settings: %v\n", err)
+		}
 	}
 	return a.artErr
 }
 
 // playDirect skips the shell: one house, one game, then exit.
-func playDirect(o *options) error {
+//
+// It saves nothing. -house is a flag and not a choice the player made in the game, so
+// remembering it would let `-house "Fun House"` quietly change what the title screen opens
+// with next time.
+func playDirect(o *options, p *prefs.Prefs) error {
 	name := o.house
 	if name == "" {
 		name = defaultHouse
@@ -234,7 +286,7 @@ func playDirect(o *options) error {
 	path := housePath(o, name)
 	name = houseName(path)
 
-	a := newApp(o)
+	a := newApp(o, p, false)
 	if err := a.openWindow("gliderGo -- " + name); err != nil {
 		return err
 	}
@@ -255,7 +307,7 @@ func playDirect(o *options) error {
 // a player actually meets first. A frame of the *game* has had that since 1.5
 // (-frames with -dump); this is the same idea for the part of the program that is not
 // the game.
-func shot(o *options) error {
+func shot(o *options, p *prefs.Prefs) error {
 	lib, err := shell.Discover(o.houses)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
@@ -271,6 +323,13 @@ func shot(o *options) error {
 		Play: func(shell.Choice) (shell.Outcome, error) {
 			return shell.Outcome{}, errors.New("-shot does not play")
 		},
+
+		// The settings, so that -shot-screen settings has something to draw and so that
+		// the About box quotes the real bindings. No SavePrefs and no ApplyPrefs: a
+		// screenshot changes nothing and there is no mixer to tell. Without -prefs these
+		// are this build's defaults, which is what makes the image reproducible.
+		Prefs: p,
+
 		Version: version,
 	}
 	sh, err := shell.New(host, lib)
@@ -287,6 +346,13 @@ func shot(o *options) error {
 	}
 
 	sh.Draw()
+
+	// o.scale and not p.Scale, which are the same number whenever -scale was given and
+	// differ only when a preferences file names one. A screenshot's magnification is a
+	// property of the file being asked for rather than of the player's window, and
+	// `-shot -prefs some.json` is how a golden image of the settings screen gets settings
+	// to show -- that file must not be able to change the image's size out from under the
+	// comparison.
 	if err := writePNG(o.shot, scr, o.scale); err != nil {
 		return err
 	}
@@ -312,6 +378,15 @@ func (a *app) shellHost() shell.Host {
 	// with nowhere to put an error is the same problem play.go's Present has, and it
 	// gets the same answer.
 	dead := false
+
+	// The saver, or nothing at all. Method-valued rather than wrapped so that a
+	// build with nowhere to write hands the shell a nil it can test, instead of a
+	// function that quietly does nothing -- the settings screen tells the player
+	// which of the two it has.
+	var save func() error
+	if a.canSave {
+		save = a.p.Save
+	}
 
 	return shell.Host{
 		Screen: scr,
@@ -349,6 +424,29 @@ func (a *app) shellHost() shell.Host {
 
 		Play: func(c shell.Choice) (shell.Outcome, error) {
 			return a.play(c.House.Name, c.House.Path, c.TwoPlayer)
+		},
+
+		// The settings screen edits this in place, so the next game reads whatever it
+		// left behind -- which is the whole of how a rebind takes effect. The bindings
+		// are resolved once per game (play.go), because the only way to reach this screen
+		// is from the title screen and there is no game running while it is up.
+		Prefs: a.p,
+
+		// Nil when there is nowhere to write: -prefs none, or a machine with no
+		// configuration directory. The screen says so on the way out.
+		SavePrefs: save,
+
+		// The one setting the machine holds its own copy of. The volume lives in the
+		// mixer (internal/audio/engine.go) because every sample is scaled by it, so a
+		// change made on the settings screen has to be pushed rather than polled -- and
+		// this is what makes the volume audibly change while the screen is still up
+		// instead of at the next game.
+		ApplyPrefs: func() {
+			if a.eng == nil {
+				return
+			}
+			a.eng.SetVolume(int16(a.p.Volume))
+			a.eng.SetSoundOn(a.p.Sound)
 		},
 
 		Title: func(s string) {

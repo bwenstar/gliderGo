@@ -9,6 +9,7 @@ import (
 
 	"glidergo/internal/house"
 	"glidergo/internal/platform"
+	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 )
 
@@ -27,10 +28,25 @@ type fake struct {
 	err      error
 	titles   []string
 	notes    []string
+
+	// The preferences the settings screen edits. host() fills this in with the
+	// defaults if a test has not put anything there, because a shell with no Prefs is
+	// a shell with the Settings item switched off -- see noPrefs.
+	prefs   *prefs.Prefs
+	noPrefs bool
+
+	saves   int
+	saveErr error
+	noSave  bool
+	applies int
+	noApply bool
 }
 
 func (f *fake) host() Host {
-	return Host{
+	if f.prefs == nil && !f.noPrefs {
+		f.prefs = prefs.Default()
+	}
+	h := Host{
 		Screen:  f.scr,
 		Present: func() { f.presents++ },
 		Poll: func() []platform.Event {
@@ -51,8 +67,19 @@ func (f *fake) host() Host {
 		},
 		Title:   func(s string) { f.titles = append(f.titles, s) },
 		Notify:  func(s string) { f.notes = append(f.notes, s) },
+		Prefs:   f.prefs,
 		Version: "test",
 	}
+	if !f.noSave {
+		h.SavePrefs = func() error {
+			f.saves++
+			return f.saveErr
+		}
+	}
+	if !f.noApply {
+		h.ApplyPrefs = func() { f.applies++ }
+	}
+	return h
 }
 
 // key is one press; rep is one auto-repeat of a held key.
@@ -141,15 +168,16 @@ func TestRunQuitsOnWindowClose(t *testing.T) {
 // The arrows move the menu cursor and Return chooses, which is the one deliberate
 // departure from the original's arcade key map (see the package comment).
 func TestArrowsMoveTheMenuAndReturnChooses(t *testing.T) {
-	// New Game, Two Player, Load House, About, Quit: three Downs lands on About.
+	// New Game, Two Player, Load House, Settings, About, Quit: four Downs lands on
+	// About.
 	s, f := shellOver(t, []string{"Slumberland"},
 		key(platform.KeyDown), key(platform.KeyDown), key(platform.KeyDown),
-		key(platform.KeyReturn))
+		key(platform.KeyDown), key(platform.KeyReturn))
 	if err := s.Run(); err != nil {
 		t.Fatal(err)
 	}
 	if s.mode != modeAbout {
-		t.Errorf("mode is %v after three Downs and a Return, want the About box", s.mode)
+		t.Errorf("mode is %v after four Downs and a Return, want the About box", s.mode)
 	}
 	if len(f.plays) != 0 {
 		t.Error("About should not start a game")
@@ -460,6 +488,355 @@ func TestSelectByName(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// The settings screen
+// ---------------------------------------------------------------------------
+
+// onSettings opens the settings screen the way a player does and hands back the shell,
+// the host and the live preferences the screen is editing.
+func onSettings(t *testing.T, script ...[]platform.Event) (*Shell, *fake, *prefs.Prefs) {
+	t.Helper()
+	s, f := shellOver(t, []string{"Slumberland"}, script...)
+	s.openSettings()
+	if s.mode != modeSettings {
+		t.Fatalf("the settings screen did not open: %s", s.msg)
+	}
+	return s, f, f.prefs
+}
+
+// rowOf finds a row by its group and label, so the tests do not carry indices that move
+// every time a setting is added.
+func rowOf(t *testing.T, group, label string) int {
+	t.Helper()
+	in := ""
+	for i, r := range settings {
+		if r.group != "" {
+			in = r.group
+		}
+		if in == group && r.label == label {
+			return i
+		}
+	}
+	t.Fatalf("no %q row in the %s group", label, group)
+	return -1
+}
+
+func TestSettingsOpensFromTheMenuAndClosesOnEscape(t *testing.T) {
+	s, f := shellOver(t, []string{"Slumberland"}, key(platform.KeyS), key(platform.KeyEscape))
+	if err := s.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if s.mode != modeSplash {
+		t.Errorf("mode is %v after Escape, want the splash screen", s.mode)
+	}
+	// Nothing was changed, so nothing was written: opening the screen to look at it
+	// must not rewrite the file.
+	if f.saves != 0 {
+		t.Errorf("the file was saved %d times by a visit that changed nothing", f.saves)
+	}
+}
+
+// A build with no preferences file says so instead of offering a screen that could not
+// keep anything. -shot and the fidelity replays are exactly that build.
+func TestSettingsUnavailableWithoutPrefs(t *testing.T) {
+	f := &fake{
+		scr:     render.NewSurface(screenWide, screenTall),
+		script:  [][]platform.Event{key(platform.KeyS)},
+		noPrefs: true,
+	}
+	s, err := New(f.host(), &Library{Houses: []House{{Name: "Slumberland"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if s.mode != modeSplash {
+		t.Errorf("mode is %v; the settings screen must not open with no preferences", s.mode)
+	}
+	if !strings.Contains(s.msg, "preferences") {
+		t.Errorf("status line is %q; it should say why the item did nothing", s.msg)
+	}
+	for _, it := range s.menu() {
+		if it.label == "Settings..." && it.ok {
+			t.Error("Settings should be unavailable with no preferences file")
+		}
+	}
+	if err := s.Show("settings"); err == nil {
+		t.Error("Show(settings) should fail rather than draw an empty screen")
+	}
+}
+
+func TestSettingsRebindsAKey(t *testing.T) {
+	s, f, p := onSettings(t)
+	s.set = rowOf(t, "Player One", "steer left")
+
+	s.settingsKey(platform.KeyReturn)
+	if s.capture != s.set {
+		t.Fatalf("Return left capture at %d, want %d", s.capture, s.set)
+	}
+	if !strings.Contains(s.msg, "press a key") {
+		t.Errorf("status line is %q; it should ask for a key", s.msg)
+	}
+
+	s.settingsKey(platform.KeyZ)
+	if s.capture != -1 {
+		t.Error("the capture should end with the keystroke that answered it")
+	}
+	if p.Player1.Left != "z" {
+		t.Errorf("player one's left key is %q, want z", p.Player1.Left)
+	}
+	if !s.setDirty {
+		t.Error("a rebind is a change and should be saved on the way out")
+	}
+	if f.applies == 0 {
+		t.Error("every change should be handed to ApplyPrefs")
+	}
+}
+
+// The three keys the screen keeps for itself are the three Validate reserves, which is
+// what lets it capture anything else without asking what the key is for.
+func TestSettingsCaptureCancelsAndClears(t *testing.T) {
+	s, _, p := onSettings(t)
+	s.set = rowOf(t, "Player One", "steer left")
+
+	s.settingsKey(platform.KeyReturn)
+	s.settingsKey(platform.KeyEscape)
+	if s.capture != -1 {
+		t.Error("Escape should end the capture")
+	}
+	if s.mode != modeSettings {
+		t.Errorf("mode is %v; Escape during a capture cancels the capture, not the screen", s.mode)
+	}
+	if p.Player1.Left != "left" {
+		t.Errorf("a cancelled capture changed the binding to %q", p.Player1.Left)
+	}
+	if s.setDirty {
+		t.Error("a cancelled capture is not a change")
+	}
+
+	s.settingsKey(platform.KeyReturn)
+	s.settingsKey(platform.KeyDelete)
+	if p.Player1.Left != prefs.Unbound {
+		t.Errorf("Delete left the binding at %q, want %q", p.Player1.Left, prefs.Unbound)
+	}
+	if !strings.Contains(s.msg, "before playing") {
+		t.Errorf("status line is %q; an unbound control should say it needs setting", s.msg)
+	}
+	// An unbound binding survives a revalidation silently: it is where an unresolvable
+	// collision ends up, so complaining about it on every pass would be noise.
+	s.changed(p, "")
+	if p.Player1.Left != prefs.Unbound {
+		t.Errorf("revalidating moved the unbound binding to %q", p.Player1.Left)
+	}
+}
+
+// A collision is reported by the same function that repairs the file, on the status line,
+// next to the keystroke that caused it.
+func TestSettingsCollisionIsReportedByValidate(t *testing.T) {
+	s, _, p := onSettings(t)
+	s.set = rowOf(t, "Player One", "steer left")
+
+	// A is player two's left thruster at the defaults. Player one is checked first, so
+	// player one keeps it and player two -- whose own default is the key just taken --
+	// is left unbound rather than moved onto some third key nobody chose.
+	s.settingsKey(platform.KeyReturn)
+	s.settingsKey(platform.KeyA)
+	if p.Player1.Left != "a" {
+		t.Fatalf("player one's left key is %q, want a", p.Player1.Left)
+	}
+	if p.Player2.Left != prefs.Unbound {
+		t.Errorf("player two's left key is %q, want %q", p.Player2.Left, prefs.Unbound)
+	}
+	if !strings.Contains(s.msg, "player two") {
+		t.Errorf("status line is %q; it should say what the collision cost", s.msg)
+	}
+	// The note belongs to this screen, not to whoever prints Notes next: a session of
+	// rebinding would otherwise leave a hundred of them on the Prefs.
+	if len(p.Notes) != 0 {
+		t.Errorf("Validate's notes were left on the Prefs: %v", p.Notes)
+	}
+}
+
+// The way back from a keyboard somebody has locked themselves out of.
+func TestSettingsResetRestoresTheDefaults(t *testing.T) {
+	s, _, p := onSettings(t)
+	p.Player1.Left = "z"
+	p.Player2 = prefs.Controls{}
+	p.PauseKey = "escape"
+	p.Volume, p.Neighbors, p.Scale = 0, 1, 4
+	p.MusicInGame = false
+
+	s.settingsKey(platform.KeyR)
+
+	d := prefs.Default()
+	if p.Player1 != d.Player1 || p.Player2 != d.Player2 {
+		t.Errorf("R left the bindings at %+v %+v", p.Player1, p.Player2)
+	}
+	if p.PauseKey != d.PauseKey || p.Neighbors != d.Neighbors || p.Scale != d.Scale {
+		t.Errorf("R left pause %q, neighbors %d, scale %d", p.PauseKey, p.Neighbors, p.Scale)
+	}
+	if p.Volume != d.Volume || !p.MusicInGame {
+		t.Errorf("R left volume %d, music %v", p.Volume, p.MusicInGame)
+	}
+	if !p.Sound {
+		t.Error("the volume came back up and the sound did not: isSoundOn is derived from it")
+	}
+	// The house and the high-score name are not settings this screen shows, so R must
+	// not take them: a player fixing their key bindings has not asked to lose either.
+	if p.House != d.House {
+		t.Errorf("R changed the house to %q", p.House)
+	}
+}
+
+func TestSettingsValuesStepAndClamp(t *testing.T) {
+	s, _, p := onSettings(t)
+
+	// The volume is a range and clamps at both ends rather than wrapping: an arrow held
+	// down to reach silence must not come back round at full blast.
+	s.set = rowOf(t, "Sound", "volume")
+	for i := 0; i < prefs.MaxVolume+3; i++ {
+		s.settingsKey(platform.KeyLeft)
+	}
+	if p.Volume != 0 {
+		t.Errorf("volume is %d after ten Lefts, want 0", p.Volume)
+	}
+	if p.Sound {
+		t.Error("volume 0 with the sound on: one of them is lying")
+	}
+	s.settingsKey(platform.KeyRight)
+	if p.Volume != 1 || !p.Sound {
+		t.Errorf("volume %d sound %v after one Right, want 1 and true", p.Volume, p.Sound)
+	}
+
+	// Rooms in view is a set of three and wraps, because there is no "between" to clamp
+	// against -- numNeighbors picks one of three composition paths, not a radius.
+	s.set = rowOf(t, "General", "rooms in view")
+	seen := map[int]bool{}
+	for i := 0; i < 4; i++ {
+		seen[p.Neighbors] = true
+		s.settingsKey(platform.KeyRight)
+	}
+	for _, want := range []int{1, 3, 9} {
+		if !seen[want] {
+			t.Errorf("stepping four times never showed %d rooms (saw %v)", want, seen)
+		}
+	}
+
+	// The pause key is the original's own binary and Return toggles it, because a row
+	// with two states has nothing for left and right to mean separately.
+	s.set = rowOf(t, "General", "pause key")
+	s.settingsKey(platform.KeyReturn)
+	if p.PauseKey != "escape" {
+		t.Errorf("pause key is %q after a Return, want escape", p.PauseKey)
+	}
+	if s.capture != -1 {
+		t.Error("a value row must not start a rebind")
+	}
+	s.settingsKey(platform.KeyReturn)
+	if p.PauseKey != "tab" {
+		t.Errorf("pause key is %q after a second Return, want tab", p.PauseKey)
+	}
+
+	// Escape is reserved either way round, so switching the pause key onto Tab must not
+	// leave a binding sitting on the key that now pauses.
+	s.set = rowOf(t, "Player Two", "rubber band")
+	s.settingsKey(platform.KeyReturn)
+	s.settingsKey(platform.KeyTab)
+	if p.Player2.Band == "tab" {
+		t.Error("Tab was bound to a control while Tab is the pause key")
+	}
+}
+
+func TestSettingsCursorWrapsAndCoversEveryRow(t *testing.T) {
+	s, _, p := onSettings(t)
+	s.settingsKey(platform.KeyUp)
+	if s.set != len(settings)-1 {
+		t.Errorf("Up from the first row went to %d, want %d", s.set, len(settings)-1)
+	}
+	s.settingsKey(platform.KeyDown)
+	if s.set != 0 {
+		t.Errorf("Down from the last row went to %d, want 0", s.set)
+	}
+	// Every row is one thing or the other, and every row can say what it holds. A row
+	// that was neither would draw an empty value and do nothing when chosen.
+	for i, r := range settings {
+		if (r.bind == nil) == (r.step == nil) {
+			t.Errorf("row %d (%q) is both a binding and a value, or neither", i, r.label)
+			continue
+		}
+		if r.bind == nil && r.show == nil {
+			t.Errorf("row %d (%q) has no way to show its value", i, r.label)
+		}
+		if got := s.rowValue(p, i); got == "" {
+			t.Errorf("row %d (%q) shows nothing", i, r.label)
+		}
+	}
+}
+
+// The original wrote its preferences once, at quit, and lost them all on a crash. This
+// writes on the way out of the screen, which is the last moment the player is looking.
+func TestSettingsSaveOnClose(t *testing.T) {
+	s, f, _ := onSettings(t)
+	s.set = rowOf(t, "Sound", "volume")
+	s.settingsKey(platform.KeyLeft)
+	s.settingsKey(platform.KeyEscape)
+
+	if s.mode != modeSplash {
+		t.Errorf("mode is %v after Escape, want the splash screen", s.mode)
+	}
+	if f.saves != 1 {
+		t.Errorf("the file was saved %d times, want 1", f.saves)
+	}
+	if s.setDirty {
+		t.Error("the screen is still dirty after a successful save")
+	}
+	if !strings.Contains(s.msg, "saved") {
+		t.Errorf("status line is %q; it should confirm the save", s.msg)
+	}
+
+	// A second visit that changes nothing does not write again.
+	s.openSettings()
+	s.settingsKey(platform.KeyEscape)
+	if f.saves != 1 {
+		t.Errorf("a visit that changed nothing saved again (%d saves)", f.saves)
+	}
+
+	// A failed save is reported on the status line *and* in the log, because a setting
+	// that did not persist looks exactly like one that was never made.
+	f.saveErr = errors.New("read-only file system")
+	s.openSettings()
+	s.settingsKey(platform.KeyLeft)
+	s.settingsKey(platform.KeyEscape)
+	if !strings.Contains(s.msg, "read-only") {
+		t.Errorf("status line is %q; it should quote the error", s.msg)
+	}
+	if len(f.notes) == 0 {
+		t.Error("a failed save should also reach the log")
+	}
+}
+
+// A session with settings and nowhere to keep them -- `-prefs none`, or a read-only
+// configuration directory -- says so rather than pretending it saved. This host also has
+// no ApplyPrefs, which is the other optional hook: both absences are ordinary.
+func TestSettingsWithNowhereToSave(t *testing.T) {
+	f := &fake{scr: render.NewSurface(screenWide, screenTall), noSave: true, noApply: true}
+	s, err := New(f.host(), &Library{Houses: []House{{Name: "Slumberland"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.openSettings()
+	if s.mode != modeSettings {
+		t.Fatalf("the screen should still open with no way to save: %s", s.msg)
+	}
+	s.set = rowOf(t, "Sound", "volume")
+	s.settingsKey(platform.KeyLeft)
+	s.settingsKey(platform.KeyEscape)
+	if !strings.Contains(s.msg, "session") {
+		t.Errorf("status line is %q; it should say the change is not being kept", s.msg)
+	}
+}
+
 // Every screen has to draw, with no artwork and no assets at all, without panicking
 // and without leaving the screen blank. This is what `make headless` exercises for
 // real; here it is the cheap version of the same check.
@@ -468,7 +845,12 @@ func TestEveryScreenDrawsWithoutArt(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		mode mode
-	}{{"splash", modeSplash}, {"picker", modeHouses}, {"about", modeAbout}} {
+	}{
+		{"splash", modeSplash},
+		{"picker", modeHouses},
+		{"settings", modeSettings},
+		{"about", modeAbout},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for i := range f.scr.Pix {
 				f.scr.Pix[i] = 0

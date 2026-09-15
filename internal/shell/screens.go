@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 )
 
@@ -137,6 +138,8 @@ func (s *Shell) Draw() {
 		s.drawMenu(scr)
 	case modeHouses:
 		s.drawPicker(scr)
+	case modeSettings:
+		s.drawSettings(scr)
 	case modeAbout:
 		s.drawAbout(scr)
 	}
@@ -392,12 +395,19 @@ func (h House) Best() (string, int32, bool) {
 // the credit and the licence, and those have to be legible whether or not anybody
 // has extracted the artwork.
 func (s *Shell) drawAbout(scr *render.Surface) {
-	// The keys are transcribed from this build, not from the original, and that is
-	// the point of listing them: three of the bindings below are the port's own (see
-	// cmd/glidergo's package comment on player two, and docs/IMPROVEMENTS.md 2.3), so
-	// the original's manual is the wrong place for a player to look them up and this
-	// box is the only right one. When 1.7b makes them configurable this list has to be
-	// generated from the bindings rather than written out.
+	// The keys are read out of the live preferences, not written out here, and that is
+	// the whole point of listing them: three of the port's bindings are not the
+	// original's (see cmd/glidergo's package comment on player two, and
+	// docs/IMPROVEMENTS.md 2.3 and 2.52), and since 1.7b all eight are the player's to
+	// change -- so a hard-coded list would be wrong for anybody who has visited the
+	// settings screen, which is exactly the person most likely to open this box.
+	//
+	// With no Prefs on the host it describes this build's defaults, which is what -shot
+	// and the tests get and is still true of a fresh install.
+	p := s.host.Prefs
+	if p == nil {
+		p = prefs.Default()
+	}
 	lines := []aboutLine{
 		{"a port of Glider PRO", cream, 1},
 		{"John Calhoun / Casady & Greene, 1994", render.LtGray8, 1},
@@ -406,12 +416,12 @@ func (s *Shell) drawAbout(scr *render.Surface) {
 		{"the original artwork and sounds are not ours to give away:", render.LtGray8, 1},
 		{"`make assets` extracts them from your own copy", render.LtGray8, 1},
 		{},
-		{"player one:  left / right steer, up throws a band,", cream, 1},
-		{"             down uses the battery", cream, 1},
-		{"player two:  A and D steer, W throws a band, S the battery", cream, 1},
+		{"player one:  " + controlsLine(p.Player1), cream, 1},
+		{"player two:  " + controlsLine(p.Player2), cream, 1},
 		{},
-		{"Tab pauses   Delete gives up a waiting glider", cream, 1},
-		{"Esc ends the game and comes back here", cream, 1},
+		{upperFirst(p.PauseKey) + " or Esc pauses   Delete gives up a waiting glider", cream, 1},
+		{"Q while paused gives up the game and comes back here", cream, 1},
+		{"S on the title screen changes any of this", render.LtGray8, 1},
 		{},
 		{"press any key", label, 1},
 	}
@@ -459,6 +469,22 @@ func (s *Shell) drawAbout(scr *render.Surface) {
 		}
 		v += l.tall()
 	}
+}
+
+// controlsLine describes one glider's four keys in one line, in the order somebody
+// would try them: steering first, then the two things the player spends.
+func controlsLine(c prefs.Controls) string {
+	return fmt.Sprintf("%s / %s steer, %s throws a band, %s the battery",
+		c.Left, c.Right, c.Band, c.Batt)
+}
+
+// upperFirst capitalises a key name for the start of a sentence, so a preference that
+// stores "tab" reads as "Tab pauses". ASCII only, which every key name is.
+func upperFirst(s string) string {
+	if s == "" || s[0] < 'a' || s[0] > 'z' {
+		return s
+	}
+	return string(rune(s[0]-'a'+'A')) + s[1:]
 }
 
 // aboutLine is one row of the About box: its text, its colour and its magnification. A

@@ -34,6 +34,7 @@ import (
 	"glidergo/internal/house"
 	"glidergo/internal/platform"
 	"glidergo/internal/platform/backend"
+	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 	"glidergo/internal/shell"
 )
@@ -43,6 +44,14 @@ type app struct {
 	o   *options
 	win platform.Window
 	fb  *platform.Framebuffer
+
+	// p is the settings, shared with the settings screen, which edits it in place. So
+	// this is not a snapshot and must not be copied: everything that reads a preference
+	// reads it through here, and reads it at the moment it needs it.
+	p *prefs.Prefs
+
+	// canSave says there is somewhere to write p. See loadPrefs.
+	canSave bool
 
 	bank  *audio.Bank
 	eng   *audio.Engine
@@ -56,17 +65,25 @@ type app struct {
 	artErr error
 }
 
-func newApp(o *options) *app { return &app{o: o} }
+func newApp(o *options, p *prefs.Prefs, canSave bool) *app {
+	return &app{o: o, p: p, canSave: canSave}
+}
 
 // openWindow opens the one window. The surfaces inside are always 640x480 -- the
-// game's own screen -- and -scale is the backend's business (docs/IMPROVEMENTS.md 2.8).
+// game's own screen -- and the magnification is the backend's business
+// (docs/IMPROVEMENTS.md 2.8).
+//
+// The scale comes from the settings rather than from -scale, because -scale is only one of
+// the ways it can be set; overrideFromFlags has already folded the flag into them. It is
+// read once, here, which is why the settings screen's magnification row says "next launch":
+// resizing a window mid-session is a backend change (2.8) and not a preference change.
 func (a *app) openWindow(title string) error {
 	view := render.DefaultView()
 	win, err := backend.Open(platform.Config{
 		Title:  title,
 		Width:  int(view.Screen.Wide()),
 		Height: int(view.Screen.Tall()),
-		Scale:  a.o.scale,
+		Scale:  a.p.Scale,
 	})
 	if err != nil {
 		return err
@@ -118,13 +135,17 @@ func (a *app) openAudio() error {
 
 	a.bank, a.sink, a.where = bank, sink, where
 	a.eng = audio.New(bank)
-	a.eng.SetVolume(int16(o.volume))
+	// The player's volume, and `isSoundOn` with it. The bank is loaded either way: a
+	// volume of zero is a mute the settings screen can undo mid-session, so a run that
+	// started silent must still have the samples in hand.
+	a.eng.SetVolume(int16(a.p.Volume))
+	a.eng.SetSoundOn(a.p.Sound)
 	a.pump = audio.NewPump(a.eng, sink)
 
 	if !o.quiet {
 		fmt.Printf("glidergo: audio=%s %d sounds + %d music = %d KiB, rate %d Hz, volume %d/%d\n",
 			where, audio.TriggerSlot, audio.MaxMusic, bank.Bytes()/1024,
-			audio.Rate, o.volume, audio.FullVolume)
+			audio.Rate, a.p.Volume, audio.FullVolume)
 	}
 	return nil
 }
@@ -160,12 +181,14 @@ func (a *app) bindAudio(w *game.World, name string) {
 	// internal/audio/music.go for why the score walk stays on the game's side.
 	a.eng.NextPiece = w.NextMusicPiece
 
-	// One flag for both preferences. The original has two -- music in a game and
-	// music on the splash screen -- and they are separate because a player can want
-	// one and not the other. The splash screen is silent in this build either way:
-	// see the note on shellHost in main.go, and docs/IMPROVEMENTS.md.
-	w.PlayMusicGame = a.o.music
-	w.PlayMusicIdle = a.o.music
+	// The two music preferences, each from its own setting now. They are separate in the
+	// original because a player can want the score during a game and not on the title
+	// screen; -music is the one switch that covers both, for a run that wants silence.
+	// The title screen is silent in this build whatever MusicOnTitle says -- the score
+	// walk is bound to a World (internal/audio/music.go) and the shell has none -- and
+	// 1.7d's attract mode is what makes that preference audible.
+	w.PlayMusicGame = a.p.MusicInGame
+	w.PlayMusicIdle = a.p.MusicOnTitle
 	w.InitMusic()
 }
 
@@ -208,7 +231,7 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 
 	view := render.DefaultView()
 	scene := render.NewScene(view, assets, h)
-	scene.NumNeighbors = o.neighbors
+	scene.NumNeighbors = a.p.Neighbors
 	scene.Clock = time.Now()
 
 	// A zero seed means "use the clock", which is what the original does:
@@ -221,15 +244,36 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	w := game.NewWorld(h, scene, seed)
 	w.TwoPlayer = two
 
-	// **DoBackground is true here and false in the original** (Main.c:186). It is the
-	// preference that decides whether PlayGame pumps host events at all, and in a
-	// port it is not optional: with it false the window never sees a keystroke, never
-	// repaints on exposure and never notices that it lost the foreground. The
-	// original could get away with it because the Toolbox drew the window's contents
-	// from the WindowRecord; a modern compositor cannot. docs/IMPROVEMENTS.md 2.21 is
-	// the longer form of this: a released build should always pause on focus loss and
-	// should not offer the choice.
+	// **DoBackground is true here and false in the original** (Main.c:186), and it is
+	// *not* the preference it looks like. It decides whether PlayGame pumps host events
+	// at all, and in a port that is not optional: with it false the window never sees a
+	// keystroke, never repaints on exposure and never notices that it lost the
+	// foreground. The original could get away with it because the Toolbox drew the
+	// window's contents from the WindowRecord; a modern compositor cannot.
+	//
+	// The *player's* half of the original's flag -- "keep playing while switched out" --
+	// is prefs.PauseWhenUnfocused, and it gates the Suspend call in the focus arm below
+	// instead. That is the split docs/IMPROVEMENTS.md 2.21 asks for: the pump is the
+	// port's business and the pausing is the player's.
 	w.DoBackground = true
+
+	// Which placard the pause draws, and what the placard cannot say for itself. Both
+	// pictures read "or Cmd-Q to Quit the game" and there is no Command key here, so the
+	// hint is the substitute -- see internal/game/pause.go. It is also the confirmation
+	// docs/IMPROVEMENTS.md 2.7 asks for: Escape pauses rather than quitting, so the only way
+	// to throw a game away is to read this line first.
+	w.EscPause = a.p.EscPause()
+	w.PauseHint = "no Command key here -- press Q to give up the game"
+
+	// The three opt-in corrections, copied one struct into the other because
+	// internal/game must not import internal/prefs -- the game has no preferences, it has
+	// a caller that had some. Field by field so that adding one to either side is a
+	// compile error here rather than a setting that silently does nothing.
+	w.Fix = game.Fixes{
+		MirrorFlame:   a.p.Fixes.MirrorFlame,
+		MirrorFoil:    a.p.Fixes.MirrorFoil,
+		SwitchSparkle: a.p.Fixes.SwitchSparkle,
+	}
 
 	a.bindAudio(w, name)
 	if a.win != nil {
@@ -288,10 +332,31 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	}
 
 	// closed distinguishes the two ways out of a game that look identical to the
-	// World. Escape ends the game and gives the shell back; a closed window ends
-	// everything, because there is nowhere to draw a title screen. The original needs
-	// no such distinction: its Quit is a menu command and its window is the desktop.
+	// World. Giving up (Q from a pause) ends the game and gives the shell back; a closed
+	// window ends everything, because there is nowhere to draw a title screen. The original
+	// needs no such distinction: its Quit is a menu command and its window is the desktop.
 	closed := false
+
+	// The keys, resolved once. Doing it here and not per poll is safe because the
+	// settings screen is only reachable from the title screen, so no binding can change
+	// between this line and the end of the game -- and a rebind is therefore never half
+	// applied. prefs.Controls.Keys is what makes an unbound control a dead key rather
+	// than a wrong one.
+	keys1, keys2 := a.p.Player1.Keys(), a.p.Player2.Keys()
+
+	// Two keys pause, and only one of them is a preference.
+	//
+	// The pause key is the player's, tab or escape -- the original's isEscPauseKey, which is
+	// also what picked the placard above. Escape pauses whether or not it is that key,
+	// because Escape used to *end the game here*: one keystroke, no prompt, which is worse
+	// than the original, where giving up meant going to a menu (docs/IMPROVEMENTS.md 2.7).
+	// Now it asks the question instead, and the pause is where the question is asked -- Q
+	// gives up, either key resumes. A stranger's guess at "get me out of here" costs them
+	// nothing, and the way out is written on the screen they land on.
+	pauseKey := a.p.Pause()
+	pauseDown := func() bool {
+		return a.win.KeyDown(pauseKey) || a.win.KeyDown(platform.KeyEscape)
+	}
 
 	// The event pump. HandlePlayEvent calls this and the game's three arms are
 	// RefreshGameWindow, Suspend and Resume; only the *classification* below is ours.
@@ -309,14 +374,20 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 				w.Quitting = true
 				w.SwitchedOut = false
 
-			case ev.Kind == platform.EventKeyDown && ev.Key == platform.KeyEscape:
+			case ev.Kind == platform.EventKeyDown && ev.Key == platform.KeyQ && w.Paused:
+				// DoCommandKey's Command-Q arm (Input.c:55-58), which in the original is
+				// reachable from inside the pause loop and nowhere else that matters.
+				// Plain Q here because the window manager owns Command-Q on every
+				// platform this builds for, and only while paused, so that Q stays
+				// bindable as a control. The saved-game offer the C makes on the way out
+				// (QuerySaveGame) is 1.10's.
 				w.Quitting = true
 				w.SwitchedOut = false
 
 			case ev.Kind == platform.EventFocus:
 				if ev.Focused {
 					w.Resume()
-				} else if o.frames == 0 {
+				} else if o.frames == 0 && a.p.PauseWhenUnfocused {
 					// **A timed run does not pause.** Suspending on focus loss is
 					// the original's behaviour and the right behaviour for a play
 					// session, but it makes the loop depend on the window manager:
@@ -363,27 +434,85 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	// frame see the same keys. Reading the backend's held-key map has the same
 	// property for the same reason: it is only updated by PollEvents, which ran once,
 	// above.
+	//
+	// pauseHeld is the exception, and it is the one piece of state this hook keeps. The
+	// pause key is reported on its *press edge* rather than while it is held, because
+	// DoPause is called from inside GetInput and returns having resumed: a level-triggered
+	// bit would pause again on the same press, over and over, which looks exactly like a
+	// pause key that does not work. internal/game/pause.go's file comment has the C's
+	// version of this argument -- the three GetKeys release loops -- and why one edge is
+	// the whole of it here.
+	pauseHeld := false
+
 	w.KeyPoll = func(g *player.Glider) player.Keys {
 		if g.Which == player.Player2 {
 			return player.Keys{
-				Left:  a.win.KeyDown(platform.KeyA),
-				Right: a.win.KeyDown(platform.KeyD),
-				Batt:  a.win.KeyDown(platform.KeyS),
-				Band:  a.win.KeyDown(platform.KeyW),
+				Left:  a.win.KeyDown(keys2.Left),
+				Right: a.win.KeyDown(keys2.Right),
+				Batt:  a.win.KeyDown(keys2.Batt),
+				Band:  a.win.KeyDown(keys2.Band),
 				// No Command, no Delete and no Pause. Player two has no give-up key
 				// and no way to reach the menus in the original either, which is one
 				// of the two-player asymmetries docs/IMPROVEMENTS.md 2.23 asks 1.9
-				// to fix.
+				// to fix. It is also what keeps one press from pausing twice: see
+				// docs/analysis/input.md 10.3.
 			}
 		}
+
+		down := pauseDown()
+		edge := down && !pauseHeld
+		pauseHeld = down
+
 		return player.Keys{
-			Left:    a.win.KeyDown(platform.KeyLeft),
-			Right:   a.win.KeyDown(platform.KeyRight),
-			Batt:    a.win.KeyDown(platform.KeyDown),
-			Band:    a.win.KeyDown(platform.KeyUp),
-			Delete:  a.win.KeyDown(platform.KeyDelete),
-			Pause:   a.win.KeyDown(platform.KeyTab),
-			Command: false, // 1.7b's pause and command keys; DoCommandKey is a stub
+			Left:   a.win.KeyDown(keys1.Left),
+			Right:  a.win.KeyDown(keys1.Right),
+			Batt:   a.win.KeyDown(keys1.Batt),
+			Band:   a.win.KeyDown(keys1.Band),
+			Delete: a.win.KeyDown(platform.KeyDelete),
+			Pause:  edge,
+
+			// Command stays false on every host this port has. The two chords the
+			// original watches for arrive by other doors now -- Command-Q as the window's
+			// quit event, and the pause loop's give-up as plain Q -- so DoCommandKey is
+			// never called. internal/game/env.go says the rest.
+			Command: false,
+		}
+	}
+
+	// The pause loop: Input.c:89-116 with the spinning replaced by a pump.
+	//
+	// DoPause draws the placard and hands this the job of waiting, which is the only part
+	// a Macintosh could do by polling the keyboard flat out and a windowed program cannot.
+	// The three things it owes the game are in World.Pause: pump, paint once per pass
+	// afterwards, and return only when the pause is over.
+	//
+	// The C's three release loops collapse into `held`. A pause begins on a press edge, so
+	// the key is down when this is entered; the first release clears held, and the next
+	// press resumes. That is loops (A) and (B), and loop (C) -- the C's wait for the
+	// resuming press to be released -- is unnecessary because KeyPoll is edge-triggered
+	// too, so a key still held on the way out cannot pause again.
+	w.Pause = func(paint func()) {
+		held := true
+		for {
+			// The same pump the frame loop uses, so that a pause answers an expose, a
+			// focus change, a closed window and the give-up key exactly as play does.
+			// Nothing else may consume events: the Q arm above is inside this call.
+			w.PlayEvent()
+
+			if down := pauseDown(); !down {
+				held = false
+			} else if !held {
+				return
+			}
+			// Quitting is the window or the give-up key; Paused going false by itself is
+			// what 1.10's save-and-quit will do, and is the C's `paused = false` from
+			// inside DoCommandKey.
+			if w.Quitting || !w.Paused {
+				return
+			}
+
+			paint()
+			time.Sleep(2 * time.Second / 60)
 		}
 	}
 
@@ -404,7 +533,7 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 		// from costs a round trip before anything can be looked at. The title screen
 		// shows the same string on its status band, for a player who never sees stdout.
 		fmt.Printf("glidergo: version=%s backend=%s surface=%dx%d scale=%d neighbors=%d seed=%d\n",
-			version, backend.Name, a.fb.W, a.fb.H, o.scale, o.neighbors, seed)
+			version, backend.Name, a.fb.W, a.fb.H, a.p.Scale, a.p.Neighbors, seed)
 	}
 
 	w.NewGame(game.NewGameMode)

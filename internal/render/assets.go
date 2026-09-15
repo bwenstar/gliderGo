@@ -202,11 +202,13 @@ func (a *Assets) Background(pictID int16) *Surface {
 //
 // The open house's fork is deliberately *not* consulted, unlike Pict. On a Mac it
 // would be -- the house's resources sit in front of the application's for every
-// id -- and six of the shipped houses do carry their own 1991-1993 banner sheet
-// and two their own 1017/1018. Those belong to the banner, which is drawn during
-// a game and asks for them through Pict; the shell's own chrome is the
-// application's, and a house that could repaint the title screen is a house that
-// could hide the way out of it.
+// id -- and the shipped houses use that freely: thirteen of the twenty carry their
+// own 1991-1993 banner sheet, four their own 1017 or 1018, and Teddy World its own
+// 1015 and 1016. Every one of those is drawn *over a running game*, where the
+// house is open and where its art is the right answer, so they are asked for
+// through Plate instead. The shell's own chrome is the application's, because a
+// house that could repaint the title screen is a house that could hide the way out
+// of it.
 func (a *Assets) UI(pictID int16) *Surface {
 	rel := fmt.Sprintf("ui/%d.png", pictID)
 	if _, err := os.Stat(filepath.Join(a.root, rel)); err != nil {

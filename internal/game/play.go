@@ -310,13 +310,12 @@ func (w *World) PlayGame() {
 		// That is a bad default to ship -- see docs/IMPROVEMENTS.md 2.21 -- and it is
 		// transcribed rather than fixed because the fix changes when the simulation
 		// advances.
+		//
+		// The loop body is pumpWhileSwitchedOut, in pause.go, because it draws. The C
+		// leaves a backgrounded game holding a frozen frame with nothing on it, which is
+		// indistinguishable from a hung one (2.28).
 		if w.DoBackground {
-			for {
-				w.HandlePlayEvent()
-				if !w.SwitchedOut {
-					break
-				}
-			}
+			w.pumpWhileSwitchedOut()
 		}
 
 		w.HandleTelephone()

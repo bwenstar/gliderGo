@@ -111,6 +111,7 @@ pointer, and the only mouse in Glider PRO was in its editor.
 | `Return` | choose |
 | `N` / `2` | one-player / two-player game |
 | `L` | load a house — `↑` `↓` move, `←` `→` page, a letter jumps, `Return` plays, `Space` selects |
+| `S` | settings |
 | `A` | about |
 | `Q` or `Esc` | quit |
 
@@ -119,17 +120,58 @@ pointer, and the only mouse in Glider PRO was in its editor.
 | steer | `←` `→` | `A` `D` |
 | throw a rubber band | `↑` | `W` |
 | use the battery | `↓` | `S` |
-| give up a waiting glider | `Delete` | — |
-| pause | `Tab` | — |
-| end the game | `Esc` | — |
+| pause | `Tab` or `Esc` | |
+| give up a paused game | `Q` | |
+| give up a glider waiting in limbo | `Delete` | |
 
-Three of those are the port's own and not the original's. Player two was on Control, Command,
-Option and Shift (`InterfaceInit.c:148-151`), which a modern window manager takes before the
-game sees it; the arrows on the title screen were wired straight to menu commands in the
-original's arcade build, which had no on-screen menu to move a cursor through; and `Esc` ends
-a game rather than quitting the program, so it hands the title screen back. All three become
-the player's choice in 1.7b — the bindings are already per-glider data for that reason
-([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.3).
+All eight of the movement keys are the player's — the eight rows above are only the defaults
+this build ships. Four of them had to change: player two was on Control, Command, Option and
+Shift (`InterfaceInit.c:148-151`), which a modern window manager takes before the game sees
+it. The bindings were per-glider data from 1.1 for that reason, and the settings screen is
+where they are edited ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.3).
+
+The bottom three rows are the port's own and are **not** bindable, because each stands in for
+something a 1994 Macintosh had and this does not:
+
+- **`Tab` pauses**, as the original does (`isEscPauseKey` is false at `Main.c:184`), and the
+  settings screen offers `Esc` instead — but `Esc` pauses either way. It used to end the game
+  outright, one keystroke and no prompt, which is worse than the original, where giving up
+  meant going to a menu. Now the key a stranger reaches for costs them nothing, and the way
+  out is written on the screen they land on (2.7).
+- **`Q` gives up a paused game** and hands the title screen back. The original's Command-Q is
+  a chord the window manager owns on every platform this builds for; both pause placards
+  still read "or Cmd-Q to Quit the game", so the port prints its own line under them.
+- **`Delete`** abandons a glider waiting in limbo, which is the original's own key for it.
+
+Closing the window ends the program, from anywhere.
+
+### Settings
+
+`S` from the title screen: the eight bindings, which key pauses, how much of the house is
+composed around the player, the window magnification, the volume, and whether the score
+plays. `←` `→` change a value, `Return` rebinds one key, `R` resets everything to this
+build's defaults, `Esc` saves and goes back. A rebind is checked by the same `prefs.Validate`
+that repairs a hand-edited file, so a collision is reported on the status line rather than
+silently kept.
+
+Settings live in one JSON file in the platform's config directory
+(`$XDG_CONFIG_HOME/glidergo/prefs.json`, or `~/.config/glidergo/prefs.json`; `GLIDERGO_CONFIG`
+overrides it), and are saved when the screen closes rather than at quit, so a crash cannot
+lose them. The original's five-pane Options dialog had nineteen more fields that were about a
+Macintosh rather than about the game — screen-depth switching, colour-table fades, the
+editor's window positions — and `internal/prefs/legacy.go` lists every one with the reason it
+was dropped.
+
+```bash
+make run ARGS='-prefs /tmp/test.json'   # use this file instead of the config directory's
+make run ARGS='-prefs none'             # this build's defaults; reads and writes nothing
+bin/glidergo -import-prefs "/path/to/Glider Prefs"   # convert a 1994 226-byte prefs file
+```
+
+`-import-prefs` refuses to overwrite an existing settings file: it runs before any window
+opens, so there is nobody to ask. The four measurement modes — `-shot`, `-frames`, `-bench`
+and `-dump` — ignore the config directory for the same reason `make check` has to give the
+same answer on every machine (2.53); pass `-prefs <file>` to override even them.
 
 ## What is in here
 

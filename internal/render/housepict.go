@@ -89,6 +89,38 @@ func (a *Assets) Pict(id int16) *Surface {
 	return a.load(rel)
 }
 
+// Plate is the art for one of the pictures drawn *over* a running game: the two pause
+// overlays (1015, 1016), the two stars-remaining panels (1017, 1018) and the three
+// banner plates (1991-1993).
+//
+// It is Pict's resolution order -- the open house's fork first, then the application's
+// art -- with UI's answer to a missing file, which is nil and no recorded error. Both
+// halves of that are deliberate:
+//
+//   - **The house comes first**, because on a Mac it does: these are drawn while a house
+//     is open, so its resources sit in front of the application's for the same id, and
+//     the shipped houses use that. Teddy World carries its own 1015 and 1016, four
+//     houses their own 1017 or 1018, and thirteen of the twenty their own banner sheet.
+//     The shell's chrome goes through UI instead and is never a house's to redefine --
+//     see UI.
+//   - **A missing plate is not an error**, because the game must still be playable
+//     against a checkout with no extracted art. The overlay draws its own panel
+//     instead (internal/game/pause.go), which is docs/IMPROVEMENTS.md 2.6 again: the
+//     absence of a decoration is not the absence of a game.
+func (a *Assets) Plate(id int16) *Surface {
+	a.mu.Lock()
+	dir := a.houseDir
+	a.mu.Unlock()
+
+	if dir != "" {
+		p := filepath.Join(dir, "pict", fmt.Sprintf("%d.png", id))
+		if _, err := os.Stat(p); err == nil {
+			return a.loadHousePict(p)
+		}
+	}
+	return a.UI(id)
+}
+
 // Bnds is GetResource('bnds', id): a house background's own opening flags.
 //
 // The resource is eight bytes laid out as a Rect and used as four independent

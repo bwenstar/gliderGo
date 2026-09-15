@@ -134,11 +134,11 @@ func TestUIBrokenPlateRecords(t *testing.T) {
 	}
 }
 
-// The open house's fork is deliberately not consulted, unlike Pict. Six of the shipped
-// houses carry their own 1991-1993 and two their own 1017/1018; those belong to the
-// in-game banner, which is drawn during a game and asks through Pict. The shell's own
-// chrome is the application's, because a house that could repaint the title screen
-// could hide the way out of it.
+// The open house's fork is deliberately not consulted, unlike Pict and Plate. Thirteen of
+// the twenty shipped houses carry their own 1991-1993, four their own 1017 or 1018 and
+// Teddy World its own 1015 and 1016; every one of those is drawn *over a running game* and
+// is asked for through Plate. The shell's own chrome is the application's, because a house
+// that could repaint the title screen could hide the way out of it.
 func TestUIIgnoresTheOpenHouseFork(t *testing.T) {
 	// 2000 because it is an id both accessors can resolve: Pict finds it as a room
 	// background under bg/, UI as a plate under ui/. The two directories are how the
@@ -178,5 +178,92 @@ func TestUIIgnoresTheOpenHouseFork(t *testing.T) {
 	}
 	if err := a.Err(); err != nil {
 		t.Errorf("Err = %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Plate
+// ---------------------------------------------------------------------------
+
+// Plate is the third resolution order in this file and it exists because the other two are
+// each wrong for the pictures drawn *over a running game*: the pause placards, the
+// stars-remaining panels and the banner plates.
+//
+// UI is wrong because on a Mac the open house's fork really does sit in front of the
+// application's for these ids, and the shipped houses use it -- Teddy World has its own 1015
+// and 1016. Pict is wrong because a missing file there is a fault worth recording, and these
+// have a drawn fallback (internal/game/pause.go).
+//
+// So this pins both halves at once: the fork wins, and an absent plate is silent.
+func TestPlatePrefersTheOpenHouseAndStaysSilent(t *testing.T) {
+	app := t.TempDir()
+	writePlate(t, filepath.Join(app, "ui"), 1015, 8, 5)
+
+	fork := t.TempDir()
+	writePlate(t, filepath.Join(fork, "pict"), 1015, 40, 40)
+
+	a := NewAssets(app)
+
+	// Closed: the application's, which is what a house with no 1015 of its own gets and
+	// what nineteen of the twenty shipped houses get.
+	s := a.Plate(1015)
+	if s == nil {
+		t.Fatalf("Plate(1015) is nil with the application plate present: %v", a.Err())
+	}
+	if s.W != 8 || s.H != 5 {
+		t.Errorf("with no fork open Plate returned %dx%d, want the application's 8x5", s.W, s.H)
+	}
+
+	// Open: the house's, which is Teddy World's case.
+	a.OpenHouseResFork(fork)
+	if s := a.Plate(1015); s == nil {
+		t.Fatalf("Plate(1015) is nil with the fork open: %v", a.Err())
+	} else if s.W != 40 || s.H != 40 {
+		t.Errorf("with the fork open Plate returned %dx%d, want the house's 40x40", s.W, s.H)
+	}
+
+	// And UI, for the same id with the same fork open, still answers the application's --
+	// which is the distinction the two accessors exist to draw.
+	if u := a.UI(1015); u == nil || u.W != 8 {
+		t.Errorf("UI(1015) = %v with the fork open; the shell's chrome is not a house's to "+
+			"redefine", u)
+	}
+
+	// Absent from both is nil and no recorded error: the game must still be playable
+	// against a checkout with no extracted art (docs/IMPROVEMENTS.md 2.6).
+	a.CloseHouseResFork()
+	if got := a.Plate(1016); got != nil {
+		t.Errorf("Plate(1016) returned a %dx%d surface from a tree without one", got.W, got.H)
+	}
+	if err := a.Err(); err != nil {
+		t.Errorf("a missing plate recorded a sticky error: %v", err)
+	}
+}
+
+// A house whose plate will not decode records, because that is a broken extraction rather
+// than an absent one -- the same line Pict and UI draw. The fallback panel is for art that
+// is not there, not for art that is there and wrong.
+func TestPlateBrokenHousePlateRecords(t *testing.T) {
+	fork := t.TempDir()
+	dir := filepath.Join(fork, "pict")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "1015.png"), []byte("not a png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewAssets(t.TempDir())
+	a.OpenHouseResFork(fork)
+
+	if got := a.Plate(1015); got != nil {
+		t.Error("Plate returned a surface for a file that is not a PNG")
+	}
+	err := a.Err()
+	if err == nil {
+		t.Fatal("a house plate that is present and will not decode must record")
+	}
+	if got := err.Error(); !strings.Contains(got, "1015.png") {
+		t.Errorf("error is %q; it should name the file", got)
 	}
 }

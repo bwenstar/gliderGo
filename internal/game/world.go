@@ -383,6 +383,11 @@ type World struct {
 	// See guards.go.
 	Diag Diagnostics
 
+	// Fix is the three opt-in corrections, all off by default, which is to say the
+	// original's behaviour. It has no counterpart in the C -- the C is the thing being
+	// corrected. See Fixes, which argues each one and names its site.
+	Fix Fixes
+
 	// Pending is the resolved destination of the transit the glider is currently
 	// inside: transRect, transRoom and linkedToWhat as one value. The player code
 	// takes it as an argument rather than reaching for the object graph, which is
@@ -469,6 +474,30 @@ type World struct {
 	// again before rendering -- and the second test is why the last simulated frame of
 	// a game is never drawn. See PlayGame.
 	Playing bool
+
+	// Paused is `paused` (Input.c:34), and it is the pause loop's own flag rather than
+	// the pause *state*: DoPause sets it, spins until something clears it, and returns.
+	// So a caller outside DoPause sees it true only from inside the Pause hook, which is
+	// exactly who needs to read it -- see pause.go.
+	//
+	// It is on World and not a local because the C's DoCommandKey clears it from
+	// underneath the loop, and 1.10's save-and-quit does the same.
+	Paused bool
+
+	// EscPause is `isEscPauseKey` (Input.c:34), the preference behind the Brains pane's
+	// checkbox: Escape pauses when set, Tab when clear. The port keeps it a boolean for
+	// the same reason the original did -- the overlay is a picture with the key drawn
+	// into it, PICT 1015 for Escape and 1016 for Tab, and there is no plate for a third
+	// key. internal/prefs is where a player's choice becomes this field.
+	EscPause bool
+
+	// PauseHint is a line drawn under the pause plate, and it has no counterpart in the
+	// C: the original's overlay says "Paused -- press Esc to continue" in the artwork
+	// and nothing else, because on a 1994 Macintosh Command-Q was how you left anything.
+	// This port has to say what the give-up key is, since a player who pauses with
+	// Escape has no Escape left to end the game with (see pause.go). Empty draws
+	// nothing, which is what a fidelity replay wants.
+	PauseHint string
 
 	// Quitting is `quitting`, a Main.c global: the application is shutting down.
 	// PlayGame's loop condition tests it every frame, and **nothing inside the loop
@@ -559,6 +588,27 @@ type World struct {
 	// nil is a headless build. SwitchedOut can then never become true, so the pump's
 	// do/while runs exactly once and the loop cannot stall -- see PlayGame.
 	PlayEvent func()
+
+	// Pause is the host's half of DoPause: the part that blocks.
+	//
+	// The split follows the same line as PlayEvent's. The game owns what the pause looks
+	// like -- the plate, where it sits, what the restore copies -- because all of that is
+	// Main, the work map and the house rect, and none of it differs per platform. The
+	// host owns *waiting*, because the C waits by polling the keyboard in three tight
+	// loops (Input.c:89-116) and a windowed program on any modern system cannot: it has
+	// to pump events or the compositor decides it has hung.
+	//
+	// It is handed paint and must call it once per pass through its own loop, after
+	// pumping, and must return only when the pause is over. Calling it after pumping is
+	// not a detail: an expose event goes through RefreshGameWindow, which copies the
+	// whole play area up from the work map and so wipes the overlay, and painting
+	// afterwards is what puts it back. Calling it once per pass rather than once at the
+	// start is what makes that automatic instead of a case the host has to notice.
+	//
+	// nil is a headless build, and it makes DoPause a no-op rather than a hang -- which
+	// is the right answer for a run with no keyboard, since nothing could ever clear the
+	// flag. See DoPause.
+	Pause func(paint func())
 
 	// The four music preferences and states (Music.c, Prefs.c). All read by NewGame's
 	// two music ladders and nowhere else in this stage.

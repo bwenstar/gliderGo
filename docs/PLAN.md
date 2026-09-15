@@ -704,11 +704,13 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
   - **1.7a The way in** ✅ *done* — `internal/shell`: the splash screen, the menu, the house picker,
     the About box, and the status band. `cmd/glidergo` gains the title screen as its default and
     splits into `main.go` (flags, dispatch, host) and `play.go` (one game).
-  - **1.7b Preferences and pause** — the native config directory, per-player key bindings
-    (`docs/IMPROVEMENTS.md` 2.3), volume, music, scale, `DoPause`/`DoCommandKey` as a real pause
-    state with PICT 1015/1016 (2.5, 2.32), the opt-in fidelity switches (2.19, 2.20, 2.39), and the
-    legacy 226-byte `prefsInfo` importer (P1). Music-on-the-splash becomes a preference here; the
-    shell is silent until it does.
+  - **1.7b Preferences and pause** ✅ *done* — `internal/prefs` (the native config directory, the
+    JSON file, `Validate`, the legacy 226-byte `prefsInfo` importer), the settings screen, per-player
+    key bindings (`docs/IMPROVEMENTS.md` 2.3), volume, music, scale, `DoPause` as a real pause state
+    with PICT 1015/1016 (2.5, 2.32), and the three opt-in fidelity switches (2.19, 2.20, 2.39).
+    `DoCommandKey` stays an empty stub with a paragraph saying why — neither of its two chords
+    reaches this port's hosts — and Q takes over as the way out of a paused game. Music-on-the-splash
+    became the preference `music_on_title`, which 1.7d makes audible.
   - **1.7c High scores** — the `scoresType` codec, the 22 shipped boards read and displayed but
     never written back, the port's own per-house side-car for new scores, `TestHighScore`'s gate,
     name and banner entry (DLOG 1020/1021), and `DrawHighScores`' geometry with PICT 1994/1995/1998
@@ -749,7 +751,83 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
   - **The About box's key list was the original's, and this port's bindings are not.** Player two is
     on A/D/W/S rather than the original's modifier keys (2.3), Tab pauses, Escape ends the game.
     The box is the only place a player can find that out, so it lists what this build actually does;
-    when 1.7b makes the bindings configurable the list has to be generated from them.
+    when 1.7b makes the bindings configurable the list has to be generated from them. *(Done: the
+    box reads `Shell.host.Prefs` and falls back to `prefs.Default()`, so it is right for whoever is
+    holding the keyboard — and 1.7b then took Escape out of the give-up business altogether, so the
+    line it lists now reads "Q while paused gives up the game".)*
+- **1.7b, what it settled.** Eight decisions, and the first two are the whole of the pause:
+  - **The pause is split in two, and the seam is one hook.** `World.Pause func(paint func())`:
+    `internal/game` decides what a paused frame looks like and holds `Paused` up while it is, and the
+    host decides how long. The C cannot make that split — `DoPause` spins on `GetKeys` inside the
+    frame loop (`Input.c:76-121`) — and without it the game package would need a keyboard, which
+    would put a window in every game test. **A nil hook is no pause at all**, which is what the
+    fidelity corpus needs: a replay has no keyboard, so a faithful `DoPause` would hang for ever on
+    the first recorded frame with the pause key down.
+  - **The C's three release loops became one rule stated twice.** `KeyPoll` reports the pause key
+    only on its *press edge* (`pauseHeld`, the one piece of state it keeps), and the wait loop tracks
+    `held` so the press that raised the pause cannot immediately end it. That is the same behaviour as
+    the C's three `while (BitTst(...))` spins with no spinning. **One visible deviation:** the C
+    erases the placard and *then* waits for the release, this port waits and then erases, so the
+    placard stays up until the key comes back up. Recorded in `docs/IMPROVEMENTS.md` 2.5 — the C's
+    order means a slow release shows a running game with no placard on it.
+  - **Q gives up a paused game, because Command-Q is not a key this port can see.** The original's
+    only way out of a pause is `DoCommandKey`'s Command-Q, and on X11 and on Windows the Command
+    equivalent is the window manager's. So `PauseHint` is a row of the port's own text under the
+    placard naming the key, and the restore rect is the union of the placard and that row. The row is
+    not decoration: both 1994 placards say "or Cmd-Q to Quit the game", which on this port is simply
+    false, and a paused game whose only way out is a key the player cannot guess is a hang.
+  - **Escape pauses instead of ending the game, which is the confirmation 2.7 asked for.** 1.7a had
+    Escape discard a game in one keystroke with no prompt — worse than the original, where giving up
+    meant going to a menu. Now Escape pauses whether or not it is *the* pause key, either key
+    resumes, and Q from the pause is the give-up. The prompt costs nothing to build because the pause
+    already draws a placard and a hint row, and it turns the key a stranger reaches for from a
+    destructive one into the one that shows them the way out. `prefs.PauseKey` therefore keeps its
+    1994 meaning exactly — it picks the placard (`isEscPauseKey`) — and the host no longer needs to
+    ask which key is spoken for.
+  - **Three layers of settings, and a measurement reads none of them.** Defaults, then the file, then
+    the flags that were *actually given* (`flag.Visit`, not a comparison against the default, because
+    `-volume 7` means "make it 7"). `hermetic()` makes `-shot`, `-frames`, `-bench` and `-dump` start
+    from `prefs.Default()` and refuse to save, so `make check` produces the same bytes on a machine
+    whose owner has been playing the game — with no special pleading at any Makefile call site. An
+    explicit `-prefs <file>` beats even a measurement, which is how 1.8's golden image of the settings
+    screen will get settings to show; `-house` is deliberately *not* hermetic, because naming a house
+    is asking to play and a player who plays that way wants their own bindings.
+  - **Saving happens at the change, not at quit.** Two places only: the settings screen closing and
+    `runShell` noticing a different house. The original saves once, in `WriteOutPrefs` at quit
+    (`Main.c:381`), which loses every setting a player changed if the game crashes; saving at the
+    change costs one small file write and cannot lose one.
+  - **The settings screen offers less than the file holds, on purpose.** Three preferences are in the
+    JSON and not on the screen — `pause_when_unfocused` (2.21 argues a released build should always
+    pause and not offer the choice, and it *is* honoured), `music_on_title` (the title screen is silent
+    until 1.7d, and a switch that does nothing is worse than no switch), and `keep_real_time` with the
+    three `fixes` (they change what the simulation does; a player has no way to judge them and a
+    developer has the file) — each with a paragraph in `internal/shell/settings.go` saying so. And
+    `sound` is absent for a different reason: `Validate` derives it from `volume` both ways, so no file
+    and no flag can make the two disagree, and `-volume 0` mutes exactly as the C's
+    `isSoundOn = (isVolume != 0)` does.
+  - **The fidelity switches are a `game.Fixes` copied field by field from `prefs.Fixes`.**
+    `internal/game` does not import `internal/prefs` — the game has no preferences, it has a caller
+    that had some — and the copy is written out field by field so that adding a fix to either side is
+    a compile error here rather than a setting that silently does nothing. All three default **off**,
+    which is to say the original's behaviour, because 1.8's corpus is recorded against the original
+    and a correction that was on by default would be a corpus that measures this port against itself.
+- **1.7b, what it found.** Three, and the first changed the assets API:
+  - **A house can override the pause placard, and nineteen of the twenty do not.** Teddy World ships
+    its own PICT 1015 and 1016, and on a Mac the open house's resource fork sits *in front of* the
+    application's for those ids. `Assets.UI` is the wrong rule for that (application only, so that a
+    house cannot repaint the title screen and hide the way out of it) and `Assets.Pict` is the wrong
+    rule too (a missing file there is a recorded fault, and a placard has a drawn fallback). Hence a
+    third accessor, `Assets.Plate`: the fork first, then the application, and silence when neither
+    has it.
+  - **1.7d's banner and stars panels need `Plate` as well.** Counted on disk: **thirteen** of the
+    twenty shipped houses carry their own 1991-1993 and **four** their own 1017 or 1018. Every one of
+    those is drawn over a running game, so `BringUpBanner` and `DisplayStarsRemaining` go through
+    `Plate` and not `UI` — a fact worth having before 1.7d rather than after.
+  - **`keep_real_time` is declared and deliberately unwired.** The limiter is still the original's
+    no-catch-up form (`awaitFrame`), because a catch-up worth having needs a resync clamp: without
+    one, the first long stall — a room wipe, a pause, a house load — is followed by a burst of
+    unpaced frames, which is worse than the dropped time it was meant to recover. That is frame-pacing
+    work and it is charged to 1.8, with the reason recorded on the field itself.
 
 **1.8 Fidelity pass**
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of
