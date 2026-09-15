@@ -15,6 +15,7 @@
 //	glidertool render -all -o /tmp/demo Demo.house  # every room, for eyeballing
 //	glidertool replay -house Demo -frames 600      # headless run, summary + digest
 //	glidertool replay -trace bug.txt               # per-frame trace from a script
+//	glidertool demo info -stats res/demo/128.bin   # the attract-mode input stream
 //	glidertool types vent                          # object type names, filtered
 //
 // Nothing here is needed to play. It exists because every later stage of the port
@@ -56,6 +57,8 @@ func run(args []string) error {
 		return renderCmd(args[1:])
 	case "replay":
 		return replayCmd(args[1:])
+	case "demo":
+		return demoCmd(args[1:])
 	case "types":
 		return typesCmd(args[1:])
 	case "help", "-h", "-help", "--help":
@@ -78,11 +81,14 @@ usage: %s <command> [flags] [file...]
   house rooms [-objects] <house>            per-room table
   render      [flags] <house>               compose a room to PNG, as the game does
   replay      [flags] [script]              play headlessly from a script; trace it
+  demo info   [-stats] <demo>...            describe a recorded input stream
+  demo dump   [-bare] [-o out] <demo>       print one record per line
+  demo check  <demo>...                     decode, round-trip and check playability
   types       [substring]                   the object type names, by code
 
 Flags precede file names. The text format is documented by the header comment
-that `+"`house dump`"+` writes; the binary format is documented in
-docs/analysis/house-format.md.
+that `+"`house dump`"+` writes; the binary formats are documented in
+docs/analysis/house-format.md and docs/analysis/input.md §14.
 `, prog, prog)
 }
 

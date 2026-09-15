@@ -28,6 +28,29 @@ type Keys struct {
 	Command, Delete, Pause  bool
 }
 
+// DemoKey is the code the demo recorder logs for one action: the `char key` of a
+// `demoType` record (GliderStructs.h:334-339).
+//
+// The four values are internal/demo.Key's, spelled out again here so that this package can
+// stay import-free -- it has no imports at all, which is what lets the glider be tested
+// without a house, a scene or an asset tree. A test in internal/game pins the two sets
+// together, because a port that got them out of step would fly the demo mirror-imaged and
+// nothing would fail to compile.
+type DemoKey byte
+
+// The four codes, in the order GetInput's branches log them.
+//
+// **Right is 0 and left is 1**, which is the opposite of what `GetDemoInput`'s own case
+// comments say (Input.c:228, :235). The recorder's call sites are authoritative because they
+// produced the shipped `'demo'` resource: `LogDemoKey(0)` is in the rightKey branch at
+// Input.c:304 and `(1)` is in the leftKey branch at :321. docs/analysis/input.md §14.2.
+const (
+	DemoRight DemoKey = 0
+	DemoLeft  DemoKey = 1
+	DemoBatt  DemoKey = 2
+	DemoBand  DemoKey = 3
+)
+
 // Input is Input.c's own file-scope state: the two variables that throttle the
 // battery and helium sound effects.
 //
@@ -62,6 +85,31 @@ type Input struct {
 	// The exception is a burning glider, which returns before the reset, so one
 	// player catching fire restores the other's ordinary four-frame cadence.
 	batteryWasEngaged bool
+
+	// LogDemoKey is the demo recorder, and it is the `#ifdef CREATEDEMODATA` call sites
+	// of Input.c:304, :321, :334 and :348 turned into a nil-checked function pointer.
+	//
+	// nil in a normal game, which is the original's shipped configuration -- the recorder
+	// was a compile-time option John Calhoun turned on once to make `'demo'` 128 and left
+	// off in the released build. A hook rather than a build tag because there is no reason
+	// a released binary should not be able to record its own demo (that is what
+	// internal/demo's Recorder is for), and because a compile-time switch in a port is a
+	// second binary nobody tests.
+	//
+	// It is called from *inside* the branches below rather than from the caller, and the
+	// exact positions matter: the C logs before the both-keys test and before the
+	// fire-held test, so an about-face records as a plain right press and a held band key
+	// records a code on every frame. Both are why a replayed demo is not a replay of the
+	// session that recorded it. See the four call sites, and internal/demo's Recorder for
+	// the one-record-per-frame rule the stream needs and the C's recorder did not keep.
+	LogDemoKey func(key DemoKey)
+}
+
+// logDemo is the nil check, so the four call sites read like the C's one-liners.
+func (in *Input) logDemo(k DemoKey) {
+	if in.LogDemoKey != nil {
+		in.LogDemoKey(k)
+	}
 }
 
 // GetInput is Input.c:281-379: one frame of input for one glider.
@@ -102,18 +150,27 @@ func (in *Input) GetInput(g *Glider, e Env, k Keys) {
 	// the battery's direction.
 	g.HeldLeft = false
 	g.HeldRight = false
+	//
+	// The recorder is logged in both right-hand arms and logs DemoRight for both, because
+	// the C's LogDemoKey(0) sits at the top of `if (rightKey)` -- above the both-keys test
+	// at Input.c:306. So the about-face gesture is recorded as an ordinary right press and
+	// replays as one: the demo stream has no way to express it at all
+	// (docs/analysis/input.md §14.3, difference 3).
 	switch {
 	case k.Right && k.Left:
+		in.logDemo(DemoRight)
 		g.ToggleGliderFacing()
 		// HeldLeft, not HeldRight: an about-face is refused the down-stairs and
 		// allowed the up-stairs. Both keys are down, so either would be defensible;
 		// the original picks left (Input.c:309) and the choice is observable.
 		g.HeldLeft = true
 	case k.Right:
+		in.logDemo(DemoRight)
 		g.HDesiredVel += NormalThrust
 		g.Tipped = g.Facing == FaceLeft
 		g.HeldRight = true
 	case k.Left:
+		in.logDemo(DemoLeft)
 		g.HDesiredVel -= NormalThrust
 		g.Tipped = g.Facing == FaceRight
 		g.HeldLeft = true
@@ -127,6 +184,7 @@ func (in *Input) GetInput(g *Glider, e Env, k Keys) {
 	// refused outside normal mode, so neither works during an about-face or a foil
 	// dissolve even though those modes do run the integrator.
 	if k.Batt && e.BatteryTotal() != 0 && g.Mode == GliderNormal {
+		in.logDemo(DemoBatt)
 		if e.BatteryTotal() > 0 {
 			in.DoBatteryEngaged(g, e)
 		} else {
@@ -143,6 +201,11 @@ func (in *Input) GetInput(g *Glider, e Env, k Keys) {
 	// in the else, which is what makes the key one-shot: releasing it for a single
 	// frame re-arms.
 	if k.Band && e.BandsTotal() > 0 && g.Mode == GliderNormal {
+		// Above the fire-held test, as at Input.c:348: a held key logs a record every
+		// frame even though only the first one fires. Playback reproduces the single shot
+		// anyway -- case 3 does not clear FireHeld -- so the extra records are harmless
+		// there and merely make the stream longer than the session's shots.
+		in.logDemo(DemoBand)
 		if !g.FireHeld {
 			if e.AddBand(g, g.Dest.Left+BandSpawnH, g.Dest.Top+BandSpawnV, g.Facing) {
 				e.SetBandsTotal(e.BandsTotal() - 1)

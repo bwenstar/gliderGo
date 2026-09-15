@@ -85,6 +85,7 @@ import (
 	"time"
 
 	"glidergo/internal/audio"
+	"glidergo/internal/demo"
 	"glidergo/internal/game"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
@@ -169,6 +170,26 @@ type Script struct {
 	// a house with no stars counts 0 anyway.
 	Gliders int16
 	Stars   int16
+
+	// Demo is a path to a raw `'demo'` stream -- the 1994 resource, or anything
+	// internal/demo wrote -- and turning it on makes this run the **attract mode**: player
+	// one is driven by the recording instead of by Input below, through World.GetDemoInput.
+	//
+	// It is the sharpest determinism test the harness has, and that is what it is for. Every
+	// other script here describes input in the port's own terms; this one replays 1117
+	// keystrokes recorded against a build from 1994 and lets the physics decide where the
+	// glider ends up. Two runs agreeing proves the port is deterministic. Agreeing with the
+	// *original* would prove more and cannot be checked from here -- nobody has a trace of
+	// the Mac -- see docs/IMPROVEMENTS.md 2.18.
+	//
+	// Input is still read while a demo runs, and not as a leftover: the arcade build's
+	// GetDemoInput ends the demo when any of player one's four game keys is down
+	// (Input.c:192-201), so a script can hold `band` at frame 200 to test the abort. The
+	// pause key still works too.
+	//
+	// One player only. `players 2` with a demo is an error rather than a silent
+	// keyboard-driven run, because PlayGame's demo branch is inside its one-player arm.
+	Demo string
 
 	// Input is the keystroke log: a timeline of *changes*, not of presses. The entry
 	// with the largest Frame at or below the current frame is the one in force, so a
@@ -370,6 +391,9 @@ type Result struct {
 	// about the samples themselves.
 	Digest string
 
+	// Demo is the attract-mode report, and the zero value for a run with no `demo` line.
+	Demo Demo
+
 	// Planes hashes the three index planes as the last frame left them: the pixel half
 	// of determinism, which Digest cannot state.
 	//
@@ -379,6 +403,23 @@ type Result struct {
 	// recorded in. It is reported separately instead, where a caller that wants to
 	// compare pictures can ask for it and a caller comparing behaviour is unaffected.
 	Planes Planes
+}
+
+// Demo is how much of a replayed input stream the run got through.
+//
+// Records against Consumed is the honest measure of a demo replay: a run whose glider died
+// early, or which the script's own keyboard aborted, consumed some prefix and no more, and a
+// trace that only reported the digest would make that look like a match.
+//
+// PastEnd is the other end -- frames that asked for a key after the last record, which is the
+// out-of-bounds read the original performed and internal/game/demo.go declines to. It is normal
+// and not a fault: the shipped stream's last key is on frame 3414 and what ends the demo is the
+// glider dying some frames later, so any faithful replay of it goes past the end.
+type Demo struct {
+	Path     string
+	Records  int
+	Consumed int
+	PastEnd  int
 }
 
 // Planes is a hash of each of the run's surfaces at the moment it stopped.
@@ -524,6 +565,23 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 	case 1, 3, 9:
 	default:
 		return nil, fmt.Errorf("replay: neighbors must be 1, 3 or 9, have %d", s.Neighbors)
+	}
+
+	// The demo stream, loaded before the house so that a mistyped path fails in a sentence
+	// rather than after four seconds of composition. A two-player demo is refused rather than
+	// ignored: PlayGame's demo branch is inside its `!twoPlayer` arm, so such a script would
+	// run happily on the keyboard timeline and its trace would say `players 2` and nothing
+	// about the demo that never played.
+	var stream demo.Stream
+	if s.Demo != "" {
+		if s.TwoPlayer {
+			return nil, fmt.Errorf("replay: a demo is one-player (PlayGame only reaches " +
+				"GetDemoInput in its one-player arm)")
+		}
+		var err error
+		if stream, err = demo.Load(s.Demo); err != nil {
+			return nil, err
+		}
 	}
 
 	path := s.House
@@ -787,8 +845,32 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 		}
 	}
 
+	// The attract mode, wired here rather than through World.DoDemoGame.
+	//
+	// DoDemoGame is the *shell's* entry point: what it adds around NewGame is the house swap
+	// (close this house, open the demo house, put the first one back) and a second arming of
+	// the idle timer, neither of which means anything to a run that was handed one house and
+	// has no splash screen to go back to. It also calls NewGame(kNewGameMode) itself, which
+	// would throw away the resume the `room`/`where` keywords just set up. So the two
+	// assignments it makes are made here, and the cursor NewGame resets is this one.
+	var cursor *demo.Cursor
+	if s.Demo != "" {
+		cursor = stream.Cursor()
+		w.Demo = cursor
+		w.DemoGoing = true
+	}
+
 	w.NewGame(mode)
 	flush()
+
+	if cursor != nil {
+		res.Demo = Demo{
+			Path:     s.Demo,
+			Records:  cursor.Len(),
+			Consumed: cursor.Index(),
+			PastEnd:  cursor.PastEnd(),
+		}
+	}
 
 	res.Frames = w.Frame
 	res.GameOver = w.GameOver
@@ -907,6 +989,11 @@ func (r *Result) Trace(out io.Writer) error {
 	// samples below mean: sound off is a different composition (see Script.Sound), so a reader
 	// comparing two traces has to know before the first frame line rather than after the last.
 	fmt.Fprintf(bw, "# audio sound=%s music=%s\n", onOff(r.Script.Sound), onOff(r.Script.Music))
+	// The demo goes in the header for the same reason the audio settings do: it changes what
+	// every frame line below means. The footer carries how much of it was played.
+	if r.Demo.Records > 0 || r.Script.Demo != "" {
+		fmt.Fprintf(bw, "# demo path=%s records=%d\n", r.Script.Demo, r.Demo.Records)
+	}
 	fmt.Fprintf(bw, "# digest=%s\n", r.Digest)
 	for _, s := range r.Samples {
 		fmt.Fprintln(bw, s.line())
@@ -915,6 +1002,10 @@ func (r *Result) Trace(out io.Writer) error {
 		r.Frames, r.GameOver, r.Score, r.StarsLeft, r.Mortals, r.Room)
 	fmt.Fprintf(bw, "# diag guarded=%d droppedWork=%d droppedBack=%d\n",
 		r.Diag.Guarded, r.Diag.DroppedWorkRects, r.Diag.DroppedBackRects)
+	if r.Script.Demo != "" {
+		fmt.Fprintf(bw, "# demo consumed=%d of %d pastEnd=%d\n",
+			r.Demo.Consumed, r.Demo.Records, r.Demo.PastEnd)
+	}
 	if r.Script.Sound {
 		a := r.Audio
 		fmt.Fprintf(bw, "# sound requests=%d played=%d refused=%d trigger-refused=%d cut=%d music=%d triggers=%d\n",
@@ -963,6 +1054,8 @@ func players(s *Script) int {
 //	clock 1994-09-14T10:09:00Z
 //	sound off                no sound system at all, which changes the composition
 //	music off                effects but no score
+//	demo assets/extracted/res/demo/128.bin
+//	                         replay a recorded input stream instead of the keyboard
 //	at 0 right               from frame 0, player one holds right
 //	at 45 - band             player one lets go, player two fires a band
 //
@@ -1091,6 +1184,13 @@ func Parse(in io.Reader) (*Script, error) {
 			// rest of the line is the value.
 			s.House = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text), "house"))
 			if s.House == "" {
+				return nil, bad(fmt.Errorf("missing argument"))
+			}
+		case "demo":
+			// Rest of the line, like `house`: a path can have spaces in it, and the one
+			// path anybody will type here sits under a directory named by the extractor.
+			s.Demo = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text), "demo"))
+			if s.Demo == "" {
 				return nil, bad(fmt.Errorf("missing argument"))
 			}
 		case "housedir":
@@ -1238,6 +1338,11 @@ func (s *Script) Write(out io.Writer) error {
 	// without knowing what this package's defaults happen to be this month.
 	fmt.Fprintf(bw, "sound %s\n", onOff(s.Sound))
 	fmt.Fprintf(bw, "music %s\n", onOff(s.Music))
+	// Only when there is one, unlike the settings above: a `demo` line is not a default a
+	// reader has to know, it is a different kind of run.
+	if s.Demo != "" {
+		fmt.Fprintf(bw, "demo %s\n", s.Demo)
+	}
 	if s.Room >= 0 {
 		fmt.Fprintf(bw, "room %d\n", s.Room)
 		if s.Where != (house.Point{}) {

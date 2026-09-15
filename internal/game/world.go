@@ -21,6 +21,7 @@
 package game
 
 import (
+	"glidergo/internal/demo"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
 	"glidergo/internal/render"
@@ -514,6 +515,15 @@ type World struct {
 	// arm reads its input from the recorded stream instead of the keyboard. Set by
 	// DoDemoGame, cleared by NewGame's tail.
 	DemoGoing bool
+
+	// Demo is `demoData` and `demoIndex` in one value (Input.c:30, :33): the recorded
+	// input stream and the cursor into it.
+	//
+	// nil is a demo with no stream, which is a real state and not an error -- a build
+	// with no extracted assets has no `'demo'` resource, and the glider then flies on
+	// physics alone. NewGame resets the cursor (Play.c:114); nothing else moves it but
+	// GetDemoInput, and only when DemoGoing is set.
+	Demo *demo.Cursor
 
 	// ResumedSavedGame is `resumedSavedGame` (HighScores.c:33), and it is the one hard
 	// ineligibility rule in the whole scoring subsystem: a game continued from a saved

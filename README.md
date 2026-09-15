@@ -101,6 +101,21 @@ path that Windows will need replaced
 host with no sound card at all, `-wav` writes the samples to a file instead; the developer
 machine this was written on has no sound card, so that path is the one under test.
 
+Replaying the 1994 attract mode:
+
+```bash
+bin/glidertool demo info -stats assets/extracted/res/demo/128.bin   # what is in the stream
+bin/glidertool demo dump        assets/extracted/res/demo/128.bin | head -30
+bin/glidertool replay -house "Demo House" -frames 3500 \
+    -demo assets/extracted/res/demo/128.bin
+```
+
+The `'demo'` resource is 1,117 keystrokes — six bytes each, keyed to frame numbers — recorded
+in 1994 by somebody flying "Demo House" for about two minutes. Replaying it drives the port's
+own physics from a real 1994 session, which is the strictest determinism test in here. It also
+does not yet finish: the glider dies in the start room 573 records in, and that gap is the
+sharpest fidelity target the project has ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.18).
+
 The build needs no network access at run time and no third-party Go modules —
 see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
 
@@ -219,7 +234,8 @@ one line on stderr per thing that had to be worked around.
 | `internal/house/` | The house model and its two codecs: the 1994 binary format (byte-exact both ways) and a line-oriented text format meant to be written by hand and read in a diff. |
 | `internal/render/` | The room composition: an 8-bit indexed surface with the game's own 256-colour palette, the sprite atlas, and `DrawLocale`'s draw order object for object. Indexed rather than RGBA because the original's shadows OR palette *indices* together. |
 | `internal/replay/`, `internal/fidelity/` | The determinism harness. A script — house, seed, start point, keystroke timeline — replays headlessly to a trace with one line per frame, and `internal/fidelity` hashes the pixels of every one of those frames against a corpus checked in beside it. So a bug report is a file that reproduces on any machine, and a change that moves a pixel says which frame it moved. |
-| `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG) and the `types` reference table. |
+| `internal/demo/` | The attract-mode input stream: six-byte `{frame, key, padding}` records, a playback cursor, and a recorder. The 1994 resource is 1,117 keystrokes of somebody flying "Demo House", and replaying it through the port's own physics is the strictest determinism test here — a script can name one with `demo`. |
+| `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG), `replay` (headless run from a script), `demo info` / `dump` / `check` and the `types` reference table. |
 | `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
 | `assets/extracted/` | **Generated, gitignored.** 1,899 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 57 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
 

@@ -9,11 +9,13 @@ package main
 // `make assets`.
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"glidergo/internal/demo"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
 	"glidergo/internal/replay"
@@ -520,4 +522,248 @@ func TestReplaySummaryIsTheDefault(t *testing.T) {
 			t.Errorf("summary has no %q:\n%s", want, text)
 		}
 	}
+}
+
+// The `demo` subcommand.
+//
+// internal/demo tests the codec against the 1994 resource; what is left here is the plumbing
+// and the two messages only this command produces -- the info table's status column and check's
+// verdict on a stream that would stall. The streams are synthesised, so these run on a checkout
+// that has never run `make assets`.
+
+// writeDemo writes a stream with Encode rather than WriteFile, because half the point of the
+// cases below is what the tool says about a stream WriteFile would refuse.
+func writeDemo(t *testing.T, dir, name string, s demo.Stream) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, s.Encode(), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// good is a small well-formed stream: a three-frame hold, then one of each remaining key, with
+// varied padding so that the pads column has something to count.
+func goodDemo() demo.Stream {
+	return demo.Stream{
+		{Frame: 10, Key: demo.KeyRight, Pad: 0},
+		{Frame: 11, Key: demo.KeyRight, Pad: 0},
+		{Frame: 12, Key: demo.KeyRight, Pad: 7},
+		{Frame: 20, Key: demo.KeyLeft, Pad: 7},
+		{Frame: 21, Key: demo.KeyBatt, Pad: 9},
+		{Frame: 30, Key: demo.KeyBand, Pad: 9},
+	}
+}
+
+func TestDemoInfoDescribesAStream(t *testing.T) {
+	dir := t.TempDir()
+	path := writeDemo(t, dir, "128.bin", goodDemo())
+	outPath := filepath.Join(dir, "info.txt")
+	if err := run([]string{"demo", "info", "-stats", "-o", outPath, path}); err != nil {
+		t.Fatalf("demo info: %v", err)
+	}
+	body, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	// The columns, by value rather than by position: 36 bytes, six records, the span, the
+	// histogram, three distinct pads and a verdict.
+	for _, want := range []string{"128", "36", "10..30", "ok"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("info has no %q:\n%s", want, text)
+		}
+	}
+	// -stats: the three lines that describe the pacing rather than the contents.
+	for _, want := range []string{"gaps", "runs", "parity", "longest 3 frames of right from frame 10"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("-stats has no %q:\n%s", want, text)
+		}
+	}
+	// A stream that would stall says so where a reader is looking, and does not fail the
+	// command: info describes, check judges.
+	stall := writeDemo(t, dir, "stall.bin", demo.Stream{{Frame: 5}, {Frame: 5, Key: demo.KeyBand}})
+	stallOut := filepath.Join(dir, "stall.txt")
+	if err := run([]string{"demo", "info", "-o", stallOut, stall}); err != nil {
+		t.Fatalf("demo info of a stalling stream: %v", err)
+	}
+	body, err = os.ReadFile(stallOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "does not follow") {
+		t.Errorf("the status column does not report the stall:\n%s", body)
+	}
+	// And a file that is not a stream at all is a row, not a return, so that a wildcard over
+	// a resource directory reports every file.
+	odd := filepath.Join(dir, "odd.bin")
+	if err := os.WriteFile(odd, []byte{1, 2, 3, 4, 5}, 0o666); err != nil {
+		t.Fatal(err)
+	}
+	oddOut := filepath.Join(dir, "odd.txt")
+	if err := run([]string{"demo", "info", "-o", oddOut, odd, path}); err != nil {
+		t.Fatalf("demo info of a mixed list: %v", err)
+	}
+	body, err = os.ReadFile(oddOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := string(body); !strings.Contains(text, "6-byte records") || !strings.Contains(text, "10..30") {
+		t.Errorf("a bad file stopped the table:\n%s", text)
+	}
+}
+
+func TestDemoDumpIsTheRecords(t *testing.T) {
+	dir := t.TempDir()
+	path := writeDemo(t, dir, "128.bin", goodDemo())
+
+	outPath := filepath.Join(dir, "dump.txt")
+	if err := run([]string{"demo", "dump", "-o", outPath, path}); err != nil {
+		t.Fatalf("demo dump: %v", err)
+	}
+	body, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "# gliderGo demo dump") {
+		t.Errorf("no header comment:\n%s", firstLines(text, 3))
+	}
+	// The header earns its space by saying the one thing about the format that is easy to get
+	// backwards, so a dump that lost that sentence is a dump nobody can read.
+	if !strings.Contains(text, "key 0 is right") {
+		t.Errorf("the header does not say which way 0 is:\n%s", text)
+	}
+	// The record lines, compared as fields: tabwriter pads with spaces whose count depends on
+	// the widest cell, so the columns are compared and their alignment is not.
+	rows := map[string]bool{}
+	for _, line := range strings.Split(text, "\n") {
+		rows[strings.Join(strings.Fields(line), " ")] = true
+	}
+	// The gap column is the readable form of "the key was still down".
+	for _, want := range []string{
+		"index frame gap key code pad",
+		"0 10 - right 0 0",
+		"1 11 1 right 0 0",
+		"3 20 8 left 1 7",
+		"5 30 9 band 3 9",
+	} {
+		if !rows[want] {
+			t.Errorf("dump has no line %q:\n%s", want, text)
+		}
+	}
+
+	// -bare is what a diff or a script wants.
+	bareOut := filepath.Join(dir, "bare.txt")
+	if err := run([]string{"demo", "dump", "-bare", "-o", bareOut, path}); err != nil {
+		t.Fatalf("demo dump -bare: %v", err)
+	}
+	body, err = os.ReadFile(bareOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bare := string(body); strings.Contains(bare, "#") {
+		t.Errorf("-bare still wrote a comment:\n%s", bare)
+	} else if lines := strings.Count(strings.TrimSpace(bare), "\n") + 1; lines != 7 {
+		t.Errorf("%d lines, want 7 (a header row and six records):\n%s", lines, bare)
+	}
+}
+
+func TestDemoCheckJudgesPlayability(t *testing.T) {
+	dir := t.TempDir()
+	good := writeDemo(t, dir, "good.bin", goodDemo())
+	if out, err := captureStdout(t, func() error { return run([]string{"demo", "check", good}) }); err != nil {
+		t.Errorf("check of a good stream failed: %v\n%s", err, out)
+	} else if !strings.Contains(out, "ok, 6 records, 10..30") {
+		t.Errorf("check said %q", out)
+	}
+
+	// The finding this command exists for: two records on one frame play as one, silently, and
+	// nothing else in the toolchain would ever say so.
+	stall := writeDemo(t, dir, "stall.bin", demo.Stream{
+		{Frame: 5, Key: demo.KeyRight}, {Frame: 5, Key: demo.KeyBand}, {Frame: 6, Key: demo.KeyLeft},
+	})
+	out, err := captureStdout(t, func() error { return run([]string{"demo", "check", stall}) })
+	if err == nil {
+		t.Error("check of a stalling stream succeeded; want a non-zero exit")
+	}
+	for _, want := range []string{"FAILED", "playback stalls"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("check does not report %q:\n%s", want, out)
+		}
+	}
+
+	// A key playback does not act on: an error, because a stream this port wrote could not
+	// contain one, plus the note that says what playing it anyway would do.
+	odd := writeDemo(t, dir, "odd-key.bin", demo.Stream{{Frame: 1, Key: demo.Key(7)}})
+	out, err = captureStdout(t, func() error { return run([]string{"demo", "check", odd}) })
+	if err == nil {
+		t.Error("check accepted a key outside 0..3")
+	}
+	if !strings.Contains(out, "play as if absent") {
+		t.Errorf("check does not say what an unknown key does:\n%s", out)
+	}
+
+	// And a truncated file, which is the one failure the decoder itself reports.
+	short := filepath.Join(dir, "short.bin")
+	if err := os.WriteFile(short, []byte{0, 0, 0, 1, 0}, 0o666); err != nil {
+		t.Fatal(err)
+	}
+	out, err = captureStdout(t, func() error { return run([]string{"demo", "check", short}) })
+	if err == nil {
+		t.Error("check accepted a five-byte file")
+	}
+	if !strings.Contains(out, "6-byte records") {
+		t.Errorf("check does not name the stride:\n%s", out)
+	}
+}
+
+func TestDemoRejectsBadArguments(t *testing.T) {
+	dir := t.TempDir()
+	path := writeDemo(t, dir, "128.bin", goodDemo())
+	for _, args := range [][]string{
+		{"demo"},                                   // no subcommand
+		{"demo", "explain", path},                  // no such subcommand
+		{"demo", "info"},                           // no files
+		{"demo", "check"},                          // no files
+		{"demo", "dump"},                           // dump takes exactly one
+		{"demo", "dump", path, path},               //
+		{"demo", "info", filepath.Join(dir, "no")}, // a missing file is still a row...
+	} {
+		_, err := captureStdout(t, func() error { return run(args) })
+		if err == nil && args[1] != "info" {
+			t.Errorf("run(%q) succeeded; want an error", args)
+		}
+	}
+	// ...but a list of nothing but missing files is not an error, because info describes what it
+	// was given and the description of an unreadable file is the reason it could not be read.
+	outPath := filepath.Join(dir, "missing.txt")
+	if err := run([]string{"demo", "info", "-o", outPath, filepath.Join(dir, "nope.bin")}); err != nil {
+		t.Errorf("demo info of a missing file returned %v; want the row", err)
+	}
+}
+
+// captureStdout runs fn with os.Stdout redirected, and returns what it printed.
+//
+// The commands that report findings write to stdout rather than to an -o file, which is the
+// right shape for a checker -- house check does the same -- and leaves a test with no way to
+// read the finding it is asserting on. This is that way, and it also keeps the noise of a
+// deliberately-failing check out of `go test`'s output.
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	runErr := fn()
+	os.Stdout = saved
+	w.Close()
+	body, err := io.ReadAll(r)
+	r.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body), runErr
 }

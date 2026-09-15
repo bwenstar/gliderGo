@@ -491,12 +491,54 @@ was meant to recover. That is frame-pacing work, it belongs with 1.8's timing pa
 setting that is written down and honest about being inert is cheaper to finish than one that
 has to be invented later along with the file-format change to carry it.
 
-### 2.18 The random stream is unverified against real hardware — **planned, 1.8**
+### 2.18 The random stream is unverified against real hardware — **answered as far as it can be, 1.8b; the physics gap it exposed is open**
 
 `internal/game/rand.go` transcribes the original's linear congruential generator, and the
 demo replay in 1.8 depends on it bit for bit. It has not been checked against a trace from
 a real Mac, and until it is, a demo that desyncs is ambiguous between "the RNG is wrong"
 and "the input replay is wrong". 1.8 should capture a reference trace first.
+
+**1.8b closed the ambiguity from the other end, and the answer changes what this entry is
+asking for.** There is no reference trace to capture, because *the original had no reproducible
+one*: `ToolBoxInit` does `GetDateTime((UInt32 *)&qd.randSeed)` (`Utilities.c:61`) and nothing
+in the shipped game ever reseeds — there are no `InitRandomSeed` callers — so the 1994 attract
+mode drew a different random stream on every launch. A player who watched the demo twice saw two
+different demos. `RandomInt` reaches gameplay through `ObjectAdd.c` (the drip and toast delays,
+`10 + RandomInt(10)`; `RandomInt(kNumFlowers)`) and `Play.c` (phone rings, chimes), so this is
+not a cosmetic difference. The consequence: **the shipped `'demo'` resource cannot be a bit-exact
+fidelity oracle, and no amount of work on rand.go would make it one.** What it can be is a
+determinism oracle for this port — the same stream, the same seed, the same frames, twice — and
+that is what `internal/replay/testdata/demo.script` and `TestTheDemoReplaysTheSameWayTwice` are.
+Verifying rand.go itself is now an *independent* task (a direct table test against hand-computed
+LCG output, 1.8c) rather than something the demo can settle.
+
+**What the demo replay does measure, and the number to beat.** The port does not fly the recorded
+path. Replaying the shipped stream against Demo House:
+
+- the glider never leaves room 0, "Air Vents" — three `kFloorVent` at v=305 and a `kRedClock`,
+  which it *does* collect for 100 points at frame 310, so the first ~300 frames are plausibly
+  right;
+- it then fades out (mode 2) frozen at `dest=295,387,315,435`, below the floor, losing a life at
+  frames 1412, 1573 and 1760; game over at frame 1775, having consumed **573 of 1117 records**;
+- the recording expects the vents to carry it rightward out of the room — the longest held run in
+  the stream is 66 frames of right from frame 1879, well past where the port has already died.
+
+Three pieces of evidence say the harness is not what is wrong. The outcome is **seed-independent**:
+seeds 0, 1, 7 and 12345 all end at frame 1775 with 573 records consumed and mortals at -1, and only
+the pixel digests differ — so the death is physics, not RNG. The recording is **one record per held
+frame**, not per alternate frame: `glidertool demo info -stats` reports 48 distinct gaps with
+`1:1009` of 1116, 108 held stretches (right 84, left 21, band 3) — so the port's frame counter is
+the right clock to replay against. And the parity is even, 557 to 560, so no input pass is running
+on only one of `World.EvenFrame`'s two phases. That leaves the vent lift, the fall-through, or the
+air-friction integrator, and it is the sharpest fidelity target this project has: **573 of 1117 is
+the number to raise.**
+
+Two things follow for whoever picks it up. The frame numbers above live in the script's header
+comment, this entry, and a `t.Logf` — deliberately not in an assertion, because the day the physics
+improve, the test that fails should be a fidelity test and not a test about determinism. And a
+demo that ran the whole stream would read 86 frames past the last record, which is the
+off-the-end read the original performed and the port counts as `Cursor.PastEnd`; `frames 3500` in
+the script is set past the end on purpose so that a fixed port exercises it.
 
 Two related notes: `PourScreenOn` is dead code in the original — nothing calls it — and it
 *draws from the RNG*, so wiring it up would shift every subsequent random number and
@@ -1686,6 +1728,80 @@ The two ending paths keep their call. There the splash is on screen a moment lat
 `DoGameOver` composes the starfield over it and presents (`gameover.go:140`), so the pixels do
 what the C wanted them to do.
 
+### 2.63 The demo recorder can silently kill the demo it is recording — **DONE, 1.8b**
+
+A `'demo'` record is `{long frame; char key; char padding}` and playback is
+`if (gameFrame == demoData[demoIndex].frame)`, then `demoIndex++` — an **equality** test, not a
+"have we passed it" test. So two records carrying the same frame number strand the cursor: the
+first is consumed, the second never matches any later frame, and every record behind it is
+unreachable. The demo simply stops responding partway through, with no error, no truncation and
+nothing on screen to say it happened.
+
+The original's own recorder can produce that file. `LogDemoKey` is called from inside `GetInput`'s
+branches, and two of the four calls sit *above* the test that would have suppressed a second log
+on the same frame: the band call is above `if (!fireHeld)` (`Input.c:348`), and the right-key call
+is above the both-keys test (`:304`). Nothing anywhere in the C checks the stream it just wrote.
+The shipped resource happens to be clean — 1,117 records, 1,116 gaps, none of them zero — which is
+luck and the reason the bug survived.
+
+Three places in the port take it seriously, because a format whose failure mode is silence needs
+its check somewhere a human will look:
+
+- `demo.Recorder` refuses a duplicate frame and counts it in `Dropped`, so recording cannot
+  produce a stream that kills itself.
+- `Stream.Validate` rejects one, and `Encode`/`WriteFile` validate **on write and not on read**:
+  anything that came off a 1994 disk loads, and anything this port creates is checked.
+- `glidertool demo check` is the command that says so out loud, and `demo info`'s status column
+  says it for a whole directory at once. `TestCursorRepeatedFrameStalls` pins the stall itself, so
+  the port's tolerance of a bad stream is deliberate rather than accidental.
+
+What is *not* changed: playback still compares for equality. The refusal is at the writing end,
+where the original's bug was, and a hand-made stream that stalls still stalls exactly as it did in
+1994 — that is the behaviour, and the tools now name it instead of the player discovering it.
+
+### 2.64 A guard that fires every frame buries the guards a report is about — **DONE as a named exception, 1.8b**
+
+2.33's rule is that every out-of-range read the C performs is counted every time it happens, and
+that rule has been right for all fifteen sites but one. `demoData[demoIndex]` past the last record
+(`Input.c:224`) is not an event, it is a *state*: once a demo outlives its recording it reads off
+the end on every frame until the glider dies, which for the shipped stream would be hundreds of
+identical `Deviation`s. `Diag.Seen` keeps the first sixteen distinct kinds, so a long demo would
+fill a bug report with one finding repeated and push out the room-object and trigger guards the
+report was actually opened about.
+
+`demoKey` reports it **once per run**, on the first refusal, and `Cursor.PastEnd` carries the real
+count for anyone who wants it (`glidertool replay` prints it in the summary). The exception is
+written down in three places — the call site, `devDemoRecord`'s comment, and `badIndex`'s doc,
+which now says that one caller breaks its rule — because a diagnostic convention with an
+undocumented exception is worse than one with none.
+
+The general shape is worth keeping in mind for later stages: any guard inside a per-frame loop
+whose condition persists needs a *first-occurrence* report and a counter, not one event per frame.
+This is the first such site; Stage 3's network loop will have more.
+
+### 2.65 Touching the controls during the attract mode must give the player the game back — **DONE (the original was already right), 1.8b**
+
+`BUILD_ARCADE_VERSION` is on in the shipped build, and its block at `Input.c:192-201` says that
+any of player one's four game keys ends a demo: `playing = false; paused = false`. That is the
+behaviour a 2026 player expects and would complain about the absence of, and it is worth recording
+as a thing the original got right, because the port had to choose which half of a `#if` to
+transcribe and the other half — where only Command-Q and Command-S do anything — would have left
+a player watching a ghost fly with no way to interrupt it but the mouse.
+
+Two details of *how* it ends are the kind of thing a port would tidy away by accident. It does not
+`return`: the frame's recorded input is still applied and the pause key still tested, because the C
+only sets the two flags and falls through, so the demo ends one render later and not on the
+keypress. And the two Command keys are genuinely dead in this arm, so the arcade build cannot quit
+or save from the attract mode at all. `TestAGameKeyAbortsTheDemo` pins both — the run stops within
+two frames of the press, having consumed a strict prefix of the records, and `GameOver` is
+**false**, because what stopped is the demo and not a game.
+
+The polish this leaves for the shell (1.7's screen, still optional): `DoDemoGame` re-arms
+`incrementModeTime` on the way out, which is the original's way of making sure a demo that has
+just ended does not immediately start another. A release should also not start one while the
+player is part-way through choosing a house — the idle timer measures idleness, and a house picker
+with a cursor in it is not idle.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -2030,6 +2146,36 @@ Four decisions in it are worth keeping:
 What it does not close: 4.3's second half is still open, because one script still only pins the
 subsystems this glider visits, and the demo-replay codec (`demoType`) is 1.8b.
 
+**1.8b added the codec and deliberately did not add a corpus row for it.** The attract-mode script
+runs 1,775 frames — 1,775 rows, about 320 KB — against a stream that lives in gitignored
+`assets/extracted/`, so the corpus would be large, unbuildable from a fresh clone, and a
+checked-in assertion that the physics gap of 2.18 is the correct behaviour. It is a determinism
+test instead: the same script twice, compared frame by frame. The row becomes worth having on the
+day the demo flies to the end of its stream, and it should be a short prefix even then.
+
+### 4.8 The demo determinism test needs a 1994 asset, and it should not have to — **note; a 1.8c candidate**
+
+`internal/replay/testdata/demo.script` is the strictest determinism test the harness has, and it
+skips on a clone that has not run `make assets` — the stream it replays is an extracted resource
+and `assets/extracted/` is gitignored. That is the right decision for *this* script, whose whole
+point is the 1994 recording, but it means the demo *path* — the cursor, the equality compare, the
+five missing guards of `GetDemoInput` — has no coverage at all on a bare clone.
+
+The missing half is a round trip, and every piece of it already exists. `World.RecordDemo` returns
+a `demo.Recorder` wired to `GetInput`'s four log sites, so a replay script with `at` lines can
+*record* a stream; feeding that stream back through the `demo` keyword should produce the same
+frames as the script that recorded it. It would need no asset, it would be a handful of records
+rather than 1,117, and it would fail loudly on exactly the class of bug that is hardest to see
+here: a one-frame offset between the frame a key was logged on and the frame playback applies it
+to. The one thing it would *not* catch is a difference between `GetInput` and `GetDemoInput`, since
+the recording came from the former — so it complements the shipped stream rather than replacing it.
+
+Two known asymmetries have to be written into the test's expectations rather than treated as bugs
+(both are 2.63's territory): an about-face records as a plain right press, because `LogDemoKey(0)`
+is above the both-keys test, and a held band key records a code every frame although only the
+first fires. So a recorded-then-replayed session is not guaranteed to reproduce the session — it
+is guaranteed to reproduce *itself*, which is what a determinism test needs.
+
 ---
 
 ## Done
@@ -2085,6 +2231,10 @@ subsystems this glider visits, and the demo-replay codec (`demoType`) is 1.8b.
 | 2.62 The quit path's unreachable splash repaint dropped, so the replay corpus can check the erase pass | 1.7d | this stage |
 | 4.7 `internal/fidelity`: per-frame pixel hashes checked in, so a moved pixel names its frame | 1.8a | this stage |
 | 4.6 (the corpus half) The shell's six screens are compared against a reference, not just rendered | 1.8a | this stage |
+| 2.63 The recorder refuses a duplicate frame, `Validate` rejects one, and `demo check` reports it | 1.8b | this stage |
+| 2.64 `devDemoRecord` reports once per run, and `badIndex`'s doc names the exception | 1.8b | this stage |
+| 2.65 The arcade abort is transcribed and pinned: any game key hands the player the game back | 1.8b | this stage |
+| 2.18 (as far as it can be) The demo is a determinism oracle; the 1994 RNG was clock-seeded | 1.8b | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

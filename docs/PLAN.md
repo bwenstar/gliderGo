@@ -928,6 +928,54 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
       already restored `Back` over `Work` — so `Result.Planes` carries twenty rows no frame
       ever presented and an erase the frame did not have. Both answers are worth keeping; the
       corpus is the frames, `Planes` is what the process was left holding.
+  - **1.8b The demo stream** ✅ *done* — `internal/demo` (the six-byte codec, the cursor, a
+    recorder), `internal/game/demo.go` (`GetDemoInput`, `DoDemoGame`, `RecordDemo`), a `demo`
+    keyword in `internal/replay` scripts, and `glidertool demo info | dump | check`. The 1994
+    attract mode now replays through the port's own physics, and the shipped `'demo'` resource is
+    pinned by hash: 6702 bytes, 1117 records, frames 46 to 3414, 910 right / 198 left / 9 band / 0
+    battery.
+    - **`GetDemoInput` is not `GetInput` with a different key source.** It is a second, sloppier
+      copy of it — eight differences, listed in `docs/analysis/input.md` §14.3 — and the port keeps
+      it as its own file for that reason. The demo path clears `tipped` *before* its switch and has
+      no both-keys case, so a demo can never about-face; it omits `GetInput`'s `batteryTotal`,
+      `bandsTotal` and `mode == kGliderNormal` guards, so a record can hand the glider a helium
+      charge it never picked up or drive the band count negative; and it has no `default:`, so a
+      record with a key outside 0..3 is consumed without even clearing `fireHeld`. Building one
+      function with a `demo bool` would quietly re-add every one of those guards.
+    - **The recorder can kill its own playback, and the original's did.** `LogDemoKey` sits *above*
+      the fire-held test (`Input.c:348`), so a held band key logs a record every frame; and
+      playback compares `gameFrame == demoData[demoIndex].frame` for **equality** before advancing
+      the cursor, so two records on one frame strand it and silently discard every later record.
+      Nothing in the C notices. `internal/demo`'s `Recorder` drops a duplicate frame and counts it,
+      `Stream.Validate` refuses to write one, and `glidertool demo check` is the command that says
+      so — because a stalled stream plays a shorter demo than it contains and reports nothing at all.
+    - **Right is 0 and left is 1**, which is the opposite of what `GetDemoInput`'s own case comments
+      say (`Input.c:228`, `:235`). The recorder's call sites are authoritative — they produced the
+      shipped resource — so the comments are the bug and the port does not "fix" them.
+    - **One deviation, and it is a documented exception to this package's own rule.** The C indexes
+      `demoData[demoIndex]` unguarded, which past the last record is a read off the end of a
+      `NewPtr` block: harmless on the Mac, a panic in Go. The cursor answers "no record" and counts
+      the refusals, but reports the deviation **once per run** rather than once per frame, because a
+      demo that outlives its stream asks every frame until the glider dies and hundreds of identical
+      events would bury the guards a bug report is actually about (`devDemoRecord`, `guards.go`).
+    - **The arcade abort is live, and it is what makes an attract mode feel right.** With
+      `BUILD_ARCADE_VERSION` on — the shipped configuration — any of player one's four game keys
+      sets `playing = false` and hands the menu back. Note what it does *not* do: return. The
+      frame's recorded input is still applied and the pause key still tested, because the C only
+      sets the flags and falls through, so the demo ends one render later. Pinned by
+      `TestAGameKeyAbortsTheDemo`.
+    - **There is no `glidertool demo build`.** A hand-authored input stream is what a replay
+      script's `at` lines already are, and they are better at it — two players, all seven keys, no
+      six-byte encoding to get wrong. The only streams worth writing are ones a game recorded.
+    - What building it pinned: **the shipped demo is a determinism oracle, not a fidelity oracle.**
+      `ToolBoxInit` seeds `qd.randSeed` from the clock (`Utilities.c:61`) and nothing ever reseeds
+      it, so the 1994 attract mode diverged run to run on real hardware too — there is no byte
+      sequence this port could be wrong about. What it *can* prove is that the same stream replays
+      identically twice here, which is 1.8's acceptance criterion, and the port does not yet fly the
+      recorded path: the glider dies three times in the start room, 573 of 1117 records in
+      (IMPROVEMENTS 2.18). That is the sharpest fidelity target the project has, and the harness
+      test deliberately does not pin it — the day the physics improve, a fidelity test should fail,
+      not a test about determinism.
 - **Demo replay is the harness, not a feature.** The original records input as `demoType`
   (`{long frame; char key; char padding}`, `GliderStructs.h`) — a keystroke stream keyed to frame
   numbers. Replaying one is a frame-exact determinism test, which is what Stage 3's race needs and

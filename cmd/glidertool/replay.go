@@ -37,6 +37,7 @@ func replayCmd(args []string) error {
 		seed      = fs.Int("seed", -1, "random seed (overrides the script)")
 		neighbors = fs.Int("neighbors", 0, "compose 1, 3 or 9 rooms (overrides the script)")
 		two       = fs.Bool("two", false, "two players")
+		demoPath  = fs.String("demo", "", "replay this recorded input stream instead of the keyboard")
 		room      = fs.Int("room", -1, "start room (overrides the script)")
 		where     = fs.String("where", "", "start the glider at h,v in -room: a resume")
 		trace     = fs.Bool("trace", false, "print the per-frame trace, not just the summary")
@@ -63,13 +64,20 @@ A script is line-oriented; %s replay -script - prints one to copy:
 Keys are left, right, batt, band, command, delete and pause, joined with commas;
 - is none. An 'at' line takes player one's keys then optionally player two's.
 
+The 1994 attract mode is a script too -- a recorded keystroke stream replayed
+through the ordinary physics, which is the strictest determinism test there is:
+
+  %s replay -house 'Demo House' -demo assets/extracted/res/demo/128.bin -frames 3500
+
+'%s demo' describes such a stream without running it.
+
 The sound is mixed even with nowhere to send it, so every run reports which
 sounds were asked for and a digest of the samples. -wav keeps them, which on a
 machine with no sound card is the only way to hear what a replay sounded like:
 
   %s replay -wav bug.wav -trace -o bug.txt bug.script
 
-`, prog, prog, prog)
+`, prog, prog, prog, prog, prog)
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -128,6 +136,9 @@ machine with no sound card is the only way to hear what a replay sounded like:
 	}
 	if set["music"] {
 		s.Music = *music
+	}
+	if *demoPath != "" {
+		s.Demo = *demoPath
 	}
 	if *room >= 0 {
 		s.Room = int16(*room)
@@ -260,6 +271,14 @@ func summary(w io.Writer, res *replay.Result) {
 		last := res.Samples[len(res.Samples)-1]
 		fmt.Fprintf(w, "  last frame  renders %d  work2main %d  back2work %d  pendulums %d  mode %d\n",
 			last.Renders, last.Work2Main, last.Back2Work, last.Pendulums, last.Mode)
+	}
+	// The demo, when there is one, above the diagnostics: "consumed 300 of 1117" is the first
+	// thing to look at in an attract-mode replay, because a run that ended early consumed a
+	// prefix and its digest is a digest of a shorter demo than the one asked for.
+	if s.Demo != "" {
+		fmt.Fprintf(w, "  demo    %s\n", s.Demo)
+		fmt.Fprintf(w, "          consumed %d of %d records, %d frames past the end\n",
+			res.Demo.Consumed, res.Demo.Records, res.Demo.PastEnd)
 	}
 	fmt.Fprintf(w, "  dropped rects %d work, %d back   guarded reads %d\n",
 		res.Diag.DroppedWorkRects, res.Diag.DroppedBackRects, res.Diag.Guarded)

@@ -128,7 +128,11 @@ func (w *World) NewGame(mode int16) {
 
 	w.Frame = 0
 	// numBands = 0 -- the band table is 1.5e's; HandleBands is a no-op below.
-	// demoIndex = 0 -- the demo stream's cursor, 1.8's.
+	// `demoIndex = 0`: the attract-mode cursor, reset here whether or not this is a demo,
+	// exactly as the C does. A world with no stream loaded has nothing to reset.
+	if w.Demo != nil {
+		w.Demo.Reset()
+	}
 	w.SaidFollowCount = 0
 	w.Escaped = NoOneEscaped
 	w.OneLeft = false
@@ -726,17 +730,16 @@ func (w *World) HandleGlider(g *player.Glider) {
 	g.HandleGlider(w)
 }
 
-// GetDemoInput is Demo.c: drive the glider from the recorded attract-mode stream.
+// GetDemoInput landed with 1.8b and lives in demo.go, beside DoDemoGame and the recorder
+// hook. It is not GetInput with a different key source -- the original's demo path is a
+// second copy of the function with five of its guards missing -- which is why it is a file
+// of its own rather than a branch above.
 //
-// A named no-op, and the demo it feeds is 1.8's. Until then a demo game runs with every
-// key up, which is not nothing -- the glider still falls, drifts on the fans and dies --
-// but it is not the recorded demo.
-//
-// Worth knowing before 1.8 starts: replaying the original's demo data byte for byte also
-// requires the random stream to match the Mac's, and rand.go's Random() is a
-// reconstruction that has never been checked against a real trace. See
-// docs/IMPROVEMENTS.md 2.18.
-func (w *World) GetDemoInput(g *player.Glider) {}
+// Still true and still worth knowing: replaying the original's own `'demo'` stream against
+// the *original's* frames requires the random stream to match the Mac's, and rand.go's
+// Random() is a reconstruction that has never been checked against a real trace. What the
+// port can check -- and does, in internal/replay -- is that the stream replays identically
+// twice here. See docs/IMPROVEMENTS.md 2.18.
 
 // ---------------------------------------------------------------------------
 // The stubs PlayGame and NewGame call, each with the stage that fills it

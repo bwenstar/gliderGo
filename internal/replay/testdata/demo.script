@@ -1,0 +1,39 @@
+# The 1994 attract mode, replayed: Stage 1.8b's determinism script.
+#
+# `demo` points at the `'demo'` resource extracted from Glider PRO 1.0.5 -- 1117 records,
+# frames 46 to 3414, which is about 114 seconds of somebody flying "Demo House" in 1994. The
+# path is written the way somebody standing in the repository root would type it; the tests
+# rewrite it, because a path is a fact about a machine and not about the run.
+#
+# This is the strictest determinism test the harness can run. Every other script here holds a
+# key or holds none; this one replays a keystroke log recorded against a build the port is
+# trying to reproduce, so a one-frame drift in the frame clock, the input pass or the random
+# stream sends the recorded glider somewhere the recording never went.
+#
+# No `at` lines, and that is load-bearing rather than tidy. During a demo any of player one's
+# four game keys aborts the attract mode (Input.c's BUILD_ARCADE_VERSION block sets
+# `playing = false`), so a keystroke log here would end the run instead of adding to it. There
+# is a test that does exactly that on purpose.
+#
+# Sound is off. The mix is determinism-tested by duct.script, which is short enough to make a
+# failure readable; what this script is for is the input path and the physics under it.
+#
+# # What the run currently does, and why the numbers are not pinned in the test
+#
+# The port does not yet fly the recorded path. The glider loses all three lives in the start
+# room -- fading out at frames 1412, 1573 and 1760, having consumed 573 of the 1117 records --
+# so the game ends at frame 1775 rather than running out the stream. That is a physics gap and
+# it is written up in docs/IMPROVEMENTS.md 2.18; it is not a harness bug, and the harness test
+# beside this file deliberately does not assert those frame numbers, because the day the physics
+# improve they all change and the test that fails should be a fidelity test rather than this one.
+#
+# frames is past the last record on purpose: a run that flew the whole demo would go 86 frames
+# past the end of the stream, which is the read the original performed off the end of its
+# allocation and the port counts instead.
+house Demo House
+seed 0
+frames 3500
+neighbors 9
+players 1
+sound off
+demo assets/extracted/res/demo/128.bin

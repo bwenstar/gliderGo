@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"glidergo/internal/audio"
+	"glidergo/internal/demo"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
 	"glidergo/internal/render"
@@ -85,6 +86,14 @@ func localAssets(t *testing.T, s *replay.Script) *replay.Script {
 	if s.Sound {
 		requireAssets(t, "sound")
 		s.SoundDir = filepath.Join(assetRoot, "sound")
+	}
+	// A demo is a file rather than a directory, and it is repointed for the same reason: the
+	// script names the stream the way somebody standing in the repository root would type it,
+	// and these tests run in this package's directory. The name inside the tree is kept, so a
+	// second stream added later resolves to itself rather than to the shipped one.
+	if s.Demo != "" {
+		requireAssets(t, filepath.Join("res", "demo"))
+		s.Demo = filepath.Join(assetRoot, strings.TrimPrefix(s.Demo, "assets/extracted/"))
 	}
 	return s
 }
@@ -829,6 +838,9 @@ func TestScriptRoundTrips(t *testing.T) {
 	orig.Gliders = 3
 	orig.Stars = 5
 	orig.Clock = time.Date(1995, time.March, 2, 4, 5, 6, 0, time.UTC)
+	// A path with a space in it, because `demo` takes the rest of the line for the same reason
+	// `house` does and a quoted-string reading of it would break on the first Mac file name.
+	orig.Demo = "res/demo/my recording.bin"
 	orig.Input = []replay.Hold{
 		{Frame: 0, P1: player.Keys{Right: true}},
 		{Frame: 45, P1: player.Keys{Left: true, Batt: true}, P2: player.Keys{Band: true}},
@@ -866,6 +878,9 @@ func TestScriptRoundTrips(t *testing.T) {
 	}
 	if !back.Clock.Equal(orig.Clock) {
 		t.Errorf("clock %v, want %v", back.Clock, orig.Clock)
+	}
+	if back.Demo != orig.Demo {
+		t.Errorf("demo path %q, want %q", back.Demo, orig.Demo)
 	}
 	if len(back.Input) != len(orig.Input) {
 		t.Fatalf("%d holds, want %d\n%s", len(back.Input), len(orig.Input), text)
@@ -957,6 +972,7 @@ func TestBadScriptsAreRejected(t *testing.T) {
 		"house H\nwhere 1\n",         // where takes two numbers
 		"house H\nsound maybe\n",     // not on or off
 		"house H\nartdir\n",          // a keyword with its argument left off
+		"house H\ndemo\n",            // and the same for the demo path
 	}
 	for _, text := range bad {
 		if s, err := replay.Parse(strings.NewReader(text)); err == nil {
@@ -975,6 +991,16 @@ func TestRunRejectsUnrunnableScripts(t *testing.T) {
 		"bad neighbours": func(s *replay.Script) { s.Neighbors = 4 },
 		"missing house":  func(s *replay.Script) { s.House = "No Such House" },
 		"room past end":  func(s *replay.Script) { s.Room = 30000; s.Where = house.Point{H: 1, V: 1} },
+		// A two-player demo would otherwise run silently on the keyboard timeline, because
+		// PlayGame only reaches GetDemoInput in its one-player arm. The path need not exist:
+		// the arity check comes first, deliberately, so the complaint is about the script.
+		"two-player demo": func(s *replay.Script) {
+			s.Demo = filepath.Join(assetRoot, demo.ShippedPath)
+			s.TwoPlayer = true
+		},
+		"missing demo": func(s *replay.Script) {
+			s.Demo = filepath.Join(t.TempDir(), "no-such-demo.bin")
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -1147,6 +1173,167 @@ func TestWatchingDoesNotChangeTheRun(t *testing.T) {
 	}
 }
 
+// The attract mode.
+//
+// A `demo` script replays a recorded keystroke log through the ordinary physics, which makes it
+// the sharpest determinism test in the package: the recording is 1117 records long and any drift
+// in the frame clock, the input pass or the random stream shows up as a glider going somewhere
+// the recording never went. See testdata/demo.script, which also explains why these tests assert
+// the *shape* of the run and not the frame numbers it currently reaches.
+
+// TestTheDemoReplaysTheSameWayTwice is TestTheSameScriptTwiceIsTheSameRun with the input coming
+// from a 1994 file instead of from the script.
+//
+// It is a strictly stronger claim than the duct script's, for one reason: the keystroke timeline
+// is a lookup keyed on the frame number, so a run whose frame counter drifted would still read
+// the same keys, while the demo cursor is an *equality* test against a recorded frame. A cursor
+// that arrives one frame late consumes nothing for the rest of the stream, and Consumed says so.
+func TestTheDemoReplaysTheSameWayTwice(t *testing.T) {
+	s := script(t, "demo.script")
+
+	a, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	b, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if a.Digest != b.Digest {
+		t.Fatalf("digests differ: %s then %s", a.Digest, b.Digest)
+	}
+	if len(a.Samples) != len(b.Samples) {
+		t.Fatalf("sample counts differ: %d then %d", len(a.Samples), len(b.Samples))
+	}
+	for i := range a.Samples {
+		if a.Samples[i] != b.Samples[i] {
+			t.Fatalf("frame %d differs:\n  %+v\n  %+v", a.Samples[i].Frame, a.Samples[i], b.Samples[i])
+		}
+	}
+	if a.Planes != b.Planes {
+		t.Errorf("pictures differ:\n  %+v\n  %+v", a.Planes, b.Planes)
+	}
+	if a.Demo != b.Demo {
+		t.Errorf("demo reports differ:\n  %+v\n  %+v", a.Demo, b.Demo)
+	}
+
+	// The stream itself: the file the script named, whole, and actually consumed. Records is
+	// the one exact number here, because it is a property of the resource rather than of the
+	// simulation -- if it ever changes, the extractor or the codec changed.
+	if a.Demo.Records != demo.ShippedRecords {
+		t.Errorf("replayed %d records, want the shipped %d", a.Demo.Records, demo.ShippedRecords)
+	}
+	if a.Demo.Consumed == 0 {
+		t.Fatal("the run consumed no records: the cursor never matched a frame, so this test " +
+			"compared two runs of a game with no input")
+	}
+	if a.Demo.Path != s.Demo {
+		t.Errorf("Demo.Path is %q, want the script's %q", a.Demo.Path, s.Demo)
+	}
+	// Deliberately not an equality: how far the recording gets is a fidelity fact about the
+	// physics (docs/IMPROVEMENTS.md 2.18), and pinning it here would make an improvement to
+	// the physics fail a test about determinism. Logged instead, so that `go test -v` reports
+	// the number and a bisect can watch it move.
+	t.Logf("consumed %d of %d records in %d frames, %d frames past the end; game over %v, mortals %d",
+		a.Demo.Consumed, a.Demo.Records, a.Frames, a.Demo.PastEnd, a.GameOver, a.Mortals)
+
+	// And the trace says all of it, because that is what somebody comparing two machines sends.
+	var buf bytes.Buffer
+	if err := a.Trace(&buf); err != nil {
+		t.Fatalf("trace: %v", err)
+	}
+	text := buf.String()
+	for _, want := range []string{
+		"# demo path=" + s.Demo,
+		fmt.Sprintf("records=%d", demo.ShippedRecords),
+		fmt.Sprintf("# demo consumed=%d of %d", a.Demo.Consumed, a.Demo.Records),
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the trace does not report %q:\n%s", want, firstLines(text, 6))
+		}
+	}
+}
+
+// TestTheDemoChangesTheRun is the other half: the recording is reaching the simulation.
+//
+// Without it, every assertion above would pass on a harness that loaded the stream, reported it
+// and never applied a key -- which is exactly the bug a `demo` keyword can have.
+func TestTheDemoChangesTheRun(t *testing.T) {
+	with := script(t, "demo.script")
+	with.Frames = 400 // long past the first record at frame 46
+	played, err := replay.Run(with)
+	if err != nil {
+		t.Fatalf("with the demo: %v", err)
+	}
+
+	without := script(t, "demo.script")
+	without.Frames = 400
+	without.Demo = ""
+	idle, err := replay.Run(without)
+	if err != nil {
+		t.Fatalf("without the demo: %v", err)
+	}
+
+	if played.Digest == idle.Digest {
+		t.Errorf("both runs digest to %s: the recording is loaded and reported but never "+
+			"reaches the glider", played.Digest)
+	}
+	if played.Planes == idle.Planes {
+		t.Error("both runs end on the same picture; 400 frames of recorded input moved nothing")
+	}
+	if idle.Demo != (replay.Demo{}) {
+		t.Errorf("a run with no demo reported %+v, want the zero value", idle.Demo)
+	}
+	if played.Demo.Consumed == 0 {
+		t.Error("400 frames consumed no records; the first is frame 46")
+	}
+}
+
+// TestAGameKeyAbortsTheDemo covers the arcade behaviour, through the whole stack.
+//
+// Input.c's BUILD_ARCADE_VERSION block is on in the original's shipped build: during a demo, any
+// of player one's four game keys sets `playing = false`, which is how a passer-by who touches the
+// keyboard gets a real game instead of watching the recording. So a `demo` script that also holds
+// a key ends when the key goes down -- and the harness must not be the thing that swallows it,
+// because in the shell that keypress is the difference between an attract mode and a stuck game.
+func TestAGameKeyAbortsTheDemo(t *testing.T) {
+	const abortAt = 100
+
+	full := script(t, "demo.script")
+	full.Frames = 400
+	long, err := replay.Run(full)
+	if err != nil {
+		t.Fatalf("unaborted: %v", err)
+	}
+	if long.Frames < 400 {
+		t.Fatalf("the control run ended early at frame %d; it is the baseline for the abort",
+			long.Frames)
+	}
+
+	s := script(t, "demo.script")
+	s.Frames = 400
+	s.Input = []replay.Hold{{Frame: abortAt, P1: player.Keys{Band: true}}}
+	short, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("aborted: %v", err)
+	}
+
+	// PlayGame's loop tests `playing` at the top, so the frame the key went down on is the last
+	// one simulated: a couple of frames of slack, not a range.
+	if short.Frames < abortAt || short.Frames > abortAt+2 {
+		t.Errorf("the run ended at frame %d, want the demo to abort at %d", short.Frames, abortAt)
+	}
+	if short.Demo.Consumed == 0 || short.Demo.Consumed >= long.Demo.Consumed {
+		t.Errorf("the aborted run consumed %d records and the full one %d; want a prefix",
+			short.Demo.Consumed, long.Demo.Consumed)
+	}
+	// Not a game over: the demo ended, the game did not. In the shell this is where the glider
+	// is handed to the player.
+	if short.GameOver {
+		t.Error("aborting the demo reported game over; the arcade path stops the demo, not the game")
+	}
+}
+
 // planeHash is the test's own hash of a surface: the same shape as the package's internal one
 // and the corpus's, kept separate because a test that shares the function it is checking
 // cannot catch a change to it.
@@ -1158,4 +1345,14 @@ func planeHash(s *render.Surface) string {
 	fmt.Fprintf(sum, "%dx%d\n", s.W, s.H)
 	sum.Write(s.Pix)
 	return hex.EncodeToString(sum.Sum(nil))[:16]
+}
+
+// firstLines keeps a failure message readable: a trace is hundreds of lines and the header is
+// where the answer is.
+func firstLines(s string, n int) string {
+	lines := strings.SplitN(s, "\n", n+1)
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
 }

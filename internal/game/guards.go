@@ -94,14 +94,18 @@ func (d *Diagnostics) note(dv Deviation) {
 // Every caller reads the same way -- `if w.badIndex(...) { return <the C's zero> }` -- and
 // the callers are the ones the spec's §6.4 item 3 counts: the room-object slot (24 slots,
 // reachable from an unlinked transport, whose objectLink is -1 and whose Byte parameter
-// makes that 255), the master-object index, and the trigger index. Eleven sites at the time
+// makes that 255), the master-object index, and the trigger index. Fifteen sites at the time
 // of writing; grep for badIndex to enumerate them.
 //
-// Ten of the eleven guard a read. The eleventh, AddAShreddedGlider's, guards a **write** --
+// Fourteen of the fifteen guard a read. The other, AddAShreddedGlider's, guards a **write** --
 // see devShred below -- and it is reported through the same counter deliberately: from a
 // bug report's point of view "the original would have read something that is not there" and
 // "the original would have written somewhere that is not ours" are the same finding, which
 // is that a house reached a place the 1994 build only survived by luck.
+//
+// One caller breaks the every-occurrence rule: demo.go's reports only the *first* read past
+// the end of the attract-mode stream, because a demo that outlives its recording asks once a
+// frame until the glider dies. See demoKey, which explains the exception where it is made.
 //
 // **World.Room is deliberately not one of them**, and neither are
 // internal/render/locale.go's three equivalents. Room's nil is the *designed* answer to
@@ -134,4 +138,10 @@ const (
 	// end of a NewPtr (Environ.c:654). Nothing else in this list is a write, and that is
 	// why it is spelled out here rather than left to the call site.
 	devShred = "shredded glider" // shreds[i], 4 slots
+
+	// devDemoRecord is demoData[demoIndex] past the last record (Input.c:224): the demo
+	// outlived its recording. Reported once per run rather than once per frame -- see
+	// demoKey -- and normal rather than alarming, since nothing in the format says how long
+	// a demo is.
+	devDemoRecord = "demo record"
 )
