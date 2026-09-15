@@ -185,7 +185,7 @@ func TestFrameCountsMatchTheSrcTables(t *testing.T) {
 		{"tiki", NumTikiFrames, len(tikiFlameSrc)},
 		{"coals", NumCoalFrames, len(coalsSrc)},
 		{"pendulum", NumPendulumFrames, len(pendulumSrc)},
-		{"star", NumStarFrames, len(starSrc)},
+		{"star", NumStarFrames, len(StarSrc)},
 	}
 	for _, c := range cases {
 		if int(c.count) != c.cels {

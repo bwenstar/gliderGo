@@ -710,16 +710,23 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     with PICT 1015/1016 (2.5, 2.32), and the three opt-in fidelity switches (2.19, 2.20, 2.39).
     `DoCommandKey` stays an empty stub with a paragraph saying why — neither of its two chords
     reaches this port's hosts — and Q takes over as the way out of a paused game. Music-on-the-splash
-    became the preference `music_on_title`, which 1.7d makes audible.
+    became the preference `music_on_title`, which the commit after 1.7d makes audible.
   - **1.7c High scores** ✅ *done* — `internal/scores` (the board, `Qualify`/`Insert`, the two
     entry dialogs from DLOG/DITL 1020 and 1021, `DrawHighScores`' geometry with PICT 1994/1995/1998,
     and the per-house side-car `Store`), the shell's own High Scores screen and merged picker
     footer, and `cmd/glidergo/highscore.go` — the three blocking loops the host owns. The 22
     shipped boards are read and never written back. Plus the credits screen the shell has owed
     since 1.7a (`internal/credits`, `docs/IMPROVEMENTS.md` 1.2 and 3.4).
-  - **1.7d The in-game shell** — `BringUpBanner` (PICT 1991-1993), `DisplayStarsRemaining`
-    (1017/1018), both as simulated-frame waits rather than `Delay` (2.32); `DoGameOver` and
-    `DoDiedGameOver` feeding 1.7c; `restoreSplashScreen`.
+  - **1.7d The in-game shell** ✅ *done* — `BringUpBanner` (PICT 1991-1993),
+    `DisplayStarsRemaining` (1017/1018), both as host-paced waits rather than `Delay` (2.32);
+    `DoGameOver` and `DoDiedGameOver` feeding 1.7c; `restoreSplashScreen` at the two endings only.
+    The mechanism all four needed is the `World.Wait` hook, whose rule is that **a nil hook does
+    not wait**, so a replay or a `-dump` run draws every pixel and none of the duration.
+    Corrected two unit errors in the analysis docs on the way through: `WaitForInputEvent` takes
+    *seconds*, so the banner holds for fifteen of them, and it reports `didResume` rather than
+    "input ended it". Three C defects recorded as decisions rather than repairs (2.60, 2.61) and
+    one unreachable repaint dropped to give the replay corpus back its erase-pass invariant (2.62).
+    `music_on_title` is the one thing 1.7 still owes; it lands next, as its own commit.
 - **1.7a, what it settled.** Three decisions that the rest of 1.7 is built on:
   - **The shell does not import `internal/game`.** A game is reached through one hook,
     `Play(Choice) (Outcome, error)`, which `cmd/glidergo` fills in. So the whole of the way into the

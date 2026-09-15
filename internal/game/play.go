@@ -240,14 +240,30 @@ func (w *World) NewGame(mode int16) {
 	w.BlackenScoreboard()
 	// UpdateMenus(false) -- 1.7's menu bar.
 
-	// `if (!gameOver)` guards the splash restore, which reads oddly and is right: a game
-	// that ended with GameOver set has already been followed by DoGameOver or
-	// DoDiedGameOver, and *those* redraw the splash themselves (GameOver.c:68). This arm
-	// is the other way out of PlayGame -- the player quit -- where nothing has redrawn
-	// anything and the window still holds the room.
-	if !w.GameOver {
-		w.restoreSplashScreen()
-	}
+	// `if (!gameOver)` guards a splash restore here (Play.c:257-273), and it reads oddly
+	// and is right: a game that ended with GameOver set has already been followed by
+	// DoGameOver or DoDiedGameOver, and *those* redraw the splash themselves
+	// (GameOver.c:68). This arm is the other way out of PlayGame -- the player quit --
+	// where nothing has redrawn anything and the window still holds the room.
+	//
+	// **Not transcribed, deliberately.** What the C is doing is scaling the splash art
+	// into workSrcMap and invalidating the window so the update event paints the title
+	// screen from it. In this port the title screen is internal/shell's: it is composed on
+	// the shell's own surface and presented on the pass after this function returns
+	// (shell.go's Run), so nothing ever reads the game's work map again, and filling it
+	// with splash art paints 294,400 pixels that no host can display. A `-dump` run does
+	// not see them either -- restoreSplashScreen presents nothing, and a dump writes on
+	// Present.
+	//
+	// Leaving them out is what lets the fidelity harness state the invariant it exists to
+	// check: after the last frame the work map equals the background map in a room where
+	// nothing animates, so any draw that forgot to register a back rect shows up as a
+	// hash mismatch (internal/replay's Result.Planes, and the room-70 case in
+	// replay_test.go). A teardown that repaints Work would make every script's work hash
+	// the same constant. See docs/IMPROVEMENTS.md 2.62.
+	//
+	// The two endings keep their call, because there the splash is on screen a moment
+	// later: DoGameOver composes the starfield over it and presents (gameover.go:140).
 
 	// WaitCommandQReleased() blocks until the player physically lets go of Command-Q.
 	// It exists so that the keystroke that ended the game does not immediately register
@@ -736,88 +752,10 @@ func (w *World) GetDemoInput(g *player.Glider) {}
 // HandleDynamics: a band in flight when the last mortal is spent keeps flying, and can
 // still trip a switch after the glider that fired it is dead.
 
-// DoGameOver is GameOver.c:60-69: the player finished the house.
-//
-// Three of its six statements are still 1.7d's -- SetUpFinalScreen's starfield, the
-// ColorRect in palette index 244 and DoGameOverStarAnimation's angel (8.5). What landed
-// with 1.7c is the last two lines, and they are the reason the high-score hook returns a
-// Boolean at all:
-//
-//	if (!TestHighScore())
-//	    RedrawSplashScreen();
-//
-// The redraw is *suppressed* when the score qualified, because the high-score screen is
-// then already on the window and painting the splash over it would take it away
-// (GameOver.c:68). DoDiedGameOver does the opposite with the same call; see below.
-//
-// The one thing PlayGame needs of this function is still its first statement,
-// `playing = false` (GameOver.c:62), which is what ends the loop. Without that the
-// countdown block would re-run every frame for ever.
-func (w *World) DoGameOver() {
-	w.Playing = false
+// DoGameOver and DoDiedGameOver landed with 1.7d and live in gameover.go, along with
+// restoreSplashScreen. Both clear Playing, which is what ends PlayGame's loop; the win
+// path does it first (GameOver.c:62) and the loss path last (GameOver.c:492).
 
-	// SetUpFinalScreen(); SetPort(mainWindow); ColorRect(&mainWindowRect, 244);
-	// DoGameOverStarAnimation() -- 1.7d, with the rest of the animations.
-
-	if !w.TestHighScore() {
-		w.restoreSplashScreen()
-	}
-}
-
-// DoDiedGameOver is GameOver.c:400-510: the player ran out of gliders. Same contract as
-// DoGameOver -- it clears Playing (GameOver.c:492) -- and the fluttering pages that give
-// it its name are 1.7d's, along with the two waits and the userAborted flag that cuts
-// them short (8.6).
-//
-// Its high-score call differs from the win path's in both of the ways the analysis calls
-// out, and both are transcribed:
-//
-//   - **A demo skips it entirely.** The attract mode plays itself and must not be able to
-//     put a score on the board, or an unattended machine would fill it.
-//   - **The return value is discarded and the splash is redrawn regardless.** So a player
-//     who dies with a qualifying score sees the board and then sees it replaced, where a
-//     player who *finished* the house keeps it. That is an inconsistency between two
-//     functions forty lines apart rather than a decision, and it is reproduced rather
-//     than tidied -- docs/IMPROVEMENTS.md has it as a 1.8 candidate.
-func (w *World) DoDiedGameOver() {
-	// userAborted, InitDiedGameOver, the two CopyRect grabs and the pagesStuck loop --
-	// 1.7d. Note that `playing = false` is step 21 there, *after* the animation, and is
-	// hoisted to the top here only because there is no animation yet to sit above it.
-	w.Playing = false
-
-	if !w.DemoGoing {
-		// WaitForInputEvent(10) first, which is 1.7d's. The answer is thrown away
-		// (GameOver.c:502).
-		w.TestHighScore()
-	}
-	w.restoreSplashScreen()
-}
-
-// BringUpBanner is Banner.c:171-197 and belongs to 1.7, with the rest of the shell: the
-// author's message on a sheet of notebook paper, as a modal alert. It *blocks* --
-// WaitForInputEvent(15), or 4 in a demo -- which is why InitGarbageRects follows it rather
-// than precedes it, see NewGame.
-//
-// Blocking is the part not to transcribe. See docs/IMPROVEMENTS.md 2.32: when this becomes
-// real it has to consume a count of simulated frames rather than sleep, or the window is
-// dead while it is up and no replay script can cross it.
-func (w *World) BringUpBanner() {}
-
-// DisplayStarsRemaining is Banner.c:205-243 and belongs to 1.7 alongside it: "N stars to go".
-//
-// It blocks harder than BringUpBanner -- DelayTicks(60) then WaitForInputEvent(30), so one
-// to one and a half seconds -- and it is reached from two places, NewGame's resume arm here
-// and, more awkwardly, Interactions.c:946, which is the *middle* of a frame. That second
-// caller became real in 1.5d: HandleRewards' star arm calls this on every star but the last,
-// so from 1.7 a mid-flight star will stop the game dead for a second unless the fix lands
-// with it. Held keys are swallowed by the wait, so a player who touches a star while walking
-// stops walking. All three problems are docs/IMPROVEMENTS.md 2.32.
-func (w *World) DisplayStarsRemaining() {}
-
-// restoreSplashScreen is NewGame's tail (Play.c:257-273): repaint the work map and
-// re-scale the splash graphic into it, ready for the shell.
-//
-// 1.7's, with the rest of the splash screen. It is unexported because nothing outside
-// this file has any business asking for it: its one caller is the quit path below, and
-// the game-over paths do their own.
-func (w *World) restoreSplashScreen() {}
+// BringUpBanner and DisplayStarsRemaining landed with 1.7d and live in banner.go. Both
+// block, which is why InitGarbageRects follows them in NewGame rather than preceding
+// them, and neither blocks *here*: the waiting is the host's, through World.Wait.

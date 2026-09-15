@@ -189,7 +189,7 @@ func (s *Scene) backUpPendulum(src Rect, index int) {
 }
 
 func (s *Scene) backUpStar(src Rect, index int) {
-	s.bakeStrip(src, index, "bonus", starSrc[:])
+	s.bakeStrip(src, index, "bonus", StarSrc[:])
 }
 
 // ---------------------------------------------------------------------------

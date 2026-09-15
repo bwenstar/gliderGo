@@ -91,6 +91,35 @@ func (w *World) CopyRectMainToBack(r Rect) {
 }
 
 // ---------------------------------------------------------------------------
+// Utilities.c:340-349 -- LoadScaledGraphic
+// ---------------------------------------------------------------------------
+
+// loadScaledGraphic is Utilities.c:340-349: draw a picture stretched to fill a
+// rect.
+//
+// render.Scene has one of these already, and it is not usable here: it resolves the
+// resource itself and always draws into Back, which is right for its one caller
+// (DrawFloorSupport's manhole) and wrong for all four of this package's, whose
+// destinations are the work map and the screen.
+//
+// So this one takes the destination and the *already-resolved* picture. That is
+// deliberate rather than merely convenient: the choice between Pict, Plate, UI and
+// MaskedPlate is a statement about whether a house may override the art, it differs
+// at every call site here, and burying it inside a helper would hide the one
+// interesting thing about each call. render.uiMaskPairs' comment asks for exactly
+// this. See banner.go and gameover.go for the four.
+//
+// A nil picture draws nothing and is not an error, which is Plate's contract: art
+// that sits over a running game is optional, and a house that omits it should show
+// the room rather than a red alert.
+func loadScaledGraphic(dst *render.Surface, art *render.Surface, theRect Rect) {
+	if art == nil {
+		return
+	}
+	dst.Copy(art, art.Bounds(), theRect, render.SrcCopy)
+}
+
+// ---------------------------------------------------------------------------
 // Transitions.c -- the three screen transitions
 // ---------------------------------------------------------------------------
 

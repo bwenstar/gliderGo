@@ -623,6 +623,27 @@ type World struct {
 	// flag. See DoPause.
 	Pause func(paint func())
 
+	// Wait is the host's half of DelayTicks and WaitForInputEvent: the other thing in the
+	// original that blocks.
+	//
+	// It is handed a duration in ticks and must return no earlier than the end of it,
+	// unless the player has touched something -- and it must go on answering the window
+	// system throughout, which is the whole reason it is out here. wait.go's file comment
+	// has the argument and both of the port's deliberate differences.
+	//
+	//	ticks    how long is left of the wait. 0 is a flush: pump once, do not sleep.
+	//	discard  drop key presses instead of ending on them (`FlushEvents`, `Delay`).
+	//
+	// The two flags of Waited are "the player touched something" and "we came back to the
+	// foreground". A host that sees its window close must set Quitting itself, exactly as
+	// PlayEvent's arm does; every caller of this hook checks it.
+	//
+	// nil is a headless build and means **do not wait at all** -- every wait expires
+	// immediately, having reported nothing. That is what makes these screens crossable by a
+	// replay with no clock; see docs/IMPROVEMENTS.md 2.32, which asks for exactly this
+	// shape.
+	Wait func(ticks int64, discard bool) Waited
+
 	// HighScore is the host's half of TestHighScore: everything that blocks.
 	//
 	// The split is the same one PlayEvent and Pause are drawn along, and it falls in an

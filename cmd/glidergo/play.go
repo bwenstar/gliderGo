@@ -558,6 +558,97 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 		}
 	}
 
+	// The blocking waits: WaitForInputEvent (Utilities.c:439-478) and Delay, which the
+	// banner, the stars-remaining panel and both game-over animations are paced by.
+	//
+	// Installed only for a session with somebody in front of it, and for the same reason
+	// the high scores are: a measurement or a replay must not spend fifteen real seconds
+	// looking at a banner. A nil hook is "the deadline expired immediately"
+	// (internal/game/wait.go), so -frames, -bench and -dump runs draw every pixel these
+	// screens draw and none of their duration -- which is what makes a game that ends in
+	// death byte-comparable between this host and the headless one.
+	//
+	// Three differences from the C, all of them the host's half of wait.go's list:
+	//
+	//   - **A held modifier does not end a wait.** The C tests the key map, so a finger
+	//     resting on Shift skips the banner and both endings instantly. This takes a key
+	//     press, which is what a screen the player is meant to read wants.
+	//   - **The window keeps repainting.** The C dequeues an update event and drops it
+	//     without answering it; this re-presents Main every pass, which the port can do
+	//     and 1994 could not because there was no Main to present. Note that it is
+	//     emphatically *not* RefreshGameWindow -- that rebuilds the screen from the work
+	//     map, which is exactly what these four screens have drawn over.
+	//   - **A suspend does not suspend the game.** The C's osEvt arm calls InitCursor and
+	//     nothing else -- no music toggle, no SwitchedOut -- so a wait crossed by a
+	//     switch out keeps its clock and its sound. Transcribed as-is: World.Suspend here
+	//     would stop the mixer and, worse, park the game in a state PlayGame's pump loop
+	//     is the only thing that clears.
+	//
+	// A resume *does* end the wait and is the one thing the return value carries, because
+	// DisplayStarsRemaining reads it to decide whether to rebuild the screen. It is
+	// gated on having seen the matching focus loss: the C cannot receive a resume without
+	// a suspend before it and an X11 window manager can hand out focus twice.
+	if o.frames == 0 && !o.bench && o.dump == "" {
+		w.Wait = func(ticks int64, discard bool) game.Waited {
+			deadline := time.Now().Add(time.Duration(ticks) * tick)
+			lostFocus := false
+			var r game.Waited
+
+			// At least one pass, always: FlushEvents is a zero-tick discarding wait and
+			// draining the queue is the whole of what it is for.
+			for {
+				for _, ev := range a.win.PollEvents() {
+					switch {
+					case ev.Kind == platform.EventQuit:
+						// The same door PlayEvent's arm uses. Nothing in the game reads
+						// Quitting out of a Waited, so it is set directly.
+						closed = true
+						w.Quitting = true
+						w.SwitchedOut = false
+						return r
+
+					case ev.Kind == platform.EventKeyDown && !ev.Repeat:
+						// `theEvent.what == keyDown`, minus the mouse (this port reports
+						// no pointer events) and minus auto-repeat, which the Mac's queue
+						// would have coalesced anyway. A discarding wait swallows it: see
+						// DelayTicks on why the panel's first second is not skippable.
+						if !discard {
+							r.Input = true
+						}
+
+					case ev.Kind == platform.EventFocus:
+						if !ev.Focused {
+							lostFocus = true
+						} else if lostFocus && !discard {
+							r.Resumed = true
+						}
+
+					case ev.Kind == platform.EventExpose, ev.Kind == platform.EventResize,
+						ev.Kind == platform.EventNone:
+						// Nothing to do for any of them. The present below repaints the
+						// window whether it was damaged or not, and the backend owns the
+						// scale transform.
+					}
+				}
+
+				a.present(w)
+				if r.Input || r.Resumed || w.Quitting {
+					return r
+				}
+				left := time.Until(deadline)
+				if left <= 0 {
+					return r
+				}
+				// HandlePlayEvent's `sleep = 2`, in slices, so that the deadline is
+				// honoured to within a poll rather than overshot by one.
+				if left > pollWait {
+					left = pollWait
+				}
+				time.Sleep(left)
+			}
+		}
+	}
+
 	// The high scores, and only for a session with somebody in front of it.
 	//
 	// A measurement is not offered a board: the two dialogs block until Okay is pressed and

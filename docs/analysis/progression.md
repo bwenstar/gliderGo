@@ -3859,14 +3859,37 @@ lose animation (falling paper).** Only the first 5 slots are used for the win.
 
 An angel sprite drifts right across the screen at 2 px/frame, dropping a spinning star
 every 32 pixels (5 stars cycling), and each dropped star falls at 8 px/frame. Once the
-angel is off the right edge, 80 more frames run, then a 5-tick input wait, then exit.
-Paced at 2 ticks/frame (~30 fps), same as gameplay.
+angel is off the right edge, 80 more frames run, then a **five-second** input wait
+(`WaitForInputEvent(5)` is 300 ticks — `Utilities.c:445` multiplies by 60), then exit.
+Paced at 2 ticks/frame (~30 fps), same as gameplay. The angel starts at `left = -96` and is
+drawn while `left <= workSrcRect.right + 2`, so it is on screen for 370 frames and the whole
+animation is 450.
 
 `pass++` is *unconditional* (line 33); the "80 frames after the angel leaves" behaviour
 comes from `pass = 0` being executed inside the angel-drawing branch (line 28,
 `GliderPRO/Sources/GameOver.c:201`) every frame the angel is still on screen. A port
 that guards the increment on "angel gone" instead is behaviourally equivalent, but the
 source's shape is the one above.
+
+**Line 11 writes outside the array for the first three frames.** `angelDest.left` starts at
+-96 and the seeding test at line 9 is `left % 32 == 0`, which -96, -64 and -32 all satisfy;
+C's `%` keeps the sign of the dividend, so `which` is -3, -2 and -1 and line 12 writes
+`pages[-3].dest` through `pages[-1].dest` — three 8-byte rects immediately below a file-scope
+array. It is harmless by luck rather than by design: nothing ever reads those slots, because
+`count` only grows through line 14's `which + 1` and never rises above zero for a negative
+`which`, and the first in-bounds seeding is at `left = 0`. A port must still **play the chime**
+on all three frames (line 10 is outside the branch) and must not write anything, which is what
+`internal/game/gameover.go` does.
+
+**Lines 19-23 of `SetUpFinalScreen` are dead, and line 24 is not.** The five seeded `dest`
+rects — scattered off the right edge of the map at randomised heights — are overwritten by
+line 12-13 before the slot can ever be drawn, since a slot is only inside `count`'s range once
+it has been seeded by the animation; `was` is likewise reassigned at line 19 of the animation
+before it is read. `frame = RandomInt(6)` **is** live: the animation increments it and never
+initialises it, so the seeded value decides which of the six spin phases each star starts on.
+So a port may skip the positions but must still draw all three random values, in order, for
+every one of the five slots — the generator is shared with every flame phase and pendulum in
+the game, and a missing call shifts the stream for everything composed afterwards.
 
 ### 11.3 What the win does *not* do
 

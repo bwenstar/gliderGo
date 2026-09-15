@@ -443,9 +443,14 @@ var (
 		{Top: 242, Left: 56, Bottom: 270, Right: 88},
 	}
 
-	// starSrc[0..5], 32x31, stride 31 in v. kStar spins through all six; the
+	// StarSrc[0..5], 32x31, stride 31 in v. kStar spins through all six; the
 	// static draw uses frame 0, which is also srcRects[kStar].
-	starSrc = [6]Rect{
+	//
+	// The only exported member of this block, because it has a second reader
+	// outside the renderer: the falling stars of the win animation blit it
+	// straight out of the bonus sheet (GameOver.c:173-178), the same way
+	// internal/game reaches for BreadSrc and BandRects.
+	StarSrc = [6]Rect{
 		{Top: 0, Left: 48, Bottom: 31, Right: 80},
 		{Top: 31, Left: 48, Bottom: 62, Right: 80},
 		{Top: 62, Left: 48, Bottom: 93, Right: 80},

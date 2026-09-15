@@ -804,15 +804,18 @@ glyphs. One finding came out of it and is pinned by
 the calendar picture is **63** wide, so the original's own text sits a pixel right of centre.
 The port keeps the 64.
 
-### 2.32 Three things stop the world from inside a frame — **one of the three DONE, 1.7b; the banners are 1.7d**
+### 2.32 Three things stop the world from inside a frame — **DONE: `DoPause` 1.7b, both banners 1.7d**
 
 `DisplayStarsRemaining` (`Banner.c:205-243`) is the clearest case. It is called from
 `Interactions.c:946`, inside the star-collection arm of `HandleInteraction` — so from the
 *middle* of a frame, after the interaction pass and before the glider moves — and it draws
-to the main window, then `DelayTicks(60)`, then `WaitForInputEvent(30)`. That is one to one
-and a half seconds during which the process does nothing at all: no repaint, no resize, no
-window close. `BringUpBanner` (`Banner.c:171-197`) does the same with `WaitForInputEvent(15)`,
-and `DoPause` is a third.
+to the main window, then `DelayTicks(60)`, then `WaitForInputEvent(30)`. **Those two numbers
+are in different units**: the first is 60 ticks and the second is 30 *seconds*, because
+`WaitForInputEvent` multiplies its parameter by 60 (`Utilities.c:445`). So it is one second
+during which the process does nothing at all — no repaint, no resize, no window close — and
+then up to thirty more. `BringUpBanner` (`Banner.c:171-197`) does the same with
+`WaitForInputEvent(15)`: fifteen seconds at the start of every house, four in a demo. `DoPause`
+is the third.
 
 Three separate problems, and only the first is cosmetic:
 
@@ -829,21 +832,35 @@ Three separate problems, and only the first is cosmetic:
   The stubs are empty today, which is precisely why the 1.5b traces are stable; that is a
   debt, not a property.
 
-The port's stubs are `internal/game/play.go` (`BringUpBanner`, `DisplayStarsRemaining`) and
-`internal/game/env.go` (`DoPause`), and each carries a comment pointing here. When 1.7
-implements them, the frame count they consume has to be a simulated count — a mode the loop
-runs in for N frames — and not a sleep.
+The port's two banners are `internal/game/banner.go` and `DoPause` is `internal/game/pause.go`,
+and each carries a comment pointing here. The count they consume had to be a simulated one — not
+a sleep — which is what `internal/game/wait.go` is.
 
 **`DoPause` is done (1.7b) and it is the easy one**, because a pause has no duration to
 reproduce: it lasts as long as the player holds it up, so there is nothing to convert into a
 frame count. What it does establish is the shape the other two should take — the game draws and
 hands the waiting to the host through a hook, and a nil hook means "do not wait at all", which
-is exactly what a replay needs. The two banners are 1.7d and they *do* have durations (60 and 15
-ticks), so they are the ones that need the simulated-frame form.
+is exactly what a replay needs. The two banners *do* have durations — 60 ticks, and 15 seconds —
+so they are the ones that needed the simulated form.
 
 One consequence of the pause landing first: a fidelity trace can now contain the pause key
 without hanging the harness, because `World.Pause` is nil in every headless build. That was the
 first thing this item warned about and it is closed by construction rather than by care.
+
+**1.7d closes the other two, and both game-over animations with them.** `internal/game/wait.go`
+holds the arithmetic — `FlushEvents`, `DelayTicks`, `WaitForInputEvent`, and the two-tick
+`pollInput` both endings pace themselves with — and `World.Wait(ticks, discard) Waited` is the
+hook underneath all four. `cmd/glidergo`'s answer polls the window, keeps presenting, and honours
+the deadline in two-tick slices; the headless one is nil, so a replay crosses every one of these
+screens in zero simulated time and sees every pixel they draw. The three durations are asserted
+as numbers in `internal/game/banner_test.go` and `gameover_test.go`, because the one way to get
+this wrong with no visible symptom is the unit.
+
+Two of the three problems above are therefore closed and the middle one is not. **Input during a
+wait is still swallowed**, deliberately: a key pressed while the stars-remaining panel is up is
+consumed by the wait and is not held when play resumes, so a player walking right into a star
+stops walking. Correcting it means the panel no longer consumes the keystroke, which changes what
+a recorded demo does next — so it waits for 1.8's replay corpus to exist to be checked against.
 
 ### 2.33 The port declines out-of-range reads the original performs — **DONE as a reported deviation, 1.5b**
 
@@ -1594,7 +1611,7 @@ pairing in this port is written out at the call site instead (`internal/scores`'
 1.7d's 1019/1020 and 1990/1989 when it gets there). Recorded because "+1000" reads like a rule and
 is a coincidence.
 
-### 2.60 The two game-over paths disagree about whether a high score suppresses the splash redraw — **note; 1.7d owns both paths**
+### 2.60 The two game-over paths disagree about whether a high score suppresses the splash redraw — **DONE, 1.7d: both paths now ask**
 
 `TestHighScore()` has exactly two callers, and they use it differently
 (`docs/analysis/scoring.md` 8.7 and 9.8):
@@ -1614,6 +1631,60 @@ the bug.
 1.7d ports both animations and both endings, and it should port the *win* path's arrangement to
 both: ask, and skip the redraw when the answer is yes. The high-score hook this stage installed
 already returns exactly that Boolean.
+
+**Done, and it is the only place in 1.7d where the port chose the better of two shipped
+behaviours rather than transcribing one.** `internal/game/gameover.go`'s loss path is
+`if !w.TestHighScore() { w.restoreSplashScreen() }`, the same line as the win path;
+`TestDoGameOverSkipsTheSplashWhenAScoreQualifies` pins the decision. The C's unconditional
+redraw is unobservable on a Mac for the reason above, so nothing a player of the original saw
+has changed.
+
+### 2.61 The win animation writes three rects outside its array, and seeds five it never reads — **DONE as decisions, 1.7d**
+
+Two defects in the same forty lines of `GameOver.c`, found while transcribing them, both
+recorded at length in `docs/analysis/progression.md` 11.2 and in the port's own comments:
+
+* **`DoGameOverStarAnimation` writes `pages[-3]`, `pages[-2]` and `pages[-1]`.** The angel
+  starts at `left = -96`, a star is seeded whenever `left % 32 == 0`, and `which =
+  left / 32 % 5` keeps the sign of the dividend in C — so the first three seedings write three
+  rects below a file-scope array. Nothing reads them (`count` cannot rise for a negative
+  `which`), which is why the game shipped. The port skips the write and keeps the chime, which
+  the C plays outside the branch; the ending therefore still opens with three sounds and no
+  star.
+* **`SetUpFinalScreen` seeds five star positions that are dead.** `dest` and `was` are both
+  reassigned by the animation before it can draw a slot; only `frame = RandomInt(6)` survives.
+  The port keeps all fifteen `RandomInt` calls regardless, because the generator is shared with
+  every flame phase and pendulum in the game and dropping ten draws would change what every
+  room composed afterwards looks like.
+
+Neither is an "improvement" a player can see, and that is the point of recording them: both are
+the sort of thing a later reader would take for a transcription slip and "fix", and one of the
+two fixes would silently move the whole random stream.
+
+### 2.62 The quit path repaints the work map with a title screen nothing can display — **DONE, 1.7d: dropped, and the harness gets an invariant back**
+
+`NewGame`'s tail (`Play.c:257-273`) ends a game the player quit by scaling the splash art into
+`workSrcMap` and invalidating the window, so the Mac's next update event paints the title screen
+from it. Transcribed literally, that is 294,400 pixels written after the last frame — and in this
+port not one of them is reachable. The title screen belongs to `internal/shell`: it is composed
+on the shell's own surface and presented on the pass after `NewGame` returns, so nothing reads
+the game's work map again. A `-dump` run cannot see them either, because the restore presents
+nothing and a dump writes on `Present`.
+
+Dropping it is worth more than the pixels, because it is what lets the fidelity harness say
+something sharp. `internal/replay`'s `Result.Planes` hashes the three planes *as the last frame
+left them*, and the useful consequence is that in a room where nothing animates the work map must
+equal the background map — every animated thing registers a back rect and every back rect is
+restored. Anything that draws into the work map without registering one shows up as a hash
+mismatch, which is exactly the class of bug that is invisible for one frame and then smears
+(`replay_test.go`'s room-70 case). A teardown that repaints the whole work map collapses that
+check: every script, in every room, ends with the same splash hash. This was live for one stage
+— `restoreSplashScreen` was a stub until 1.7d made it real, and the moment it did, two rooms of
+the 1200-frame corpus started reporting the identical work plane.
+
+The two ending paths keep their call. There the splash is on screen a moment later, because
+`DoGameOver` composes the starfield over it and presents (`gameover.go:140`), so the pixels do
+what the C wanted them to do.
 
 ---
 
@@ -1960,6 +2031,10 @@ and pinning them now would only generate churn.
 | 2.55 Settings are saved at the change, `-import-prefs` refuses to overwrite | 1.7b | this stage |
 | 3.1 High scores: `internal/scores`, a per-house side-car, both entry dialogs, the board on screen | 1.7c | this stage |
 | 3.4 (the credits) `internal/credits`, pinned against `GliderPRO/README.md`, on a screen | 1.7c | this stage |
+| 2.32 (the other two) `internal/game/wait.go` and the `World.Wait` hook: no `Delay` anywhere | 1.7d | this stage |
+| 2.60 Both endings ask `TestHighScore` before redrawing the splash | 1.7d | this stage |
+| 2.61 The win animation's out-of-bounds seeding write, skipped; its dead `RandomInt` draws, kept | 1.7d | this stage |
+| 2.62 The quit path's unreachable splash repaint dropped, so the replay corpus can check the erase pass | 1.7d | this stage |
 
 Four bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

@@ -145,6 +145,7 @@ func TestTheQuickDrawColoursAreTheNearestPaletteEntries(t *testing.T) {
 		{"yellowColor", 0xFC, 0xF3, 0x05, QDYellow, "FFFF00"},
 		{"cyanColor", 0x02, 0xAB, 0xEA, QDCyan, "0099FF"},
 		{"blueColor", 0x00, 0x00, 0xD4, QDBlue, "0000CC"},
+		{"redColor", 0xDD, 0x08, 0x06, QDRed, "DD0000"},
 	} {
 		if got := nearestIndex(c.r, c.g, c.b); got != c.want {
 			t.Errorf("%s #%02X%02X%02X matches index %d, but the constant says %d",

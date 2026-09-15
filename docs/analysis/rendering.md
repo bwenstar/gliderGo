@@ -5099,8 +5099,11 @@ and nothing between line 177 and line 185 copies `workSrcMap` to the screen. The
 172      DumpScreenOn(&justRoomsRect);
 ```
 
-and `DumpScreenOn` runs *after* the erase, so it publishes a banner-free frame. The 15-tick
-(0.25 s) wait at line 190 therefore just freezes the previous screen contents. With the two
+and `DumpScreenOn` runs *after* the erase, so it publishes a banner-free frame. The wait at line
+190 therefore just freezes the previous screen contents -- and it is **fifteen seconds**, not
+fifteen ticks: `WaitForInputEvent`'s parameter is seconds and its deadline is
+`TickCount() + 60L * seconds` (`Utilities.c:445`). A demo passes 4. That single number is the
+whole of the reputation the game has for a long pause at the start of a house. With the two
 `DissBits` calls live, the order was: draw banner into `workSrcMap` -> dissolve to screen (banner
 visible) -> restore `workSrcMap` from `backSrcMap` -> wait -> (caller's dissolve) publish the
 banner-free frame. Commenting out the dissolve removed both the reveal *and* nothing else, so the
@@ -5118,15 +5121,25 @@ This one *is* visible, because it draws straight into the window:
  4  src = bounds;  InsetRect(&src, 64, 32)                         // :214-215  (computed, never used)
  5  QOffsetRect(&bounds, -thisMac.screen.left, -thisMac.screen.top) // :217
  6  QOffsetRect(&bounds, 0, -20)                                   // :222
- 7  if numStarsRemaining == 1: LoadScaledGraphic(1018, &bounds)
- 8  else:                      LoadScaledGraphic(1017, &bounds)
- 9  NumToString(numStarsRemaining, theStr) ... build message
-10  MoveTo(bounds.left + 102 - StringWidth(theStr)/2, bounds.top + 23)
-11  ColorText(theStr, 4L)
+ 7  NumToString(numStarsRemaining, theStr)                         // before the branch
+ 8  if numStarsRemaining < 2:  LoadScaledGraphic(1018, &bounds)    // and nothing else
+ 9  else:                      LoadScaledGraphic(1017, &bounds)
+10                             MoveTo(bounds.left + 102 - StringWidth(theStr)/2, bounds.top + 23)
+11                             ColorText(theStr, 4L)
 12  DelayTicks(60)
 13  if (WaitForInputEvent(30)) RestoreEntireGameScreen()
 14  CopyRectWorkToMain(&bounds)                                    // :235
 ```
+
+Two details of steps 7-11 are easy to transcribe wrongly, and both are `Banner.c:224`:
+
+* The test is `< 2`, **not** `== 1`. Zero stars remaining draws the singular plate.
+* The count string is computed before the branch and drawn **only in the plural arm**. The
+  singular plate spells the number out in its own artwork, so there is nothing to place on it;
+  the unconditional `NumToString` is what makes the omission look like an oversight.
+
+Step 12 is 60 *ticks* and step 13 is 30 *seconds* -- the two waits either side of the panel are
+measured in different units, one second and then up to thirty.
 
 The `-20` at step 6 is the same menu-bar compensation used by the scoreboard (13.3): the plaque is
 centred on the *screen* but drawn in *window* coordinates, so it must move up by the menu-bar

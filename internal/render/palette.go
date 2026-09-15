@@ -145,14 +145,14 @@ const (
 	Black8       = 255
 )
 
-// The five classic 1-bit QuickDraw colours, resolved into this palette.
+// The classic 1-bit QuickDraw colours the game names, resolved into this palette.
 //
 // They are a different colour API from the block above, not more entries in it.
 // `ForeColor(yellowColor)` takes one of the eight constants a 1961 Color QuickDraw
-// grafport understood (`blackColor` 33, `whiteColor` 30, `yellowColor` 69,
-// `cyanColor` 273, `blueColor` 409) and asks the current GDevice's colour table for
-// the nearest entry it has; `ColorText(str, index)` takes a palette index directly.
-// Glider PRO uses both -- the scoreboard indexes the palette (§5.5 of
+// grafport understood (`blackColor` 33, `whiteColor` 30, `redColor` 205,
+// `yellowColor` 69, `cyanColor` 273, `blueColor` 409) and asks the current GDevice's
+// colour table for the nearest entry it has; `ColorText(str, index)` takes a palette
+// index directly. Glider PRO uses both -- the scoreboard indexes the palette (§5.5 of
 // docs/analysis/scoring.md) and the high-score screen names ForeColor constants
 // (§7.9.6) -- so a port that had only one of them would draw one of the two screens
 // in the wrong colours.
@@ -166,6 +166,7 @@ const (
 	QDYellow = 5   // #FCF305 -> #FFFF00, which is Yellow above
 	QDCyan   = 192 // #02ABEA -> #0099FF
 	QDBlue   = 211 // #0000D4 -> #0000CC
+	QDRed    = 216 // #DD0806 -> #DD0000, the banner's star count (Banner.c:159)
 )
 
 // itoa avoids pulling strconv into a package that is otherwise pure pixels.

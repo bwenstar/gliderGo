@@ -82,6 +82,27 @@ func Sect(a, b Rect) (Rect, bool) {
 	return s, true
 }
 
+// UnionSimilar is QUnionSimilarRect (RectUtils.c:272-298): the smallest rect
+// containing both of two rects.
+//
+// The C's comment says the two are "assumed to have the same width and height",
+// and its one caller obeys that -- a fluttering game-over page and where that page
+// was last frame, both 32x32. The assumption buys nothing: the four comparisons are
+// a plain union and are correct for any pair, which is why this is not named
+// UnionSameSizeRect.
+//
+// It is the union QuickDraw's own UnionRect would give, minus the empty-rect
+// special case: UnionRect treats an empty rect as contributing nothing, and this
+// does not. No caller passes one.
+func UnionSimilar(a, b Rect) Rect {
+	return Rect{
+		Top:    min16(a.Top, b.Top),
+		Left:   min16(a.Left, b.Left),
+		Bottom: max16(a.Bottom, b.Bottom),
+		Right:  max16(a.Right, b.Right),
+	}
+}
+
 // CenterIn is CenterRectInRect (RectUtils.c:142): centre the first rect inside
 // the second, keeping its size. Note that it is (Bwide-Awide)/2 and not
 // Bwide/2-Awide/2 -- the two disagree by a pixel whenever the difference is odd,
