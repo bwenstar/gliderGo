@@ -94,8 +94,14 @@ func (d *Diagnostics) note(dv Deviation) {
 // Every caller reads the same way -- `if w.badIndex(...) { return <the C's zero> }` -- and
 // the callers are the ones the spec's §6.4 item 3 counts: the room-object slot (24 slots,
 // reachable from an unlinked transport, whose objectLink is -1 and whose Byte parameter
-// makes that 255), the master-object index, and the trigger index. Ten sites at the time
+// makes that 255), the master-object index, and the trigger index. Eleven sites at the time
 // of writing; grep for badIndex to enumerate them.
+//
+// Ten of the eleven guard a read. The eleventh, AddAShreddedGlider's, guards a **write** --
+// see devShred below -- and it is reported through the same counter deliberately: from a
+// bug report's point of view "the original would have read something that is not there" and
+// "the original would have written somewhere that is not ours" are the same finding, which
+// is that a house reached a place the 1994 build only survived by luck.
 //
 // **World.Room is deliberately not one of them**, and neither are
 // internal/render/locale.go's three equivalents. Room's nil is the *designed* answer to
@@ -121,4 +127,11 @@ const (
 	devTrigger      = "trigger"       // theTriggers[i]
 	devDynamic      = "dynamic"       // dinahs[i], 18 slots -- reached from DynaNum, which is -1
 	devHotSpot      = "hot spot"      // hotSpots[i] -- reached from DynaNum too, for a switch
+
+	// devShred is the odd one: shreds[i], 4 slots, and the guard stands in front of a
+	// **write** rather than a read. AddAShreddedGlider's C guard is `>` where the array
+	// has kMaxShredded elements, so a fifth shredded glider writes one element past the
+	// end of a NewPtr (Environ.c:654). Nothing else in this list is a write, and that is
+	// why it is spelled out here rather than left to the call site.
+	devShred = "shredded glider" // shreds[i], 4 slots
 )

@@ -217,23 +217,19 @@ func (w *World) Survivor() *player.Glider {
 // Not yet implemented: the nine that belong to later work
 // ---------------------------------------------------------------------------
 //
-// Three of the 48, all with empty bodies. These are honest stubs, not approximations. Each
+// Two of the 48, both with empty bodies. These are honest stubs, not approximations. Each
 // says which commit or sub-stage fills it and what the stub's behaviour means in the
 // meantime, because a stub that silently does something plausible is worse than one that
 // does nothing: the first hides a gap and the second is visible in a test.
 //
-// The one this commit removed is AddBand, now real in bands.go. Before it went, its `return
-// false` was load-bearing rather than merely safe -- the C's false is what makes a refused
-// shot *not cost a band* -- so a player firing into a stage with no band subsystem lost no
-// ammunition. The four removed before that were Scoreboard.c's -- QuickBatteryRefresh,
-// QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard -- and the nine before them were
-// the dirty-rect protocol, the four transit handlers, OffAMortal, FlagStillOvers and
-// ForceKillGlider.
-
-// AddAShreddedGlider queues the shredded-glider particles and belongs to 1.5c, dynamics,
-// which owns RenderShreds. With it inert a shredded glider vanishes rather than coming
-// apart; it still dies.
-func (w *World) AddAShreddedGlider(r player.Rect) {}
+// The one this commit removed is AddAShreddedGlider, now real in shreds.go. Its empty body
+// was the least visible of any stub in the file: a glider still flew into the shredder, was
+// still clipped away four pixels a frame, and still died -- it simply left no confetti. The
+// one before that was AddBand, whose `return false` was load-bearing rather than merely safe
+// (the C's false is what makes a refused shot *not cost a band*). The four before that were
+// Scoreboard.c's -- QuickBatteryRefresh, QuickBandsRefresh, QuickFoilRefresh and
+// RefreshScoreboard -- and the nine before them were the dirty-rect protocol, the four
+// transit handlers, OffAMortal, FlagStillOvers and ForceKillGlider.
 
 // DoPause and DoCommandKey belong to 1.7, the shell: both open modal UI that does not
 // exist yet. DoPause in particular *blocks* in the original, called from inside GetInput,

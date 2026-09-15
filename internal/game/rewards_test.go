@@ -924,7 +924,7 @@ func TestRestoreFromSavedMapStopsAtTheFirstMatch(t *testing.T) {
 	swatch := savedMapUnder(0, 0, prizeAt, w.R.V.OriginH, w.R.V.OriginV)
 	fill(swatch.Map, swatchInk)
 
-	// AddStar's slot, verbatim: SetRect(0, 0, 32, 31*kNumStarFrames) -- never offset, so
+	// AddStar's slot, verbatim: SetRect(0, 0, 32, 31*NumStarFrames) -- never offset, so
 	// its Dest really is the screen corner.
 	strip := render.SavedMap{
 		Map:   render.NewSurface(32, 31*6),

@@ -195,6 +195,12 @@ func summary(w io.Writer, res *replay.Result) {
 		fmt.Fprintf(w, "    deviation: %s\n", d)
 	}
 	fmt.Fprintf(w, "  digest %s\n", res.Digest)
+	// The picture, beside the behaviour and clearly labelled as a different claim. Two
+	// reporters whose digests agree and whose screens do not have a machine-dependent
+	// *renderer*, which is the one class of bug the trace cannot describe at all -- and the
+	// three hashes say which stage of the pipeline it entered at. See replay.Planes.
+	fmt.Fprintf(w, "  screen  back %s  work %s  main %s\n",
+		res.Planes.Back, res.Planes.Work, res.Planes.Main)
 }
 
 func playerCount(s *replay.Script) int {

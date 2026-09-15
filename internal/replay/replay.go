@@ -28,13 +28,19 @@
 // The first two are script fields with fixed defaults. The third is the absence of a
 // hook, which is why Run installs neither TickCount nor WaitTick.
 //
-// What is deliberately *not* pinned is the screen. Every pixel is still composed into
-// World.Main -- a headless run and a windowed run produce byte-identical surfaces, which
-// is World.Present's contract -- but the trace digests the simulation, not the image.
-// Hashing the framebuffer is a better test and a much worse bug-report format: a
-// one-pixel change in a later sub-stage would invalidate every script on file. The
+// What is deliberately not pinned *in the trace* is the screen. Every pixel is still
+// composed into World.Main -- a headless run and a windowed run produce byte-identical
+// surfaces, which is World.Present's contract -- but the samples digest the simulation, not
+// the image. Hashing the framebuffer per frame is a better test and a much worse bug-report
+// format: a one-pixel change in a later sub-stage would invalidate every script on file. The
 // samples below are the quantities the spec asks for (§5.3) plus the two diagnostics from
 // game.Diagnostics, and they change only when behaviour does.
+//
+// The picture is reported once, at the end, as Result.Planes -- a hash of the three index
+// planes as the last frame left them. That is a run-to-run comparison and not a checked-in
+// constant, which is the distinction that makes it safe to have both: no file on disk holds
+// the value, so a deliberate pixel change costs nothing, while two runs of one script are
+// still required to agree on it.
 package replay
 
 import (
@@ -155,15 +161,36 @@ type Sample struct {
 	Work2Main int   // len(World.Work2Main) as CopyRectsQD replayed it
 	Back2Work int   //
 	Renders   int64 // World.RenderFrames: 2 more than the last sample on a transition
-	Pendulums int   // len(Scene.Pendulums) -- see the note on ClockFrame below
-	Room      int16
-	Mode      int16 // player one's glider mode
-	Dest      player.Rect
-	Score     int32
-	Mortals   int16
-	Stars     int16
-	Guarded   int64 // World.Diag.Guarded, cumulative
-	Dropped   int64 // dropped work + back rects, cumulative
+	Pendulums int   // len(Scene.Pendulums): the pendulum was composed into the locale
+
+	// ClockFrame is Scene.ClockFrame, the pendulum phase counter, and it is the one
+	// field here that is not monotonic and not a count.
+	//
+	// It advances only in rooms that have a pendulum -- RenderPendulums returns before
+	// the increment otherwise -- and the swing fires at exactly 10 and exactly 15. **The
+	// sampled values are 0..14 and never 15**, because the frame that reaches 15 resets
+	// it to 0 before returning. So `clock=0` and `clock=10` are the two frames in fifteen
+	// the clock moved on and everything else is a stall, which is how the *uneven*
+	// tick-tock shows up in the trace: the gaps alternate five frames and ten. A port
+	// that tidied the two magic numbers into one interval would appear here as a column
+	// stepping 0..9 forever. See game/anim.go's RenderPendulums.
+	//
+	// On a transition frame it advances by two, like Renders, because the pendulum is
+	// stepped once per render and not once per game frame.
+	//
+	// It is also the pendulum's only observable phase. Anim.Mode is not sampled, and
+	// three cels ping-ponging produce the same work rect every time, so `w2m` cannot
+	// distinguish a swing from a stall.
+	ClockFrame int16
+
+	Room    int16
+	Mode    int16 // player one's glider mode
+	Dest    player.Rect
+	Score   int32
+	Mortals int16
+	Stars   int16
+	Guarded int64 // World.Diag.Guarded, cumulative
+	Dropped int64 // dropped work + back rects, cumulative
 
 	// Rand is World.RandSeed: the state of the one random stream.
 	//
@@ -183,8 +210,8 @@ type Sample struct {
 // mismatch cannot be diffed.
 func (s Sample) line() string {
 	return fmt.Sprintf(
-		"f=%d even=%d w2m=%d b2w=%d rend=%d pend=%d room=%d mode=%d dest=%d,%d,%d,%d score=%d mortals=%d stars=%d guarded=%d dropped=%d rand=%d",
-		s.Frame, b2i(s.Even), s.Work2Main, s.Back2Work, s.Renders, s.Pendulums,
+		"f=%d even=%d w2m=%d b2w=%d rend=%d pend=%d clock=%d room=%d mode=%d dest=%d,%d,%d,%d score=%d mortals=%d stars=%d guarded=%d dropped=%d rand=%d",
+		s.Frame, b2i(s.Even), s.Work2Main, s.Back2Work, s.Renders, s.Pendulums, s.ClockFrame,
 		s.Room, s.Mode, s.Dest.Top, s.Dest.Left, s.Dest.Bottom, s.Dest.Right,
 		s.Score, s.Mortals, s.Stars, s.Guarded, s.Dropped, s.Rand)
 }
@@ -215,6 +242,48 @@ type Result struct {
 	// *different* scripts agreeing on it is meaningless, so it is always reported
 	// beside the script it came from.
 	Digest string
+
+	// Planes hashes the three index planes as the last frame left them: the pixel half
+	// of determinism, which Digest cannot state.
+	//
+	// It is **not** folded into Digest and not written into Trace, for the reason the
+	// package comment gives -- a one-pixel change in a later sub-stage would invalidate
+	// every script on file, and a script is meant to outlive the sub-stage it was
+	// recorded in. It is reported separately instead, where a caller that wants to
+	// compare pictures can ask for it and a caller comparing behaviour is unaffected.
+	Planes Planes
+}
+
+// Planes is a hash of each of the run's surfaces at the moment it stopped.
+//
+// Three rather than one, because they answer different questions. Back is the composition:
+// a difference there is a locale that was drawn differently, before anything moved. Work is
+// Back plus everything the frame loop blitted over it -- the flames, the gliders, the
+// confetti -- so a difference in Work with Back identical is the *animation* diverging.
+// Main is what a display would have been handed, which is Work as the dirty rects delivered
+// it, so a difference in Main with Work identical is a dirty-rect bug: the right pixels
+// composed and the wrong ones copied.
+type Planes struct {
+	Main string // World.Main, at the screen's size
+	Work string // Scene.Work, the per-frame composite
+	Back string // Scene.Back, the static room under it
+}
+
+// planeDigest hashes a surface's index plane, dimensions first.
+//
+// The indices are hashed and not the RGB, for internal/render's reason: the indices are what
+// the game composites and what the palette maps, so two different indices that happen to
+// share a colour are still a divergence. The dimensions go in because a surface that came
+// back the wrong size would otherwise hash equal to a correctly sized one whose extra rows
+// happened to be the white a fresh GWorld holds.
+func planeDigest(s *render.Surface) string {
+	if s == nil {
+		return ""
+	}
+	sum := sha256.New()
+	fmt.Fprintf(sum, "%dx%d\n", s.W, s.H)
+	sum.Write(s.Pix)
+	return hex.EncodeToString(sum.Sum(nil))[:16]
 }
 
 // Run plays a script and returns its trace.
@@ -308,21 +377,22 @@ func Run(s *Script) (*Result, error) {
 			flush()
 		}
 		cur = Sample{
-			Frame:     w.Frame,
-			Even:      w.EvenFrame,
-			Work2Main: len(w.Work2Main),
-			Back2Work: len(w.Back2Work),
-			Renders:   w.RenderFrames,
-			Pendulums: len(scene.Pendulums),
-			Room:      w.R.RoomNumber,
-			Mode:      w.P1.Mode,
-			Dest:      w.P1.Dest,
-			Score:     w.Score,
-			Mortals:   w.Mortals,
-			Stars:     w.StarsLeft,
-			Guarded:   w.Diag.Guarded,
-			Dropped:   w.Diag.DroppedWorkRects + w.Diag.DroppedBackRects,
-			Rand:      w.RandSeed,
+			Frame:      w.Frame,
+			Even:       w.EvenFrame,
+			Work2Main:  len(w.Work2Main),
+			Back2Work:  len(w.Back2Work),
+			Renders:    w.RenderFrames,
+			Pendulums:  len(scene.Pendulums),
+			ClockFrame: scene.ClockFrame,
+			Room:       w.R.RoomNumber,
+			Mode:       w.P1.Mode,
+			Dest:       w.P1.Dest,
+			Score:      w.Score,
+			Mortals:    w.Mortals,
+			Stars:      w.StarsLeft,
+			Guarded:    w.Diag.Guarded,
+			Dropped:    w.Diag.DroppedWorkRects + w.Diag.DroppedBackRects,
+			Rand:       w.RandSeed,
 		}
 		have = true
 
@@ -383,6 +453,17 @@ func Run(s *Script) (*Result, error) {
 	res.Room = w.R.RoomNumber
 	res.Diag = w.Diag
 	res.Digest = digest(res.Samples)
+
+	// The surfaces, read after the run rather than sampled during it. Present is where a
+	// per-frame hash would have to go and it fires up to 160 times in a transition frame,
+	// so hashing there would cost 160 sweeps of a 640x480 plane on those frames and pin the
+	// middle of a wipe. The end state is the cheap statement and the sharp one: 1,200 frames
+	// of divergence cannot reconverge to the same three planes by accident.
+	res.Planes = Planes{
+		Main: planeDigest(w.Main),
+		Work: planeDigest(scene.Work),
+		Back: planeDigest(scene.Back),
+	}
 
 	// Sticky asset errors, reported once at the end. A replay against a half-extracted
 	// asset tree would otherwise produce a plausible trace of a game drawing nothing.

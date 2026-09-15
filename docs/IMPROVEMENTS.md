@@ -994,6 +994,104 @@ from across it. `TestOnlyFiveActionsSeeABand` pins the list in both directions, 
 `NumHotSpotActions` so that a twenty-ninth action added without a decision about bands fails
 there rather than in a house.
 
+### 2.42 The random stream is a function of the play area's size — **note; binds 2.1, 2.8 and Stage 3**
+
+Five of the room-load registrations end by seeding an animation's phase from `RandomInt`: the
+candle, the torch and the barbecue pick a starting cel, the star picks one of six, and the
+pendulum flips a coin for its direction. In all five the draw sits **after** the
+`if (savedNum == -1) return;` — verified one function at a time in `DynamicMaps.c` — so an
+object that fails to get a saved-map slot does not consume its draw either.
+
+Two things then follow, and the second is the one that matters.
+
+**Registration is screen-size dependent.** Every one of the five `Add*` functions is called
+from `ObjectDrawAll.c` only for objects that `SectRect` against the composed area, so *which*
+objects register — and therefore how many `RandomInt` draws a room load performs, and therefore
+every subsequent value in the stream — is a function of how much of the house is on screen.
+That is `Scene.NumNeighbors` (1, 3 or 9) and the size of the play area.
+
+**Saturation would do the same thing, and no shipped house reaches it.** 1.5f's census
+measured it rather than assuming: over 4,070 rooms in the 22 houses the busiest locale claims
+16 of the 24 slots, and none drops a registration (see 2.44). So the saturation half of this is
+a live code path that shipped content never takes, exactly as `AddDynamicObject`'s cap turned
+out to be in 1.5c — but the `SectRect` half is reachable by anyone who changes the window.
+
+What protects it is a rule already written down for another reason: **2.8, the scale transform
+belongs at the present step and nowhere else.** Composing 640x480 and scaling on the way to the
+display keeps the play area fixed at every window size, so the stream is untouched by 2.1's
+scaling and fullscreen work. This item is the reason that rule is not merely tidy.
+
+Two consequences to carry forward:
+
+- a replay script is only valid at the play area it was recorded at. `neighbors` is in the
+  script format already; the play-area size is not, because there is currently only one. If a
+  resolution option is ever added that changes what is *composed* rather than what is
+  presented, the script format needs a line for it and `internal/replay` needs to refuse a
+  mismatch rather than silently produce a different run.
+- Stage 3's race gives each machine its own world, so two machines drawing different flame
+  phases is cosmetic. It stops being cosmetic the moment anything is shared across the wire
+  that was derived from the stream — a race seed, a shared house, a spectator view — so the
+  handshake should carry the play area and the neighbour count and refuse a mismatch.
+
+Pinned by `TestASaturatedTableDoesNotConsumeARandomDraw` (`internal/render/anim_test.go`),
+which fills the table and asserts the draw is *not* consumed, and by the `rand` column of the
+replay trace, which is where a shifted stream shows up as a whole-column diff.
+
+### 2.43 `AddAShreddedGlider` writes one element past its table — **DONE as a reported deviation, 1.5f**
+
+`DynamicMaps.c:726` guards with `if (numShredded > kMaxShredded) return;` — strictly greater,
+against a table of exactly `kMaxShredded` elements (`shreds` is a `NewPtr` of
+`sizeof(shredType) * kMaxShredded`, `Environ.c:654`). So a fifth shredded glider passes the
+guard, writes `shreds[4]` of a four-element allocation, and leaves the counter at 5. On a 1994
+Mac that scribbled twenty bytes over whatever the Memory Manager put next.
+
+It is more reachable than the numbers suggest. A spent cloud keeps its slot — neither arm of
+`RenderShreds` matches at frame 20, so it stops animating and is never reclaimed — and
+`RemoveShreds` removes exactly one entry per death and **none at all** if the only cloud is
+still growing. So four shreds in one locale visit fills the table permanently, and two-player
+mode halves the work.
+
+The port tests `>=` and drops the fifth cloud. That is the one deliberate divergence in
+`internal/game/shreds.go`, for 2.33's reason: reproducing it would mean reproducing a bug whose
+observable behaviour is "corrupt something else", which is not a behaviour a port can be
+faithful to and not one a released game may have.
+
+What is new at 1.5f is that the refusal is **reported**. The guard goes through `badIndex`, so
+it lands in `World.Diag.Guarded` and `Diag.Seen` and is named by `glidertool replay` like any
+other deviation. It is the only site in the port where that guard stands in front of a *write*
+rather than a read, which is why it has its own kind (`devShred`, `guards.go`) — from a bug
+report's point of view the two are the same finding, that a house reached a place the original
+survived by luck. `TestTheFifthCloudIsDroppedRatherThanWrittenOutOfBounds`.
+
+### 2.44 A refused saved-map registration makes an object invisible, silently — **the report DONE, 1.5f; the author-facing half is Stage 5**
+
+`backUpToSavedMap` answers -1 when the 24-slot `savedMaps` table is full, and **every caller
+gates the object's draw on the result.** So the twenty-fifth animated or collectable object in
+a locale is not merely un-animated, it is not drawn at all: a candle with no flame, a prize that
+cannot be seen and can still be collected by walking into it. The original reports nothing. A
+house author found out by playing the room and noticing something missing.
+
+`Scene.SavedMapDrops` records each refusal — the room, the object slot and the rect it asked
+for, which names the family without a label because no two request the same size. It is a
+report and nothing reads it, on the same terms as `World.Diag`: a diagnostic that could change
+the composition would be worse than none.
+
+The census that came with it is the useful half, and it contradicts what `docs/PLAN.md`
+assumed. Over **4,070 rooms in 22 houses the busiest locale claims 16 of the 24 slots**
+(`Slumberland` room 256 "Flaming Pathway", tied by `Teddy World` room 322) and **not one room
+drops a registration**. So the cap is a live path that shipped content never takes — the same
+answer 1.5c got for the 18-slot dinahs table, except that three shipped locales *reach* that
+one and none comes within eight of this one.
+
+Two things follow. A Stage 2 house has to be **checked** against the cap rather than assumed
+under it, which makes this the third item on 4.1's linter list (with 2.38 and the dinahs cap).
+And Stage 5's editor can say it while the room is being built, which is the whole difference
+between a diagnostic and a tool. Watched corpus-wide by the `dr=` column of
+`internal/render/testdata/locale_golden.txt`, room by room, and asserted by
+`TestTheSavedMapBudgetSaturatesInShippedContent`, which fails if any shipped room ever starts
+dropping; `TestDroppedRegistrationsNameTheObjectThatVanished` fills the table by hand and
+enumerates the three refusals in order.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -1136,6 +1234,33 @@ convincingly exactly where the property is subtle. `glidertool` should grow a ch
 `Test[A-Z]\w+` mentioned in a comment resolves to a real test function, run from `make check`.
 Cheap, and it closes the whole class rather than the two instances found by chance.
 
+### 4.5 A bug report could not say that two machines drew different pixels — **DONE, 1.5f**
+
+`Result.Digest` hashes the sample trace, and the trace records dirty-rect *counts*. That is the
+right choice for the reason 4.2 gives — a script mailed in by a player has to survive the next
+sub-stage's intentional pixel changes — but it means an entire class of fault is invisible to it.
+A flame stuck on one cel, a pendulum swinging the wrong way, a filmstrip baked with the wrong
+frame masked into it, a confetti cloud emerging top-first: every one of those registers the same
+rect as the correct version, so `w2m` and `b2w` do not move and neither does the digest.
+Everything 1.5f added is in that class by construction.
+
+`Result.Planes` closes it with three hashes taken once, after the last frame: the back map, the
+work map and the screen. Which of the three moved localises the fault before anyone opens a
+debugger — `back` is the composition, so a difference there is a locale drawn differently before
+anything moved; `work` is the composition plus everything that animated over it; `main` is the
+work map as the dirty rects delivered it, so a difference in `main` with `work` identical is a
+dirty-rect bug, the right pixels composed and the wrong ones copied. `glidertool replay` prints
+the three on a `screen` line beside the digest.
+
+They are deliberately **not** folded into the digest and not written into the trace, which is
+what makes it safe to have both: nothing on disk holds the value, so a deliberate pixel change
+costs nothing, while two runs of one script are still required to agree.
+`TestTwelveHundredFramesTwiceAreTheSamePicture` is 1.5f's acceptance clause and asserts exactly
+that, and it picked up two facts about the frame protocol on the way: a room where nothing
+animates ends every frame with the work map identical to the composition (so a renderer that
+forgets its back rect fails there), and a room with a cuckoo in it never does, because the
+animated families' cels come out of a filmstrip and register no back rect at all.
+
 ---
 
 ## Done
@@ -1156,6 +1281,9 @@ Cheap, and it closes the whole class rather than the two instances found by chan
 | 4.3 (first half) The golden trace's failure report names the frame that moved, not the digest | 1.5d | this stage |
 | 2.34 (grease half) `HandleGrease` names both destinations at the call site, back map then work | 1.5e | this stage |
 | 4.4 `TestStripRectsTileTheirSheet` written, closing a comment that had promised it since 1.5c | 1.5e | this stage |
+| 2.43 The fifth confetti cloud is dropped, and the refusal is reported through `badIndex` | 1.5f | this stage |
+| 2.44 (the report half) `Scene.SavedMapDrops`, the `dr=` golden column, and the 4,070-room census | 1.5f | this stage |
+| 4.5 `Result.Planes`: three index-plane hashes, so a report can say the *pixels* differ | 1.5f | this stage |
 
 Four bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

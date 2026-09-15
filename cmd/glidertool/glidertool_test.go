@@ -412,7 +412,12 @@ func TestReplaySummaryIsTheDefault(t *testing.T) {
 	if strings.Contains(text, "f=0 ") {
 		t.Errorf("-o alone produced a trace; it should only redirect the summary:\n%s", text)
 	}
-	for _, want := range []string{"6 frames", "1-room", "1 player(s)", "ended   room", "digest "} {
+	// "screen " is the three plane hashes, and it belongs in this list for the reason the
+	// digest does: a reporter's summary is the whole bug report, and two machines whose
+	// digests agree and whose screens do not have a machine-dependent renderer -- which the
+	// per-frame trace cannot describe at all. See replay.Planes.
+	for _, want := range []string{"6 frames", "1-room", "1 player(s)", "ended   room",
+		"digest ", "screen "} {
 		if !strings.Contains(text, want) {
 			t.Errorf("summary has no %q:\n%s", want, text)
 		}

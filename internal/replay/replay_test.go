@@ -135,14 +135,26 @@ func script(t *testing.T, name string) *replay.Script {
 // this costs an illustration rather than any coverage. The switch, the state change publishing
 // a hot spot that did not exist, the transport and a second room are all new to it.
 //
-// # The ClockFrame deviation
+// # ClockFrame
 //
-// PLAN.md's list of quantities to pin includes the original's `clockFrame`. The port has no
-// such counter: the pendulum and clock animation is RenderPendulums, which is a named empty
-// stub charged to Stage 1.5f (render_frame.go). len(Scene.Pendulums) is pinned in its place,
-// which proves the pendulum was composed into the locale even though nothing swings it yet.
-// When 1.5f lands, this trace will change on every frame with a pendulum in it, and that is
-// the point of having it now.
+// PLAN.md's list of quantities to pin includes the original's `clockFrame`, and until 1.5f
+// there was nothing to pin: RenderPendulums was a named empty stub, so len(Scene.Pendulums)
+// stood in for it and proved only that the pendulum had been composed into the locale. Both
+// are in the trace now, and the pair is what makes the swing legible -- `pend` says a clock
+// is in the room and `clock` says whether this was one of the two frames in fifteen it moved
+// on. See the note on Sample.ClockFrame.
+//
+// 1.5f landing is also why this golden was regenerated: five new RandomInt draws in the
+// registration pass shifted the whole `rand` column from the first room load onward, and the
+// flames, stars and pendulums that now animate each register a work rect, so `w2m` moved
+// too. Neither is a behaviour change to anything this file already covered: the diff against
+// the previous golden is `clock`, `rand`, `w2m` and the digest header, and nothing else.
+//
+// `b2w` did not move, and that is the interesting half of the diff. The four animated
+// families register **no back rects** -- their blit comes out of a filmstrip and is opaque,
+// so it erases the last frame by covering it (game/anim.go). Shreds do register back rects,
+// and the column's stillness says this script never shreds a glider; the confetti is covered
+// by unit tests in game/shreds_test.go instead.
 func TestSixHundredFramesMatchTheGoldenTrace(t *testing.T) {
 	s := script(t, "duct.script")
 	if s.Frames != 600 {
@@ -252,6 +264,113 @@ func TestTheSameScriptTwiceIsTheSameRun(t *testing.T) {
 	}
 }
 
+// TestTwelveHundredFramesTwiceAreTheSamePicture is 1.5f's last acceptance clause, and it is
+// a strictly stronger claim than the digest test above.
+//
+// The sample trace records dirty-rect *counts*. It cannot see a pixel: a flame stuck on cel
+// 3, a pendulum swinging the wrong way, a filmstrip baked with the wrong frame masked over it
+// and a shred emerging top-first all register the same rect as the correct version and all
+// leave `w2m` and `b2w` alone. Everything 1.5f added is therefore invisible to the digest by
+// construction -- which is exactly why the plan asks for planes here rather than more samples.
+//
+// Twelve hundred frames is twice the golden's run and about twenty seconds of play. What the
+// length buys is not that a divergence would still be visible at the end -- this script
+// settles into a steady state, and a difference that self-corrected would show up in the
+// samples rather than in the planes -- but that the planes are reached through a thousand
+// frames of animation, a transport and two rooms rather than through a single composition.
+// The digest is compared here as well, at this length, for the divergence that does not last.
+//
+// The three checks after the comparison are what stop it passing vacuously, and two of them
+// are facts about the frame protocol worth having pinned in their own right:
+//
+//	room 70, Work == Back    every renderer that draws into the work map registers a back
+//	                        rect, and CopyRectsQD's second loop replays all of them -- so a
+//	                        room where nothing animates ends each frame exactly as composed.
+//	                        A renderer that forgot its back rect fails here
+//	room 5, Work != Back     except the animated families, whose cels come out of a filmstrip
+//	                        and register **no** back rect (game/anim.go). Room 5's cuckoo has
+//	                        been drawing over the composition since the glider arrived and
+//	                        none of it was ever erased
+//	the two runs differ      all three planes, between a run that ends in room 5 and one that
+//	                        ends in room 70, which is what shows the hash reads the picture
+//	                        rather than the house
+func TestTwelveHundredFramesTwiceAreTheSamePicture(t *testing.T) {
+	s := script(t, "duct.script")
+	s.Frames = 1200
+
+	a, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	b, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if a.Frames < 1200 {
+		t.Fatalf("the run stopped after %d frames; the script ends early and the long tail "+
+			"this test is about was never simulated", a.Frames)
+	}
+
+	// Named one at a time rather than as a struct compare, because *which* plane moved is
+	// the whole diagnosis: Back is the composition, Work is Back plus everything that
+	// animated, Main is Work as the dirty rects delivered it. See replay.Planes.
+	for _, p := range []struct{ name, x, y string }{
+		{"back", a.Planes.Back, b.Planes.Back},
+		{"work", a.Planes.Work, b.Planes.Work},
+		{"main", a.Planes.Main, b.Planes.Main},
+	} {
+		if p.x == "" {
+			t.Errorf("%s plane hashed to nothing: the surface was nil", p.name)
+			continue
+		}
+		if p.x != p.y {
+			t.Errorf("the %s plane differs between two runs of one script: %s then %s",
+				p.name, p.x, p.y)
+		}
+	}
+	if a.Digest != b.Digest {
+		t.Errorf("digests differ over 1200 frames: %s then %s -- the samples diverged too, "+
+			"so read the trace before the planes", a.Digest, b.Digest)
+	}
+
+	// Room 70 is a sky room with nothing animated in it, so the erase pass is complete.
+	if a.Room != 70 {
+		t.Logf("the long run now ends in room %d, not 70; the two checks below describe "+
+			"room 70 and room 5, and a failure may mean the script goes somewhere else now",
+			a.Room)
+	} else if a.Planes.Work != a.Planes.Back {
+		t.Errorf("room %d ends with work %s over back %s: nothing in that room animates, so "+
+			"something drew into the work map without registering a back rect and the next "+
+			"frame will draw on top of it", a.Room, a.Planes.Work, a.Planes.Back)
+	}
+
+	short := script(t, "duct.script")
+	short.Frames = 120
+	c, err := replay.Run(short)
+	if err != nil {
+		t.Fatalf("short run: %v", err)
+	}
+	if c.Room == a.Room {
+		t.Fatalf("both runs ended in room %d; this test's sharpness check assumes the "+
+			"120-frame run stops somewhere else (it used to be room 5, against room 70)", a.Room)
+	}
+	if c.Planes.Work == c.Planes.Back {
+		t.Errorf("room %d ends with the work map identical to the composition, but its cuckoo "+
+			"registers no back rect and should have left its cels behind; nothing was drawn "+
+			"over the composition at all", c.Room)
+	}
+	for _, p := range []struct{ name, long, short string }{
+		{"back", a.Planes.Back, c.Planes.Back},
+		{"work", a.Planes.Work, c.Planes.Work},
+		{"main", a.Planes.Main, c.Planes.Main},
+	} {
+		if p.long == p.short {
+			t.Errorf("the %s plane is %s in both rooms %d and %d; the hash is not reading "+
+				"the picture", p.name, p.long, c.Room, a.Room)
+		}
+	}
+}
+
 // TestDifferentSeedsAreDifferentRuns is the other half: the seed has to reach the
 // simulation.
 //
@@ -327,6 +446,68 @@ func TestTheTransitionFrameRendersTwice(t *testing.T) {
 		}
 		if d := sm.Renders - pv.Renders; d != 1 {
 			t.Errorf("frame %d advanced RenderFrames by %d, want 1", sm.Frame, d)
+		}
+	}
+}
+
+// TestTheCuckooTicksUnevenly reads the `clock` column of the same run as a statement about
+// the pendulum rather than as 600 opaque numbers.
+//
+// The golden pins every value; this pins the *shape*, which is the thing a reader would want
+// to check against the original and the thing a plausible-looking tidy-up would break.
+// RenderPendulums swings when ClockFrame reads exactly 10 or exactly 15 and resets to 0 on
+// the 15, so the swing frames are 10 apart and then 5 apart, forever. Collapse the two
+// constants into a single interval -- the obvious simplification, and the counter still
+// counts -- and this test fails while the room still looks like a working clock.
+//
+// The frame the glider ducts into room 5 is skipped: RenderFrames advances by two there, so
+// the counter advances by two as well and the gap either side of it is not a gap between
+// swings. That is asserted in TestTheTransitionFrameRendersTwice above.
+func TestTheCuckooTicksUnevenly(t *testing.T) {
+	s := script(t, "duct.script")
+	res, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	// A swing is a sample whose counter reads 10, or one whose counter reads 0 having
+	// been reset from 15. `clock=0` in a room with no pendulum is not a swing, hence the
+	// pend gate.
+	var swings []int64
+	for i, sm := range res.Samples {
+		if sm.Pendulums == 0 {
+			continue
+		}
+		if sm.ClockFrame == 10 || (sm.ClockFrame == 0 && i > 0 && res.Samples[i-1].ClockFrame == 14) {
+			swings = append(swings, sm.Frame)
+		}
+	}
+	if len(swings) < 20 {
+		t.Fatalf("%d swings in 600 frames, want dozens; room 5's kCuckoo is not swinging",
+			len(swings))
+	}
+	if sm := res.Samples[len(res.Samples)-1]; sm.ClockFrame > 14 {
+		t.Errorf("last sample has clock=%d; 15 is reset to 0 before the function returns "+
+			"and must never appear in the trace", sm.ClockFrame)
+	}
+
+	// Gaps of 5 and 10, alternating. The transition frame is excluded by dropping any gap
+	// that straddles it, which is at most one of them.
+	for i := 1; i < len(swings); i++ {
+		gap := swings[i] - swings[i-1]
+		if swings[i-1] <= 9 && swings[i] >= 9 {
+			continue
+		}
+		if gap != 5 && gap != 10 {
+			t.Fatalf("swings at frames %d and %d are %d apart, want 5 or 10",
+				swings[i-1], swings[i], gap)
+		}
+		if i >= 2 {
+			if prev := swings[i-1] - swings[i-2]; prev == gap && swings[i-2] > 9 {
+				t.Errorf("two %d-frame gaps in a row ending at frame %d: the tick-tock "+
+					"is even, so the 10-and-15 pair has been collapsed into one interval",
+					gap, swings[i])
+			}
 		}
 	}
 }

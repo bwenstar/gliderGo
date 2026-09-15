@@ -370,7 +370,10 @@ lines of C ✅ *done*
   is no `clockFrame` to pin: the port's pendulum animation is `RenderPendulums`, a named empty
   stub charged to 1.5f, so the trace pins `len(Scene.Pendulums)` in its place — which proves
   the pendulum reached the locale even though nothing swings it yet. Add `clockFrame` to the
-  trace when 1.5f lands.
+  trace when 1.5f lands. **Done: 1.5f added the `clock` column**, and the pair is what makes the
+  swing legible — `pend` says a clock is in the room and `clock` says whether this was one of the
+  two frames in fifteen it moved on. `len(Scene.Pendulums)` stayed, for the same reason it went
+  in.
 
 **1.5c Dynamics: the `dinahs` table, appliances, movers, toggles, triggers** — ~2,510 lines of C ✅ *done*
 - `Dynamics3.c`'s `AddDynamicObject`/`HandleDynamics`/`RenderDynamics`, all of `Dynamics.c` and
@@ -518,18 +521,91 @@ lines of C ✅ *done*
 - Two comments naming tests that did not exist were found and closed, and the class is charged to
   1.8 as a `make check` lint: `docs/IMPROVEMENTS.md` 4.4.
 
-**1.5f Background animations and the saved-map economy** — ~800 lines of C
+**1.5f Background animations and the saved-map economy** — ~800 lines of C ✅ *done*
 - The rest of `DynamicMaps.c` — the five `BackUp`/`ReBackUp`/`Add` triples, shreds — and
-  `Render.c`'s four animation passes.
+  `Render.c`'s four animation passes. Three new source files — `internal/render/anim.go`,
+  `internal/game/anim.go`, `internal/game/shreds.go` — and **the last four renderer stubs
+  closed** (`RenderPendulums`, `RenderFlames`, `RenderStars`, `RenderShreds`) plus
+  `AddAShreddedGlider` and `RemoveShreds`, which were a stub and a wrong no-op respectively.
+  `internal/game/env.go`'s list of unimplemented functions is down to **two**, `DoPause` and
+  `DoCommandKey`, and both belong to 1.7.
+- Two more cross-boundary hooks, bringing the total to seven: `Scene.ZeroShreds`, which is
+  `numShredded`'s line in `ZeroFlamesAndTheLike`, and `Scene.RandomInt` — **the only hook whose
+  return value the composition depends on.** With it nil every flame starts on cel 0, which is
+  deterministic and invisible in a still image, because a filmstrip lives in a saved map and never
+  reaches the composed frame. That is what lets the renderer's own goldens leave it unbound.
 - Last, and the only purely cosmetic sub-stage — with one exception that earns it real care. The
   five room-load `RandomInt` draws are each *inside* `if (savedNum != -1)`, so when the 24-slot
   `savedMaps` table saturates the draw does not happen and **the whole downstream RNG stream
   shifts**. Registration is screen-size dependent through `SectRect`, so the RNG stream is a
-  function of resolution. That matters for Stage 3.
+  function of resolution. That matters for Stage 3. Written up as `docs/IMPROVEMENTS.md` 2.42,
+  which also records what protects it: 2.8's rule that scaling happens at the present step keeps
+  the *composed* area fixed at every window size.
+- **The load-bearing discovery is what a saved-map slot holds.** The five animated families do not
+  back up a background and composite over it; each claims a strip **one cel wide and N cels tall**
+  and bakes into it, per frame, the back map with that frame's art masked on top. So an animation
+  step is one *opaque* blit out of the strip and registers **no back rect** — the new frame erases
+  the last by covering it. Claim one cel instead of N and the result is a lit, perfectly still
+  candle: the room looks composed and nothing moves.
 - *Acceptance:* each of the six animated families steps a full wrap cycle with the strip index and
   `src` rect pinned per frame; saturation asserted on the room a checked-in census names, with the
   dropped registrations enumerated. **Two headless replays of 1,200 frames from one seed produce
   byte-identical index planes.**
+- **The first and third clauses are met; the second was written on a false premise and is met by
+  the measurement that disproved it.** There is no room to assert saturation on: the census
+  sweeps all 22 houses and **the busiest locale in 4,070 rooms claims 16 of the 24 slots**
+  (`Slumberland` room 256 "Flaming Pathway", tied by `Teddy World` room 322), and **not one room
+  drops a registration.** Rather than restate the clause to fit, the mechanism it asked for was
+  built and the negative result was made permanent: `Scene.SavedMapDrops` records every refusal,
+  the golden's new `dr=` column carries the count room by room,
+  `TestTheSavedMapBudgetSaturatesInShippedContent` fails if any shipped room ever starts dropping,
+  and `TestDroppedRegistrationsNameTheObjectThatVanished` fills the table by hand and enumerates
+  the three refusals in order. The consequence is 1.5c's, one table over: the cap is a live path
+  shipped content never takes, so a Stage 2 house has to be **checked** against it rather than
+  assumed under it (`docs/IMPROVEMENTS.md` 2.44, and the third item on 4.1's linter list).
+- The third clause needed something the harness did not have. `Result.Digest` hashes the sample
+  trace, and the trace records dirty-rect *counts* — so a flame stuck on one cel, a pendulum
+  swinging backwards or a confetti cloud emerging top-first registers the same rect as the correct
+  version and moves nothing in it. **Everything this sub-stage added was invisible to the digest by
+  construction**, which is presumably why the clause asks for planes. `Result.Planes` hashes the
+  back map, the work map and the screen once, after the last frame, and `glidertool replay` prints
+  the three beside the digest; which of them moved localises the fault to the composition, the
+  animation or the dirty rects. `TestTwelveHundredFramesTwiceAreTheSamePicture`
+  (`docs/IMPROVEMENTS.md` 4.5).
+- **What the acceptance criteria found**, in the order the tests failed:
+  - **The clock ticks unevenly, and the cel sequence is the opposite of a pendulum.**
+    `RenderPendulums` acts only when `clockFrame` reads exactly 10 or exactly 15, resetting at 15,
+    so the gaps alternate five frames and ten; and the cels drawn per cycle are 2, 1, 0, 1 — the
+    centre twice and each end once, where a real pendulum lingers at the ends. Both are pinned
+    against the tidy-up that would break them (`TestTheClockTicksUnevenly`,
+    `TestThePendulumSwingsCentreEndCentreEnd`), and the trace's `clock` column is where a
+    single-interval "simplification" would show up as a column stepping 0..9 for ever.
+  - **A second clock in the same room is silent.** `playedTikTok` throttles to one sound per
+    frame across every pendulum in the locale, and two pendulums in opposite phase flip on the
+    *same* frames — so the first table entry claims every sound and the room still plays a normal
+    alternating tick-tock while the second clock mimes.
+    `TestTheFirstPendulumsSoundAlwaysWins`.
+  - **`RenderShreds` is 54 frames, not 55.** Thirty-five growth frames and nineteen fall frames,
+    where the sparkle *shares* its iteration with the last fall step. This file's own header
+    counted it twice until `TestTheFallArmDropsFourPixelsAFrame` was written, and double-counting
+    is exactly what an off-by-one in the fall arm would look like.
+  - **`RemoveShreds` removes one cloud, and sometimes none.** The name is plural and `OffAMortal`
+    reads as a sweep, but the body swap-removes the single most-advanced entry — and because the
+    search is `frame > largest` from `largest = 0`, an entry still growing (frame 0) can never be
+    chosen. A death with one still-growing cloud on screen removes **nothing**, and the confetti
+    keeps growing through the respawn. Transcribed, with the `largest = -1` one-character fix
+    named in the test so it is not applied by accident.
+  - **`AddAShreddedGlider` writes one element past its four-element table** (`> kMaxShredded`,
+    `Environ.c:654`). The port's guard is `>=` and goes through `badIndex`, so the refusal is
+    counted and named in a bug report instead of being silent — the only guarded *write* in the
+    port. `docs/IMPROVEMENTS.md` 2.43.
+  - **`Anim.Mode` can legitimately be seeded one past the end of its strip**, because
+    `RandomInt(n)` can return `n`. The wrap rescues it by resetting `Src` *absolutely* to
+    `(0, celH)` rather than subtracting a strip height, so clamping the seed would be a silent
+    divergence rather than a fix. `TestASeedOnePastTheEndIsLeftUnclamped`.
+  - **Object draws during composition write `s.Back`**, so registration-versus-draw order is
+    observable: the star registers before its own draw and the cuckoo draws before its pendulum
+    strip is baked. Reordering either is a pixel change with no other symptom.
 
 *Independently specified before any code.* Eight parallel readers reverse-verified one subsystem
 each against the C, three adversarial critics attacked the result, and six writers produced the

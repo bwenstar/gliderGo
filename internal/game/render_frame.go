@@ -553,49 +553,24 @@ func (w *World) RenderFrame() {
 }
 
 // ---------------------------------------------------------------------------
-// The nine renderers that belong to later sub-stages
+// Where RenderFrame's nine calls live
 // ---------------------------------------------------------------------------
 //
-// These are named no-ops, called from RenderFrame in exactly their real positions.
+// All nine were named no-ops here at one point, called from RenderFrame in exactly
+// their real positions before any of their subsystems existed. That was deliberate:
+// registration order is z-order (see RenderFrame), so an empty call in the right place
+// is a correct z-order with nothing in it, and filling one in later is a change to one
+// function body that cannot move anything else. Adding the call later is the failure
+// mode it avoided -- it would compile, run, and draw the bands behind the glider.
 //
-// They are here now, empty, rather than added when their subsystems land, because
-// registration order is z-order (see RenderFrame) and an empty call in the right
-// place is a correct z-order with nothing in it. Filling one in later is then a
-// change to one function body and cannot move anything else. Adding the call later
-// is the failure mode this avoids: it would compile, run, and draw the bands behind
-// the glider.
+// The last four went in 1.5f, so the list is now a map rather than a set of stubs.
 //
-// Each names its sub-stage and what the game looks like without it, because that is
-// the difference between a stub and a gap.
-
-// HandleGrease landed in 1.5e and is in grease.go. It is the one function in this list
-// that is not a renderer -- it advances simulation state from inside RenderFrame, and it
-// rewrites the collision table while it is there.
-
-// RenderPendulums is Render.c:260-322 and belongs to 1.5f. Without it a grandfather
-// clock's pendulum stands still and the room is silent -- it owns the tik/tok sounds,
-// one pair per swing across all the room's pendulums, and clockFrame, which is a
-// phase counter and not a frame clock.
-func (w *World) RenderPendulums() {}
-
-// RenderFlames is Render.c:193-255 and belongs to 1.5f: candles, tiki torches and
-// barbecue coals, three independent loops over three tables. Without it those three
-// show their first frame and never move. It registers no back rects -- the blit
-// comes from savedMaps and is opaque, so each frame erases the last by covering it.
-func (w *World) RenderFlames() {}
-
-// RenderStars is Render.c:420-448 and belongs to 1.5f. Same shape as the flames and
-// the other half of the parity alternation, so a star and a candle in one room are
-// each animated on alternate frames.
-func (w *World) RenderStars() {}
-
-// RenderDynamics, RenderFlyingPoints and RenderSparkles landed with 1.5c and live in
-// dynamics.go and sparkles.go.
-
-// RenderShreds is Render.c:559-612 and belongs to 1.5f: the confetti a paper
-// shredder makes of a glider. Without it a shredded glider dies with no animation.
-// Note when it lands that kShredSound is replayed on *every* growth frame, not once.
-func (w *World) RenderShreds() {}
-
-// RenderBands landed in 1.5e and is in bands.go, with the rest of RubberBands.c. It is
-// last in RenderFrame and therefore on top of everything, gliders included.
+//	HandleGrease                                grease.go (1.5e). The one that is not
+//	                                            a renderer: it advances simulation
+//	                                            state and rewrites hotSpots[]
+//	RenderPendulums, RenderFlames, RenderStars  anim.go (1.5f)
+//	RenderDynamics                              dynamics.go (1.5c)
+//	RenderFlyingPoints, RenderSparkles          sparkles.go (1.5c)
+//	RenderShreds                                shreds.go (1.5f)
+//	RenderBands                                 bands.go (1.5e). Last, and therefore
+//	                                            on top of everything, gliders included

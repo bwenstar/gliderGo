@@ -85,18 +85,31 @@ const kNumUndergroundFloors = 8
 // The five flame-like animation tables and the dynamic-object table, with the
 // caps from GliderDefines.h:255-265. Every entry in the first five also holds a
 // savedMaps slot, so these caps and kMaxSavedMaps interact.
+//
+// The caps stay unexported: refusing a registration is this package's decision.
 const (
-	kMaxCandles        = 20
-	kMaxTikis          = 8
-	kMaxCoals          = 8
-	kMaxPendulums      = 8
-	kMaxStars          = 4
-	kMaxDynamicObs     = 18
-	kNumCandleFrames   = 5
-	kNumTikiFrames     = 5
-	kNumCoalFrames     = 4
-	kNumPendulumFrames = 3
-	kNumStarFrames     = 6
+	kMaxCandles    = 20
+	kMaxTikis      = 8
+	kMaxCoals      = 8
+	kMaxPendulums  = 8
+	kMaxStars      = 4
+	kMaxDynamicObs = 18
+)
+
+// The five families' cel counts, which are how tall a filmstrip is baked here and how
+// far an animator counts before it wraps in internal/game/anim.go. Exported because
+// they are the one part of the strip layout both halves have to agree on; TestFrame-
+// CountsMatchTheSrcTables pins each against the src-rect table it indexes.
+//
+// NumCoalFrames is the C's kNumBBQCoals, renamed for the family it belongs to -- the
+// original's name reads like a table cap and is not one (that is kMaxCoals, 8).
+// RenderStars does not use its constant at all and writes a bare 6.
+const (
+	NumCandleFrames   int16 = 5
+	NumTikiFrames     int16 = 5
+	NumCoalFrames     int16 = 4
+	NumPendulumFrames int16 = 3
+	NumStarFrames     int16 = 6
 )
 
 // SavedMap is one entry in the savedMaps table (DynamicMaps.c:70-93): a patch of
@@ -127,29 +140,8 @@ type SavedMap struct {
 	Who   int16
 }
 
-// Anim is one entry in one of the five flame-like tables. Only the fields the
-// composition determines are here; the frame counters and phases are seeded from
-// RandomInt and belong to the animation stage.
-type Anim struct {
-	Dest     Rect // where on screen the frames are blitted
-	SavedMap int  // the savedMaps slot holding the background under Dest
-	Where    int16
-	Who      int16
-
-	// Stopped retires the entry. Only the pendulum and the star can be stopped --
-	// by collecting the cuckoo clock or the star they belong to -- and the C spells
-	// the same idea two ways: `pendulums[i].active = false` (DynamicMaps.c:698) and
-	// `theStars[i].mode = -1` (DynamicMaps.c:714). Both are read as a plain gate by
-	// Render.c:278 and :429, so one flag covers both.
-	//
-	// The two are not quite interchangeable in the C, and the difference does not
-	// matter only because nothing ever restarts either: a stopped pendulum keeps its
-	// phase in `mode` and would resume where it left off, while a stopped star has
-	// overwritten its phase with the sentinel and could not. 1.5f's animators read
-	// this flag; when they add their own phase field, the star's must not be
-	// re-seeded from it.
-	Stopped bool
-}
+// Anim, the five tables' entry type, is in anim.go beside the functions that fill
+// it and the filmstrips they bake.
 
 // Scene is the room composition: the geometry, the art, the house, and the
 // offscreen surfaces the original calls backSrcMap and workSrcMap.
@@ -220,6 +212,31 @@ type Scene struct {
 	// of the port -- see grease.go for why it is on Scene rather than behind a hook.
 	Grease []Grease
 
+	// SavedMapDrops is every registration this locale's 24 slots refused, and it has no
+	// counterpart in the original: DynamicMaps.c drops them silently.
+	//
+	// It is recorded because of what a drop *does*. Every caller of backUpToSavedMap
+	// gates the object's draw on the result, so the 25th animated object in view is not
+	// merely un-animated, it is **invisible** -- and the objects most likely to be over
+	// the line are stars and prizes, which are the ones a house is scored on. In 1994 a
+	// house author found this out by playing the room and noticing something missing. A
+	// port that ships a house editor (Stage 5) can tell them instead, and the release
+	// build's diagnostics can say it happened.
+	//
+	// Cleared by DrawLocale beside SavedMaps itself, so it always describes the locale
+	// currently composed. Nothing in the frame loop reads it; it is a report.
+	SavedMapDrops []SavedMapDrop
+
+	// ClockFrame is clockFrame (DynamicMaps.c:33), the pendulum phase counter shared
+	// by every cuckoo clock in the locale. Written here by addPendulum and stepped by
+	// the game side's RenderPendulums, so it sits with the table it paces rather than
+	// behind a hook.
+	//
+	// It is **not** in ZeroFlamesAndTheLike's reset list. addPendulum seeds it to 10
+	// on every registration, and a locale with no pendulum never reads it, so a stale
+	// value is unobservable -- which is presumably why nobody noticed it was missing.
+	ClockFrame int16
+
 	// ListLocalObjects is ListAllLocalObjects (Objects.c:300-348), called from the
 	// middle of DrawLocale. It is a hook because the object graph belongs to
 	// internal/game and the composition belongs here, and the two genuinely
@@ -257,6 +274,28 @@ type Scene struct {
 	// band in flight does not survive a room change.** Walking through a door
 	// deletes it, and the ammunition is not refunded.
 	KillAllBands func()
+
+	// ZeroShreds is the `numShredded = 0` of ZeroFlamesAndTheLike (DynamicMaps.c:794),
+	// a hook for KillAllBands' reason: the particle table is on World because
+	// AddAShreddedGlider is called from the player's own death animation, but the
+	// reset belongs to the composition.
+	//
+	// nil composes the same image, and what the reset means is the same shape as the
+	// bands': **a glider mid-shred does not leave its confetti behind on a room
+	// change.** Since a shredded glider is about to respawn elsewhere, the reset is
+	// the only thing that stops a dead player's pieces raining down in the next room.
+	ZeroShreds func()
+
+	// RandomInt is World.RandomInt, and it is the only hook here whose *return value*
+	// the composition depends on rather than merely reporting to. Four of the five
+	// animated families seed their starting cel from it and the pendulum draws for its
+	// direction, all five draws inside the saturation guard -- see anim.go for why
+	// that makes the RNG stream depend on the window size.
+	//
+	// nil returns 0 rather than panicking, which makes a render-only composition start
+	// every flame on cel 0. That is deterministic and invisible in the goldens, because
+	// a filmstrip lives in a saved map and never reaches the composed image.
+	RandomInt func(rng int16) int16
 
 	// AddDynamicObject is AddDynamicObject (Dynamics3.c:187-554), called from
 	// seventeen places inside DrawARoomsObjects. `where` is room-local, playOrigin
@@ -307,7 +346,13 @@ func (s *Scene) DrawLocale() {
 	// ZeroFlamesAndTheLike, ZeroDinahs, KillAllBands, ZeroMirrorRegion,
 	// ZeroTriggers, numTempManholes = 0. The trigger table is reset by
 	// World.Rebuild; the rest are here.
+	//
+	// ZeroFlamesAndTheLike is eight assignments. Six are the six tables cleared below;
+	// numShredded is on World and comes back through the ZeroShreds hook; numChimes is
+	// World.Rebuild's, because the count is read by the game's ambience clock and not by
+	// anything drawn. The one it does *not* touch is clockFrame -- see Scene.ClockFrame.
 	s.SavedMaps = s.SavedMaps[:0]
+	s.SavedMapDrops = s.SavedMapDrops[:0] // not the C's; see the field
 	s.Flames = s.Flames[:0]
 	s.TikiFlames = s.TikiFlames[:0]
 	s.Coals = s.Coals[:0]
@@ -321,6 +366,9 @@ func (s *Scene) DrawLocale() {
 	}
 	if s.KillAllBands != nil {
 		s.KillAllBands()
+	}
+	if s.ZeroShreds != nil {
+		s.ZeroShreds()
 	}
 
 	roomV := int16(0)
@@ -718,7 +766,9 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 			if isLit {
 				s.DrawTiki(itsRect, s.V.OriginV+VerticalRoomOffset(neighbor))
 			}
-			if !redraw {
+			if redraw {
+				s.ReBackUpTikiFlames(room, int16(i))
+			} else {
 				s.addTikiFlame(room, int16(i), itsRect.Left+10, itsRect.Top-9)
 			}
 
@@ -727,7 +777,9 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 				if isLit {
 					s.DrawPictSansWhiteObject(thisObject.What, itsRect)
 				}
-				if !redraw {
+				if redraw {
+					s.ReBackUpBBQCoals(room, int16(i))
+				} else {
 					s.addBBQCoals(room, int16(i), itsRect.Left+16, itsRect.Top+9)
 				}
 			}
@@ -820,7 +872,22 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 				legit = s.backUpToSavedMap(itsRect, room, int16(i), redraw)
 				if legit != -1 {
 					s.DrawCuckoo(itsRect)
-					if !redraw {
+					// The second of the clock's two saved-map slots: the one
+					// above holds the clock face so it can be erased when the
+					// prize is collected, and addPendulum claims another for
+					// the swing's filmstrip. Both are tagged (room, i), which
+					// is what anim.go's "missing break" note is about.
+					//
+					// **The draw is before the registration**, the opposite of
+					// the star's below, and for the opposite reason. A filmstrip
+					// is baked from the back map, so baking after DrawCuckoo is
+					// what puts the clock's case *behind* the pendulum in all
+					// three cels -- the pendulum swings in front of the case, so
+					// it needs the case as its background. A star, by contrast,
+					// *is* the thing its cels replace, so it registers first.
+					if redraw {
+						s.ReBackUpPendulum(room, int16(i))
+					} else {
 						s.addPendulum(room, int16(i), itsRect.Left+4, itsRect.Top+46)
 					}
 				}
@@ -881,7 +948,19 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 				if legit != -1 {
 					// A star costs two savedMaps slots: one here and one in
 					// AddStar for its own six-frame strip.
-					if !redraw {
+					//
+					// **The registration is before the draw, and that is not
+					// interchangeable.** Object draws land in the back map and
+					// a filmstrip is baked from the back map, so registering
+					// first is what keeps the static star *out* of the cels --
+					// which is required, because the cels are what replaces it.
+					// Swap the two lines and every cel of the spin has a
+					// stationary star painted underneath it. Contrast the
+					// cuckoo above, which draws first for the mirror-image
+					// reason.
+					if redraw {
+						s.ReBackUpStar(room, int16(i))
+					} else {
 						s.addStar(room, int16(i), itsRect.Left, itsRect.Top)
 					}
 					s.DrawSimplePrizes(thisObject.What, itsRect)
@@ -1143,8 +1222,12 @@ func (s *Scene) candleFlame(neighbor, who int, itsRect Rect, hOff, vOff int16, r
 			return
 		}
 	}
+	// Both arms take the *room number*, not the neighbour index --
+	// `ReBackUpFlames(localNumbers[neighbor], i)` in all six of the C's copies. The
+	// distinction matters because the guard above reads the neighbour index and the
+	// registration reads the room, and the two are only equal for room 0.
 	if redraw {
-		// ReBackUpFlames: re-stash under the existing slot.
+		s.ReBackUpFlames(room, int16(who))
 		return
 	}
 	s.addCandleFlame(room, int16(who), h, v)
@@ -1417,11 +1500,28 @@ func (s *Scene) backUpToSavedMap(theRect Rect, where, who int16, redraw bool) in
 		return -1
 	}
 	if len(s.SavedMaps) >= kMaxSavedMaps {
+		// Not in the original, which drops the registration silently. See
+		// Scene.SavedMapDrops for why a port that ships to house authors should not.
+		s.SavedMapDrops = append(s.SavedMapDrops,
+			SavedMapDrop{Where: where, Who: who, Rect: theRect})
 		return -1
 	}
 	s.SavedMaps = append(s.SavedMaps,
 		SavedMap{Map: s.patch(theRect), Dest: theRect, Where: where, Who: who})
 	return len(s.SavedMaps) - 1
+}
+
+// SavedMapDrop is one registration the 24-slot budget refused: which object asked, and for
+// what.
+//
+// The Rect names the family without needing a label, because no two of them ask for the same
+// size. A 16x75 request is a candle's filmstrip, 8x50 a torch's, 32x36 a barbecue's, 32x84 a
+// pendulum's, 32x186 a star's and 32x108 a grease jar's; anything else is an object claiming
+// a slot for its own rect so that it can be erased when it is collected.
+type SavedMapDrop struct {
+	Where int16 // the object's room number
+	Who   int16 // its slot in that room's object array
+	Rect  Rect  // the size it asked for
 }
 
 // patch copies a rect out of Back into a surface of its own.
@@ -1431,80 +1531,10 @@ func (s *Scene) patch(r Rect) *Surface {
 	return p
 }
 
-// AddGrease and ReBackUpGrease are Grease.c's and live in grease.go, beside the
-// table they write and the strip they bake.
-
-// addCandleFlame is DynamicMaps.c:316-343. The bounds handed to the saved map are
-// one frame wide and five frames tall, so the slot holds the frame strip as well
-// as the background.
-func (s *Scene) addCandleFlame(where, who, h, v int16) {
-	if len(s.Flames) >= kMaxCandles || h < 16 || v < 15 {
-		return
-	}
-	dest := Offset(SetRect(0, 0, 16, 15), h-8, v-15)
-	slot := s.backUpToSavedMap(SetRect(0, 0, 16, 15*kNumCandleFrames), where, who, false)
-	if slot == -1 {
-		return
-	}
-	s.Flames = append(s.Flames, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
-}
-
-// addTikiFlame is DynamicMaps.c:400-428. Unlike the candle the anchor is the
-// top-left, not the bottom-centre.
-func (s *Scene) addTikiFlame(where, who, h, v int16) {
-	if len(s.TikiFlames) >= kMaxTikis || h < 8 || v < 10 {
-		return
-	}
-	dest := Offset(SetRect(0, 0, 8, 10), h, v)
-	slot := s.backUpToSavedMap(SetRect(0, 0, 8, 10*kNumTikiFrames), where, who, false)
-	if slot == -1 {
-		return
-	}
-	s.TikiFlames = append(s.TikiFlames, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
-}
-
-// addBBQCoals is DynamicMaps.c:486-514.
-func (s *Scene) addBBQCoals(where, who, h, v int16) {
-	if len(s.Coals) >= kMaxCoals || h < 32 || v < 9 {
-		return
-	}
-	dest := Offset(SetRect(0, 0, 32, 9), h, v)
-	slot := s.backUpToSavedMap(SetRect(0, 0, 32, 9*kNumCoalFrames), where, who, false)
-	if slot == -1 {
-		return
-	}
-	s.Coals = append(s.Coals, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
-}
-
-// addPendulum is DynamicMaps.c:570-604. Note that the original claims the saved
-// map *before* computing dest, the opposite order from the flames -- immaterial,
-// but it is why a pendulum whose h or v is too small still short-circuits first.
-func (s *Scene) addPendulum(where, who, h, v int16) {
-	if len(s.Pendulums) >= kMaxPendulums || h < 32 || v < 28 {
-		return
-	}
-	slot := s.backUpToSavedMap(SetRect(0, 0, 32, 28*kNumPendulumFrames), where, who, false)
-	if slot == -1 {
-		return
-	}
-	dest := Offset(SetRect(0, 0, 32, 28), h, v)
-	s.Pendulums = append(s.Pendulums, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
-}
-
-// addStar is DynamicMaps.c:662-694. A star is the only object that consumes two
-// savedMaps slots: one claimed by DrawARoomsObjects for the star itself and one
-// here for its six-frame spin.
-func (s *Scene) addStar(where, who, h, v int16) {
-	if len(s.Stars) >= kMaxStars {
-		return
-	}
-	dest := Offset(SetRect(0, 0, 32, 31), h, v)
-	slot := s.backUpToSavedMap(SetRect(0, 0, 32, 31*kNumStarFrames), where, who, false)
-	if slot == -1 {
-		return
-	}
-	s.Stars = append(s.Stars, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
-}
+// The registration functions that were here are in two other files now, beside the
+// tables they write and the filmstrips they bake: AddGrease and ReBackUpGrease in
+// grease.go, and the five flame-like families' add/backUp/ReBackUp triples in
+// anim.go.
 
 // StopPendulum is DynamicMaps.c:693-702 and StopStar is DynamicMaps.c:709-718: the
 // cuckoo clock or the star this animation belongs to has been collected, so retire it.

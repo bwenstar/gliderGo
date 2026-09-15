@@ -46,9 +46,14 @@ func (w *World) OffAMortal(g *player.Glider) {
 		return
 	}
 
-	// The shred particles are cleared *before* anything else, because a glider that
+	// The shred particles are dropped *before* anything else, because a glider that
 	// died in a shredder leaves its own pieces on screen and the respawn below would
 	// otherwise draw the new glider into them.
+	//
+	// "Dropped", singular, and not "cleared": RemoveShreds takes out the single
+	// most-advanced cloud and can take out none at all. That is the original's and is
+	// documented in shreds.go rather than worked around here -- the guard reads as
+	// though the two lines together empty the table, and they do not.
 	if w.NumShredded > 0 {
 		w.RemoveShreds()
 	}
@@ -210,14 +215,6 @@ func (w *World) FlagGameOver() {
 // original's 30.07 fps.
 const NumCountDownFrames int16 = 16
 
-// RemoveShreds is DynamicMaps.c:744-775: drop every shredded-glider particle and
-// restore the background under it.
-//
-// A named no-op, not a comment at OffAMortal's call site. The particle table it walks
-// belongs to 1.5c's dynamics along with AddAShreddedGlider and RenderShreds, and
-// NumShredded is a real field that stays zero until they land -- so the guard in
-// OffAMortal is transcribed and live, and this becomes real without touching its
-// caller. See render_frame.go for the same convention on the nine renderers.
-func (w *World) RemoveShreds() {
-	w.NumShredded = 0
-}
+// RemoveShreds landed in 1.5f and is in shreds.go with the rest of the confetti. Read its
+// comment before trusting the call in OffAMortal above: despite the plural it removes one
+// cloud, and if the only cloud on screen is still growing it removes none.

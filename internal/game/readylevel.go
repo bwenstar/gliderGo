@@ -93,9 +93,10 @@ func (w *World) Rebuild() {
 	// point the C does, between the localNumbers loop and the first PaintRect.
 	w.R.ListLocalObjects = w.ListAllLocalObjects
 
-	// Four of the five dinahs hooks, plus KillAllBands. In the original these are
-	// ordinary calls inside RoomGraphics.c and ObjectDrawAll.c, because the dinahs table,
-	// the hotSpots table and the master-object graph are all globals in the same program.
+	// Four of the five dinahs hooks, plus three that reach the other way. In the original
+	// these are ordinary calls inside RoomGraphics.c and ObjectDrawAll.c, because the
+	// dinahs table, the hotSpots table and the master-object graph are all globals in the
+	// same program.
 	// Here the tables are internal/game's and the numbering is internal/render's, so the
 	// object pass reaches back across the boundary four times: it clears the table at the
 	// top, registers into it per object, reads a hotSpots index for the six switch kinds,
@@ -106,21 +107,37 @@ func (w *World) Rebuild() {
 	// Scene is rebuilt in place by DrawLocale and these four are the same kind of thing
 	// ListLocalObjects is -- the game half of one composition -- so a reader looking for
 	// what the renderer is allowed to call during a compose finds all five in one
-	// paragraph. The fifth, UpdateOutletsLighting, is *not* one of them and is bound in
-	// NewWorld; RedrawCentralRoom is its only caller and does not come through here.
+	// paragraph. The fifth dinahs hook, UpdateOutletsLighting, is *not* one of them and is
+	// bound in NewWorld; RedrawCentralRoom is its only caller and does not come through
+	// here.
 	//
-	// KillAllBands is the odd one out and is here for the same mechanical reason rather
-	// than the same conceptual one: it is DrawLocale's third reset line, but the band table
-	// is on World, so the renderer cannot clear it itself. Unlike the dinahs four a nil
-	// hook composes an identical image -- bands are drawn by RenderBands, which the
-	// renderer's own goldens never reach -- so it is safe to leave unbound in a
-	// render-only test. What it *means* is that a band in flight does not survive a room
-	// change, and the ammunition is not refunded.
+	// KillAllBands and ZeroShreds are here for the same mechanical reason rather than the
+	// same conceptual one: both are lines in DrawLocale's reset head, and both clear a
+	// table that lives on World, so the renderer cannot clear them itself. Unlike the
+	// dinahs four, a nil hook for either composes an identical image -- bands and shreds
+	// are drawn by RenderBands and RenderShreds, which the renderer's own goldens never
+	// reach -- so both are safe to leave unbound in a render-only test. What KillAllBands
+	// *means* is that a band in flight does not survive a room change and the ammunition
+	// is not refunded; ZeroShreds is numShredded's line in ZeroFlamesAndTheLike, one of its
+	// eight assignments. It is not the only one of the eight on this side -- numChimes is
+	// too -- but it is the only one that needs a hook, because numChimes is cleared by the
+	// direct assignment just below rather than during the compose.
+	//
+	// RandomInt is the odd one of the seven, and the only hook in the file whose *return*
+	// *value* the composition depends on. The five add* functions in render/anim.go each
+	// draw a starting cel from it, so with it bound the room-load RNG stream matches the
+	// original's, and with it nil every flame starts on cel 0. Nil is deterministic and
+	// invisible in a still image -- a filmstrip lives in a saved map and never reaches
+	// the composed frame -- which is why the renderer's own tests can leave it unbound
+	// and still hash the same pixels. See render/anim.go for why the draws are where
+	// they are and what saturating the saved-map table does to the stream.
 	w.R.ZeroDinahs = w.ZeroDinahs
 	w.R.AddDynamicObject = w.AddDynamicObject
 	w.R.SetDynaNum = w.SetDynaNum
 	w.R.MasterHotNum = w.MasterHotNum
 	w.R.KillAllBands = w.KillAllBands
+	w.R.ZeroShreds = w.ZeroShreds
+	w.R.RandomInt = w.RandomInt
 
 	w.R.NumChimes = 0
 	w.R.DrawLocale()

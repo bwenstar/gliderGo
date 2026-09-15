@@ -209,13 +209,15 @@ type World struct {
 	GameOver  bool
 	CountDown int16
 
-	// NumShredded is numShredded (DynamicMaps.c:33): how many shredded-glider
-	// confetti clouds are live.
+	// Shreds is shreds[] and NumShredded is numShredded (DynamicMaps.c:29, :33): the
+	// confetti a paper shredder makes of a glider, and how many clouds are live.
 	//
-	// The table itself and every writer of this counter are 1.5f's. It is here now
-	// because OffAMortal's first act is to drop them (`if (numShredded > 0)
-	// RemoveShreds()`), and a counter that is always zero with a no-op RemoveShreds
-	// beside it keeps that statement transcribed in place rather than remembered.
+	// A fixed array rather than a slice, unlike the five animation tables next door on
+	// Scene. Those are appended to and their length *is* their count; this one is
+	// swap-removed from by RemoveShreds, which needs a slot to swap into and reads
+	// entries above the counter to do it. Making the counter implicit would mean
+	// rewriting that function rather than transcribing it. See shreds.go.
+	Shreds      [MaxShredded]Shred
 	NumShredded int16
 
 	// MusicMode and MusicCursor are musicMode and musicCursor (Music.c): which score

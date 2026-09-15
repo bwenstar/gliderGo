@@ -372,8 +372,14 @@ func TestDrawLocaleWithoutArt(t *testing.T) {
 // It is also the only test that exercises the whole composition. All 22 houses
 // and every one of their rooms go through it, which reaches the paths a
 // hand-written case never would: the houses that redefine application art, the
-// off-palette pictures, the rooms whose saved-map table overflows, the
+// off-palette pictures, the busiest saved-map tables in the corpus, the
 // off-the-map neighbours at every elevation.
+//
+// It does *not* reach saturation. An earlier version of this comment claimed the
+// corpus contained rooms whose saved-map table overflows; the census added in 1.5f
+// measured it and the busiest locale in 4,070 rooms claims 16 of the 24 slots. The
+// dr= column is what checks that, room by room -- see
+// TestTheSavedMapBudgetSaturatesInShippedContent.
 func TestComposeEveryRoom(t *testing.T) {
 	artDir := requireAssets(t, "art")
 	houseDir := requireAssets(t, "houses")
@@ -480,10 +486,18 @@ func digest(s *Surface) string {
 // dynamic tables are as much a product of DrawLocale as the pixels are -- the
 // 24-slot saved-map cap decides which clocks appear at all -- so they are pinned
 // beside the hash where a diff will show them.
+// tally is the golden's second half: the size of every table the composition filled.
+//
+// dr= is the odd one, because it counts something that did *not* happen -- registrations the
+// 24-slot budget refused. It is in the golden rather than in a test of its own because
+// saturation is a property of the shipped content: which rooms are over budget is a fact about
+// the 22 houses, and the corpus is the only place to state it once. See
+// TestTheSavedMapBudgetSaturatesInShippedContent, which reads the same number and says which
+// objects went missing.
 func tally(s *Scene, dynamics int) string {
-	return fmt.Sprintf("sm=%d fl=%d tk=%d co=%d pd=%d st=%d dy=%d mh=%d mr=%d",
-		len(s.SavedMaps), len(s.Flames), len(s.TikiFlames), len(s.Coals),
-		len(s.Pendulums), len(s.Stars), dynamics, len(s.TempManholes),
+	return fmt.Sprintf("sm=%d dr=%d fl=%d tk=%d co=%d pd=%d st=%d dy=%d mh=%d mr=%d",
+		len(s.SavedMaps), len(s.SavedMapDrops), len(s.Flames), len(s.TikiFlames),
+		len(s.Coals), len(s.Pendulums), len(s.Stars), dynamics, len(s.TempManholes),
 		len(s.MirrorRects))
 }
 
