@@ -455,6 +455,48 @@ for, but that is a fix for the tooling and not for the player.
 1.7 owes the pause a visible state: a dimmed frame and a "paused — click to resume" line,
 shared with `DoPause` (2.5) so both kinds of pause look the same.
 
+### 2.29 The scoreboard has no font, so its three text panels are blank — **planned, 1.5b, the next commit**
+
+`render.Scoreboard.Panel` clears a panel to `kGrayBackgroundColor` and does not draw the
+string it is handed. So the band is on screen (2.9), the four badges light and blink, and
+the room name, the glider count and the score are three flat gray patches — invisible
+against the board art's recesses, which is what the C's `PaintRect` leaves too, but with
+nothing drawn over them.
+
+The reason is not laziness about glyph rasterising: the original's scoreboard text is the
+Macintosh **application font** at 12 point bold, set by `TextFont(applFont)` three times in
+`InitScoreboardMap` (`StructuresInit.c:109-133`). `applFont` resolves to Geneva on classic
+Mac OS, which is a *system* resource — it is not in Glider PRO's resource fork, so there is
+nothing for `glidertool` to extract and no way to be pixel-faithful here by transcription.
+A font has to be authored, and authoring one is a different kind of work from porting one.
+
+The next commit adds a hand-authored fixed-width bitmap set (ASCII 32..126) and wires it
+into `Panel` at the pen positions the original uses — black at (1,10), white at (0,9), the
+one-pixel drop shadow. It will not be Geneva: 1.7 owes the real metrics, and a house whose
+name is longer than the panel is wide will clip rather than ellipsise until then. Two things
+become testable the moment it lands, and both are noted in
+`internal/game/scoreboard_test.go`: the glider-count clamp (`refreshNumGliders` clamps
+`Mortals` at 0, `QuickGlidersRefresh` deliberately does not, and today both draw the same
+nothing) and the score roll's intermediate numbers.
+
+### 2.30 `JustRoomsRect` lives on the `View` and is written by game code — **note; revisit if a process ever runs two games**
+
+`game.placeScoreboard` assigns `w.R.V.JustRoomsRect`, reaching through the Scene into the
+View to do it. That is the original's structure — `justRoomsRect` is a global that
+`AdjustScoreboardHeight` writes — and the port's plan document wanted the field on `World`
+instead, where the rest of the per-game state lives.
+
+It is left where it is because the alternative is worse today: `render.RenderFrame` and the
+update-event blit both read it, so moving it to `World` means either passing it down through
+the renderer or having two copies that can disagree. And there is exactly one game per
+process, so the mutation happens once, before the first frame.
+
+What makes it a note rather than a shrug: it is the one field on `View` that is not a pure
+function of the screen size, so a second view — a resizable window (2.1), a split-screen
+two-player mode, or a test that builds two worlds on one view — would find it stale. The
+fix at that point is a `World.JustRoomsRect` plus a parameter on the two render entry
+points, and it is cheap; it is only cheap *now* because nothing else writes it.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have

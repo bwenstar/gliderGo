@@ -217,25 +217,18 @@ func (w *World) Survivor() *player.Glider {
 // Not yet implemented: the nine that belong to later work
 // ---------------------------------------------------------------------------
 //
-// Eight of the 48: seven with empty bodies and AddBand, which has to return something.
+// Four of the 48: three with empty bodies and AddBand, which has to return something.
 // These are honest stubs, not approximations. Each says which commit or sub-stage fills
 // it and what the stub's behaviour means in the meantime, because a stub that silently
 // does something plausible is worse than one that does nothing: the first hides a gap and
 // the second is visible in a test.
 //
-// The nine the previous commit listed here and this one does not -- the dirty-rect
-// protocol, the four transit handlers, OffAMortal, FlagStillOvers and ForceKillGlider --
-// are now real, in render_frame.go, screen.go, transit.go, mortal.go and
-// interactions.go. That is what makes the game playable.
-
-// QuickBatteryRefresh, QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard are
-// Scoreboard.c's per-frame half, landing in 1.5b's second commit with the rest of the
-// scoreboard. Until then the inventory changes and nothing on screen says so, which is
-// a cosmetic gap and not a simulation one -- no game state reads the scoreboard back.
-func (w *World) QuickBatteryRefresh(force bool) {}
-func (w *World) QuickBandsRefresh(force bool)   {}
-func (w *World) QuickFoilRefresh(force bool)    {}
-func (w *World) RefreshScoreboard(mode int16)   {}
+// The four this commit removed are Scoreboard.c's -- QuickBatteryRefresh,
+// QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard -- now real in scoreboard.go
+// alongside the seven functions of that file that no interface names. The nine removed
+// before them were the dirty-rect protocol, the four transit handlers, OffAMortal,
+// FlagStillOvers and ForceKillGlider. Between them that is what makes the game playable
+// and what puts a score on the screen.
 
 // AddBand is Input.c:352-361 and belongs to 1.5e, bands and grease. It returns false --
 // "the band array is full" -- which is the correct stub, and not merely a safe one: the

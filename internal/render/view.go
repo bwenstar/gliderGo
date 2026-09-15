@@ -124,6 +124,40 @@ type View struct {
 
 	// SuppRect is the floor-support beam's bounds, 512x44.
 	SuppRect Rect
+
+	// The scoreboard's construction-time geometry (StructuresInit.c:59-163).
+	//
+	// All twenty-three rects live here, on the view, because every one of them is a
+	// function of the screen's size and nothing else -- InitScoreboardMap computes them
+	// once at launch from houseRect and never touches them again. The seven that
+	// AdjustScoreboardHeight *moves* are copied onto World at the start of a game and
+	// moved there; these stay put, so the port's AdjustScoreboardHeight can assign rather
+	// than accumulate. See game.World.BoardDestRect and game.AdjustScoreboardHeight.
+	//
+	// The Src rects are all origin-cornered and are therefore each just a size. They are
+	// still named and stored, rather than derived at each blit from the surface's bounds,
+	// because the C passes them to CopyBits by name and a reader diffing the two wants to
+	// see the same argument.
+	BoardSrc  Rect // boardSrcRect: the whole band, screen-wide by 20
+	BoardDest Rect // boardDestRect: rows -20..0, and see World for why the port moves it
+
+	BoardTSrc, BoardTDest Rect // 256x12, the room title, into BoardSrc at (137,5)
+	BoardGSrc, BoardGDest Rect // 20x10, the glider count, into BoardSrc at (526,5)
+	BoardPSrc, BoardPDest Rect // 64x10, the score, into BoardSrc at (570,5)
+
+	// BoardGQDest and BoardPQDest are where the glider count and the score go when they
+	// are refreshed *on their own* -- straight to the screen, bypassing the board map.
+	// They are the two panels' board-map positions translated up by the band's height,
+	// which is exactly BoardDest's own translation, so all three move together.
+	BoardGQDest, BoardPQDest Rect
+
+	// BadgeSrc is the four badges' shared sheet, 32x66: two columns by four rows.
+	// BadgesBlank indexes the left column and BadgesBadges the right, so blank and lit
+	// are the same cell sixteen pixels apart. The rows are not all the same height --
+	// foil and bands are 16, battery and helium 17 -- which is why each cell is stored
+	// rather than computed from an index.
+	BadgeSrc                              Rect
+	BadgesBlank, BadgesBadges, BadgesDest [4]Rect
 }
 
 // NewView reproduces InterfaceInit.c:196-218 for a screen of the given size.
@@ -158,6 +192,7 @@ func NewView(screenW, screenH int16) *View {
 	v.BackRect = ZeroCorner(v.House)
 	v.JustRoomsRect = ZeroCorner(v.House)
 	v.SuppRect = SetRect(0, 0, kRoomWide, kFloorSupportTall)
+	v.initScoreboard()
 	return v
 }
 

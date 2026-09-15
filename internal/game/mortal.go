@@ -221,12 +221,3 @@ const NumCountDownFrames int16 = 16
 func (w *World) RemoveShreds() {
 	w.NumShredded = 0
 }
-
-// QuickGlidersRefresh is Scoreboard.c: redraw the little glider icons that show how many
-// mortals are left.
-//
-// Its one caller is the respawn branch of OffAMortal, and it is called *before*
-// HideGlider rather than after, so the count on the scoreboard drops a moment before the
-// glider disappears from the room. Landing with the rest of the scoreboard in 1.5b's
-// second commit, next to the three Quick*Refresh stubs in env.go.
-func (w *World) QuickGlidersRefresh() {}

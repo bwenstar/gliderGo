@@ -477,6 +477,35 @@ type World struct {
 	// keeps the latch anyway.
 	WasScoreboardMode int16
 
+	// Board is the scoreboard's five offscreen maps (StructuresInit.c's boardSrcMap and
+	// friends). Created once per world, deliberately not per locale: the score does not
+	// reset when the player walks through a door, so it cannot live on the Scene that
+	// DrawLocale rebuilds.
+	Board *render.Scoreboard
+
+	// DisplayedScore is `displayedScore` and DoRollScore is `doRollScore`
+	// (Scoreboard.c:40-42): the score the board is currently showing, and whether it is
+	// allowed to walk up to Score a few points at a time instead of jumping.
+	//
+	// The pair is what makes collecting a prize feel like collecting a prize: the number
+	// climbs at ScoreRollAmount a frame with a tick of sound per step. DoRollScore is set
+	// by every RefreshScoreboard and is never cleared anywhere in the shipped source, so
+	// the "jump straight to the total" branch is dead code -- see HandleDynamicScoreboard.
+	DisplayedScore int32
+	DoRollScore    bool
+
+	// The seven rects AdjustScoreboardHeight moves. Their unmoved forms are on
+	// render.View, computed once from the screen's size; these are the placed copies, and
+	// they are on World because the placement is a property of the game's chosen view.
+	//
+	// BoardGQDestRect and BoardPQDestRect are `boardGQDestRect` and `boardPQDestRect`:
+	// where the glider count and the score go when either is refreshed on its own,
+	// straight to the screen. BadgesDestRects is `badgesDestRects`, indexed by
+	// render.FoilBadge and its three companions.
+	BoardGQDestRect render.Rect
+	BoardPQDestRect render.Rect
+	BadgesDestRects [4]render.Rect
+
 	// BoardDestRect is `boardDestRect` (StructuresInit.c:97-98): where on the screen the
 	// scoreboard is blitted.
 	//
@@ -600,15 +629,6 @@ func NewWorld(h *house.House, sc *render.Scene, seed int32) *World {
 		WasScoreboardMode: ScoreboardHigh,
 	}
 
-	// StructuresInit.c:97-98, with the port's deviation. See World.BoardDestRect for why
-	// the original's rows -20..0 become rows 460..480 here.
-	w.BoardDestRect = render.Rect{
-		Top:    sc.V.Screen.Bottom - ScoreboardTall,
-		Left:   sc.V.Screen.Left,
-		Bottom: sc.V.Screen.Bottom,
-		Right:  sc.V.Screen.Right,
-	}
-
 	// InterfaceInit.c:147-152, the launch-time glider identity. It is *not* in
 	// NewGame, and putting it there would be wrong in a way that is invisible for one
 	// player and fatal for two: NewGame runs once per game, and these are the
@@ -643,6 +663,19 @@ func NewWorld(h *house.House, sc *render.Scene, seed int32) *World {
 	// starts white, as a freshly created GWorld did; NewGame paints it before the
 	// first frame reaches it.
 	w.Main = render.NewSurface(int(sc.V.Screen.Wide()), int(sc.V.Screen.Tall()))
+
+	// InitScoreboardMap's tail (StructuresInit.c:74-160): the five offscreen maps, and the
+	// seven movable rects put where WasScoreboardMode already claims they are.
+	//
+	// The seeding is not redundant with AdjustScoreboardHeight, it is what makes that
+	// function's latch tell the truth. The latch starts at ScoreboardHigh and the
+	// nine-neighbour default *is* High, so NewGame's one call returns without doing
+	// anything -- which in the C leaves the rects at their construction values, rows
+	// -20..0, and is the whole reason the shipped game shows no scoreboard. Placing them
+	// here means the latch and the rects agree from the first frame, and the port's
+	// deviated High position is stated in exactly one place, placeScoreboard.
+	w.Board = render.NewScoreboard(sc.V, sc.A)
+	w.placeScoreboard(w.WasScoreboardMode)
 	return w
 }
 

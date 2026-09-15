@@ -43,9 +43,16 @@ type Env interface {
 	SetShowFoil(on bool)
 
 	// ---- scoreboard and dirty rects ---------------------------------------
-	QuickBatteryRefresh(force bool)
-	QuickBandsRefresh(force bool)
-	QuickFoilRefresh(force bool)
+	//
+	// `flash` is the C's own parameter name and it means **draw the blank badge cell**:
+	// it is the hide half of the low-inventory blink, not a "force a redraw" flag. Every
+	// call from this package passes false, because a pickup wants the badge lit; the true
+	// case has one caller, the blink schedule in Scoreboard.c's HandleDynamicScoreboard.
+	// No implementation is allowed to skip the blit, cache the last value or test for a
+	// change -- the blink is made of unconditional redraws.
+	QuickBatteryRefresh(flash bool)
+	QuickBandsRefresh(flash bool)
+	QuickFoilRefresh(flash bool)
 	RefreshScoreboard(mode int16)
 
 	// AddRectToWorkRects and CopyRectWorkToMain are the dirty-rect calls the mode
