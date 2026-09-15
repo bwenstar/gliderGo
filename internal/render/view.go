@@ -111,6 +111,17 @@ type View struct {
 	// House zero-cornered, hence equal to each other.
 	WorkRect, BackRect Rect
 
+	// JustRoomsRect is `justRoomsRect` (Play.c:48), set at
+	// StructuresInit2.c:153-154 to ZeroRectCorner(houseRect) -- so at 640x480 it
+	// is numerically identical to WorkRect and BackRect.
+	//
+	// It is a separate field because it is a separate thing: it is the rect the
+	// screen blit is clamped and dumped against (Render.c:70-77, Play.c:172), and
+	// the one the update event repaints (Play.c:403). The three agreeing at this
+	// resolution is arithmetic, not design, and collapsing them would hide which
+	// of the three a given call site meant.
+	JustRoomsRect Rect
+
 	// SuppRect is the floor-support beam's bounds, 512x44.
 	SuppRect Rect
 }
@@ -145,6 +156,7 @@ func NewView(screenW, screenH int16) *View {
 
 	v.WorkRect = ZeroCorner(v.House)
 	v.BackRect = ZeroCorner(v.House)
+	v.JustRoomsRect = ZeroCorner(v.House)
 	v.SuppRect = SetRect(0, 0, kRoomWide, kFloorSupportTall)
 	return v
 }

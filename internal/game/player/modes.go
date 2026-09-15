@@ -85,9 +85,12 @@ func (g *Glider) StartGliderFadingOut(e Env) {
 	g.settleFoil(e)
 
 	if g.Dest.Tall() > GliderHigh {
-		e.AddRectToWorkRects(g.Dest)
+		e.AddRectToWorkRects(g.Dest.Offset(e.PlayOriginH(), e.PlayOriginV()))
 		if e.HasMirror() {
-			e.AddRectToWorkRects(g.Dest.Offset(MirrorOffsetH, MirrorOffsetV))
+			// Modes.c:95 re-derives from Dest and offsets by playOriginH-20,
+			// playOriginV-16 -- not by offsetting the rect it just built.
+			e.AddRectToWorkRects(g.Dest.Offset(
+				e.PlayOriginH()+MirrorOffsetH, e.PlayOriginV()+MirrorOffsetV))
 		}
 		g.Dest.Right = g.Dest.Left + GliderWide
 		g.Dest.Top = g.Dest.Bottom - GliderHigh
@@ -505,4 +508,48 @@ func (g *Glider) stopDead() {
 // corpse would be turned, moved and un-limboed along with the survivor.
 func (g *Glider) deadAndDone(e Env) bool {
 	return e.TwoPlayerGame() && e.OnePlayerLeft() && g.Which == e.PlayerDead()
+}
+
+// OffsetGlider is Player.c:1443-1481: teleport the glider one whole room in a
+// direction, so that a glider walking off the right edge of one room reappears at the
+// left edge of the next.
+//
+// This is the entire mechanism by which the glider "walks between rooms". The room
+// changes underneath it and the glider's coordinates are shifted by one room's width
+// or one tile's height, which lands it just inside the new room -- because room-local
+// coordinates are the same in every room.
+//
+// The asymmetry is not a bug. Horizontal moves shift DestShadow too; vertical moves
+// do not, because the shadow's vertical position is a property of the floor
+// (ShadowTop), which is the same in the room above as in this one. Both arms then
+// collapse Whole onto Dest, discarding the swept rect: nothing needs erasing in the
+// old room because the whole room is about to be redrawn.
+func (g *Glider) OffsetGlider(e Env, where int16) {
+	if g.deadAndDone(e) {
+		return
+	}
+	switch where {
+	case ToRight:
+		g.Dest.Left += RoomWide
+		g.Dest.Right += RoomWide
+		g.DestShadow.Left += RoomWide
+		g.DestShadow.Right += RoomWide
+		g.Whole = g.Dest
+		g.WholeShadow = g.DestShadow
+	case ToLeft:
+		g.Dest.Left -= RoomWide
+		g.Dest.Right -= RoomWide
+		g.DestShadow.Left -= RoomWide
+		g.DestShadow.Right -= RoomWide
+		g.Whole = g.Dest
+		g.WholeShadow = g.DestShadow
+	case Above:
+		g.Dest.Top -= TileHigh
+		g.Dest.Bottom -= TileHigh
+		g.Whole = g.Dest
+	case Below:
+		g.Dest.Top += TileHigh
+		g.Dest.Bottom += TileHigh
+		g.Whole = g.Dest
+	}
 }

@@ -448,6 +448,40 @@ func (dst *Surface) copy1to1(src *Surface, srcRect, dstRect Rect, mode CopyMode,
 	}
 }
 
+// CopyClipped is Copy under a Toolbox clip region: SetClip(rgn), CopyBits,
+// SetClip(wasClip). Only pixels inside one of the clip rects are written.
+//
+// Its one caller is DrawReflection (Render.c:157-180), which clips the glider to
+// mirrorRgn so that a reflection is only drawn where there is a mirror to draw it
+// in. mirrorRgn is built by UnionRgn over one rect per mirror object
+// (Render.c:740-753), and Scene.MirrorRects is that list, so a loop over the rects
+// is not an approximation of the region -- it is the region, in the form it was
+// assembled from.
+//
+// An empty clip draws nothing, which is correct: the C's mirrorRgn is empty in a
+// room with no mirror, and DrawReflection is not called there anyway because
+// hasMirror gates it.
+//
+// Overlapping clip rects composite twice. That is harmless for the only caller --
+// the glider sheet is masked and idempotent under Masked mode, so the second write
+// puts back the same pixel -- but it is a real difference from a region, which is a
+// set, and it is written down here because it is the one way the equivalence breaks
+// if a future caller uses Transparent mode with a pattern.
+func (dst *Surface) CopyClipped(src *Surface, srcRect, dstRect Rect, mode CopyMode, clip []Rect) {
+	for _, c := range clip {
+		part, ok := Sect(dstRect, c)
+		if !ok {
+			continue
+		}
+		// Shift the source by the same delta the clip took off the destination, so
+		// the visible sliver still reads the pixels that belong under it.
+		s := Offset(srcRect, part.Left-dstRect.Left, part.Top-dstRect.Top)
+		s.Right = s.Left + part.Wide()
+		s.Bottom = s.Top + part.Tall()
+		dst.Copy(src, s, part, mode)
+	}
+}
+
 // CopyFull copies the whole of src over the whole of dst, which is what
 // ReadyBackMap and RestoreWorkMap do (RoomGraphics.c:380,393). Both surfaces are
 // the same size in every call the game makes.
@@ -476,8 +510,8 @@ func (s *Surface) ToPaletted() *image.Paletted {
 	return img
 }
 
-// ToRGBA converts to straight RGBA, honouring the mask as alpha. This is the
-// only place the palette is applied.
+// ToRGBA converts to straight RGBA, honouring the mask as alpha. This and
+// ToBGRX are the only places the palette is applied.
 func (s *Surface) ToRGBA() *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, s.W, s.H))
 	for y := 0; y < s.H; y++ {
@@ -490,4 +524,47 @@ func (s *Surface) ToRGBA() *image.RGBA {
 		}
 	}
 	return img
+}
+
+// bgrxLUT is Palette pre-expanded to the byte order a platform framebuffer
+// wants, so the per-frame conversion is one indexed load and one 32-bit store per
+// pixel instead of a struct copy and four byte stores.
+//
+// **Filled by palette.go's init, not by an initializer here.** It cannot be an
+// initializer expression: those all run before any init function, and because
+// Palette has no initializer of its own the compiler sees no dependency and
+// happily builds this table out of 256 zero entries. See the note at the bottom of
+// palette.go's init for what that looked like when it happened.
+var bgrxLUT [256]uint32
+
+// ToBGRX expands the surface into a 32-bit little-endian BGRX buffer -- the
+// format internal/platform.Framebuffer holds, which is what every backend this
+// port has wants to upload.
+//
+// It ignores Mask entirely, because the only surface it is ever called on is the
+// screen, and a screen has no transparency: the original's mainWindow was the
+// frame buffer itself and CopyBits into it was unconditional. Calling this on an
+// art sheet would flatten its transparent pixels to white, which is a real
+// difference from ToRGBA and the reason the two are separate methods rather than
+// one with a flag.
+//
+// stride is in bytes and may exceed 4*s.W; rows beyond the surface and pixels
+// beyond its width are left alone, so a larger destination keeps whatever was
+// there. Nothing is allocated, which is the point: this runs 30 times a second.
+func (s *Surface) ToBGRX(dst []byte, stride int) {
+	for y := 0; y < s.H; y++ {
+		row := y * stride
+		if row+4*s.W > len(dst) {
+			return
+		}
+		src := s.Pix[y*s.W : (y+1)*s.W]
+		for x, idx := range src {
+			v := bgrxLUT[idx]
+			o := row + 4*x
+			dst[o] = byte(v)
+			dst[o+1] = byte(v >> 8)
+			dst[o+2] = byte(v >> 16)
+			dst[o+3] = byte(v >> 24)
+		}
+	}
 }

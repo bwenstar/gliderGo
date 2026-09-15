@@ -147,6 +147,28 @@ const (
 	ShredderActiveHigh int16 = 40
 )
 
+// RoomVisitScore is kRoomVisitScore (GliderDefines.h:536): what entering a room
+// for the first time is worth.
+//
+// It is int32 because theScore is a long, and it is the only score award in the
+// transit path. HandleRoomVisitation pays it for the room being *left*, not the one
+// being entered -- see that function.
+const RoomVisitScore int32 = 100
+
+// The three scoreboard title modes (GliderDefines.h:619-621), the argument to
+// RefreshScoreboard.
+//
+// NormalTitleMode draws the house name; every transit handler ends by restoring it.
+// EscapedTitleMode replaces it with the two-player "waiting for the other player"
+// banner and is passed at seventeen sites, all of them a glider going into limbo --
+// seven in Player.c and ten in Interactions.c, i.e. once per way out of a room per
+// player. SavingTitleMode has one caller, Input.c:67, and belongs to 1.10.
+const (
+	NormalTitleMode  int16 = 0
+	EscapedTitleMode int16 = 1
+	SavingTitleMode  int16 = 2
+)
+
 // Where a house's own resources begin, and where a custom background stops being
 // assumed to be an interior (GliderDefines.h:245-246).
 const (

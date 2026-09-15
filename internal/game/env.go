@@ -52,15 +52,34 @@ func (w *World) SetBandsTotal(n int16)   { w.Bands = n }
 func (w *World) FoilTotal() int16        { return w.Foil }
 func (w *World) SetFoilTotal(n int16)    { w.Foil = n }
 
-// SetShowFoil is the `showFoil` write at Player.c:1144-1152.
+// SetShowFoil is the `showFoil` write plus the sheet reload around it:
+// DeckGliderInFoil (Player.c:1142-1152) when on, RemoveFoilFromGlider
+// (Player.c:1202-1213) when off.
 //
-// It is a graphics-state change and not just a flag: the original swaps the entire
-// glider sprite sheet rather than tinting the sprite, so the next frame's RenderGlider
-// reads from a different atlas. Storing the flag is all this stage can do -- the atlas
-// swap is in the renderer and lands with RenderGlider in 1.5b's first commit -- but the
-// flag has to be stored *now* because the count and the artwork legitimately disagree
-// for one frame and the player code depends on that.
-func (w *World) SetShowFoil(on bool) { w.ShowFoil = on }
+// It is a graphics-state change and not just a flag, because the original swaps the
+// entire glider sprite sheet rather than tinting the sprite. But *only in a two-player
+// game*: both of the C's reload blocks are inside `if (twoPlayerGame)`. In a one-player
+// game nothing is reloaded at all, because the foil sheet is permanently resident in
+// the second slot and RenderGlider selects it from the flag instead. LoadGliderSheets
+// has the full table and the reason it is arranged that way.
+//
+// So the reload is conditional and the flag is not. That asymmetry is the whole
+// content of this function, and it is also why the flag has to be stored even where
+// there is nothing to reload: the count and the artwork legitimately disagree for one
+// frame while the dissolve runs, and the player code depends on that.
+func (w *World) SetShowFoil(on bool) {
+	w.ShowFoil = on
+	if !w.TwoPlayer {
+		return
+	}
+	if on {
+		w.GlidSrc = w.R.A.Strip("gliderFoil")
+		w.Glid2Src = w.R.A.Strip("gliderFoil2")
+		return
+	}
+	w.GlidSrc = w.R.A.Strip("glider")
+	w.Glid2Src = w.R.A.Strip("glider2")
+}
 
 // ---------------------------------------------------------------------------
 // Room geometry
@@ -149,6 +168,18 @@ func (w *World) GetDownStairsLeftEdge() int16 {
 // glider's own draw for the frame a staircase transition completes.
 func (w *World) SetTakingTheStairs(v bool) { w.R.TakingTheStairs = v }
 
+// PlayOriginH and PlayOriginV are `playOriginH` and `playOriginV`
+// (InterfaceInit.c:213-214): the screen position of room-local (0,0), which at 640x480
+// is (64,79).
+//
+// They are on the interface because the player package works in room-local coordinates
+// and hands rects to AddRectToWorkRects and CopyRectWorkToMain in *screen* coordinates,
+// so it has to do the addition itself -- exactly as the C does, at Modes.c:88-96 and
+// Player.c:60-64. See player.Env's contract note for why the offset is not folded into
+// the adders.
+func (w *World) PlayOriginH() int16 { return w.R.V.OriginH }
+func (w *World) PlayOriginV() int16 { return w.R.V.OriginV }
+
 // ---------------------------------------------------------------------------
 // Two-player state
 // ---------------------------------------------------------------------------
@@ -183,18 +214,19 @@ func (w *World) Survivor() *player.Glider {
 }
 
 // ---------------------------------------------------------------------------
-// Not yet implemented: the seventeen that belong to later work
+// Not yet implemented: the nine that belong to later work
 // ---------------------------------------------------------------------------
 //
-// Seventeen of the 46: sixteen with empty bodies and AddBand, which has to return
-// something. These are honest stubs, not approximations. Each says which commit or
-// sub-stage fills it and what the stub's behaviour means in the meantime, because a stub
-// that silently does something plausible is worse than one that does nothing: the first
-// hides a gap and the second is visible in a test.
+// Eight of the 48: seven with empty bodies and AddBand, which has to return something.
+// These are honest stubs, not approximations. Each says which commit or sub-stage fills
+// it and what the stub's behaviour means in the meantime, because a stub that silently
+// does something plausible is worse than one that does nothing: the first hides a gap and
+// the second is visible in a test.
 //
-// They exist at all so that *World satisfies player.Env today. That is worth having
-// before they are filled, because it is what lets the frame loop be written and run
-// against a real World instead of NopEnv.
+// The nine the previous commit listed here and this one does not -- the dirty-rect
+// protocol, the four transit handlers, OffAMortal, FlagStillOvers and ForceKillGlider --
+// are now real, in render_frame.go, screen.go, transit.go, mortal.go and
+// interactions.go. That is what makes the game playable.
 
 // QuickBatteryRefresh, QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard are
 // Scoreboard.c's per-frame half, landing in 1.5b's second commit with the rest of the
@@ -204,37 +236,6 @@ func (w *World) QuickBatteryRefresh(force bool) {}
 func (w *World) QuickBandsRefresh(force bool)   {}
 func (w *World) QuickFoilRefresh(force bool)    {}
 func (w *World) RefreshScoreboard(mode int16)   {}
-
-// AddRectToWorkRects and CopyRectWorkToMain are Render.c's dirty-rect protocol, landing
-// in 1.5b's first commit with RenderFrame. The lists they append to already exist on
-// World; what is missing is the two clamp rectangles, which differ between the two
-// adders, and the silent-drop-on-overflow behaviour. Stubbing them rather than writing a
-// naive append is deliberate: an unclamped adder would look like it worked.
-func (w *World) AddRectToWorkRects(r player.Rect) {}
-func (w *World) CopyRectWorkToMain(r player.Rect) {}
-
-// The four room transitions are all of Transit.c, landing in 1.5b's first commit. They
-// are the reason this stub block is temporary rather than a design: with these inert a
-// glider walks to a room boundary and stops there, which is precisely the state the port
-// is in before 1.5b.
-func (w *World) MoveRoomToRoom(g *player.Glider, where int16) {}
-func (w *World) MoveDuctToDuct(g *player.Glider)              {}
-func (w *World) MoveMailToMail(g *player.Glider)              {}
-func (w *World) TransportRoomToRoom(g *player.Glider)         {}
-
-// FlagStillOvers is Interactions.c:1713-1730, landing with the hot-spot dispatcher in
-// 1.5b's first commit. Note what it does before implementing it: it marks every
-// overlapped hot spot as *already stood on*, which SUPPRESSES it. So the stub -- doing
-// nothing -- is the less faithful direction, not the safer one: a glider dropping out of
-// a ceiling duct onto a switch currently flips it, and should not.
-func (w *World) FlagStillOvers(g *player.Glider) {}
-
-// OffAMortal is Player.c:1443-1604, landing in 1.5b's second commit with the game-over
-// tail. With it inert a glider that dies stays dead in place and the game does not end.
-func (w *World) OffAMortal(g *player.Glider) {}
-
-// ForceKillGlider is Transit.c:449, the give-up key's path, landing with Transit.c.
-func (w *World) ForceKillGlider() {}
 
 // AddBand is Input.c:352-361 and belongs to 1.5e, bands and grease. It returns false --
 // "the band array is full" -- which is the correct stub, and not merely a safe one: the

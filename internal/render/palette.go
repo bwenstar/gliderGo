@@ -66,9 +66,24 @@ func init() {
 		panic("render: palette generation produced " + itoa(n) + " entries")
 	}
 
+	// The two derived tables. Both are built *here*, in the same init that fills
+	// Palette, and that is a correctness requirement rather than tidiness.
+	//
+	// Go runs every package-level variable initializer before it runs any init
+	// function, and it orders those initializers by the dependencies it can see in
+	// the initializer *expressions*. Palette has no initializer expression -- it is
+	// filled above -- so a `var x = f(Palette)` elsewhere in the package has no
+	// dependency edge to this function, runs first, and reads 256 zero entries.
+	//
+	// bgrxLUT was exactly that, and the symptom was as quiet as it gets: every
+	// entry came out 0xFF000000, so Surface.ToBGRX produced an opaque black image
+	// for any input whatsoever, and it went unnoticed until the first frame of the
+	// real game reached a real window. Nothing else in the package uses ToBGRX, and
+	// black is what an uncomposed screen looks like too.
 	paletteIndex = make(map[uint32]uint8, 256)
 	for i, c := range Palette {
 		paletteIndex[uint32(c.R)<<16|uint32(c.G)<<8|uint32(c.B)] = uint8(i)
+		bgrxLUT[i] = uint32(c.B) | uint32(c.G)<<8 | uint32(c.R)<<16 | 0xFF000000
 	}
 }
 

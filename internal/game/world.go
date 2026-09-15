@@ -21,8 +21,6 @@
 package game
 
 import (
-	"math/rand"
-
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
 	"glidergo/internal/render"
@@ -56,12 +54,17 @@ type World struct {
 	// that has to be a method.
 	R Room
 
-	// Rand is the RandomInt stream. It is a field rather than the global source
-	// because the order of draws is observable: the flame phases, the pendulum
-	// starts and the balloon jitter all pull from it in composition order, so two
-	// runs that consume the same sequence look identical and a replay can be
-	// pinned. Seeded once per game, never re-seeded on a room change.
-	Rand *rand.Rand
+	// RandSeed is qd.randSeed: the state of the one random stream, which every
+	// RandomInt call in the game advances. It is a field rather than a package
+	// global because the *order* of draws is observable -- the flame phases, the
+	// pendulum starts, the balloon jitter, the telephone and the wind chimes all
+	// pull from it in composition order, so two runs that consume the same sequence
+	// look identical and a replay can be pinned.
+	//
+	// Seeded once per game and never re-seeded on a room change, exactly as the
+	// original seeds qd.randSeed from the clock at launch (Utilities.c:60) and
+	// leaves it alone. A fixed seed makes a whole game reproducible; see Random.
+	RandSeed int32
 
 	// P1 and P2 are theGlider and theGlider2. Values, not pointers, so that
 	// &w.P1 is a stable address for the whole game -- the C passes &theGlider
@@ -89,9 +92,73 @@ type World struct {
 	// the death animation but still spends a mortal.
 	Suicide bool
 
+	// ActiveRectEscaped is activeRectEscaped (Interactions.c): the index into
+	// Room.Hot of the transport rect the first player left through, so the second
+	// has to use the *same object* rather than merely the same kind of object.
+	// Written and read by the four link arms of HandleHotSpotCollision only.
+	//
+	// Storing a hot-spot index across frames is normally unsafe -- the table is
+	// rebuilt from scratch on every room change, so an index outlives its meaning.
+	// It is safe here for one reason: the only window in which it is read is
+	// between the first glider arming and the second agreeing, and both happen in
+	// the same room, because the room cannot change until they agree. On any other
+	// path out of that window the value is simply never read again.
+	//
+	// **It is never initialised in the original**, in the C's BSS or in NewGame, so
+	// its value before the first transport is 0 -- and Go's zero matches. That
+	// matters exactly once: if a player reaches a transporter while the other is
+	// already waiting at a *different* transporter with no arm having happened
+	// (which the deadlock of state 4 can produce), hot spot 0 is the one that
+	// accidentally matches.
+	ActiveRectEscaped int16
+
+	// Triggers is triggers[] (Triggers.c:27): sixteen fuses, each armed by the
+	// glider touching a trigger plate and fired by HandleTriggers when its timer
+	// runs out. Fixed-size, because FindEmptyTriggerSlot returning -1 -- and the
+	// seventeenth simultaneous trigger silently not firing -- is observable.
+	// Cleared by ZeroTriggers on every room change.
+	Triggers [MaxTriggers]TriggerSlot
+
+	// Phone is thePhone and Chimes is theChimes (Play.c): the two ambience clocks.
+	// Both are the same struct and the chimes use only its first field; see
+	// PhoneState. Phone survives every room change and every death, Chimes is
+	// gated per room on Room.NumChimes.
+	Phone  PhoneState
+	Chimes PhoneState
+
 	// Score is theScore, a long in the C and therefore int32 here. Rooms visited,
 	// not points, is what the high-score board sorts on; see internal/house.Scores.
 	Score int32
+
+	// GameOver and CountDown are the game-over latch and its delay (GameOver.c:239-240).
+	//
+	// FlagGameOver sets both and nothing else happens for CountDown frames: the loop
+	// keeps rendering, so the last glider's fade finishes on screen before the
+	// game-over sequence takes the window (Play.c:499-502). Sixteen frames, about half
+	// a second.
+	//
+	// GameOver is also a guard: OffAMortal returns immediately when it is set, which is
+	// what stops a second death in those sixteen frames from spending another mortal.
+	GameOver  bool
+	CountDown int16
+
+	// NumShredded is numShredded (DynamicMaps.c:33): how many shredded-glider
+	// confetti clouds are live.
+	//
+	// The table itself and every writer of this counter are 1.5f's. It is here now
+	// because OffAMortal's first act is to drop them (`if (numShredded > 0)
+	// RemoveShreds()`), and a counter that is always zero with a no-op RemoveShreds
+	// beside it keeps that statement transcribed in place rather than remembered.
+	NumShredded int16
+
+	// MusicMode and MusicCursor are musicMode and musicCursor (Music.c): which score
+	// is playing and where in it. DontLoadMusic is the C's flag of the same name --
+	// music is off, either by preference or because the bank failed to load -- and it
+	// short-circuits SetMusicalMode. It starts true because this stage has no music at
+	// all; 1.6 clears it when a bank loads.
+	MusicMode     int16
+	MusicCursor   int16
+	DontLoadMusic bool
 
 	// The inventory. Battery is signed and is one counter for two power-ups:
 	// positive is battery charges, negative is helium (player.Env.BatteryTotal has
@@ -116,26 +183,108 @@ type World struct {
 	SaidFollowCount int16
 
 	// Frame is gameFrame: frames since the game began, the clock every timer and
-	// animation phase is measured against. EvenFrame halves it for the animations
-	// that run at 15 fps. NextFrame is the TickCount the next frame is due at,
-	// which InitGarbageRects seeds (Render.c:690).
+	// animation phase is measured against. NextFrame is the TickCount the next frame
+	// is due at, which InitGarbageRects seeds (Render.c:690) and awaitFrame reseeds.
+	//
+	// EvenFrame is evenFrame, and it is **not** `Frame & 1`. It is a stored flag with
+	// four writers: PlayGame's loop head, which toggles it beside Frame (Play.c:434-435),
+	// a stalled ball or fish being kicked into motion mid-frame (Dynamics2.c:420), and
+	// the kBall and kFish arms of AddDynamicObject at room-build time (Dynamics3.c:474,
+	// :524), plus the launch-time init at InterfaceInit.c:131. Any
+	// of the last three desynchronises the flame/star alternation from frame parity,
+	// and nothing ever resynchronises it -- so a room with a ball in it animates its
+	// candles on the frames a room without one animates its stars, permanently.
+	// Deriving it from Frame would be a plausible-looking simplification that changes
+	// what the player sees.
 	Frame     int64
 	EvenFrame bool
 	NextFrame int64
 
+	// RenderFrames counts calls to RenderFrame and has no counterpart in the C.
+	//
+	// It exists because Frame does not answer the question. A room transition renders
+	// several frames inside one game frame (Transit.c's four RenderFrame calls), so
+	// Frame counts simulation steps and this counts presentations. The fidelity
+	// replays pin both, which is how a transition that draws the wrong number of
+	// intermediate frames is caught.
+	RenderFrames int64
+
 	// TickCount is the 60.15 Hz tick source. nil derives it from Frame; see Ticks.
 	TickCount func() int64
+
+	// WaitTick is the body of the frame limiter's wait loop (Render.c:662).
+	//
+	// nil is the original: an empty loop body, i.e. a busy-wait that burns a core for
+	// up to two ticks per frame. A released build passes something that sleeps. It is
+	// a hook rather than an edit because the *end* of the wait must not change --
+	// awaitFrame explains why the deadline arithmetic is load-bearing and the spinning
+	// is not.
+	WaitTick func()
+
+	// Main is mainWindow: the pixels the player sees.
+	//
+	// In the original this is not a buffer at all -- it is the window, and CopyBits
+	// into it lands in the frame buffer, so a rect copied to main is on screen the
+	// instant the copy returns. The port cannot have that, because every backend it
+	// will ever have (X11 shared memory, SDL, a browser canvas) takes a whole image
+	// and uploads it. So Main is a real surface at the *screen's* size -- 640x480,
+	// not the 640x460 the two offscreens are -- and Present is what makes it visible.
+	//
+	// It being screen-sized is what makes the scoreboard possible: rows 460..480 are
+	// only ever written by Scoreboard.c, and nothing in the room path can reach them.
+	Main *render.Surface
+
+	// Present is the hook that pushes Main to a display. nil is a headless build and
+	// is not a degraded one: every pixel is still composed into Main, so a headless
+	// run and a windowed run produce byte-identical screens, which is what lets the
+	// fidelity corpus check the display without a display.
+	//
+	// It is called at exactly the four points where the original's writes to
+	// mainWindow first became visible to a player who was watching:
+	//
+	//   - the tail of CopyRectsQD, once per rendered frame;
+	//   - DumpScreenOn, the whole-screen dump;
+	//   - each of WipeScreenOn's 116 or 160 strips, which is what makes the wipe an
+	//     animation rather than a jump;
+	//   - HideGlider, whose erase is followed by a modal dialogue and not by a frame.
+	//
+	// Everything else -- CopyRectWorkToMain from a mode change, the dirty rects
+	// themselves -- writes Main and waits, because the C's next visible moment is one
+	// of those four and never sooner. See screen.go.
+	Present func()
+
+	// GlidSrc, Glid2Src and ShadowSrc are glidSrcMap, glid2SrcMap and shadowSrcMap:
+	// the sprite sheets RenderGlider and DrawReflection blit out of.
+	//
+	// Two slots for four glider sheets, because the original reloads their *contents*
+	// rather than holding all four open, and which sheet is in the second slot depends
+	// on the player count. LoadGliderSheets has the table and SetShowFoil has the
+	// two-player reload; between them they are the reason RenderGlider's foil test
+	// reads `(!twoPlayerGame) && showFoil`.
+	//
+	// The masks are not separate fields. The C's one glidMaskMap is shared by all four
+	// sheets, and the extractor baked it into each strip's own mask, so each surface's
+	// Mask already *is* glidMaskMap. See LoadGliderSheets.
+	GlidSrc   *render.Surface
+	Glid2Src  *render.Surface
+	ShadowSrc *render.Surface
 
 	// Work2Main and Back2Work are the two dirty-rect lists (Render.c): what has to
 	// be copied from the work map to the screen this frame, and what has to be
 	// restored from the clean background to the work map first. Both are cleared by
-	// InitGarbageRects and consumed by RenderFrame.
+	// InitGarbageRects and truncated by RenderFrame once CopyRectsQD has replayed them.
 	//
-	// Overflow is observable and 1.5d has to reproduce it: AddRectToWorkRects
-	// (Render.c) guards on `numWork2Main < kMaxGarbageRects - 1` and, when that
-	// fails, **silently drops the rect**. Nothing merges it into a neighbour. A
-	// dropped rect is a patch of screen that is never copied forward, so a very busy
-	// frame leaves visible litter until something else dirties the same pixels.
+	// Order matters twice over. Within a list, order is z-order: CopyRectsQD replays
+	// Work2Main in append order, so a rect appended later covers one appended earlier,
+	// which is why RenderFrame's call order is transcribed exactly. Between the lists,
+	// the screen copy runs before the erase -- publish first, erase second.
+	//
+	// Overflow is observable and reproduced: all three adders guard on
+	// `numWork2Main < kMaxGarbageRects - 1` and, when that fails, **silently drop the
+	// rect**. Nothing merges it into a neighbour. A dropped work rect is a patch of
+	// screen that is never copied forward; a dropped back rect is a patch of work map
+	// that is never erased, so whatever was drawn there smears until something else
+	// dirties it.
 	//
 	// Note the `- 1`: the guard stops at 47 of the 48 slots, so the last one is
 	// unreachable. That is the original's off-by-one and the effective cap is 47.
@@ -151,12 +300,18 @@ type World struct {
 	// PrevRoom is previousRoom, which ForceThisRoom sets and the map window reads.
 	PrevRoom int16
 
-	// Ward and Phone are the house's two flag bits, cached because they are read
+	// Ward and PhoneBitSet are the house's two flag bits, cached because they are read
 	// per frame. HasMovie is whether this build found a QuickTime movie for the
 	// house at all.
-	Ward     bool
-	Phone    bool
-	HasMovie bool
+	//
+	// PhoneBitSet is `phoneBitSet` (Play.c:54) and it **suppresses** the telephone
+	// rather than enabling it: HandleTelephone's whole body is inside `if
+	// (!phoneBitSet)` (Play.c:748). A house with the bit set is a house where the phone
+	// never rings. The field carries the C's full name because `Phone` names the ring
+	// timer (see below) and the two are opposites.
+	Ward        bool
+	PhoneBitSet bool
+	HasMovie    bool
 
 	// TVOn is tvOn, and it is the one global in the original that is on the wrong
 	// side of the World/Room line: nothing ever resets it on a room change, so it
@@ -194,6 +349,151 @@ type World struct {
 	// from 100 for a wall bump to the 800s for the noisy appliances, so a blower's
 	// 701 displaces most things and is displaced by few.
 	SoundPlayer func(sound, priority int16)
+
+	// ---------------------------------------------------------------------
+	// Play.c's lifecycle globals
+	// ---------------------------------------------------------------------
+
+	// Playing is `playing` (Play.c:50): the frame loop's run flag. NewGame sets it
+	// true on the line before it calls PlayGame and the only things that clear it are
+	// DoGameOver and DoDiedGameOver, so it answers "is a game in progress" and nothing
+	// else. PlayGame tests it twice per frame -- once as the loop condition and once
+	// again before rendering -- and the second test is why the last simulated frame of
+	// a game is never drawn. See PlayGame.
+	Playing bool
+
+	// Quitting is `quitting`, a Main.c global: the application is shutting down.
+	// PlayGame's loop condition tests it every frame, and **nothing inside the loop
+	// can set it** in this port, because the C's only writer is the Quit menu item.
+	// The test is transcribed anyway; see PlayGame.
+	Quitting bool
+
+	// TheMode is `theMode`: SplashMode, EditMode or PlayMode. NewGame writes it twice,
+	// PlayMode at the top and SplashMode at the bottom, which is the whole of this
+	// stage's interest in it. 1.7's shell is the other reader.
+	TheMode int16
+
+	// DemoGoing is `demoGoing`: this game is the attract-mode demo, so the one-player
+	// arm reads its input from the recorded stream instead of the keyboard. Set by
+	// DoDemoGame, cleared by NewGame's tail.
+	DemoGoing bool
+
+	// DoBackground is `doBackground`: the preference "keep playing while switched
+	// out". It gates the entire event pump -- with it false, PlayGame never calls
+	// HandlePlayEvent at all, so the game neither pauses on deactivation nor processes
+	// an update event. See PlayGame and docs/IMPROVEMENTS.md 2.21.
+	DoBackground bool
+
+	// SwitchedOut is `switchedOut`: the application is in the background. The event
+	// pump spins on HandlePlayEvent while it is set, which is the original's
+	// pause-on-deactivate, and only a resume event clears it.
+	SwitchedOut bool
+
+	// NoRoomAtAll is `noRoomAtAll` (House.c:203): GetFirstRoomNumber was asked for the
+	// first room of a house that has none. Nothing in this stage reads it -- the C's
+	// readers are the editor and the house loader -- but it is written where the C
+	// writes it so that 1.7 finds the flag rather than the symptom.
+	NoRoomAtAll bool
+
+	// IncrementModeTime is `incrementModeTime`: the tick at which the idle splash
+	// screen advances to the next attract-mode panel. NewGame's last statement writes
+	// it and DoDemoGame writes it again; 1.7's shell reads it.
+	IncrementModeTime int64
+
+	// SavedGame is `smallGame` (SavedGames.c:20), and it is **not** H.SavedGame.
+	//
+	// The two are easy to confuse and only one of them is live. `houseType.savedGame`
+	// -- the 40 bytes at offset 820 of every house file -- is never read anywhere in
+	// 1.1.2: House.c:139 and SavedGames.c:337/:341 write `hasGame` beside it and
+	// nothing ever loads it back. The saved game the resume path actually uses comes
+	// from a *separate file* (SavedGames.c:261-275) into this global. So a house's
+	// embedded saved game is residue, and the port keeps both fields for that reason:
+	// house.House.SavedGame round-trips the residue, and this one is the game.
+	//
+	// Filled by 1.10's loader. Until then it is zero, which makes ResumeGameMode start
+	// the glider at (0,0) of room 0 with no lives -- so 1.10 is what makes resume mean
+	// anything, and NewGameMode is the only mode this stage exercises.
+	SavedGame house.Game
+
+	// In is Input.c's file-scope pair of sound-throttle variables.
+	//
+	// One value, deliberately: the C's are globals and are therefore shared by both
+	// gliders, and the sharing is audible (see player.Input). A two-player game must
+	// pass the *same* Input to both GetInput calls, and having exactly one on World is
+	// how that obligation is discharged rather than remembered.
+	In player.Input
+
+	// KeyPoll is the keyboard. It answers with one glider's four keys plus the three
+	// unbound ones already resolved -- see player.Keys, which explains why resolution
+	// happens above this call rather than inside it.
+	//
+	// nil is "no keyboard": every key up, every frame. That is the right default for a
+	// headless run and for the fidelity corpus, and it is not a degraded mode -- a
+	// glider with no input still falls, burns, drifts on a fan and dies, so most of the
+	// simulation is exercised without one.
+	//
+	// The frame loop calls it once per glider, back to back, which is the C's
+	// arrangement at Play.c:452-453. The C polls the hardware only on player 1's call
+	// and lets player 2 read the snapshot; a hook implementation must give the same
+	// answer to both calls in one frame, i.e. it must not pump host events between
+	// them. The loop guarantees it makes no other call in between.
+	KeyPoll func(g *player.Glider) player.Keys
+
+	// PlayEvent is the host event pump: the WaitNextEvent at HandlePlayEvent's head.
+	//
+	// Only the *classification* of events is out here. The three arms the C acts on --
+	// window update, suspend, resume -- are transcribed as RefreshGameWindow, Suspend
+	// and Resume on this type, and a host implementation calls them. That split is why
+	// this is a bare func() rather than something returning an event: the part that
+	// differs per platform is which host message means "we lost the foreground", and
+	// the part that must not differ is what the game does about it.
+	//
+	// nil is a headless build. SwitchedOut can then never become true, so the pump's
+	// do/while runs exactly once and the loop cannot stall -- see PlayGame.
+	PlayEvent func()
+
+	// The four music preferences and states (Music.c, Prefs.c). All read by NewGame's
+	// two music ladders and nowhere else in this stage.
+	//
+	// PlayMusicGame and PlayMusicIdle are `isPlayMusicGame` and `isPlayMusicIdle`: the
+	// player's two separate choices about music during a game and music on the splash
+	// screen. MusicOn is `isMusicOn`, whether a channel is actually open, and
+	// FailedMusic is `failedMusic`, set once when StartMusic has failed so the alert is
+	// not repeated.
+	//
+	// They stay false through this stage and DontLoadMusic keeps the ladders inert; see
+	// StartGameMusic.
+	PlayMusicGame bool
+	PlayMusicIdle bool
+	MusicOn       bool
+	FailedMusic   bool
+
+	// WasScoreboardMode is `wasScoreboardMode` (StructuresInit.c:70): which of the two
+	// scoreboard layouts the board rects are currently positioned for. Initialised to
+	// ScoreboardHigh at launch and written only by AdjustScoreboardHeight.
+	//
+	// It is a latch guarding an offset accumulation in the C, which is why it exists at
+	// all -- see AdjustScoreboardHeight, where the port makes the body idempotent and
+	// keeps the latch anyway.
+	WasScoreboardMode int16
+
+	// BoardDestRect is `boardDestRect` (StructuresInit.c:97-98): where on the screen the
+	// scoreboard is blitted.
+	//
+	// **The port's initial value deviates from the original's, deliberately, and it is
+	// the deviation that makes the score visible.** The C sets this to the board's source
+	// rect offset up by ScoreboardTall, i.e. rows -20..0 of the window -- above the top
+	// edge, outside every clip. With the default nine-neighbour view
+	// AdjustScoreboardHeight never moves it, so **the shipped game draws no scoreboard at
+	// all**: every blit into it is clipped away. The player sees no score, no lives and no
+	// inventory, and the only reason that was ever tolerable is that the nine-neighbour
+	// view fills all 640x460 with rooms and there is nowhere to put a board.
+	//
+	// The port has somewhere to put it. render.NewView makes Screen 640x480 and House the
+	// top 640x460 of it, so rows 460..480 are a band the room path can never write --
+	// which is also exactly the strip NewGame paints black (Play.c:141). So this starts at
+	// (460,0,480,640) and the scoreboard is on screen. See docs/IMPROVEMENTS.md 2.9.
+	BoardDestRect render.Rect
 }
 
 // Room is the composed locale: the central room the glider is in, the eight
@@ -278,20 +578,71 @@ const NoOneEscaped int16 = -1
 // NewWorld starts a world on a house. Nothing is composed until Rebuild.
 //
 // The Scene is supplied rather than created here because a Scene needs a View and
-// an Assets, and a headless test wants to choose both. rnd is the RandomInt stream;
-// pass a fixed seed to make a run reproducible.
-func NewWorld(h *house.House, sc *render.Scene, rnd *rand.Rand) *World {
+// an Assets, and a headless test wants to choose both. `seed` is the initial state
+// of the RandomInt stream -- pass a fixed value to make a whole run reproducible,
+// or the clock to match the original's behaviour at launch. Zero and 0x7FFFFFFF are
+// both fixed points of the generator and are nudged to 1; see Random.
+func NewWorld(h *house.House, sc *render.Scene, seed int32) *World {
 	w := &World{
-		H:        h,
-		Rand:     rnd,
-		Ward:     h.Ward(),
-		Phone:    h.Phone(),
-		Escaped:  NoOneEscaped,
-		PrevRoom: -1,
+		H:           h,
+		RandSeed:    seed,
+		Ward:        h.Ward(),
+		PhoneBitSet: h.Phone(),
+		Escaped:     NoOneEscaped,
+		PrevRoom:    -1,
+		// theMode = kSplashMode (InterfaceInit.c:154). A world exists before a game
+		// does.
+		TheMode: SplashMode,
+		// dontLoadMusic. True until 1.6 loads a music bank; see SetMusicalMode.
+		DontLoadMusic: true,
+		// StructuresInit.c:70. High is the launch value and the nine-neighbour default
+		// keeps it there, which is why AdjustScoreboardHeight is a no-op in practice.
+		WasScoreboardMode: ScoreboardHigh,
 	}
+
+	// StructuresInit.c:97-98, with the port's deviation. See World.BoardDestRect for why
+	// the original's rows -20..0 become rows 460..480 here.
+	w.BoardDestRect = render.Rect{
+		Top:    sc.V.Screen.Bottom - ScoreboardTall,
+		Left:   sc.V.Screen.Left,
+		Bottom: sc.V.Screen.Bottom,
+		Right:  sc.V.Screen.Right,
+	}
+
+	// InterfaceInit.c:147-152, the launch-time glider identity. It is *not* in
+	// NewGame, and putting it there would be wrong in a way that is invisible for one
+	// player and fatal for two: NewGame runs once per game, and these are the
+	// per-glider facts that outlive a game.
+	//
+	// Which is the one of the six that the simulation reads. GetInput tests it to
+	// decide who owns the Command key (Input.c:283), OffAMortal stores it in
+	// DeadWhich, and eight sites in Dynamics*.c compare it against PlayerDead to
+	// decide which glider an enemy is allowed to hit. Leaving it unset makes both
+	// gliders Player2, because Player2 is false -- so a two-player game would give the
+	// Command key to nobody and let every enemy target the dead player's glider.
+	//
+	// The four key indices are the default bindings and nothing in the port reads them
+	// yet; see the note on player.LeftArrowKeyMap for what they are and why player 2's
+	// four modifier keys have to be rebindable before release.
+	w.P1.Which = player.Player1
+	w.P1.LeftKey = player.LeftArrowKeyMap
+	w.P1.RightKey = player.RightArrowKeyMap
+	w.P1.BattKey = player.DownArrowKeyMap
+	w.P1.BandKey = player.UpArrowKeyMap
+
+	w.P2.Which = player.Player2
+	w.P2.LeftKey = player.ControlKeyMap
+	w.P2.RightKey = player.CommandKeyMap
+	w.P2.BattKey = player.OptionKeyMap
+	w.P2.BandKey = player.ShiftKeyMap
+
 	w.R.Scene = sc
 	w.R.Hot = make([]HotObject, 0, MaxHotSpots)
 	w.R.Master = make([]MasterObject, 0, MaxMasterObjects)
+	// Main is the screen rect and not the house rect: see the field's own note. It
+	// starts white, as a freshly created GWorld did; NewGame paints it before the
+	// first frame reaches it.
+	w.Main = render.NewSurface(int(sc.V.Screen.Wide()), int(sc.V.Screen.Tall()))
 	return w
 }
 

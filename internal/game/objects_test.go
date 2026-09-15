@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,14 +36,14 @@ func requireAssets(t *testing.T, sub string) string {
 }
 
 // newTestWorld builds a headless world on a house: a default 640x480 view, an asset
-// loader that may or may not find art, and a fixed random stream.
+// loader that may or may not find art, and a fixed random seed.
 func newTestWorld(h *house.House, artDir, forkDir string) *World {
 	a := render.NewAssets(artDir)
 	if forkDir != "" {
 		a.OpenHouseResFork(forkDir)
 	}
 	sc := render.NewScene(render.DefaultView(), a, h)
-	w := NewWorld(h, sc, rand.New(rand.NewSource(1)))
+	w := NewWorld(h, sc, 1)
 	// A sound system that always succeeds, so the kSoundTrigger path is exercised
 	// and the one-slot limit is what the corpus measures. A nil hook would make every
 	// sound trigger inert and the test would prove nothing about it.

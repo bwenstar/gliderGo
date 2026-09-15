@@ -55,8 +55,9 @@ func (g *Glider) escapeOrWait(e Env, code int16, move func(*Glider)) {
 // background is restored, then stops drawing. Precedes every transition that is not
 // a walk between rooms (Player.c:601-607 and the four duct/mail copies).
 func (g *Glider) vanish(e Env) {
-	e.CopyRectWorkToMain(g.Whole)
-	e.CopyRectWorkToMain(g.WholeShadow)
+	h, v := e.PlayOriginH(), e.PlayOriginV()
+	e.CopyRectWorkToMain(g.Whole.Offset(h, v))
+	e.CopyRectWorkToMain(g.WholeShadow.Offset(h, v))
 	g.DontDraw = true
 }
 

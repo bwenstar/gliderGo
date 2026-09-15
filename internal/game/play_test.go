@@ -1,0 +1,399 @@
+package game
+
+// The frame loop, end to end: NewGame composes a house's first room, PlayGame steps it,
+// and the two clocks and the two dirty-rect lists advance the way the original's do.
+//
+// These are the first tests in the package that run the *whole* game rather than one
+// function of it, so they are also the first that can fail for a reason no unit test can
+// see -- a call left out of PlayGame, a hook the host has to supply and does not, a rect
+// in the wrong coordinate system. That is what they are for.
+
+import (
+	"os"
+	"path/filepath"
+	"sort"
+	"testing"
+
+	"glidergo/internal/game/player"
+	"glidergo/internal/house"
+	"glidergo/internal/render"
+)
+
+// playTestWorld loads a house with its art and returns a world ready for NewGame, with a
+// budget of `budget` simulated frames wired into Present.
+//
+// Present is the *sampling point* and Frame is the quantity, and those have to be two
+// different things: **Present is not called once per frame.** A room transition presents
+// once per wipe strip -- 116 or 160 times inside a single game frame (see screen.go's
+// WipeScreenOn) -- and HideGlider presents once on its own. A budget that counted presents
+// therefore bought a wildly variable number of frames: it read as "100 frames" and delivered
+// 61 in Art Museum, where the unattended glider reaches a transporter on frame 46 and the
+// wipe eats the remaining 38. That is what this signature used to say and it was wrong.
+//
+// A budget of 0 stops the game at NewGame's DumpScreenOn, before the loop runs at all,
+// which is what the set-up tests want: they assert on the state NewGame leaves behind and
+// a single simulated frame would already have moved the glider.
+func playTestWorld(t *testing.T, houseName string, budget int) *World {
+	t.Helper()
+	houses := requireAssets(t, "houses")
+	art := requireAssets(t, "art")
+
+	h, err := house.LoadFile(filepath.Join(houses, houseName+".house"))
+	if err != nil {
+		t.Fatalf("load %s: %v", houseName, err)
+	}
+	fork := filepath.Join(assetRoot, "houseart", houseName)
+	if _, err := os.Stat(fork); err != nil {
+		fork = ""
+	}
+
+	w := newTestWorld(h, art, fork)
+	w.DoBackground = true
+
+	w.Present = func() {
+		if w.Frame >= int64(budget) {
+			w.Quitting = true
+			w.SwitchedOut = false
+		}
+	}
+	return w
+}
+
+// litPixels counts how much of a surface is not black.
+//
+// The port's black is palette index 255 (render.Black8) and every surface starts filled
+// with index 0, which is white -- so "all black" is a state something has to have written,
+// and it is the state a composition that silently drew nothing leaves behind after
+// NewGame's two black fills. Counting is the cheapest assertion that separates "the room
+// composed" from "the room is a hole".
+func litPixels(s *render.Surface) int {
+	n := 0
+	for _, p := range s.Pix {
+		if p != render.Black8 {
+			n++
+		}
+	}
+	return n
+}
+
+// TestRebuildComposesIntoWorkAndBack is the narrowest form of the whole-game test: a room
+// change alone has to leave a picture in both offscreens.
+//
+// It is separate from the NewGame tests because it isolates the one link in the chain that
+// has no game state in it at all. If this passes and the NewGame test does not, the fault
+// is in NewGame's order; if this fails, the fault is in the renderer or the assets and no
+// amount of reading Play.c will find it.
+func TestRebuildComposesIntoWorkAndBack(t *testing.T) {
+	w := playTestWorld(t, "Slumberland", 0)
+	w.ForceThisRoom(w.GetFirstRoomNumber())
+	w.Rebuild()
+
+	back := litPixels(w.R.Back)
+	work := litPixels(w.R.Work)
+	total := w.R.Back.W * w.R.Back.H
+
+	if back == 0 {
+		t.Fatalf("Rebuild left the background entirely black (%d pixels)", total)
+	}
+	// RestoreWorkMap is DrawLocale's last statement, so the two are equal here and the
+	// equality is the invariant worth pinning: every dirty rect the frame loop copies
+	// back to work assumes it.
+	if work != back {
+		t.Errorf("work has %d lit pixels, back has %d; RestoreWorkMap should have made them equal", work, back)
+	}
+	if back < total/10 {
+		t.Errorf("only %d of %d pixels lit; a composed room should cover most of the view", back, total)
+	}
+}
+
+// TestNewGamePutsTheFirstRoomOnScreen pins NewGame's whole set-up sequence by its one
+// observable outcome: before a single frame is simulated, the player is looking at the
+// house's first room.
+//
+// The budget is zero frames, so the game ends inside NewGame's DumpScreenOn -- this asserts
+// on the state of the screen at the moment the game becomes playable and before
+// HandleDynamics or the glider have touched anything.
+func TestNewGamePutsTheFirstRoomOnScreen(t *testing.T) {
+	w := playTestWorld(t, "Slumberland", 0)
+	w.NewGame(NewGameMode)
+
+	if got := litPixels(w.Main); got == 0 {
+		t.Fatalf("Main is entirely black after NewGame; DumpScreenOn published nothing")
+	}
+
+	// The scoreboard band is the one part of Main the room path may not touch, and
+	// NewGame's Play.c:141 black fill is what guarantees it. Rows 460..480 being black is
+	// therefore not an accident of an empty surface -- index 0 is white -- it is that
+	// statement having run.
+	for y := int(w.R.V.Screen.Bottom - ScoreboardTall); y < int(w.R.V.Screen.Bottom); y++ {
+		for x := 0; x < w.Main.W; x++ {
+			if w.Main.Pix[y*w.Main.W+x] != render.Black8 {
+				t.Fatalf("Main(%d,%d) is not black; the scoreboard band was not cleared", x, y)
+			}
+		}
+	}
+
+	if w.R.RoomNumber != w.H.FirstRoom {
+		t.Errorf("room %d, want the house's first room %d", w.R.RoomNumber, w.H.FirstRoom)
+	}
+	// NewGame's teardown puts the mode back, so by the time it returns the world is a
+	// shell again. PlayMode is only observable from inside the loop -- which is what the
+	// mode is for: the menu code asks "are we in a game" and the answer has to be no here.
+	if w.TheMode != SplashMode {
+		t.Errorf("TheMode %d after NewGame returns, want SplashMode %d", w.TheMode, SplashMode)
+	}
+}
+
+// TestNewGameSetsUpTheGliderAndTheGame pins InitGlider's split personality: the glider's
+// own fields and the seven whole-game ones it also writes.
+func TestNewGameSetsUpTheGliderAndTheGame(t *testing.T) {
+	w := playTestWorld(t, "Slumberland", 0)
+
+	// Dirt in every field InitGlider is responsible for, so that a field it fails to
+	// write is a failure and not a coincidence.
+	w.Score = 999
+	w.Battery = 50
+	w.Bands = 50
+	w.Foil = 50
+	w.ShowFoil = true
+	w.P1.HVel = 7
+	w.P1.VVel = 7
+	w.P1.Tipped = true
+	w.P1.Sliding = true
+	w.P1.DontDraw = true
+	w.P1.Facing = player.FaceLeft
+
+	w.NewGame(NewGameMode)
+
+	if w.Score != 0 {
+		t.Errorf("Score %d, want 0", w.Score)
+	}
+	if w.Mortals != InitialGliders {
+		t.Errorf("Mortals %d, want %d", w.Mortals, InitialGliders)
+	}
+	for _, c := range []struct {
+		name string
+		got  int16
+	}{{"Battery", w.Battery}, {"Bands", w.Bands}, {"Foil", w.Foil}} {
+		if c.got != 0 {
+			t.Errorf("%s %d, want 0", c.name, c.got)
+		}
+	}
+	if w.ShowFoil {
+		t.Error("ShowFoil is set, want clear")
+	}
+	if w.P1.HVel != 0 || w.P1.VVel != 0 {
+		t.Errorf("velocity (%d,%d), want (0,0)", w.P1.HVel, w.P1.VVel)
+	}
+	if w.P1.Tipped || w.P1.Sliding || w.P1.DontDraw {
+		t.Errorf("tipped=%v sliding=%v dontDraw=%v, want all false",
+			w.P1.Tipped, w.P1.Sliding, w.P1.DontDraw)
+	}
+
+	// The starting rect is the house's authored point with the glider's nominal size, and
+	// the shadow takes only its horizontal edges: DestShadow's top is the fixed
+	// ShadowTop whatever height the glider begins at (Play.c:358-360).
+	want := player.Rect{Top: 0, Left: 0, Bottom: player.GliderHigh, Right: player.GliderWide}.
+		Offset(w.H.Initial.H, w.H.Initial.V)
+	if w.P1.Dest != want {
+		t.Errorf("Dest %+v, want %+v", w.P1.Dest, want)
+	}
+	if w.P1.DestShadow.Top != player.ShadowTop || w.P1.DestShadow.Left != want.Left {
+		t.Errorf("DestShadow %+v, want top %d and left %d",
+			w.P1.DestShadow, player.ShadowTop, want.Left)
+	}
+
+	// The glider is mid-fade, not standing: NewGame's last act before PlayGame is
+	// StartGliderFadingIn, and the zero-frame budget stops the game inside DumpScreenOn,
+	// before any frame has run.
+	if w.P1.Mode != player.GliderFadingIn {
+		t.Errorf("Mode %d, want GliderFadingIn %d", w.P1.Mode, player.GliderFadingIn)
+	}
+	if w.P1.Facing != player.FaceRight {
+		t.Error("Facing is left; a new game always starts facing right")
+	}
+}
+
+// TestTwoPlayerInitGliderDoesNotDoubleTheLives is the trap in InitGlider written down as a
+// test: NewGame calls it twice for a two-player game and every whole-game field it writes is
+// therefore written twice.
+//
+// `mortals = kInitialGliders` followed by a conditional `+=` gives 4 both times. An
+// idiomatic `mortals += kInitialGliders` would give 8, silently, and only in two-player
+// games -- which is exactly the kind of thing that ships.
+func TestTwoPlayerInitGliderDoesNotDoubleTheLives(t *testing.T) {
+	w := playTestWorld(t, "Slumberland", 0)
+	w.TwoPlayer = true
+	w.NewGame(NewGameMode)
+
+	if want := 2 * InitialGliders; w.Mortals != want {
+		t.Errorf("Mortals %d for a two-player game, want %d", w.Mortals, want)
+	}
+	// Player two fades in and is immediately idled and hidden (Play.c:198-203), so a
+	// two-player game opens with one glider visible.
+	if w.P2.Mode != player.GliderIdle {
+		t.Errorf("P2 Mode %d, want GliderIdle %d", w.P2.Mode, player.GliderIdle)
+	}
+	if !w.P2.DontDraw {
+		t.Error("P2 should start with DontDraw set")
+	}
+	// The identities are set once at launch, not per game, so a game must not disturb
+	// them -- an unset Which makes both gliders Player2 and hands the Command key to
+	// nobody.
+	if w.P1.Which != player.Player1 || w.P2.Which != player.Player2 {
+		t.Errorf("identities P1=%v P2=%v, want %v/%v",
+			w.P1.Which, w.P2.Which, player.Player1, player.Player2)
+	}
+}
+
+// TestPlayGameAdvancesTheTwoClocks pins the loop head (Play.c:434-435).
+//
+// EvenFrame is not Frame&1 and this is where that becomes observable: with no dynamic
+// object able to steal a toggle, the two must stay in lock step for the whole run, and the
+// test states the relationship rather than the parity so that a later stage adding
+// Dynamics2.c:420 has a failing test to read.
+func TestPlayGameAdvancesTheTwoClocks(t *testing.T) {
+	const budget = 90
+	w := playTestWorld(t, "Slumberland", budget)
+
+	// One sample per *frame*, not per present: a transition presents once per wipe strip
+	// and would otherwise contribute a hundred samples with the same Frame. Slumberland's
+	// first room happens to be static for far longer than this budget, so no transition
+	// runs here -- but a test that would break the day one did is a test that will break
+	// for the wrong reason.
+	var frames []int64
+	var evens []bool
+	prev := w.Present
+	w.Present = func() {
+		if len(frames) == 0 || frames[len(frames)-1] != w.Frame {
+			frames = append(frames, w.Frame)
+			evens = append(evens, w.EvenFrame)
+		}
+		prev()
+	}
+
+	w.NewGame(NewGameMode)
+
+	// The first present is DumpScreenOn, before the loop has run: Frame is still 0.
+	if len(frames) < 2 {
+		t.Fatalf("only %d frames presented; the loop did not run", len(frames))
+	}
+	if frames[0] != 0 {
+		t.Errorf("first present at Frame %d, want 0 (NewGame's DumpScreenOn)", frames[0])
+	}
+	for i := 1; i < len(frames); i++ {
+		if frames[i] != int64(i) {
+			t.Fatalf("presented frame %d out of order: got Frame %d, want %d", i, frames[i], i)
+		}
+		// PlayGame's loop head toggles EvenFrame beside Frame, so with nothing else
+		// writing it the flag is the frame's parity. It starts false at launch and is
+		// toggled before the first frame is drawn, so frame 1 is even-flagged.
+		if want := i%2 == 1; evens[i] != want {
+			t.Errorf("Frame %d: EvenFrame %v, want %v", frames[i], evens[i], want)
+		}
+	}
+}
+
+// TestPlayGameKeepsPublishingFrames is the loop's liveness assertion: the frame limiter
+// reseeds and the dirty-rect lists are cleared, so a run of any length keeps drawing.
+//
+// It is worth having as its own test because the two ways it can fail are both silent.
+// A limiter that accumulated its deadline would stall on the first overrun -- see
+// awaitFrame's note on there being no catch-up -- and a dirty-rect list that was never
+// truncated would grow without bound and start dropping rects at the 47-entry cap.
+func TestPlayGameKeepsPublishingFrames(t *testing.T) {
+	const budget = 200
+	w := playTestWorld(t, "Slumberland", budget)
+
+	maxWork, maxBack := 0, 0
+	prev := w.Present
+	w.Present = func() {
+		if n := len(w.Work2Main); n > maxWork {
+			maxWork = n
+		}
+		if n := len(w.Back2Work); n > maxBack {
+			maxBack = n
+		}
+		prev()
+	}
+
+	w.NewGame(NewGameMode)
+
+	// The budget quits at the first present of frame `budget`, so the count is exact: a
+	// lower number means the loop stalled or the game ended, and both are failures here --
+	// Slumberland's first room has nothing in it that can kill an idle glider.
+	if w.Frame != int64(budget) {
+		t.Errorf("stopped at Frame %d, want %d (gameOver=%v playing=%v)",
+			w.Frame, budget, w.GameOver, w.Playing)
+	}
+	// MaxGarbageRects is the cap the C silently drops past. A static room with one glider
+	// nowhere approaches it, so a count anywhere near it means rects are accumulating.
+	if maxWork >= MaxGarbageRects-1 {
+		t.Errorf("Work2Main reached %d rects, at or past the %d cap", maxWork, MaxGarbageRects-1)
+	}
+	if maxBack >= MaxGarbageRects-1 {
+		t.Errorf("Back2Work reached %d rects, at or past the %d cap", maxBack, MaxGarbageRects-1)
+	}
+}
+
+// TestEveryHouseStartsAndRuns is the coverage assertion for stage 1.5b: every house that
+// shipped with the game can be opened, composed, and stepped for a hundred frames without
+// panicking.
+//
+// A hundred frames is chosen rather than one because the first frame exercises almost
+// nothing: the glider is mid-fade for sixteen of them, the first room-lighting redraw is on
+// frame two, and the phone's first ring is scheduled ninety frames out. It is not enough to
+// find everything, and it is enough to find a nil surface, an out-of-range object code or a
+// rect in the wrong coordinate system -- which are the three ways a house full of
+// unfamiliar art breaks a renderer.
+func TestEveryHouseStartsAndRuns(t *testing.T) {
+	dir := requireAssets(t, "houses")
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range ents {
+		if filepath.Ext(e.Name()) == ".house" {
+			names = append(names, e.Name()[:len(e.Name())-len(".house")])
+		}
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		t.Skip("no extracted houses")
+	}
+
+	const budget = 100
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			w := playTestWorld(t, name, budget)
+
+			// The Empty House is exactly what it says, and GetFirstRoomNumber's -1 path is
+			// the one this exercises: no rooms, so no composition, and the loop still has
+			// to run rather than crash.
+			w.NewGame(NewGameMode)
+
+			if len(w.H.Rooms) == 0 {
+				if !w.NoRoomAtAll {
+					t.Error("a house with no rooms should have set NoRoomAtAll")
+				}
+				return
+			}
+			// A short run is only a failure if the game did not end. An unattended glider
+			// drifts in the direction it faces and several of these houses open somewhere
+			// that kills it -- Titanic's engine room and Metropolis's rooftop both do --
+			// so "ran out of gliders in under a hundred frames" is the house behaving,
+			// not the port misbehaving.
+			if w.Frame < int64(budget) && !w.GameOver {
+				t.Errorf("only %d of %d frames ran and the game is not over (playing=%v)",
+					w.Frame, budget, w.Playing)
+			}
+			if litPixels(w.Main) == 0 {
+				t.Error("Main is entirely black; nothing composed")
+			}
+			if err := w.R.A.Err(); err != nil {
+				t.Errorf("asset error: %v", err)
+			}
+		})
+	}
+}

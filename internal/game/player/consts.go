@@ -157,6 +157,37 @@ const (
 	Player2   = false
 )
 
+// The default key bindings: raw Mac KeyMap bit offsets, from Externs.h:129-163 and
+// installed at launch (Main.c:135-138 for player 1, InterfaceInit.c:148-151 for
+// player 2). They are the initial values of Glider.LeftKey and its three siblings.
+//
+// Two things about them are worth saying out loud, because both bite a port.
+//
+// **Player 2 is bound to four modifier keys.** Control, Command, Option and Shift --
+// not letters. That was a reasonable way to get a second player onto one 1994 keyboard
+// without clashing with player 1's arrows, and it is close to unusable now: a modern
+// window manager or desktop environment eats Command/Super and often Alt before the
+// application sees them, and several keyboards do not report modifier state
+// independently. 1.7 has to rebind these, which is why they are per-glider data here
+// rather than constants baked into GetInput. See docs/IMPROVEMENTS.md 2.3.
+//
+// **They are bit offsets, not key codes**, so they only mean anything against a
+// hardware KeyMap. Nothing in this package reads them: the port resolves keys to
+// player.Keys above GetInput (see the type's comment), so these are carried as the
+// binding *record* that 1.7's settings screen edits and saves. A backend that wants to
+// honour them has to map them itself.
+const (
+	UpArrowKeyMap    int32 = 121
+	DownArrowKeyMap  int32 = 122
+	RightArrowKeyMap int32 = 123
+	LeftArrowKeyMap  int32 = 124
+
+	CommandKeyMap int32 = 48
+	ControlKeyMap int32 = 60
+	OptionKeyMap  int32 = 61
+	ShiftKeyMap   int32 = 63
+)
+
 // Sprite indices into the 31-rect glider atlas (kNumGliderSrcRects, :558). The
 // original indexes gliderSrc[] with bare numbers everywhere; these names are the
 // one place the port adds vocabulary the C does not have, because a reader cannot
@@ -193,7 +224,8 @@ var FadeInSequence = [LastFadeSequence]int16{
 
 // Sounds and their priorities, for the calls this package makes
 // (GliderDefines.h:55-118, :120-180). Priority decides which sound wins a busy
-// channel, and lower numbers win.
+// channel, and **larger numbers win**: PlayPrioritySound finds the quietest of the
+// three channels and plays only if `priority >= lowestPriority` (Sound.c:53-67).
 const (
 	FadeInSound     int16 = 1
 	FadeOutSound    int16 = 2
@@ -236,14 +268,44 @@ const (
 )
 
 // How the other player got out, stored in one signed slot
-// (GliderDefines.h:596-608). Only the values the player code writes are here.
+// (GliderDefines.h:596-608).
+//
+// The whole two-player race is these thirteen numbers in one short. A glider that
+// reaches an exit first writes its code here and drops into limbo; the second
+// glider's hot spot or escape check admits it only if the code already there is the
+// one *it* would have written, which is what makes both players have to leave by the
+// same door. A mismatch on the geographic exits plays kDontExitSound and bounces
+// (Interactions.c:337-341); on the transit exits it silently does nothing.
+//
+// The stairs are the one three-state sequence. Their hot spot writes the
+// Escaping form, the mode handler promotes it to the Escaped form as it enters limbo
+// (Player.c:363), and the second glider's hot spot admits on the Escaped form -- so
+// -8 and -6 are two points in one handshake and not two different doors.
 const (
-	NoOneEscaped            int16 = -1
-	PlayerEscapedUpStairs   int16 = -6
-	PlayerEscapedDownStairs int16 = -7
-	PlayerTransportedOut    int16 = -10
-	PlayerDuckedOut         int16 = -11
-	PlayerMailedOut         int16 = -12
+	NoOneEscaped int16 = -1
+
+	// The four geographic exits, written by the escape checks in escape.go.
+	PlayerEscapedRight int16 = -2
+	PlayerEscapedLeft  int16 = -3
+	PlayerEscapedUp    int16 = -4
+	PlayerEscapedDown  int16 = -5
+
+	// The staircases: the Escaped pair is what a waiting glider advertises, the
+	// Escaping pair is what the hot spot writes one step earlier.
+	PlayerEscapedUpStairs    int16 = -6
+	PlayerEscapedDownStairs  int16 = -7
+	PlayerEscapingUpStairs   int16 = -8
+	PlayerEscapingDownStairs int16 = -9
+
+	// The three link transits.
+	PlayerTransportedOut int16 = -10
+	PlayerDuckedOut      int16 = -11
+	PlayerMailedOut      int16 = -12
+
+	// PlayerIsDeadForever is written by OffAMortal when a player spends their last
+	// mortal, and is never cleared. Every later race compares against it and fails,
+	// which is what makes the survivor stop waiting at doorways.
+	PlayerIsDeadForever int16 = -69
 )
 
 // Clipping planes and offsets the transit handlers measure against. Each is a

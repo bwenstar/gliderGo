@@ -15,12 +15,16 @@ Rules for this file:
   stage), or **decision needed** (the user's call, not mine).
 - An item is only removed from this file when it is done, and then it moves to the
   Done section with the commit that did it.
+- **The numbers are load-bearing.** Comments in the Go source cite items by number
+  (`docs/IMPROVEMENTS.md 2.17`), because the argument for transcribing a bug faithfully
+  is only complete if it says where the fix is written down. Renumber an item and those
+  citations point at the wrong thing, so items are appended, never reordered.
 
 ---
 
 ## 1. Legal — the blocker that has nothing to do with code
 
-### 1.1 gliderGo has no licence file — **DONE, this stage**
+### 1.1 gliderGo has no licence file — **DONE, 1.5a**
 
 gliderGo is transcribed from GPLv2 source, function by function, with comments citing
 `GliderPRO/Sources/*.c` line numbers. That makes it unambiguously a derivative work, and
@@ -28,6 +32,10 @@ GPLv2 §2(b) requires the whole to be licensed under GPLv2. This is not a prefer
 is the only compliant option, and shipping a public binary with no licence file at all is
 strictly worse than shipping one. Added `LICENSE` (GPLv2) and a `## Licence` section in
 `README.md` naming John Calhoun, Casady & Greene and the upstream repository.
+
+Note for anyone tempted to relicense later: upstream's grant is GPLv2 **only**. There is
+no "or later" clause, so gliderGo cannot be moved to GPLv3 and cannot take GPLv3-only
+dependencies.
 
 ### 1.2 The art, the sounds and the 22 houses are on a different footing from the code — **decision needed, before any public release**
 
@@ -83,14 +91,20 @@ half-finished port into the Pages landing page advertises something not yet play
 
 ---
 
-## 2. It has to run on the machine someone actually owns
+## 2. Engineering — what a faithful transcription leaves for a release
+
+Items 2.1–2.3 are about the machine the game runs on. From 2.4 they are about the port and
+the original: places where transcribing the 1994 code exactly is right for Stage 1 and
+wrong for a shipped build. Each of those says what the original does, why it is kept, and
+what the fix is, so that the fix is a decision someone can make later rather than a
+rediscovery.
 
 ### 2.1 Window scaling — **partly done; fullscreen and a runtime toggle planned, 1.7**
 
-Already there: `cmd/glidergo -scale N` does integer nearest-neighbour magnification
-(`main.go:29`), which is the right filter — the art is 8-bit indexed pixel art and
-bilinear would smear it. What is missing for a release is fullscreen with letterboxing, a
-runtime toggle rather than a launch flag, and remembering the choice.
+Already there: `cmd/glidergo -scale N` does integer nearest-neighbour magnification,
+which is the right filter — the art is 8-bit indexed pixel art and bilinear would smear
+it. What is missing for a release is fullscreen with letterboxing, a runtime toggle rather
+than a launch flag, and remembering the choice. See 2.8 for where the transform has to go.
 
 **A fidelity trap to avoid when that work happens, which the port has so far avoided by
 luck rather than intent.** `Main.c:191` forces `numNeighbors` to 1 on a 512px-wide screen
@@ -102,37 +116,299 @@ already decoupled — the risk is a future "derive it from the window like the o
 change reintroducing the coupling. It should become an explicit setting, documented as
 affecting gameplay and not just how much you can see.
 
-### 2.2 Frame pacing — **planned, 1.5b (this stage), with a note for 1.7**
+### 2.2 The simulation is frame-locked at 30.07 fps and stays that way — **policy; interpolation is 1.7 or later**
 
-The simulation is frame-locked at `kTicksPerFrame = 2` Mac ticks, i.e. 30.07 fps, and
-every physics constant was tuned against it. That is not negotiable and the port keeps it.
-But the original's limiter is a busy-wait on `TickCount()`, which on a modern machine
-means one core pinned at 100% and a hot laptop. 1.5b must implement the limiter as a real
-sleep to the deadline, which is behaviour-identical and not a fidelity change. Frame
-*interpolation* for 60/120/144 Hz displays is a separate question and belongs to 1.7 or
-later; it must not touch the simulation.
+`kTicksPerFrame = 2` Mac ticks on a 60.15 Hz clock, i.e. 30.07 frames a second, and every
+physics constant in `player/consts.go` was tuned against it. That is not negotiable and
+the port keeps it: `TicksPerFrame` is a constant, `Frame` is the only clock the game logic
+reads, and no future display refresh rate may change either. Frame *interpolation* for
+60/120/144 Hz displays is a separate question — it belongs at the presentation step (2.10)
+and must not touch the simulation. The limiter's own cost is 2.17.
 
-### 2.3 Player 2's keys are modifier keys — **planned, 1.7**
+### 2.3 Player 2's keys are modifier keys — **worked around in `cmd/glidergo`; a remapping UI is 1.7**
 
-The original hard-codes player 2 to modifier keys, which a modern window manager or
-desktop environment may swallow before the game sees them. 1.4 already anticipated this:
-`internal/game/player/glider.go:95-98` keeps the four key indices as per-glider *data*
-rather than constants, specifically so 1.7 can remap them. 1.7 owes a remapping UI and a
+The original hard-codes player 2 to Control, Command, Option and Shift
+(`InterfaceInit.c:148-151`), which a modern window manager or desktop environment may
+swallow before the game sees them, and which many keyboards cannot report independently.
+1.4 anticipated this: the four key indices are per-glider *data* on `player.Glider`, not
+constants baked into `GetInput`, specifically so they can be remapped.
+
+`cmd/glidergo` currently binds player 2 to A/D/S/W, which is a documented deviation and is
+in the package comment there. 1.7 owes a remapping UI for all eight bindings and a
 persisted config. Related: a release needs gamepad support, which the original had no
 concept of.
 
-### 2.4 A missing or wrong asset directory must not be a crash — **planned, 1.7**
+### 2.4 Transitions run at memory speed, so a wipe is a blink — **planned, 1.7**
+
+`WipeScreenOn` (`internal/game/screen.go`) moves a 4-pixel bar across the screen and
+presents after each step: 116 steps for a vertical wipe, 160 for a horizontal one. On a
+1994 Mac each of those was a real `CopyBits` over the bus and the count *was* the
+duration. Here they cost nothing measurable — the headless build runs the whole 116-step
+wipe inside one game frame — so a transition that should read as a wipe reads as a single
+dropped frame.
+
+The fix is to pace the strips against a fixed wall-clock duration (a third of a second is
+about what the original felt like) rather than against the strip count. It is a deliberate
+divergence, so it is not made in `screen.go`; it belongs with the rest of the presentation
+work in 1.7, and it needs the frame limiter's clock, not a `time.Sleep` per strip.
+
+Two smaller things to fix in the same pass, both reproduced faithfully today:
+
+- The horizontal strip count reads `workSrcRect.right / 4` rather than `theRect`, so a
+  caller passing a narrower rect still gets 160 strips. It should clamp to `theRect`.
+- Only `top` and `bottom` are clamped inside the loop, so a horizontal wipe's bar walks
+  off the far edge for its last few strips and those copies are no-ops absorbed by
+  `CopyBits`' clipping.
+
+This item was also the reason the first version of `playTestWorld` in
+`internal/game/play_test.go` measured the wrong thing: it budgeted *presents*, and a
+transition presents 116 times inside one frame, so "100 frames" bought 61. The budget is
+frames now.
+
+### 2.5 Pausing blocks the process, and unpausing leaves the screen black — **planned, 1.7**
+
+`DoPause` is called from inside `GetInput` and *blocks* until the player unpauses, which is
+why a paused game does not advance a frame. Faithful, and fine on a cooperatively
+multitasked Mac; on a modern OS a blocking modal inside the input path is how a game stops
+responding to the window manager.
+
+`RestoreEntireGameScreen` is the other half. It paints the window black, composes into the
+work map, and **never copies the work map to the screen**. What makes the room reappear in
+the original is the update event the vanishing dialogue generates, which
+`HandlePlayEvent` turns into a whole-`justRoomsRect` blit. So the redraw arrives via the
+event pump, one frame late — and with `doBackground` false (the shipped default, see 2.21)
+it never arrives at all: the screen stays black except where the dirty rects happen to
+fall. That is a visible bug in the original in its default configuration.
+
+A release needs a pause overlay that says what to press, a pause that yields to the OS
+instead of blocking, and a `RestoreEntireGameScreen` that publishes what it composed.
+
+### 2.6 A missing or wrong asset directory must not be a crash — **planned, 1.7**
 
 Today the tests `t.Skipf` when `assets/extracted` is absent, which is right for tests and
 is not a shipped behaviour. A public binary run by someone who has not pointed it at a
 copy of Glider PRO must say so, in a window, with instructions — not panic on a nil
 surface or exit silently. This is the user-facing half of item 1.2 and the two should be
-built together.
+built together. `render.Assets` already collects a sticky error rather than dying at the
+blit (`assets.Err()`), which is the mechanism this needs; what is missing is a window to
+show it in.
 
-### 2.5 No way to pause or quit that a stranger would find — **planned, 1.7**
+### 2.7 No way to quit that a stranger would find — **planned, 1.7**
 
-`Env.DoPause()` blocks until unpaused, faithfully. A shipped game needs a pause overlay
-that says what to press, and a quit path that is not "close the window" or `kill`.
+`cmd/glidergo` maps Escape to quit and that is undiscoverable. The original's answer was a
+menu bar, which a port does not have. A release needs a title screen with a Quit item
+(3.4), an in-game pause overlay with one (2.5), and a confirmation before abandoning a
+game in progress.
+
+### 2.8 The scale transform belongs at the present step and nowhere else — **planned, 1.7**
+
+The game's surfaces are always 640×480 and every rect in `internal/game` and
+`internal/render` is in that space: `View.Screen`, `LocalRoomsDest`, the dirty-rect lists,
+`playOriginH/V`. A resizable window must therefore insert its transform in exactly one
+place — `platform.Window.Present`, or the backend behind it — and never in a coordinate
+handed to the game. Written down because the tempting shortcut is to scale `View`, and
+that would silently move every collision rect in the game.
+
+### 2.9 The scoreboard is invisible in the original's shipped configuration — **DONE as a deviation, 1.5b**
+
+Four facts compose into a bug the original shipped with:
+
+1. `StructuresInit.c:70` initialises `boardDestRect` to rows −20..0 — above the screen.
+2. `Main.c:154` defaults `numNeighbors` to 9, and `:191-192` only forces 1 on a screen
+   512px or narrower.
+3. `Scoreboard.c:416-421` guards the whole body of `AdjustScoreboardHeight` with
+   `wasScoreboardMode != newMode`, and `wasScoreboardMode` starts at `kScoreboardHigh`.
+4. `numNeighbors == 9` computes `newMode = kScoreboardHigh`, which equals
+   `wasScoreboardMode`, so the guard never opens and the seven `QOffsetRect` calls that
+   would move `boardDestRect` on screen never run.
+
+So on any Mac with a screen wider than 512 pixels — which is every Mac the game shipped
+for — the scoreboard is blitted to rows −20..0 and clipped away entirely. Score, lives,
+battery and bands are simply not displayed.
+
+The port deviates, deliberately and by default: `World.BoardDestRect` is initialised to
+rows 460..480 (the band `render.NewView` leaves between `Screen` and `House`, and exactly
+the strip `NewGame` paints black at `Play.c:141`), and `AdjustScoreboardHeight` *assigns*
+its rects instead of accumulating offsets, which makes it idempotent and turns the latch
+into an optimisation rather than a correctness requirement. The High arm's rows are the
+port's; the Low arm's are the original's. See the comment on `BoardDestRect` in
+`internal/game/world.go` and the head of `internal/game/scoreboard.go`.
+
+This is the one place Stage 1 knowingly shows something the original did not, on the
+grounds that a scoreboard nobody can see is not a design decision.
+
+### 2.10 Presentation is welded to the simulation tick — **planned, 1.7 at the earliest**
+
+`RenderFrame` composes, publishes and waits, in that order, once per simulated frame. A
+release on a 144 Hz display wants the composition at 30 Hz and the presentation faster,
+which means splitting `awaitFrame` from `Present` and interpolating sprite positions at
+the present step only. Every position the game computes stays integral and stays at 30 Hz
+(2.2); the interpolation is a display artefact and must not feed back.
+
+### 2.11 The dirty-rect lists silently drop past 47 — **planned, 1.6 (instrumentation only)**
+
+All three adders guard on `numWork2Main < (kMaxGarbageRects - 1)` and, when the guard
+fails, drop the rect with no report. A dropped *work* rect is a patch of screen that is
+never updated; a dropped *back* rect is a patch of work map that is never erased, so
+whatever was drawn there smears. Both are reachable in a busy room — a mirror room is the
+easy case, because 2.19 registers an unclipped rect per frame — and both are reproduced.
+
+The improvement is not to raise the cap, which would change what the original showed. It
+is a debug counter behind a flag, so that a house author or a bug report can say "this
+room overflows the rect list" instead of "this room flickers".
+`TestPlayGameKeepsPublishingFrames` already asserts the lists stay well under the cap in a
+quiet room, which is the regression half of the same idea.
+
+### 2.12 A missing graphic kills the application — **planned, 1.7**
+
+The original's answer to a failed PICT load is `RedAlert(kErrFailedGraphicLoad)`, which
+quits. That is defensible for a game shipped on a CD with its own resource fork and
+indefensible for a binary that extracts its assets from someone else's install (1.2). A
+release should degrade: draw a placeholder, note it, and carry on. The arcade scoreboard
+block is the concrete case — see `arcadeBlackenBoard` in `internal/game/scoreboard.go`,
+which reloads the scoreboard PICT *per game over* and dies if it is missing. It should be
+loaded once at launch.
+
+### 2.13 One failed sound bank mutes the entire game — **planned, 1.6**
+
+`LoadSounds` treats any failure as fatal to sound as a whole, so a single missing 'snd '
+resource costs every effect in the game. A release should load per-sound and lose only
+what is actually missing. While there: the original has one volume, set from the Sound
+control panel. A release needs at least effects and music separately, and a mute that
+survives a restart.
+
+### 2.14 A house whose custom trigger sound fails to load is silently silent — **planned, 1.6**
+
+A house can carry its own 'snd ' resources for triggers. If one fails to load the original
+plays nothing and says nothing, so a house author gets no signal that their sound is
+broken. The house linter (4.1) should report it, and the game should log it once.
+
+### 2.15 Leaving a game requires a physical key release — **planned, 1.7**
+
+`WaitCommandQReleased` spins until the player physically lets go of Command-Q before the
+game will proceed. On a Mac with a real menu bar that prevented a held chord from firing
+twice; in a port it is a hang waiting for a key event that may never come (the window can
+lose focus mid-chord). It is deliberately **not** transcribed in `NewGame`.
+
+### 2.16 The two-player idle freeze has no visual tell — **planned, 1.9**
+
+`TagGliderIdle` freezes a glider for 30 frames — a full second — with no indication that
+this is deliberate. Player 2 in particular starts every two-player game idled and hidden
+(`Play.c:198-203`), so the first thing a new player experiences is a second of not
+existing. A fade, a shimmer, or anything at all would do.
+
+### 2.17 The frame limiter is a busy-wait, and there is no catch-up — **DONE (the hook), 1.5b; the setting is 1.7**
+
+The original's limiter is `while (TickCount() < nextFrame) { }`, which on a modern machine
+pins a core at 100% for whatever fraction of the two ticks the frame did not need, for the
+whole time the game is running. `awaitFrame` takes a `World.WaitTick` hook for the loop
+body: nil is the C's empty body and is what a fidelity build uses, and `cmd/glidergo`
+installs a `time.Sleep(time.Millisecond)`. That changes only *how* the wait is spent, not
+when it ends — `awaitFrame` still returns on the same tick — so it is not a fidelity
+change and needs no flag.
+
+The second half is still open. `nextFrame` is reseeded from the clock *after* the wait
+rather than by adding `kTicksPerFrame` to the previous deadline, so **there is no
+catch-up**: a frame that overruns makes the game run slower rather than skip, and every
+frame still advances `gameFrame` by exactly one. That is why a slow Mac played the same
+game in more wall-clock seconds instead of a different game, and it is the right default.
+A release should make it an explicit setting — "keep real time" versus "keep game time" —
+because a modern player on a machine that stutters expects the former. Any variable-
+timestep work changes that one line and nothing else.
+
+### 2.18 The random stream is unverified against real hardware — **planned, 1.8**
+
+`internal/game/rand.go` transcribes the original's linear congruential generator, and the
+demo replay in 1.8 depends on it bit for bit. It has not been checked against a trace from
+a real Mac, and until it is, a demo that desyncs is ambiguous between "the RNG is wrong"
+and "the input replay is wrong". 1.8 should capture a reference trace first.
+
+Two related notes: `PourScreenOn` is dead code in the original — nothing calls it — and it
+*draws from the RNG*, so wiring it up would shift every subsequent random number and
+invalidate any recorded demo. And `case kLgTrigger:` in the interaction dispatch is
+unreachable, because the object code is never produced; it is transcribed as a dead branch
+and should stay dead.
+
+### 2.19 The mirror-room flame blink — **planned, 1.7 (opt-in), 2.x (default)**
+
+`DrawReflection` registers the *unclipped* reflected-glider rect with
+`AddRectToBackRects`, so the erase covers the whole rect while the draw covered only the
+part inside a mirror. Every frame, the work map outside the mirror is restored from a
+background that never had a reflection in it — which is correct — but a candle flame or a
+pendulum inside that rect is erased a frame early, because those register no back rects of
+their own and rely on their own opaque redraw. In a mirror room with a flame, the flame
+blinks.
+
+The fix is to clip the back rect to the mirror rects, which also relieves 2.11 in exactly
+the rooms that need it most. It is a visible change to what the original drew, so it is
+opt-in first.
+
+### 2.20 A mirror shows the wrong player's foil — **planned, 1.7 (opt-in)**
+
+`DrawReflection` tests `if (showFoil)` with no `!twoPlayerGame` guard, unlike
+`RenderGlider`'s. In a two-player game with foil showing, `glid2SrcMap` holds
+`kGliderFoil2PictID` — the *other* player's foil sheet — so player 1's reflection is drawn
+with player 2's artwork. Clearly unintended, and a player watching a mirror in a
+two-player game does see it. A fidelity replay would diverge if it were fixed, so it is
+kept and offered as an opt-in correction alongside 2.19 and 2.22.
+
+### 2.21 `doBackground` should not be a user option — **worked around in `cmd/glidergo`; the setting is 1.7**
+
+`doBackground` is a preference (`Main.c:186`, default **false**) that gates the entire
+event pump: `PlayGame` only calls `HandlePlayEvent` when it is set. With it off the game
+never pauses when it loses the foreground, never processes an update event, and — see 2.5
+— never repaints after a dialogue. The original could survive that because the Toolbox
+redrew a window's contents from its `WindowRecord`; a modern compositor cannot, and a
+window that ignores its own close button is not shippable.
+
+`cmd/glidergo` sets it true unconditionally, with the reasoning at the assignment. A
+release should drop the preference entirely and always pause on focus loss. The one thing
+to preserve is that the pump loop spins *mid-frame*, after both clocks have been bumped,
+so every deactivation costs exactly one frame of animation phase — invisible, but it is
+what the original did.
+
+### 2.22 The two-player handshake has three bugs — **planned, 1.9 (opt-in fixes)**
+
+All three are in the limbo/transit handshake and all three are transcribed faithfully:
+
+- **Mismatched-exit deadlock.** Two players leaving the same room by different exits can
+  each end up waiting for the other, with no key that breaks it.
+- **The `takingTheStairs` leak.** The flag is set on a stair transit and is not always
+  cleared, so a later transit in the same game can take the stairs path when it should not.
+- **The shared `StillOver` edge detector.** One piece of state serves both gliders, so
+  player 2 standing on a trigger can suppress player 1's edge.
+
+A compatibility flag that defaults to the original's behaviour, with the fixes available,
+is the right shape — the same shape 2.19 and 2.20 want.
+
+### 2.23 Player 2 has no give-up key and no menu access — **planned, 1.9**
+
+`Delete` abandons a glider waiting in limbo and it is player 1's key only; the menus are
+player 1's too. So in a two-player game, player 2 cannot rescue a stuck situation, quit,
+pause or change a setting. With the deadlock in 2.22 unfixed that is worse than an
+asymmetry. 1.9 owes player 2 a give-up key at minimum.
+
+### 2.24 Two `CopyRect` helpers read from the screen — **note for whenever presentation becomes GPU-backed**
+
+`CopyRectMainToWork` and `CopyRectMainToBack` read the screen surface as a source. That is
+free today because `World.Main` is an ordinary `render.Surface` in system memory, and it
+becomes a pipeline stall the day the screen is a texture. There are only two of them and
+their callers are known; anyone moving presentation onto a GPU should redirect them to a
+retained copy rather than read back.
+
+### 2.25 `RedrawRoomLighting` needs a redraw flag — **planned, 1.5c**
+
+The lighting redraw runs on a schedule rather than on demand, which means it can miss a
+change made in the same frame and repaint one that did not change. The fix is a dirty flag
+set by whatever changes the room's lighting; noted at the call site in
+`internal/game/readylevel.go`.
+
+### 2.26 `phoneBitSet` means "no telephone" — **planned, Stage 5 (the editor)**
+
+The flag is inverted with respect to its name: set means the room has *no* phone. Nothing
+in the game is wrong — the port reads it the same way the original does — but an editor UI
+with a checkbox labelled "phone" wired straight to this field would be backwards. Rename
+it or invert it at the editor boundary.
 
 ---
 
@@ -169,8 +445,38 @@ regardless of how the asset question is resolved.
 
 ---
 
+## 4. Tooling and content
+
+### 4.1 A house linter — **planned, Stage 2**
+
+`glidertool house check` already round-trips and sanity-checks a house. Stage 2 authors new
+houses, and the failure modes it should catch first are the ones the shipped houses
+already contain: transit objects whose link points at a room that does not exist, transit
+objects that are linked from nowhere, destination rooms with no staircase to arrive on,
+and (2.14) custom trigger sounds that do not load. A house that fails to link is not a
+crash in the original — the player just cannot get out of the room — which is precisely
+why a linter is worth more than a runtime check.
+
+---
+
 ## Done
 
 | Item | Stage | Commit |
 |---|---|---|
-| 1.1 GPLv2 `LICENSE` and a `README.md` licence section | 1.5b | (this stage) |
+| 1.1 GPLv2 `LICENSE` and a `README.md` licence section | 1.5a | earlier |
+| 2.9 Scoreboard moved on screen as a documented deviation | 1.5b | this stage |
+| 2.17 `World.WaitTick` hook, and a sleeping limiter in `cmd/glidergo` | 1.5b | this stage |
+
+Two bugs found and fixed in the port itself while writing this, neither of which is an
+"improvement" so much as a repair, both recorded here because the reason no test caught
+them is worth keeping:
+
+- **`render.bgrxLUT` was built from a zero-valued `Palette`.** Go runs every package-level
+  variable initializer before any `init()` and orders them only by dependencies visible in
+  the initializer *expressions*; `Palette` has no initializer expression, so a
+  `var x = f(Palette)` had no dependency edge, ran first, and read 256 zero entries. Every
+  LUT entry came out `0xFF000000`, so `Surface.ToBGRX` returned an opaque black image for
+  any input — and nothing but the real host path calls it, while an all-black frame is
+  indistinguishable from an uncomposed one. Fixed by deriving the table inside
+  `palette.go`'s `init`; guarded by `TestBGRXLUTMatchesPalette`.
+- **`playTestWorld` budgeted presents, not frames.** See 2.4.

@@ -30,15 +30,10 @@ const (
 	Roof int16 = 2014 // a rooftop: a diagonal roof line, not a flat floor
 )
 
-// How the other player got out through a wall, ceiling or floor
-// (GliderDefines.h:602-607). The two stairs codes live in consts.go with the rest of
-// the transit codes.
-const (
-	PlayerEscapedRight int16 = -2
-	PlayerEscapedLeft  int16 = -3
-	PlayerEscapedUp    int16 = -4
-	PlayerEscapedDown  int16 = -5
-)
+// The four geographic escape codes this file writes -- PlayerEscapedRight, Left, Up
+// and Down -- live in consts.go with the other nine, because the set is read as a
+// whole by the hot spots and the transit handlers and splitting it across two files
+// hid the handshake.
 
 // Impact sounds (GliderDefines.h:55, :80, :101, :120, :123, :141).
 const (

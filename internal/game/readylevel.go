@@ -15,6 +15,8 @@ package game
 // free frame; calling Rebuild where ReadyLevel belongs leaves the previous room's
 // openings in place, so the glider can fly through a wall that is now drawn solid.
 
+import "glidergo/internal/game/player"
+
 // ReadyLevel is RoomGraphics.c:402-419: load the central room and everything around
 // it, from scratch.
 //
@@ -65,11 +67,17 @@ func (w *World) ReadyLevel() {
 // finished in Stage 1.3. What is added here is the four resets the renderer has no
 // tables for, the object graph, and the two cached flags the composition ends with.
 func (w *World) Rebuild() {
-	// The reset head of DrawLocale is ten statements. Six -- ZeroFlamesAndTheLike,
-	// ZeroDinahs, KillAllBands, ZeroMirrorRegion, ZeroTriggers and
+	// The reset head of DrawLocale is ten statements. Five --
+	// ZeroFlamesAndTheLike, ZeroDinahs, KillAllBands, ZeroMirrorRegion and
 	// numTempManholes = 0 -- are inside Scene.DrawLocale, which owns those tables.
-	// The remaining four are these:
+	// The remaining five are these, in the C's order:
 	//
+	// ZeroTriggers() is the fifth statement, and the trigger table is the one item of
+	// the reset head that lives on this side of the render boundary: a fuse names a
+	// house object, not a drawn one. So a trigger armed on the way out of a room never
+	// fires -- see ZeroTriggers.
+	w.ZeroTriggers()
+
 	// FlushAnyTriggerPlaying() and DumpTriggerSound() free the one reserved sound
 	// slot. Clearing TriggerSoundHeld is what re-arms it, and is what makes the
 	// first kSoundTrigger of each room the one that works -- see loadTriggerSound.
@@ -87,6 +95,17 @@ func (w *World) Rebuild() {
 	w.R.NumChimes = 0
 	w.R.DrawLocale()
 
+	// hasMirror. In the C this is set by AddToMirrorRegion (Render.c:759), which sets
+	// it unconditionally on every call and is called once per kMirror object as the
+	// room is drawn; ZeroMirrorRegion clears it in DrawLocale's reset head. So it is
+	// exactly "this locale drew at least one mirror", and Scene.MirrorRects is the same
+	// list AddToMirrorRegion was unioning together -- see Surface.CopyClipped.
+	//
+	// Deriving it from the list rather than carrying a second flag is the one place
+	// this file departs from the C's shape, and it removes a way for the two to
+	// disagree. The order matters: DrawLocale has to have run.
+	w.R.HasMirror = len(w.R.MirrorRects) > 0
+
 	// The two flags DrawLocale ends with. ShadowVisible is cached here and nowhere
 	// else during play except RedrawRoomLighting, because the only thing that can
 	// change the answer mid-room is a light going on or off.
@@ -102,6 +121,21 @@ func (w *World) Rebuild() {
 // count is only ever used as zero-or-not. So a room with two lamps goes dark only
 // when the second one is switched off, and the redraw happens on that transition
 // alone.
+//
+// **This function's redraw is wider than the C's, and that is a known deviation.**
+// The original redraws the central room *only*, in six steps -- DrawRoomBackground,
+// DrawARoomsObjects(kCentralRoom, true), DrawLighting, UpdateOutletsLighting, an
+// optional DrawFloorSupport, RestoreWorkMap -- and the `true` is a `redraw` flag that
+// suppresses nineteen registration sites inside DrawARoomsObjects. Those nineteen are
+// what create bands, triggers, dinahs, temporary manholes and the mirror region, so a
+// redraw deliberately re-draws the pixels *without* re-creating the live objects.
+//
+// Calling Rebuild here re-composes all nine rooms with redraw == false, which
+// re-creates them: a band in flight is deleted, the mirror region is rebuilt, and any
+// dinah mid-swoop restarts. In a room with a light switch and none of those things --
+// which is every room in the shipped houses that has a switch -- the two produce the
+// same pixels, which is why it is tolerable now. It is fixed properly when the object
+// drawing slice lands the redraw flag; see docs/IMPROVEMENTS.md 2.25.
 func (w *World) RedrawRoomLighting() {
 	wasLit := w.R.NumLights > 0
 	w.R.NumLights = w.R.GetNumberOfLights(w.R.RoomNumber)
@@ -110,6 +144,17 @@ func (w *World) RedrawRoomLighting() {
 		return
 	}
 	w.Rebuild()
+
+	// AddRectToWorkRects(&localRoomsDest[kCentralRoom]) -- RoomGraphics.c:458.
+	//
+	// Without this the room is recomposed into the work map and never reaches the
+	// screen, so the lights appear to change only where something else happens to be
+	// dirty: the glider's own rect moves and drags a lit-room-shaped hole around
+	// behind it. It is the one dirty-rect registration outside Render.c and the
+	// dynamics, and it is easy to miss because it is the second-to-last line of a
+	// function whose subject is counting lamps.
+	w.AddRectToWorkRects(player.Rect(w.R.V.LocalRoomsDest[CentralRoom]))
+
 	w.R.ShadowVisible = w.IsShadowVisible()
 }
 
@@ -125,16 +170,17 @@ func (w *World) RedrawRoomLighting() {
 //
 //	nextFrame = TickCount() + kTicksPerFrame
 //
-// Without it the first frame of a new room is due in the past, so the loop runs a
-// burst of catch-up frames as fast as it can and the glider crosses the room before
-// the player sees it. That is the "teleport on room entry" bug, and this line is the
-// whole of its absence.
+// Without it the first frame of a new room is due in the past, so it is not waited for
+// at all and lands the instant the room is composed. Because awaitFrame reseeds from
+// the post-wait clock rather than from the old deadline there is no catch-up burst --
+// exactly one frame is un-paced, not a run of them -- but that one frame arrives while
+// the wipe transition is still on screen, which is enough to see.
 func (w *World) InitGarbageRects() {
 	w.Work2Main = w.Work2Main[:0]
 	w.Back2Work = w.Back2Work[:0]
 
 	// numSparkles = 0 with every sparkles[i].mode = -1, and the same for
-	// flyingPoints. Both tables are the effects layer's and arrive in 1.5e; the
+	// flyingPoints. Both tables are the effects layer's and arrive in 1.5c; the
 	// mode = -1 sweep is what makes a slot reusable, so they cannot be modelled as
 	// bare slices the way the two rect lists can.
 
