@@ -1,0 +1,29 @@
+# The 600-frame determinism trace for Stage 1.5b.
+#
+# Room 4 of CD Demo House is "Sticky Fly Paper" and has a ceiling duct at v=6 h=417.
+# Placing the glider under it means the duct fires on frame 1 and the room changes on
+# frame 9, so the trace covers a transition early and then 590 frames of an unattended
+# glider in room 5 -- which is the room with the game's only pendulum source, a kCuckoo
+# at v=36 h=424.
+#
+# No `at` lines: this run holds no keys at all. That is deliberate. The point of the long
+# tail is what the simulation does on its own, and a keystroke log would make it a test of
+# the input path instead.
+#
+# What the tail actually shows is worth knowing before reading the trace, because 590
+# nearly identical lines look like a run that stopped simulating. The glider emerges from
+# room 5's own ceiling duct at h=30, which puts it directly over the kFloorVent at
+# `305 32` -- 269 tall, blowing up -- so it is pinned against the ceiling and rocks
+# between v=12 and v=17 forever. That is the original's physics, not a stall: the trace is
+# pinning the air-flow pass on every one of those frames, and the glider's position is the
+# only readout it has. It also means the dirty-rect counters reach a steady state, which
+# is what makes an unexpected change in them legible.
+house CD Demo House
+seed 1
+frames 600
+neighbors 9
+players 1
+clock 1994-09-14T10:09:00Z
+room 4
+where 420 20
+facing right

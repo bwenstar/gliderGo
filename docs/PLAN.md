@@ -362,6 +362,15 @@ lines of C
   asserting destination room, arrival mode and arrival rect against hand-derived numbers. A
   600-frame replay pins `gameFrame`, `evenFrame`, the two dirty-rect counts and `clockFrame` per
   frame, which is what pins the double `RenderFrame`.
+- **Two corrections to that acceptance text, found while meeting it.** Both are recorded in
+  docs/IMPROVEMENTS.md 4.2; they are repeated here because this is the paragraph somebody
+  reads first. (1) It cannot be *Demo House*: that house contains four of the seven exit kinds
+  in the whole file and its first room has none of them. **CD Demo House** has all seven and is
+  what `internal/game/exits_test.go` uses, choosing one room per kind by inspection. (2) There
+  is no `clockFrame` to pin: the port's pendulum animation is `RenderPendulums`, a named empty
+  stub charged to 1.5f, so the trace pins `len(Scene.Pendulums)` in its place — which proves
+  the pendulum reached the locale even though nothing swings it yet. Add `clockFrame` to the
+  trace when 1.5f lands.
 
 **1.5c Dynamics: the `dinahs` table, appliances, movers, toggles, triggers** — ~2,510 lines of C
 - `Dynamics3.c`'s `AddDynamicObject`/`HandleDynamics`/`RenderDynamics`, all of `Dynamics.c` and

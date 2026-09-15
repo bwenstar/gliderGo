@@ -735,6 +735,11 @@ func (w *World) GetDemoInput(g *player.Glider) {}
 // the loop body and it is ungated by GameOver, so the room keeps moving through the
 // death countdown. Without it every ball, fish, dart, balloon, toaster and enemy stands
 // still, and the rooms that are pure obstacle courses are walkable.
+//
+// One thing to know before transcribing HandleOutlet, which it reaches through
+// Dynamics3.c:60: its off-frame PaintRect has no destination in the shipped Carbon source,
+// because the SetPort that gave it one was commented out and nothing replaced it. Target the
+// work surface, as the correctly-converted Grease.c does. docs/IMPROVEMENTS.md 2.34.
 func (w *World) HandleDynamics() {}
 
 // HandleBands is Bands.c:120-193 and belongs to 1.5e. Ungated like HandleDynamics.
@@ -758,13 +763,22 @@ func (w *World) DoDiedGameOver() {
 	w.Playing = false
 }
 
-// BringUpBanner is Banner.c:295-360 and belongs to 1.5d: the author's message on a sheet
-// of notebook paper, as a modal alert. It *blocks*, which is why InitGarbageRects follows
-// it rather than precedes it -- see NewGame.
+// BringUpBanner is Banner.c:171-197 and belongs to 1.5d: the author's message on a sheet
+// of notebook paper, as a modal alert. It *blocks* -- WaitForInputEvent(15), or 4 in a demo
+// -- which is why InitGarbageRects follows it rather than precedes it, see NewGame.
+//
+// Blocking is the part not to transcribe. See docs/IMPROVEMENTS.md 2.32: when this becomes
+// real it has to consume a count of simulated frames rather than sleep, or the window is
+// dead while it is up and no replay script can cross it.
 func (w *World) BringUpBanner() {}
 
-// DisplayStarsRemaining is Banner.c:365-420 and belongs to 1.5d: the resume path's
-// "N stars to go". Blocks, like BringUpBanner.
+// DisplayStarsRemaining is Banner.c:205-243 and belongs to 1.5d: "N stars to go".
+//
+// It blocks harder than BringUpBanner -- DelayTicks(60) then WaitForInputEvent(30), so one
+// to one and a half seconds -- and it is reached from two places, NewGame's resume arm here
+// and, more awkwardly, Interactions.c:946, which is the *middle* of a frame. Held keys are
+// swallowed by the wait, so a player who touches a star while walking stops walking. All
+// three problems are docs/IMPROVEMENTS.md 2.32.
 func (w *World) DisplayStarsRemaining() {}
 
 // restoreSplashScreen is NewGame's tail (Play.c:257-273): repaint the work map and

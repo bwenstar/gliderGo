@@ -118,7 +118,7 @@ import (
 // linter should report (IMPROVEMENTS.md 4.1).
 func (w *World) WhatAreWeLinkedTo(where int16, who int) int16 {
 	rm := w.Room(where)
-	if rm == nil || who < 0 || who >= MaxRoomObs {
+	if rm == nil || w.badIndex(devRoomObject, who, MaxRoomObs) {
 		return player.LinkedToOther
 	}
 
@@ -164,7 +164,7 @@ func (w *World) WhatAreWeLinkedTo(where int16, who int) int16 {
 func (w *World) resolveTransitLink(who *HotObject) player.Link {
 	var link player.Link
 
-	if who != nil && who.Who >= 0 && int(who.Who) < len(w.R.Master) {
+	if who != nil && !w.badIndex(devMasterObject, int(who.Who), len(w.R.Master)) {
 		mo := &w.R.Master[who.Who]
 		link.Room = mo.RoomLink
 		objLinked := mo.ObjectLink
@@ -175,7 +175,7 @@ func (w *World) resolveTransitLink(who *HotObject) player.Link {
 		// coordinates, which is what makes it usable directly: the destination room is
 		// about to become the central room, so its local coordinates become the
 		// glider's.
-		if rm := w.Room(link.Room); rm != nil && objLinked >= 0 && int(objLinked) < MaxRoomObs {
+		if rm := w.Room(link.Room); rm != nil && !w.badIndex(devRoomObject, int(objLinked), MaxRoomObs) {
 			var r Rect
 			w.R.A.GetObjectRect(&rm.Objects[objLinked], &r)
 			link.Rect = player.Rect(r)

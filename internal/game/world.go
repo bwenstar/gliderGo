@@ -291,6 +291,12 @@ type World struct {
 	Work2Main []Rect
 	Back2Work []Rect
 
+	// Diag counts the two things about a frame that are otherwise invisible: the dirty
+	// rects the port drops as faithfully as the original did, and the out-of-range reads
+	// it declines to perform where the original went ahead. Nothing in the game reads it.
+	// See guards.go.
+	Diag Diagnostics
+
 	// Pending is the resolved destination of the transit the glider is currently
 	// inside: transRect, transRoom and linkedToWhat as one value. The player code
 	// takes it as an argument rather than reaching for the object graph, which is

@@ -253,7 +253,7 @@ which means splitting `awaitFrame` from `Present` and interpolating sprite posit
 the present step only. Every position the game computes stays integral and stays at 30 Hz
 (2.2); the interpolation is a display artefact and must not feed back.
 
-### 2.11 The dirty-rect lists silently drop past 47 — **planned, 1.6 (instrumentation only)**
+### 2.11 The dirty-rect lists silently drop past 47 — **counters DONE, 1.5b; the surfacing is 1.7**
 
 All three adders guard on `numWork2Main < (kMaxGarbageRects - 1)` and, when the guard
 fails, drop the rect with no report. A dropped *work* rect is a patch of screen that is
@@ -266,6 +266,18 @@ is a debug counter behind a flag, so that a house author or a bug report can say
 room overflows the rect list" instead of "this room flickers".
 `TestPlayGameKeepsPublishingFrames` already asserts the lists stay well under the cap in a
 quiet room, which is the regression half of the same idea.
+
+**Done at 1.5b: the counting.** `World.Diag` (`internal/game/guards.go`) holds
+`DroppedWorkRects` and `DroppedBackRects`, incremented at all three drop sites in
+`render_frame.go`, and both are in every line of a replay trace (`glidertool replay
+-trace`) as well as its footer. So the overflow is now a number a bug report carries
+rather than a symptom somebody has to name. It is *not* behind a flag: the counters cost
+an increment on a path that already dropped the rect, and a diagnostic nobody enables is a
+diagnostic nobody has.
+
+**Left for 1.7: telling the player, or rather telling us.** Nothing surfaces the counters
+in a running game — there is no debug overlay and no log line — so a stranger who hits it
+still just sees flicker. That half needs 1.7's shell to have somewhere to put it.
 
 ### 2.12 A missing graphic kills the application — **planned, 1.7**
 
@@ -538,6 +550,113 @@ glyphs. One finding came out of it and is pinned by
 the calendar picture is **63** wide, so the original's own text sits a pixel right of centre.
 The port keeps the 64.
 
+### 2.32 Three things stop the world from inside a frame — **planned, 1.7**
+
+`DisplayStarsRemaining` (`Banner.c:205-243`) is the clearest case. It is called from
+`Interactions.c:946`, inside the star-collection arm of `HandleInteraction` — so from the
+*middle* of a frame, after the interaction pass and before the glider moves — and it draws
+to the main window, then `DelayTicks(60)`, then `WaitForInputEvent(30)`. That is one to one
+and a half seconds during which the process does nothing at all: no repaint, no resize, no
+window close. `BringUpBanner` (`Banner.c:171-197`) does the same with `WaitForInputEvent(15)`,
+and `DoPause` is a third.
+
+Three separate problems, and only the first is cosmetic:
+
+- **The window is dead while it blocks.** A modern compositor notices, and the desktop
+  offers to kill the application. This is 2.5 and 2.28 in a different place, which is why
+  they should be fixed as one thing: a *pause state* the frame loop knows about, so that
+  presentation keeps running while the simulation does not.
+- **Input in that window is swallowed.** `WaitForInputEvent` consumes the keystroke that
+  dismisses it. So a player holding right when they touch a star is not holding right when
+  play resumes — the glider stops. That is 1994 behaviour and it is bad behaviour, and it
+  cannot be "fixed" inside Stage 1 without breaking the demo-replay comparison (1.8).
+- **It is not reproducible headlessly.** A replay trace cannot represent "and then 90 ticks
+  passed", so any script that collects a star would diverge the moment the pause is real.
+  The stubs are empty today, which is precisely why the 1.5b traces are stable; that is a
+  debt, not a property.
+
+The port's stubs are `internal/game/play.go` (`BringUpBanner`, `DisplayStarsRemaining`) and
+`internal/game/env.go` (`DoPause`), and each carries a comment pointing here. When 1.7
+implements them, the frame count they consume has to be a simulated count — a mode the loop
+runs in for N frames — and not a sleep.
+
+### 2.33 The port declines out-of-range reads the original performs — **DONE as a reported deviation, 1.5b**
+
+The original indexes several arrays with values a house file controls, and does not check
+them. The reachable one is the room-object slot: an unlinked transport has `objectLink` of
+-1, which the `Byte` parameter turns into 255, and `masterObjects[...]`/`rooms[r].objects[...]`
+are then read at that index. On a Mac that read something adjacent and carried on; in Go it
+panics, which is not an option for a released game and also not a faithful one.
+
+So `internal/game/guards.go` has exactly one guard, `badIndex`, and every caller reads
+`if w.badIndex(kind, i, n) { return <what the C's garbage would most likely have been> }`.
+Ten sites: `hotspots.go`, `objects.go`, `setstate.go`, `transit.go` (three), `triggers.go`
+(four). Each refusal is counted in `World.Diag.Guarded` and the first sixteen *distinct*
+kinds are sampled into `Diag.Seen`, so `glidertool replay` reports both, and a house that
+trips one is diagnosable instead of merely surviving.
+
+The two deliberate exclusions matter as much as the guard, because both look like
+omissions:
+
+- **`World.Room` is not guarded.** Its nil return is the *designed* answer to
+  `GetNeighborRoomNumber` returning -1, which every `ReadyLevel` on an edge room asks for
+  several times a frame. Counting it would put thousands of normal events in the same bucket
+  as one real fault.
+- **`internal/render/locale.go`'s three equivalents are not guarded.** They are the same
+  shape, but they sit on `Scene`, which holds no game state and has no business holding a
+  counter. If they ever need reporting, the answer is to give `Scene` its own `Diagnostics`,
+  not to reach across the package boundary from `render` into `game`.
+
+What is left is a policy question for 1.7: a guarded read means the house is malformed, and
+right now nothing tells the *player* that. A house picker that ran `glidertool house
+check`'s logic and refused to offer a broken house would be better than diagnosing it after
+the fact — see 4.1.
+
+### 2.34 One `PaintRect` in the Carbon conversion lost its destination — **note; binds 1.5c and 1.5e**
+
+Glider PRO's shipped source is a Carbon conversion of the 1994 code, and the conversion
+replaced QuickDraw's ambient current-port drawing with explicit `SetGWorld` pairs. Fifteen
+`SetPort` calls were commented out in the process. Fourteen are harmless — twelve in
+`ObjectDraw2.c` are the *last* statement of a function whose port was already restored by a
+`SetGWorld(wasCPort, wasWorld)` two lines up.
+
+The fifteenth is not. `Dynamics.c:577-578`:
+
+```c
+//			SetPort((GrafPtr)workSrcMap);
+			PaintRect(&dinahs[who].dest);
+```
+
+`PaintRect` draws into whatever port is current, and the line that would have made that the
+work map is commented out with nothing put in its place. Compare `Grease.c:105-118`, which
+was converted correctly and is the model:
+
+```c
+GetGWorld(&wasCPort, &wasWorld);
+SetGWorld(backSrcMap, nil);
+PaintRect(&src);
+SetGWorld(workSrcMap, nil);
+PaintRect(&src);
+AddRectToWorkRects(&src);
+SetGWorld(wasCPort, wasWorld);
+```
+
+So `HandleOutlet`'s off-frame — the blank rect it paints when the outlet is not zapping —
+lands in whichever GWorld the previous drawing call happened to leave set, while the
+`AddRectToWorkRects` on the next line asserts it went to the work map. The commented line
+names `workSrcMap`, so the 1994 behaviour is not in doubt; only the shipped Carbon build's
+is.
+
+**The port has no outlet handler yet** — `HandleDynamics` is an empty stub at
+`internal/game/play.go:738`, charged to 1.5c, and `HandleGrease` is one at
+`render_frame.go:573`, charged to 1.5e. This entry exists so that whoever writes them
+targets the work surface explicitly rather than transcribing a commented-out line as a
+comment and leaving a `PaintRect` with no destination. Transcribing the *bug* would be
+untestable here for a reason worth stating: the port has no ambient current port to leak
+into, so a missing destination is a compile error or an obvious nil — the failure mode the C
+has is not available, which makes "be faithful" meaningless and "be correct" the only
+reading.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -585,6 +704,52 @@ and (2.14) custom trigger sounds that do not load. A house that fails to link is
 crash in the original — the player just cannot get out of the room — which is precisely
 why a linter is worth more than a runtime check.
 
+### 4.2 A bug-report format, so that a released game can be debugged — **DONE, 1.5b**
+
+A public release gets reports like "sometimes the glider sticks in the third room", which
+nobody can reproduce. `internal/replay` and `glidertool replay` are the answer: a script is
+a house, a seed, a start point and a keystroke log, and it reproduces the frame exactly on
+any machine with no display, no sound and no timing dependency.
+
+```
+glidertool replay -house "CD Demo House" -frames 600 -room 4 -where 420,20
+glidertool replay -trace -o bug.trace bug.script
+glidertool replay -digest bug.script        # one token, for "do we still agree"
+```
+
+Three things had to be pinned to make a run reproducible, and they are the three a bug
+report cannot leave to the machine: the random seed, the calendar clock (`DrawCalendar`
+reads it — 2.31), and the frame clock (`World.TickCount` nil means the frame number *is* the
+time). Everything else falls out of that.
+
+What the trace deliberately does **not** contain is a hash of the screen. A screen digest
+would change on every legitimate rendering improvement and tell you nothing about where; the
+trace records the frame counters, the dirty-rect counts, the glider's mode and rect, the
+score, and `World.RandSeed`, which is the strongest determinism claim available and the only
+field in it that is not a fact about the picture. `TestDifferentSeedsAreDifferentRuns` exists
+because a harness that pinned the randomness too would pass every determinism test and
+reproduce exactly one run of the game.
+
+**A deviation from `docs/PLAN.md` to record.** The plan asks for the seven exit kinds to be
+tested "leaving Demo House's first room". That is not possible: Demo House contains four of
+the seven kinds in the whole file, and its first room has none of them. CD Demo House — also
+one of the 22 originals — has all seven, so `internal/game/exits_test.go` picks rooms by
+inspection there instead (28, 192, 193, 4, 32, 69). The seven arrival rects were derived
+from the C by hand before the port was run, and each case carries its arithmetic, because a
+number that matches the current code is a snapshot and a number that matches the C is a
+specification.
+
+Two further notes on that test, both of which cost time to find:
+
+- **`GliderInRect` is containment, not intersection.** A glider merely touching a staircase
+  trigger box walks straight past it, so a probe has to place the whole 48×20 glider inside
+  the box. A placement that looks right and does nothing is this.
+- **The last `Present` of a frame is the one that counts.** A transition presents once per
+  wipe strip — 116 or 160 times inside one game frame — and the side doors change room from
+  inside `HandleInteraction`, which runs *before* `HandleGlider`. Sampling the first present
+  of the transition frame therefore reports the glider offset by `-RoomWide` but not yet
+  stepped, and misses the second of the frame's two renders entirely.
+
 ---
 
 ## Done
@@ -593,10 +758,13 @@ why a linter is worth more than a runtime check.
 |---|---|---|
 | 1.1 GPLv2 `LICENSE` and a `README.md` licence section | 1.5a | earlier |
 | 2.9 Scoreboard moved on screen as a documented deviation | 1.5b | this stage |
+| 2.11 `World.Diag` counts the silently dropped dirty rects (the surfacing is still 1.7) | 1.5b | this stage |
 | 2.17 `World.WaitTick` hook, and a sleeping limiter in `cmd/glidergo` | 1.5b | this stage |
 | 2.27 `platform.EventExpose`, emitted by the x11 backend and handled by the host | 1.5b | this stage |
 | 2.29 A bitmap font, full Mac Roman coverage, wired into the scoreboard's three panels | 1.5b | this stage |
 | 2.31 `DrawCalendar` draws its month, from `STR# 1005` and `Scene.Clock` | 1.5b | this stage |
+| 2.33 `badIndex`, one named path for every out-of-range read the C performs and the port refuses | 1.5b | this stage |
+| 4.2 `internal/replay` and `glidertool replay`: the bug-report format | 1.5b | this stage |
 
 Two bugs found and fixed in the port itself while writing this, neither of which is an
 "improvement" so much as a repair, both recorded here because the reason no test caught

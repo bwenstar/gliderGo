@@ -342,6 +342,13 @@ func (w *World) refreshPoints() {
 // disappears from the room.
 //
 // It does not clamp; see refreshNumGliders for why that is safe here and not there.
+//
+// **This and quickScoreRefresh are the only two draws in the game that target the screen
+// rather than the work surface**, and they are deliberate: both exist to put a number up
+// between frames, without waiting for the next Work2Main to carry it. Everything else goes
+// to the work map and is published by the dirty-rect machinery. Worth stating in both
+// places, because "draws straight to the screen" reads like a shortcut somebody took --
+// see docs/IMPROVEMENTS.md 2.34 for the case where the C really did lose its destination.
 func (w *World) QuickGlidersRefresh() {
 	w.Board.Panel(w.Board.Gliders, itoa16(w.Mortals))
 	w.Main.Copy(w.Board.Gliders, w.R.V.BoardGSrc, w.BoardGQDestRect, render.SrcCopy)
@@ -352,6 +359,8 @@ func (w *World) QuickGlidersRefresh() {
 //
 // The distinction is the entire point of the roll: this is the only function that draws the
 // intermediate number, and HandleDynamicScoreboard is its only caller.
+//
+// Screen-targeted, like QuickGlidersRefresh above, and for the same reason -- see there.
 func (w *World) quickScoreRefresh() {
 	w.Board.Panel(w.Board.Points, itoa32(w.DisplayedScore))
 	w.Main.Copy(w.Board.Points, w.R.V.BoardPSrc, w.BoardPQDestRect, render.SrcCopy)

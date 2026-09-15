@@ -187,19 +187,19 @@ func (w *World) ZeroTriggers() {
 // chord because the custom sound loader was not written yet. Reproduced, comment and all
 // -- a remotely triggered sound trigger in a shipped house strums.
 func (w *World) FireTrigger(index int16) {
-	if index < 0 || int(index) >= len(w.Triggers) {
+	if w.badIndex(devTrigger, int(index), len(w.Triggers)) {
 		return
 	}
 	trig := &w.Triggers[index]
 
 	triggerIs := trig.Index
-	if triggerIs < 0 || int(triggerIs) >= len(w.R.Master) {
+	if w.badIndex(devMasterObject, int(triggerIs), len(w.R.Master)) {
 		return
 	}
 
 	if w.R.Master[triggerIs].LocalLink != -1 {
 		triggeredIs := w.R.Master[triggerIs].LocalLink
-		if triggeredIs < 0 || int(triggeredIs) >= len(w.R.Master) {
+		if w.badIndex(devMasterObject, int(triggeredIs), len(w.R.Master)) {
 			return
 		}
 		target := &w.R.Master[triggeredIs]
@@ -256,7 +256,7 @@ func (w *World) FireTrigger(index int16) {
 		// The remote half. HGetState/HLock/HSetState around it are the Toolbox's
 		// handle locking and have no analogue here.
 		rm := w.Room(trig.Room)
-		if rm == nil || trig.Object < 0 || int(trig.Object) >= MaxRoomObs {
+		if rm == nil || w.badIndex(devRoomObject, int(trig.Object), MaxRoomObs) {
 			return
 		}
 		// localLink, which the branch condition has just proved is -1. Not redundant:

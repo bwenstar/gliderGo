@@ -58,7 +58,7 @@ func (w *World) AddActiveRect(bounds Rect, action, who int16, isOn, doScrutinize
 // the graph already, because this reads its TheObject copy. ListOneRoomsObjects
 // appends first and calls this second for exactly that reason.
 func (w *World) CreateActiveRects(who int16) int16 {
-	if who < 0 || int(who) >= len(w.R.Master) {
+	if w.badIndex(devMasterObject, int(who), len(w.R.Master)) {
 		return -1
 	}
 	obj := w.R.Master[who].TheObject

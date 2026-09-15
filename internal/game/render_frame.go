@@ -101,6 +101,7 @@ var shadowSrc = [2]player.Rect{
 // writes it rather than as a Sect().
 func (w *World) AddRectToWorkRects(theRect player.Rect) {
 	if len(w.Work2Main) >= MaxGarbageRects-1 {
+		w.Diag.DroppedWorkRects++
 		return
 	}
 	r := Rect(theRect)
@@ -132,6 +133,7 @@ func (w *World) AddRectToWorkRects(theRect player.Rect) {
 // the compositors in this file do, and they are here. See player/env.go's note.
 func (w *World) AddRectToBackRects(theRect player.Rect) {
 	if len(w.Back2Work) >= MaxGarbageRects-1 {
+		w.Diag.DroppedBackRects++
 		return
 	}
 	r := Rect(theRect)
@@ -173,6 +175,7 @@ func (w *World) AddRectToBackRects(theRect player.Rect) {
 // observationally identical.
 func (w *World) AddRectToWorkRectsWhole(theRect player.Rect) {
 	if len(w.Work2Main) >= MaxGarbageRects-1 {
+		w.Diag.DroppedWorkRects++
 		return
 	}
 	wr := w.R.V.WorkRect
@@ -567,6 +570,10 @@ func (w *World) RenderFrame() {
 
 // HandleGrease is Grease.c:79-121 and belongs to 1.5e. Without it a spilt bucket
 // leaves no slick, so the glider never slides.
+//
+// Grease.c:105-118 is worth reading first whatever order these get written in: it is the
+// one place the Carbon conversion got the port switching right, and it is the model
+// HandleOutlet should have followed. docs/IMPROVEMENTS.md 2.34.
 func (w *World) HandleGrease() {}
 
 // RenderPendulums is Render.c:260-322 and belongs to 1.5f. Without it a grandfather

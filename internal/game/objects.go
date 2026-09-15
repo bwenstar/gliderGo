@@ -107,7 +107,7 @@ type HotObject struct {
 // a sparkle ever goes away.
 func (w *World) IsThisValid(where int16, who int) bool {
 	rm := w.Room(where)
-	if rm == nil || who < 0 || who >= MaxRoomObs {
+	if rm == nil || w.badIndex(devRoomObject, who, MaxRoomObs) {
 		return false
 	}
 	obj := rm.Objects[who]

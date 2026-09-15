@@ -13,6 +13,8 @@
 //	glidertool house rooms Demo.house
 //	glidertool render -scale 2 -o room.png Demo.house
 //	glidertool render -all -o /tmp/demo Demo.house  # every room, for eyeballing
+//	glidertool replay -house Demo -frames 600      # headless run, summary + digest
+//	glidertool replay -trace bug.txt               # per-frame trace from a script
 //	glidertool types vent                          # object type names, filtered
 //
 // Nothing here is needed to play. It exists because every later stage of the port
@@ -52,6 +54,8 @@ func run(args []string) error {
 		return houseCmd(args[1:])
 	case "render":
 		return renderCmd(args[1:])
+	case "replay":
+		return replayCmd(args[1:])
 	case "types":
 		return typesCmd(args[1:])
 	case "help", "-h", "-help", "--help":
@@ -73,6 +77,7 @@ usage: %s <command> [flags] [file...]
   house info  <house>...                    one summary line per house
   house rooms [-objects] <house>            per-room table
   render      [flags] <house>               compose a room to PNG, as the game does
+  replay      [flags] [script]              play headlessly from a script; trace it
   types       [substring]                   the object type names, by code
 
 Flags precede file names. The text format is documented by the header comment

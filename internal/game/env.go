@@ -245,7 +245,9 @@ func (w *World) AddAShreddedGlider(r player.Rect) {}
 // DoPause and DoCommandKey belong to 1.7, the shell: both open modal UI that does not
 // exist yet. DoPause in particular *blocks* in the original, called from inside GetInput,
 // which is why a paused game does not advance a frame -- see docs/IMPROVEMENTS.md 2.5 for
-// why a released build needs more than a faithful transcription of it.
+// why a released build needs more than a faithful transcription of it, and 2.32 for the two
+// other places (BringUpBanner, DisplayStarsRemaining) that stop the world the same way and
+// want the same answer: a pause the frame loop knows about, not a sleep.
 func (w *World) DoPause()      {}
 func (w *World) DoCommandKey() {}
 

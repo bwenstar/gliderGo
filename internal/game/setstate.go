@@ -77,7 +77,7 @@ const (
 // fall-through into a family that would have written a byte.
 func (w *World) SetObjectState(room, object, action, local int16) bool {
 	rm := w.Room(room)
-	if rm == nil || object < 0 || int(object) >= MaxRoomObs {
+	if rm == nil || w.badIndex(devRoomObject, int(object), MaxRoomObs) {
 		return false
 	}
 	obj := &rm.Objects[object]
