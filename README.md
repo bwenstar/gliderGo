@@ -15,12 +15,16 @@ a very large house, and try to get further than you did last time.
 > Stage 1.3 (room rendering: all 4,070 rooms of all 22 houses compose in the
 > original's draw order) and Stage 1.4 (player physics: the 24-mode glider state
 > machine, integer integrator, input, hit box and room boundaries) are complete.
-> Stage 1.5 (objects, collision and room transitions) is next — when the glider first
-> meets the rooms it can already draw. It is the largest stage in the project, about
-> 9,100 lines of C, and is specified in
+> Stage 1.5 (objects, collision and room transitions) is in progress — this is where the
+> glider meets the rooms it can already draw. It is the largest stage in the project, about
+> 9,100 lines of C, specified in
 > [docs/analysis/stage-15-spec.md](docs/analysis/stage-15-spec.md) and split into six
-> sub-stages; **1.5a** (the world, the object graph and the hot-spot table) is in progress.
-> See [docs/PLAN.md](docs/PLAN.md).
+> sub-stages. **1.5a** (the world, the object graph and the hot-spot table: 117 object
+> types, 19,849 hot spots across all 4,070 rooms) is complete; **1.5b** (the frame loop,
+> the hot-spot dispatcher and room transitions — the sub-stage that makes it playable) is
+> in progress. See [docs/PLAN.md](docs/PLAN.md), and
+> [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
+> release someone else could play.
 
 ---
 
@@ -108,8 +112,21 @@ at `GliderPRO/upstream.git` (`git --git-dir=GliderPRO/upstream.git log`).
 
 ## Licence
 
-The original Glider PRO source is GPLv2-or-later (`GliderPRO/GPLv2-LICENSE.md`). This port
-is a derivative work and is distributed under the same terms.
+**GPLv2** — see [LICENSE](LICENSE).
 
-Original game and art by John Calhoun. House credits — Jonathan Chin, Ward Hartenstein,
-Steve Sullivan, Shawn Brenneman, Kim Money — are listed in `GliderPRO/README.md`.
+`GliderPRO/README.md` states the grant exactly: *"The source for Glider PRO is released
+under the GNU General Public License 2 as published by the Free Software Foundation."*
+There is no "or (at your option) any later version" clause, so this is GPLv2-**only**, not
+GPLv2-or-later. gliderGo is transcribed from that source function by function and is
+unambiguously a derivative work, so it carries the same licence.
+
+Original game by **John Calhoun**, published by Casady & Greene. Upstream source:
+[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro).
+
+**The assets are not the source, and the distinction matters for a release.** Upstream's
+grant covers the source. The 22 shipped houses are credited to five other authors —
+Jonathan Chin, Ward Hartenstein, Steve Sullivan, Shawn Brenneman and Kim Money — and two
+PICT resources derive from illustrations by John R. Neill (*Ozma of Oz*) and Winsor McCay
+(*Little Nemo*). So gliderGo distributes **no original art**: `assets/extracted/` is
+gitignored and is regenerated locally from your own copy of the game. See
+[docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2 for what that means for a public build.
