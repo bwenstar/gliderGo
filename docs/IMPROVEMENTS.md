@@ -455,29 +455,44 @@ for, but that is a fix for the tooling and not for the player.
 1.7 owes the pause a visible state: a dimmed frame and a "paused — click to resume" line,
 shared with `DoPause` (2.5) so both kinds of pause look the same.
 
-### 2.29 The scoreboard has no font, so its three text panels are blank — **planned, 1.5b, the next commit**
+### 2.29 The scoreboard had no font, so its three text panels were blank — **DONE, 1.5b; the metrics are still owed at 1.7**
 
-`render.Scoreboard.Panel` clears a panel to `kGrayBackgroundColor` and does not draw the
-string it is handed. So the band is on screen (2.9), the four badges light and blink, and
-the room name, the glider count and the score are three flat gray patches — invisible
-against the board art's recesses, which is what the C's `PaintRect` leaves too, but with
-nothing drawn over them.
+`render.Scoreboard.Panel` used to clear a panel to `kGrayBackgroundColor` and drop the string
+it was handed. So the band was on screen (2.9) and the four badges lit and blinked, but the
+room name, the glider count and the score were three flat gray patches.
 
-The reason is not laziness about glyph rasterising: the original's scoreboard text is the
+The reason was not laziness about glyph rasterising: the original's scoreboard text is the
 Macintosh **application font** at 12 point bold, set by `TextFont(applFont)` three times in
 `InitScoreboardMap` (`StructuresInit.c:109-133`). `applFont` resolves to Geneva on classic
 Mac OS, which is a *system* resource — it is not in Glider PRO's resource fork, so there is
 nothing for `glidertool` to extract and no way to be pixel-faithful here by transcription.
 A font has to be authored, and authoring one is a different kind of work from porting one.
 
-The next commit adds a hand-authored fixed-width bitmap set (ASCII 32..126) and wires it
-into `Panel` at the pen positions the original uses — black at (1,10), white at (0,9), the
-one-pixel drop shadow. It will not be Geneva: 1.7 owes the real metrics, and a house whose
-name is longer than the panel is wide will clip rather than ellipsise until then. Two things
-become testable the moment it lands, and both are noted in
+`internal/render/font.go` is that font: a 5×7 core in a 6×9 cell, ASCII 0x20..0x7F authored
+as a sheet of `.` and `#`, wired into `Panel` at the pens the original uses — black at
+(1,10), then white at (0,9), which is the order that makes the shadow fall down and right
+instead of up and left. Coverage is deliberately wider than the original's problem: a house
+is a user-supplied file whose room names are Mac Roman, so all 128 upper-half characters can
+reach the title panel, and every one of them resolves — 27 accented lowercase forms by
+composing a mark over a base letter, sixteen more authored outright (`…`, the dashes, the
+bullet, `¢£§¶†‡◊π µ¬°`, the Apple logo), and the rest folded to the nearest ASCII the font
+has (`©` → `(c)`, `Æ` → `AE`, `≤` → `<=`). `TestEveryMacRomanRuneIsRenderable` fails if a
+character ever falls through to the hollow box.
+
+**What is still owed, at 1.7.** It is not Geneva and it is not proportional: every character
+advances six pixels, so a line is wider or narrower than the original's by whatever Geneva's
+metrics differ, and there is no bold — the original's boldface is a one-pixel smear that at
+this size would close every counter in the alphabet. Nothing shipped overflows a panel (the
+widest of the corpus's 4,070 room names is 162 pixels of the title panel's 255, pinned by
+`TestShippedTextFitsItsPanel`), and an authored house that does overflow will clip rather
+than ellipsise. A taller face would also let the accented *capitals* keep their accents;
+today they fold to the bare letter, because a seven-row capital reaches the top of the cell
+and leaves nowhere to put the mark.
+
+Two things became testable the moment it landed, and both now have tests in
 `internal/game/scoreboard_test.go`: the glider-count clamp (`refreshNumGliders` clamps
-`Mortals` at 0, `QuickGlidersRefresh` deliberately does not, and today both draw the same
-nothing) and the score roll's intermediate numbers.
+`Mortals` at 0, `QuickGlidersRefresh` deliberately does not, and before the font both drew
+the same nothing) and the score roll's intermediate numbers.
 
 ### 2.30 `JustRoomsRect` lives on the `View` and is written by game code — **note; revisit if a process ever runs two games**
 
@@ -496,6 +511,23 @@ function of the screen size, so a second view — a resizable window (2.1), a sp
 two-player mode, or a test that builds two worlds on one view — would find it stale. The
 fix at that point is a `World.JustRoomsRect` plus a parameter on the two render entry
 points, and it is cheap; it is only cheap *now* because nothing else writes it.
+
+### 2.31 `DrawCalendar` still draws no month — **planned, 1.5b, the next commit**
+
+`ObjectDraw2.c:1132-1166` draws the calendar's month name in the same application font:
+`GetTime` for the real month, `GetIndString(monthStr, kMonthStringID, month)` for its name
+and `ColorText` at `left + (64 - StringWidth(monthStr))/2` to centre it. The port draws the
+calendar's picture and stops there, so a calendar in a room renders as a blank one.
+
+It was waiting on the font, and the other two things it needs are both already in place: `STR# 1005`
+is extracted at `assets/extracted/res/STR#/1005.bin`, and `Scene.Clock` already exists and is
+already fixed to 14 October 1994 by the golden-corpus test, so nothing about this has to be
+nondeterministic. What is left is a `STR#` decoder (a count and twelve Pascal strings) and
+`render.StringWidth` for the centring.
+
+It is a separate commit from the font because it moves the golden hash of every room that
+contains a calendar, and a corpus diff is worth having on its own so it can be looked at and
+explained rather than buried in a commit about glyphs.
 
 ---
 
@@ -554,6 +586,7 @@ why a linter is worth more than a runtime check.
 | 2.9 Scoreboard moved on screen as a documented deviation | 1.5b | this stage |
 | 2.17 `World.WaitTick` hook, and a sleeping limiter in `cmd/glidergo` | 1.5b | this stage |
 | 2.27 `platform.EventExpose`, emitted by the x11 backend and handled by the host | 1.5b | this stage |
+| 2.29 A bitmap font, full Mac Roman coverage, wired into the scoreboard's three panels | 1.5b | this stage |
 
 Two bugs found and fixed in the port itself while writing this, neither of which is an
 "improvement" so much as a repair, both recorded here because the reason no test caught

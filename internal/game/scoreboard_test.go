@@ -8,11 +8,11 @@ package game
 // called. Reproducing the C's control flow is not the goal -- putting the right cell of the
 // right sheet at the right place on the right frame is.
 //
-// One thing deliberately absent: the glider count's clamp. refreshNumGliders clamps Mortals
-// at zero and QuickGlidersRefresh does not, and until the font lands neither draws a glyph,
-// so the difference between "0" and "-1" is two identically flat gray patches. Baselining
-// that would be baselining nothing. The clamp is tested through itoa16 below and gets its
-// pixel test in the commit that brings the font; see docs/IMPROVEMENTS.md 2.29.
+// The last two tests exist because there is a font now. Before it, every panel was a flat
+// gray patch and the two things the panels are actually for -- the glider count's clamp and
+// the score roll's intermediate numbers -- were unobservable from outside: "0" and "-1" drew
+// the same nothing. Both are asserted against a panel drawn from the string spelled out in
+// the test, which is what makes them tests of the value chosen rather than of the drawing.
 
 import (
 	"testing"
@@ -471,6 +471,84 @@ func TestItoa(t *testing.T) {
 	}
 	if got := itoa16(0); got != "0" {
 		t.Errorf("itoa16(0) = %q; the clamped path draws this", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The two panels, now that there are glyphs in them
+// ---------------------------------------------------------------------------
+
+// TestGliderCountClamp is the difference between Scoreboard.c's two glider-count refreshes,
+// made visible.
+//
+// refreshNumGliders clamps Mortals at zero; QuickGlidersRefresh does not. Mortals reaches -1
+// on the last death of a one-player game, so the clamp is what stops the board from reading
+// "-1 gliders" in the moment before the game-over sequence takes the window -- and the quick
+// path's lack of one is safe because its only caller is the branch where a glider remains.
+//
+// The expected panels are drawn by the same Panel that the code under test uses, with the
+// string spelled out here. That makes this a test of which number each path chose, which is
+// the thing that differs, and not a second copy of the font.
+func TestGliderCountClamp(t *testing.T) {
+	w := scoreboardWorld("")
+	panel := func(text string) *render.Surface {
+		s := render.NewSurface(w.Board.Gliders.W, w.Board.Gliders.H)
+		w.Board.Panel(s, text)
+		return s
+	}
+	zero, minusOne := panel("0"), panel("-1")
+	if regionEquals(zero, zero.Bounds(), minusOne, minusOne.Bounds()) {
+		t.Fatal(`"0" and "-1" draw the same pixels; this test cannot tell the paths apart`)
+	}
+
+	w.Mortals = -1
+	w.refreshNumGliders()
+	if !regionEquals(w.Board.Gliders, w.Board.Gliders.Bounds(), zero, zero.Bounds()) {
+		t.Error(`refreshNumGliders with Mortals = -1 did not draw "0"; the clamp is gone`)
+	}
+
+	w.QuickGlidersRefresh()
+	if !regionEquals(w.Board.Gliders, w.Board.Gliders.Bounds(), minusOne, minusOne.Bounds()) {
+		t.Error(`QuickGlidersRefresh with Mortals = -1 did not draw "-1"; it has grown a clamp`)
+	}
+
+	// And the quick path puts it on the screen, at the destination the band's height moved.
+	if !regionEquals(w.Main, w.BoardGQDestRect, minusOne, minusOne.Bounds()) {
+		t.Errorf("the glider count at %v is not what the quick path drew", w.BoardGQDestRect)
+	}
+}
+
+// TestScoreRollDrawsTheIntermediateNumber is the other half of TestScoreRoll: that one counts
+// the steps the roll takes, this one checks that the number each step draws is the rolling
+// one and not the real score.
+//
+// quickScoreRefresh is the only function in the file that draws DisplayedScore, and the roll
+// is the only reason the two counters exist separately, so a version that drew Score would
+// pass every other test here and never show the count-up.
+func TestScoreRollDrawsTheIntermediateNumber(t *testing.T) {
+	w := scoreboardWorld("")
+	panel := func(text string) *render.Surface {
+		s := render.NewSurface(w.Board.Points.W, w.Board.Points.H)
+		w.Board.Panel(s, text)
+		return s
+	}
+
+	w.Score, w.DisplayedScore, w.DoRollScore = 40, 0, true
+	w.Frame = 3 // a frame the dynamic handler rolls on
+	w.HandleDynamicScoreboard()
+
+	if w.DisplayedScore != ScoreRollAmount {
+		t.Fatalf("DisplayedScore = %d after one step, want %d", w.DisplayedScore, ScoreRollAmount)
+	}
+	thirteen, forty := panel("13"), panel("40")
+	if !regionEquals(w.Board.Points, w.Board.Points.Bounds(), thirteen, thirteen.Bounds()) {
+		t.Error(`the score panel does not read "13" after one roll step`)
+	}
+	if regionEquals(w.Board.Points, w.Board.Points.Bounds(), forty, forty.Bounds()) {
+		t.Error(`the score panel reads "40"; quickScoreRefresh is drawing Score, not DisplayedScore`)
+	}
+	if !regionEquals(w.Main, w.BoardPQDestRect, thirteen, thirteen.Bounds()) {
+		t.Errorf("the score at %v is not the intermediate number", w.BoardPQDestRect)
 	}
 }
 

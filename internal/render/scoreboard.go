@@ -200,17 +200,20 @@ func (s *Scoreboard) Blacken() { s.Board.Fill(s.v.BoardSrc, Black8) }
 // which panel and which string, and they have already drifted: RefreshNumGliders clamps
 // its number at zero and QuickGlidersRefresh does not.
 //
-// **It draws no glyphs yet.** The original's text is the Mac's application font -- Geneva,
-// 12 point, bold -- set by TextFont(applFont) in InitScoreboardMap, and that font is a
-// system resource rather than something shipped in Glider PRO's own fork, so there is
-// nothing to extract and a font has to be authored. Until then a panel is a flat gray
-// patch, which is exactly what the C's PaintRect leaves and is invisible against the
-// board's recesses: the score is not wrong, it is absent. The font lands in the next
-// commit and the pen positions above are already the interface it plugs into.
+// The glyphs are not the original's. Its text is the Mac's application font -- Geneva, 12
+// point, bold -- and that is a system resource rather than something shipped in Glider
+// PRO's own fork, so there was nothing to extract and font.go authors a font instead. It is
+// fixed-width and a little smaller, which is visible in the room title and nowhere else;
+// docs/IMPROVEMENTS.md 2.29 has the account.
+//
+// The order of the two draws is the C's and matters: black first, then white one pixel up
+// and left, so where the two overlap the white wins. Reversing them turns the shadow into a
+// halo.
 func (s *Scoreboard) Panel(p *Surface, text string) {
 	if p == nil {
 		return
 	}
 	p.Fill(p.Bounds(), kGrayBackgroundColor)
-	_ = text
+	p.DrawString(1, 10, text, Black8)
+	p.DrawString(0, 9, text, White8)
 }

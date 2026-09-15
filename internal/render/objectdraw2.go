@@ -454,11 +454,14 @@ func (s *Scene) DrawWallWindow(window Rect) {
 // DrawCalendar draws the calendar picture, then the current month's name across
 // it in bold nine-point application font, centred in the picture's 64 pixels.
 //
-// The text is not drawn yet: it needs a font engine, and the game's own is the
-// Mac's, whose bitmaps are in the system rather than in the game. The picture is
-// drawn, so a calendar renders as a blank one. Stage 1.7 brings the shell and
-// with it text; the strings are STR# kMonthStringID (1005) index 1..12, and the
-// pen is kDarkFleshColor at (left + (64 - StringWidth)/2, top + 55).
+// The text is not drawn yet, though the two things it was waiting on are both
+// here now: font.go has a font (the game's own was the Mac's, whose bitmaps are
+// in the system rather than in the game), and Scene.Clock supplies the month
+// without making the drawing depend on the wall clock. What is left is a STR#
+// decoder -- the strings are STR# kMonthStringID (1005) index 1..12 -- and the
+// pen, which is kDarkFleshColor at (left + (64 - StringWidth)/2, top + 55).
+// The picture is drawn, so a calendar renders as a blank one until then. See
+// docs/IMPROVEMENTS.md 2.31.
 func (s *Scene) DrawCalendar(theRect Rect) {
 	art := s.A.Pict(kCalendarPictID)
 	if art == nil {
