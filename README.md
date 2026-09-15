@@ -9,20 +9,24 @@ later Carbon work-in-progress. `docs/ORIGINAL_GAME.md` §2 has the evidence.)
 You are a paper glider. You ride the air from furnace vents, dodge the household hazards of
 a very large house, and try to get further than you did last time.
 
-> **Status: in development.** Stage 0 (foundations, environment, source archaeology),
-> Stage 1.1 (asset extraction — the 1994 art, sound, houses and movies), Stage 1.2
-> (house loading: all 22 original houses read, written and round-tripped byte-for-byte)
-> Stage 1.3 (room rendering: all 4,070 rooms of all 22 houses compose in the
-> original's draw order) and Stage 1.4 (player physics: the 24-mode glider state
-> machine, integer integrator, input, hit box and room boundaries) are complete.
-> Stage 1.5 (objects, collision and room transitions) is in progress — this is where the
-> glider meets the rooms it can already draw. It is the largest stage in the project, about
+> **Status: in development — the game is playable, and there is no way in yet.**
+> Complete: Stage 0 (foundations, environment, source archaeology), **1.1** asset
+> extraction (the 1994 art, sound, houses and movies), **1.2** house loading (all 22
+> original houses read, written and round-tripped byte-for-byte), **1.3** room rendering
+> (all 4,070 rooms compose in the original's draw order), **1.4** player physics (the
+> 24-mode glider state machine, integer integrator, input, hit box and room boundaries),
+> **1.5** objects, collision and room transitions — the largest stage in the project, about
 > 9,100 lines of C, specified in
-> [docs/analysis/stage-15-spec.md](docs/analysis/stage-15-spec.md) and split into six
-> sub-stages. **1.5a** (the world, the object graph and the hot-spot table: 117 object
-> types, 19,849 hot spots across all 4,070 rooms) is complete; **1.5b** (the frame loop,
-> the hot-spot dispatcher and room transitions — the sub-stage that makes it playable) is
-> in progress. See [docs/PLAN.md](docs/PLAN.md), and
+> [docs/analysis/stage-15-spec.md](docs/analysis/stage-15-spec.md) and delivered in six
+> sub-stages (117 object types, 19,849 hot spots, bands, grease, switches, rewards and the
+> six animated families) — and **1.6** audio (three effect channels with the original's
+> priority policy, the music score on a fourth, and a replay that records what it sounded
+> like).
+>
+> Next is **1.7, the shell**: the splash screen, the house picker, preferences, the
+> scoreboard and high scores. Until it lands there is no title screen and no menu — the
+> game starts, and it starts in whichever house the command line names. See
+> [docs/PLAN.md](docs/PLAN.md), and
 > [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
 > release someone else could play.
 
@@ -33,11 +37,12 @@ a very large house, and try to get further than you did last time.
 ```bash
 ./scripts/bootstrap-dev-env.sh    # rootless: installs Go 1.23 into ~/.local/opt/go
 . scripts/env.sh                  # PATH, GOROOT, GOPROXY=off
-make check                        # fmt, vet, test, build, headless, cross-build (+ on-screen bench)
+make check                        # fmt, vet, test, build, headless, audio, cross-build (+ bench)
 make assets                       # extract the 1994 art/sound/houses/movies (57 s)
 make run                          # window at the original's 640x480
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 make houses                       # round-trip every original house through the codec
+make audio                        # replay 600 frames to /tmp/glidergo-audio.wav
 ```
 
 Run these from this directory — the parent directory above has no Makefile, so `make check`
@@ -71,6 +76,24 @@ bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.hous
 order, the original's two port bugs — and writes it out as a PNG. It is how the renderer was
 checked by eye, and `-all` over a whole house is the quickest way to notice that something has
 gone missing.
+
+Hearing the 1994 sounds:
+
+```bash
+make run ARGS='-audio list'                                 # which players this machine has
+make run ARGS='-volume 3'                                   # 0..7, the original's range
+make run ARGS='-sound=false'                                # the original's dontLoadSounds
+bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
+```
+
+There is no audio driver in here and there is not meant to be: the mix is written to
+`pw-play`, `paplay`, `aplay`, `ffplay` or `play`, whichever the machine has, as raw PCM on
+stdin. That keeps the port free of cgo and of every dependency this airgapped network cannot
+reach, at the cost of the player's own buffer latency — and it is the one part of the audio
+path that Windows will need replaced
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48). With no player installed, or on a build
+host with no sound card at all, `-wav` writes the samples to a file instead; the developer
+machine this was written on has no sound card, so that path is the one under test.
 
 The build needs no network access at run time and no third-party Go modules —
 see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).

@@ -142,7 +142,7 @@ func TestCheckPasses(t *testing.T) {
 	}
 }
 
-// TestCheckFindsTruncation and TestCheckFindsUndefined cover the two kinds of
+// TestCheckFindsTruncation and TestCheckFindsUndefinedWhat cover the two kinds of
 // finding: a file the codec cannot read at all, and a file it reads fine but
 // which contains something no shipped house does.
 func TestCheckFindsTruncation(t *testing.T) {
@@ -318,6 +318,104 @@ func TestReplayResolvesScriptThenFlags(t *testing.T) {
 	if z := resolve(t, "-seed", "0", scriptPath); z.Seed != 0 {
 		t.Errorf("-seed 0 gave seed %d: zero is a seed, not an absent flag", z.Seed)
 	}
+
+	// The booleans, which have no spare value to use as a sentinel and so ask the flag package
+	// which ones were typed. Both directions matter: a script cannot be silenced without the
+	// first and a silenced script cannot be listened to without the second.
+	if kept.Sound != true || kept.Music != true || kept.TwoPlayer != false {
+		t.Errorf("a script that names none of them resolved to sound %v, music %v, two %v; want the defaults on, on, off",
+			kept.Sound, kept.Music, kept.TwoPlayer)
+	}
+	if off := resolve(t, "-sound=false", "-music=false", scriptPath); off.Sound || off.Music {
+		t.Errorf("-sound=false -music=false gave sound %v, music %v", off.Sound, off.Music)
+	}
+	silentPath := filepath.Join(dir, "silent.script")
+	if err := os.WriteFile(silentPath, []byte("house H\nsound off\nmusic off\nplayers 2\n"), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if quiet := resolve(t, silentPath); quiet.Sound || quiet.Music || !quiet.TwoPlayer {
+		t.Errorf("the script's own settings did not survive: sound %v, music %v, two %v",
+			quiet.Sound, quiet.Music, quiet.TwoPlayer)
+	}
+	loud := resolve(t, "-sound", "-music", "-two=false", silentPath)
+	if !loud.Sound || !loud.Music || loud.TwoPlayer {
+		t.Errorf("flags did not override the script the other way: sound %v, music %v, two %v",
+			loud.Sound, loud.Music, loud.TwoPlayer)
+	}
+}
+
+// TestReplayScriptOutputIgnoresThisMachine: -script writes what the run *is*, not what this
+// checkout can do.
+//
+// A resolved script is a thing people mail to each other, and the silence fallback below -script
+// is a fact about the sender's disk. If it leaked into the file, a bug report written on a machine
+// with no extracted sounds would tell the recipient to reproduce it in silence -- which is a
+// different run, because a house's sound triggers only become hot spots when their sound loads.
+func TestReplayScriptOutputIgnoresThisMachine(t *testing.T) {
+	outPath := filepath.Join(t.TempDir(), "resolved.script")
+	// -sounds names a directory that certainly holds no bank, which is the state of a fresh
+	// clone. The tests in this package run in cmd/glidertool and so are in that state anyway;
+	// naming it makes the case independent of that.
+	if err := run([]string{"replay", "-house", "H", "-sounds", filepath.Join(t.TempDir(), "no-sound"),
+		"-script", outPath}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "sound on") {
+		t.Errorf("the resolved script recorded this machine's missing assets:\n%s", body)
+	}
+}
+
+// TestReplayAudioArguments: the two behaviours a missing sound bank has, which are different on
+// purpose.
+func TestReplayAudioArguments(t *testing.T) {
+	_, housePath := writeFixture(t)
+	dir := t.TempDir()
+	noSound := filepath.Join(dir, "no-sound")
+	common := []string{"replay", "-house", housePath, "-frames", "4", "-neighbors", "1",
+		"-art", filepath.Join(dir, "no-art"), "-sounds", noSound}
+
+	// Not asked for: the run happens in silence. The error that does come back is the missing
+	// art tree, which the fixture cases above cover; what matters here is that it is not about
+	// the sound, and that the trace was still produced.
+	tracePath := filepath.Join(dir, "silent.txt")
+	_ = run(append(append([]string{}, common...), "-trace", "-o", tracePath))
+	body, err := os.ReadFile(tracePath)
+	if err != nil {
+		t.Fatalf("a missing sound bank stopped the replay: %v", err)
+	}
+	if text := string(body); !strings.Contains(text, "# audio sound=off") {
+		t.Errorf("the trace does not record that it ran silent:\n%s", firstLines(text, 4))
+	}
+
+	// Asked for: an error, because a trace whose sound column is empty for want of assets is
+	// evidence of nothing.
+	if err := run(append(append([]string{}, common...), "-sound")); err == nil {
+		t.Error("-sound with no bank succeeded; want an error naming the missing manifest")
+	}
+
+	// And -wav has nothing to write, which is worth its own message: the file would otherwise be
+	// a 44-byte header that plays as silence, and the reporter would conclude the game is mute.
+	wavPath := filepath.Join(dir, "out.wav")
+	if err := run(append(append([]string{}, common...), "-wav", wavPath)); err == nil {
+		t.Error("-wav with no sound succeeded; want an error")
+	}
+	if _, err := os.Stat(wavPath); err == nil {
+		t.Error("-wav created a file it could not fill")
+	}
+}
+
+// firstLines is for the failure messages above: a whole trace is six hundred lines and the
+// header is what is being asserted on.
+func firstLines(s string, n int) string {
+	lines := strings.SplitN(s, "\n", n+1)
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // TestReplayNeedsAHouse: the one flag with no default worth guessing.

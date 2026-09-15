@@ -1,0 +1,71 @@
+# slot	constant	resource	frames	seconds
+0	hit wall	Wall Hit	1840	0.0827
+1	fade in	Fade In	8832	0.3969
+2	fade out	Fade Out	9952	0.4472
+3	beeps	Beeps	9680	0.4350
+4	buzzer	Buzzer	8032	0.3609
+5	ding	Ding	9728	0.4371
+6	energize	Energize	11904	0.5349
+7	follow	Follow	7296	0.3278
+8	microwaved	Miked	10880	0.4889
+9	switch	PowerSwitch	1264	0.0568
+10	bird	Bird	5312	0.2387
+11	cuckoo	Cuckoo	5136	0.2308
+12	tik	Tik	612	0.0275
+13	tok	Tok	452	0.0203
+14	blower on	Blowers On	9376	0.4213
+15	blower off	Blowers Off	8128	0.3652
+16	caught fire	Yow!	7664	0.3444
+17	score tik	Score Tick	644	0.0289
+18	thrust	Thrust	5759	0.2588
+19	fizzle	Fizzle	2816	0.1265
+20	fire band	Fire Band	590	0.0265
+21	band rebound	Band Rebound	1048	0.0471
+22	grease spill	Grease Spill	4544	0.2042
+23	chord	A Chord	19968	0.8973
+24	VCR	VCR	11520	0.5176
+25	foil hit	Foil Hit	3776	0.1697
+26	shred	Shred	1934	0.0869
+27	toast launch	Toast Launch	1232	0.0554
+28	toast land	Toast Land	2096	0.0942
+29	mac on	MacClickOn	1332	0.0599
+30	mac beep	MacOn	12160	0.5464
+31	mac off	MacClickOff	1184	0.0532
+32	TV on	TVOn	9784	0.4396
+33	TV off	TVOff	7648	0.3437
+34	coffee	Coffee	8832	0.3969
+35	mystic	Mystic	9696	0.4357
+36	zap	Zap	4339	0.1950
+37	pop	Pop!	480	0.0216
+38	enemy in	Enemy In	6480	0.2912
+39	enemy out	Enemy Out	4880	0.2193
+40	paper crunch	Paper Crunch	6928	0.3113
+41	bounce	Bounce	2976	0.1337
+42	drip	Drip	1008	0.0453
+43	drop	Drop	1376	0.0618
+44	fish out	Fish Leap	6688	0.3005
+45	fish in	Fish Land	3760	0.1690
+46	dont exit	Dont Exit	2368	0.1064
+47	sizzle	Sizzle	2240	0.1007
+48	paper 1	Paper1	4432	0.1992
+49	paper 2	Paper2	4096	0.1841
+50	paper 3	Paper3	1648	0.0741
+51	paper 4	Paper4	1584	0.0712
+52	typing	Keystroke	2524	0.1134
+53	carriage	Carriage Return	5248	0.2358
+54	chord 2	Check	5056	0.2272
+55	phone ring	Phone	11008	0.4946
+56	chime 1	Ding 1	7872	0.3537
+57	chime 2	Ding 2	9504	0.4271
+58	web twang	Twunk	2272	0.1021
+59	trans out	TransOut	9952	0.4472
+60	trans in	TransIn	9984	0.4486
+61	bonus	Bonus	5388	0.2421
+62	hiss	Hiss	2960	0.1330
+music 0		Refrain1.22	97034	4.3602
+music 1		Refrain2.22	97102	4.3632
+music 2		Refrain3.22	97032	4.3601
+music 3		Refrain4.22	97284	4.3714
+music 4		Chorus.22	194028	8.7186
+music 5		RefrainSparse1.22	96888	4.3536
+music 6		RefrainSparse2.22	97334	4.3737

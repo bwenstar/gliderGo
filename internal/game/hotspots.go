@@ -683,8 +683,10 @@ func (w *World) CreateActiveRects(who int16) int16 {
 // single-slot limit is reproduced by Room.TriggerSoundHeld: the second sound
 // trigger in a room fails whatever sound it names. The `dontLoadSounds` short
 // circuit is reproduced by leaving TriggerSoundExists nil, which is the state of a
-// build with no sound system -- and which is what this stage is. Actually playing
-// the sound is 1.6's.
+// build with no sound system. A build with audio wires it to
+// audio.Engine.LoadTriggerSound, which reads the house's own 'snd ' resources -- so
+// a house whose sound is MACE-compressed, or missing, composes the room without the
+// hot spot exactly as the original would have.
 func (w *World) loadTriggerSound(soundID int16) bool {
 	if w.TriggerSoundExists == nil || w.R.TriggerSoundHeld {
 		return false

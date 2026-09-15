@@ -9,9 +9,13 @@ package game
 // in the wrong coordinate system. That is what they are for.
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"glidergo/internal/game/player"
@@ -396,4 +400,151 @@ func TestEveryHouseStartsAndRuns(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRenderFrameOrder pins the order of RenderFrame's calls, because that order is the
+// z-order.
+//
+// This is the test grease_test.go and bands_test.go point at when they say they own a
+// *consequence* of the sequence and not the position in it, and it is deliberately a
+// reading of the source rather than a measurement of behaviour. Registration order is
+// z-order (render_frame.go): each renderer appends to Work2Main and CopyRectsQD replays
+// that list in order, so what has to be pinned is the sequence of thirteen calls in one
+// function body. A behavioural equivalent would need a single room holding a mirror,
+// grease, a pendulum, a flame, a dynamic, a flying point, a sparkle, a glider, a shred
+// and a band at once, with all ten overlapping so the covering is visible, and it would
+// then be pinning that room's art as much as the order. Parsing the function is exact,
+// needs no assets, and fails with the two sequences side by side.
+//
+// The list is Render.c:639-671 transcribed. If this test fails the question is not "what
+// is the new order" but "was Render.c wrong": reordering two lines here changes what the
+// player sees and produces no other symptom, which is the whole reason the nine renderers
+// went in as named no-ops in their real positions rather than being added as they landed.
+func TestRenderFrameOrder(t *testing.T) {
+	const src = "render_frame.go"
+
+	f, err := parser.ParseFile(token.NewFileSet(), src, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", src, err)
+	}
+	decl, recv := methodBody(t, f, "RenderFrame")
+
+	// The two-player calls are distinguished by their first argument, so that the test
+	// also pins player 1 going down before player 2 -- which is z-order too, and is what
+	// decides who is on top when two gliders overlap.
+	want := []string{
+		"DrawReflection(P1)", "DrawReflection(P2)",
+		"HandleGrease",
+		"RenderPendulums",
+		"RenderFlames", "RenderStars",
+		"RenderDynamics",
+		"RenderFlyingPoints",
+		"RenderSparkles",
+		"RenderGlider(P1)", "RenderGlider(P2)",
+		"RenderShreds",
+		"RenderBands",
+		"awaitFrame",
+		"CopyRectsQD",
+	}
+	got := receiverCalls(decl.Body, recv)
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("RenderFrame's call order changed:\n  got  %s\n  want %s",
+			strings.Join(got, " "), strings.Join(want, " "))
+	}
+
+	// Flames and stars are the one either/or in the sequence: they share a position and
+	// alternate on frame parity, so a flat reading of the source cannot tell "both, in
+	// this order" from "one or the other". Pin the branch as well, or the list above
+	// would still pass with the two calls made unconditionally one after the other --
+	// which is a room with its candles and its stars both animating at 30fps.
+	var parity *ast.IfStmt
+	ast.Inspect(decl.Body, func(n ast.Node) bool {
+		if is, ok := n.(*ast.IfStmt); ok && hasCall(receiverCalls(is.Body, recv), "RenderFlames") {
+			parity = is
+		}
+		return true
+	})
+	if parity == nil {
+		t.Fatal("RenderFlames is no longer inside an if; the flame/star alternation is gone")
+	}
+	if cond, ok := parity.Cond.(*ast.SelectorExpr); !ok || !isReceiverField(cond, recv, "EvenFrame") {
+		t.Error("the flame/star branch no longer tests EvenFrame; it must not be gameFrame&1 -- " +
+			"a stalled ball or fish writes EvenFrame mid-frame (see World.EvenFrame)")
+	}
+	els, ok := parity.Else.(*ast.BlockStmt)
+	if !ok || !hasCall(receiverCalls(els, recv), "RenderStars") {
+		t.Error("RenderStars is no longer the else arm of the parity if; " +
+			"flames and stars must never both draw in one frame")
+	}
+}
+
+// methodBody finds a method by name and returns it with its receiver's identifier, which
+// the two helpers below need to tell `w.RenderBands()` from any other call.
+func methodBody(t *testing.T, f *ast.File, name string) (*ast.FuncDecl, string) {
+	t.Helper()
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Recv == nil || fd.Name.Name != name || fd.Body == nil {
+			continue
+		}
+		if len(fd.Recv.List) == 0 || len(fd.Recv.List[0].Names) == 0 {
+			t.Fatalf("%s has an unnamed receiver", name)
+		}
+		return fd, fd.Recv.List[0].Names[0].Name
+	}
+	t.Fatalf("no method named %s", name)
+	return nil, ""
+}
+
+// receiverCalls lists the calls made on the receiver, in source order.
+//
+// ast.Inspect walks depth-first and pre-order, which for a straight-line body is source
+// order, and for an if is cond, then body, then else -- so the flame/star pair comes out
+// in the order the two arms are written. Nothing else in RenderFrame is a call on the
+// receiver: the frame counter is an increment and the two list resets are slice
+// truncations, so neither appears here.
+//
+// A call whose first argument is &recv.P1 or &recv.P2 gets that noted, because the two
+// per-player calls are otherwise indistinguishable.
+func receiverCalls(n ast.Node, recv string) []string {
+	var out []string
+	ast.Inspect(n, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isReceiver(sel.X, recv) {
+			return true
+		}
+		name := sel.Sel.Name
+		if len(call.Args) > 0 {
+			if u, ok := call.Args[0].(*ast.UnaryExpr); ok && u.Op == token.AND {
+				if f, ok := u.X.(*ast.SelectorExpr); ok && isReceiver(f.X, recv) {
+					name += "(" + f.Sel.Name + ")"
+				}
+			}
+		}
+		out = append(out, name)
+		return true
+	})
+	return out
+}
+
+func isReceiver(e ast.Expr, recv string) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == recv
+}
+
+func isReceiverField(sel *ast.SelectorExpr, recv, field string) bool {
+	return isReceiver(sel.X, recv) && sel.Sel.Name == field
+}
+
+func hasCall(calls []string, name string) bool {
+	for _, c := range calls {
+		if c == name || strings.HasPrefix(c, name+"(") {
+			return true
+		}
+	}
+	return false
 }

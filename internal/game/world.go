@@ -220,13 +220,19 @@ type World struct {
 	Shreds      [MaxShredded]Shred
 	NumShredded int16
 
-	// MusicMode and MusicCursor are musicMode and musicCursor (Music.c): which score
-	// is playing and where in it. DontLoadMusic is the C's flag of the same name --
-	// music is off, either by preference or because the bank failed to load -- and it
-	// short-circuits SetMusicalMode. It starts true because this stage has no music at
-	// all; 1.6 clears it when a bank loads.
+	// MusicMode, MusicCursor and MusicSoundID are musicMode, musicCursor and
+	// musicSoundID (Music.c:31-34): which score is playing, where in it, and which
+	// piece that works out to. DontLoadMusic is the C's flag of the same name -- music
+	// is off, either by preference or because the bank failed to load -- and it
+	// short-circuits SetMusicalMode. It starts true and InitMusic clears it, so a
+	// world with no audio behind it keeps the C's silent behaviour.
+	//
+	// The cursor is walked by NextMusicPiece, which the mixer calls when the music
+	// channel runs dry. That is the one piece of game state an audio callback writes,
+	// and music.go has the note on why it is here rather than in internal/audio.
 	MusicMode     int16
 	MusicCursor   int16
+	MusicSoundID  int16
 	DontLoadMusic bool
 
 	// The inventory. Battery is signed and is one counter for two power-ups:
@@ -417,14 +423,15 @@ type World struct {
 	// a build with audio -- and the fidelity corpus has to be able to choose.
 	//
 	// nil means "no sound system", which is exactly the original's dontLoadSounds
-	// short circuit: LoadTriggerSound returns -1 and no kSoundIt rect is made.
-	// That is the state of this stage; 1.6 supplies a real one.
+	// short circuit: LoadTriggerSound returns -1 and no kSoundIt rect is made. A
+	// build with audio wires it to audio.Engine.LoadTriggerSound, which claims the
+	// one reserved sample slot and reports whether it got it.
 	TriggerSoundExists func(soundID int16) bool
 
 	// SoundPlayer is the injected implementation of PlayPrioritySound (Sound.c:40-85):
 	// request a sound, which is granted only if nothing of higher priority is already
-	// playing. A hook for the same reason as TriggerSoundExists -- 1.6 fills it in --
-	// and nil means silence.
+	// playing. A hook for the same reason as TriggerSoundExists, wired to
+	// audio.Engine.PlayPrioritySound in a build with audio; nil means silence.
 	//
 	// It is not called `PlayPrioritySound`, even though that is the C's name, because
 	// the method that satisfies player.Env owns that name (see env.go). The field is
@@ -435,6 +442,21 @@ type World struct {
 	// from 100 for a wall bump to the 800s for the noisy appliances, so a blower's
 	// 701 displaces most things and is displaced by few.
 	SoundPlayer func(sound, priority int16)
+
+	// FlushTriggerSound is FlushAnyTriggerPlaying and DumpTriggerSound together
+	// (Sound.c:89-129 and :307-312), which DrawLocale calls as a pair on every room
+	// change (RoomGraphics.c:57-58). nil is a silent build.
+	//
+	// A hook rather than part of the SoundPlayer interface because it is the only audio
+	// call in the game that is not a request to play something: it frees the one
+	// reserved sample slot, and the *slot* is what a room's composition depends on.
+	FlushTriggerSound func()
+
+	// Music is the mixer's music channel, or nil for a build with no music. The three
+	// methods are Music.c's StartMusic, StopTheMusic and the availability test they
+	// both begin with; music.go has the interface and the reason the score walk stays
+	// on this side of it.
+	Music MusicChannel
 
 	// ---------------------------------------------------------------------
 	// Play.c's lifecycle globals
@@ -547,8 +569,11 @@ type World struct {
 	// FailedMusic is `failedMusic`, set once when StartMusic has failed so the alert is
 	// not repeated.
 	//
-	// They stay false through this stage and DontLoadMusic keeps the ladders inert; see
-	// StartGameMusic.
+	// Both preferences are the host's to set, and a host with a mixer sets them from its
+	// own flags (`cmd/glidergo -music`, a script's `music off`) before calling InitMusic --
+	// which is what clears DontLoadMusic and makes the two ladders live. A host that wires
+	// no Music channel leaves all four alone and every function in music.go tolerates it;
+	// see StartGameMusic and TestNilChannel.
 	PlayMusicGame bool
 	PlayMusicIdle bool
 	MusicOn       bool

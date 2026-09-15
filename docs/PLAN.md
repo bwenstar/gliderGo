@@ -616,7 +616,7 @@ against shipped houses that pass it `-1`, the non-idempotent `RenderFrame`, and 
 backwards and is now corrected. Two of its load-bearing claims were re-verified by hand against
 `Objects.c` and `Interactions.c` before being acted on.
 
-**1.6 Audio**
+**1.6 Audio** ✅ *done*
 - `internal/audio`: mixer, the sound-event table, channel policy.
 - **Music too, which is a separate subsystem** (`Music.c`, not `Sound.c`): its own channel, its own
   on/off preference, and 1.3 already depends on it — `kStereo` answers the draw sweep with
@@ -624,6 +624,62 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
 - *Acceptance:* a headless playthrough produces a WAV whose event ordering matches the
   expected sound sequence (verified by ear off-box, since this host has no sound card); music
   starts, stops and survives a room change independently of the effects channels.
+- **Both clauses are met.** `glidertool replay -wav` writes the file, and the ordering is asserted
+  rather than eyeballed: the trace carries a `snd=` column naming every sound a frame asked for,
+  its priority and the channel it landed on, so the 600-frame golden pins the sequence
+  frame by frame — the duct out and in on frames 1 and 10, the cuckoo's `tik`/`tok` alternating
+  every fifteen frames, the toaster's launch and land at the boundaries `RenderToast`'s arithmetic
+  predicts, and the second transporter at 225/241. `TestTheWAVHoldsTheMix` reads the file back
+  through its own header offsets and re-hashes the payload, which is what makes the mix digest a
+  checksum anybody can verify with `sha256sum`; the ear is still owed off-box, and is the only part
+  of this stage a machine here cannot do. `TestMusicIsIndependentOfEffects` is the second clause,
+  and `docs/IMPROVEMENTS.md` 4.2 records what the audio adds to the bug-report format.
+- **The engine has no clock and no goroutine**, which is the design decision everything else in the
+  package follows from. It turns requests plus a sample count into samples; time enters in exactly
+  one file (`pump.go`) as two methods — `FrameTick`, which mixes exactly `SamplesPerFrame` per game
+  frame and is what the recorded path uses, and `ClockTick`, which mixes what the wall clock says is
+  due and is what `cmd/glidergo` uses. So the two paths share every line of the mixer while only the
+  first is bit-exact, and the live path's imprecision is a property of thirty lines rather than of
+  the whole subsystem. The only goroutine in the package moves byte slices into a pipe.
+- **`SamplesPerFrame` is 740**, from `kTicksPerFrame = 2` on the Mac's 60.15 Hz clock, and the assets
+  confirm it independently: `Hiss` is 2960 samples, which is 4 × 740 exactly, and `Input.c:174` asks
+  for it every fourth frame. Three more continuous sounds sit in the same arithmetic, which is why
+  **the loop points in the headers are never needed and looping would be a bug** — a looped `Thrust`
+  would keep firing after the key was released and its channel would never run its completion
+  callback (`docs/IMPROVEMENTS.md` 2.45).
+- **The audio changes the composition, in one specific way that had to be wired before the first
+  room loads.** A `kSoundIt` object gets a hot spot only if its sound resource loads
+  (`LoadTriggerSound` answering −1 means no hot spot at all), so a house with custom sounds composes
+  differently with audio than without it — and five of the 63 shipped house sounds are MACE 6:1
+  compressed and cannot be decoded from anything in this tree, so those rooms are faithful to the
+  1994 build by accident (`docs/IMPROVEMENTS.md` 2.49). `sound off` is therefore a *different
+  simulation*, not a quieter one, and the replay trace records which of the two it was in its
+  header.
+- **The house sounds are not all at the Macintosh rate.** Fourteen of the 58 usable ones are not:
+  six at half, three at a third, one at a quarter, and four one-off numbers a sound editor wrote
+  (22255.0, 22050.0, 11127.5, 9779.0). Each `Sound` therefore carries a 16.16 fixed-point `Step`
+  and the mixer drop-samples, which is the original's own method rather than a shortcut — all four
+  channels are created with `initNoInterp` (`Sound.c:379`, `Music.c:287`). `stepFor` rounds so that
+  every spelling of the Macintosh rate lands on exactly `FixedOne` and the application's 70
+  resources are copied rather than resampled; `TestOneSampleRate` fails if any of them stops being.
+- **What the acceptance criteria found:**
+  - **`FlushAnyTriggerPlaying` silences the 1994 game permanently.** It flushes the command queue
+    that holds its own `callBackCmd`, so the callback that would restore `priorityN` to 0 never
+    runs and the channel keeps claiming 999 for the session. Three interrupted trigger sounds and
+    `PlayPrioritySound` refuses everything. The port resets the priority as though the callback had
+    run — the only deliberate deviation in the audio path, and it can only make the port louder
+    than the original, never quieter (`docs/IMPROVEMENTS.md` 2.47).
+  - **The trace's `snd=` column belongs in the digest, and the samples do not.** A sound request is
+    a decision the simulation made at a frame, so it is in `Result.Digest`; the mix is a separate
+    hash on `Result.Audio`, because pinning samples in a golden file would make every legitimate
+    mixer improvement a test failure. The pair is the same split 4.5 made for the pixels.
+  - **A latent panic in `replay.Parse`**, found while adding the fifth directory keyword: the four
+    existing ones indexed `fields[1]` unguarded, so a bare `artdir` line crashed the tool instead of
+    being rejected. Now a sentence, and in `TestBadScriptsAreRejected`.
+  - **The port has no audio driver and will need one for Windows.** The sink is a subprocess —
+    `pw-play`, `paplay`, `aplay`, `ffplay` or `play`, whichever exists — which is a defensible
+    answer on Linux and no answer at all on Windows, where nothing equivalent is in the box. It is
+    the one part of the audio path Stage 4 cannot cross-compile (`docs/IMPROVEMENTS.md` 2.48).
 
 **1.7 The shell**
 - Splash, menus, house selection, preferences, scoreboard, game over.

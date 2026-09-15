@@ -16,6 +16,7 @@ package replay_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"flag"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"glidergo/internal/audio"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
 	"glidergo/internal/replay"
@@ -52,9 +54,6 @@ func requireAssets(t *testing.T, sub string) string {
 // house and nothing about where the reporter kept it.
 func script(t *testing.T, name string) *replay.Script {
 	t.Helper()
-	requireAssets(t, "houses")
-	requireAssets(t, "art")
-
 	f, err := os.Open(filepath.Join("testdata", name))
 	if err != nil {
 		t.Fatalf("open script: %v", err)
@@ -64,9 +63,25 @@ func script(t *testing.T, name string) *replay.Script {
 	if err != nil {
 		t.Fatalf("parse %s: %v", name, err)
 	}
+	return localAssets(t, s)
+}
+
+// localAssets points a script at this checkout's asset tree and skips if it is not there.
+//
+// The sound tree is required only when the script asks for sound, because Run treats a missing
+// bank as an error when it does -- a trace whose `snd=` column is empty for want of assets would
+// be a fixture of nothing.
+func localAssets(t *testing.T, s *replay.Script) *replay.Script {
+	t.Helper()
+	requireAssets(t, "houses")
+	requireAssets(t, "art")
 	s.HouseDir = filepath.Join(assetRoot, "houses")
 	s.ArtDir = filepath.Join(assetRoot, "art")
 	s.HouseArtDir = filepath.Join(assetRoot, "houseart")
+	if s.Sound {
+		requireAssets(t, "sound")
+		s.SoundDir = filepath.Join(assetRoot, "sound")
+	}
 	return s
 }
 
@@ -261,6 +276,168 @@ func TestTheSameScriptTwiceIsTheSameRun(t *testing.T) {
 		if a.Samples[i] != b.Samples[i] {
 			t.Fatalf("frame %d differs:\n  %+v\n  %+v", a.Samples[i].Frame, a.Samples[i], b.Samples[i])
 		}
+	}
+
+	// The audio half of the same property, and a strictly stronger claim than the loop above.
+	// The sample lines carry the sound *requests*; this is the mix -- every sample of every
+	// channel, the priority policy's choice of channel, the drop-sample rate conversion and the
+	// clip point. Nothing in the recorded path may consult a clock, and the pump proves it here.
+	if a.Audio.Digest != b.Audio.Digest {
+		t.Errorf("mix digests differ: %s then %s", a.Audio.Digest, b.Audio.Digest)
+	}
+	if a.Audio.Digest == "" {
+		t.Error("no mix digest: the run did not mix at all, so this test proved nothing")
+	}
+	// FrameTick is exact arithmetic rather than a clock, so this is an equality and not a
+	// tolerance. One recorded frame is one block; the trace's own sample count is 601 for 600
+	// frames, frame 0 being the state before the loop ran.
+	if want := int64(len(a.Samples)) * audio.SamplesPerFrame; a.Audio.Samples != want {
+		t.Errorf("mixed %d samples for %d frames, want %d exactly",
+			a.Audio.Samples, len(a.Samples), want)
+	}
+	// CD Demo House's own 'snd ' resources, which is what makes its sound triggers hot spots at
+	// all. Nine of them extract; a house whose trigger sounds stopped loading would run silently
+	// past every sound trigger in it and nothing else in the suite would notice.
+	if a.Audio.Triggers != 9 {
+		t.Errorf("CD Demo House loaded %d trigger sounds, want 9", a.Audio.Triggers)
+	}
+	if a.Audio.Requests == 0 || a.Audio.Granted == 0 {
+		t.Errorf("120 frames of this script asked for %d sounds and played %d; it should duct "+
+			"between two rooms and pass a cuckoo clock", a.Audio.Requests, a.Audio.Granted)
+	}
+}
+
+// TestSoundOffIsADifferentRunNotAQuieterOne pins the one thing about `sound off` that is easy to
+// get wrong in a bug report: it changes the digest.
+//
+// It has to, because a sound request is a decision the simulation made at a frame and the sample
+// line records it. A port that stopped playing the toaster would otherwise pass every digest
+// comparison in the suite.
+//
+// What the second half shows is the *limit* of that: in this script the two runs differ in the
+// sound column and nowhere else, because rooms 4, 5 and 70 have no sound trigger between them. In
+// a house that has one they would differ in the composition as well -- a sound trigger whose
+// sound cannot load gets no hot spot at all (game/hotspots.go) -- which is why the package
+// documents silence as a different simulation rather than a quieter one, and why a trace records
+// which of the two it was in its header.
+func TestSoundOffIsADifferentRunNotAQuieterOne(t *testing.T) {
+	loud := script(t, "duct.script")
+	loud.Frames = 120
+	on, err := replay.Run(loud)
+	if err != nil {
+		t.Fatalf("with sound: %v", err)
+	}
+
+	quiet := script(t, "duct.script")
+	quiet.Frames = 120
+	quiet.Sound = false
+	off, err := replay.Run(quiet)
+	if err != nil {
+		t.Fatalf("without sound: %v", err)
+	}
+
+	if len(off.Events) != 0 {
+		t.Errorf("a silent run logged %d sound events", len(off.Events))
+	}
+	if off.Audio != (replay.Audio{}) {
+		t.Errorf("a silent run reported audio: %+v", off.Audio)
+	}
+	if off.Digest == on.Digest {
+		t.Errorf("both runs digest to %s: the sound column is not reaching the digest, so a "+
+			"regression that silenced the game would pass every determinism test here", on.Digest)
+	}
+
+	if len(on.Samples) != len(off.Samples) {
+		t.Fatalf("%d frames with sound, %d without", len(on.Samples), len(off.Samples))
+	}
+	for i := range on.Samples {
+		x, y := on.Samples[i], off.Samples[i]
+		if x.Sounds == "" && y.Sounds == "" && x == y {
+			continue
+		}
+		x.Sounds, y.Sounds = "", ""
+		if x != y {
+			t.Fatalf("frame %d differs in more than its sound:\n  %+v\n  %+v",
+				on.Samples[i].Frame, x, y)
+		}
+	}
+	// Vacuously true if nothing ever asked for a sound.
+	sounded := 0
+	for _, s := range on.Samples {
+		if s.Sounds != "" {
+			sounded++
+		}
+	}
+	if sounded == 0 {
+		t.Error("no frame of the loud run asked for a sound; the comparison above proved nothing")
+	}
+}
+
+// TestTheWAVHoldsTheMix is 1.6's acceptance criterion, minus the ear.
+//
+// The build host has no sound card, so "the audio works" cannot be checked here at all -- what can
+// be checked is that the file a developer carries to a machine that does have one holds exactly the
+// samples the run reported, at the length the frame count implies, with a header that describes
+// them. The listening is the part a human does; this is the part that makes the file worth
+// carrying.
+//
+// The re-hash at the end is the load-bearing assertion. Audio.Digest is taken from a Digest sink
+// inside the run, and this reads the bytes back off the disk through the WAV's own header offsets
+// and hashes them again: if the two agree, then the digest a bug report quotes is a checksum of a
+// file anybody can produce and verify with sha256sum. See audio.Digest.
+func TestTheWAVHoldsTheMix(t *testing.T) {
+	s := script(t, "duct.script")
+	s.Frames = 60 // past the duct, the cuckoo's first tick and the toaster's first launch
+
+	path := filepath.Join(t.TempDir(), "run.wav")
+	w, err := audio.CreateWAV(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No defer w.Close(): RunTo closes the sink, and the patched header below is the evidence
+	// that it did. WAV.Close is idempotent, so a call here would be harmless -- and would also
+	// hide the bug this asserts against.
+	res, err := replay.RunTo(s, w)
+	if err != nil {
+		t.Fatalf("RunTo: %v", err)
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const header = 44 // RIFF 12 + fmt 24 + data 8
+	want := header + int(res.Audio.Samples)*2
+	if len(body) != want {
+		t.Fatalf("the file is %d bytes, want %d: %d samples of 16-bit mono after a %d-byte header",
+			len(body), want, res.Audio.Samples, header)
+	}
+	if got := binary.LittleEndian.Uint32(body[40:]); int64(got) != res.Audio.Samples*2 {
+		t.Errorf("the data chunk says %d bytes, the run mixed %d: the length fields are patched "+
+			"on Close, so this is a file nobody closed", got, res.Audio.Samples*2)
+	}
+	if got := binary.LittleEndian.Uint32(body[24:]); got != audio.Rate {
+		t.Errorf("the header says %d Hz, want %d", got, audio.Rate)
+	}
+
+	samples := audio.Decode(body[header:])
+	d := audio.NewDigest()
+	if err := d.Write(samples); err != nil {
+		t.Fatal(err)
+	}
+	if d.Sum() != res.Audio.Digest {
+		t.Errorf("the file hashes to %s, the run reported %s", d.Sum(), res.Audio.Digest)
+	}
+
+	loudest := int16(0)
+	for _, v := range samples {
+		if v > loudest {
+			loudest = v
+		}
+	}
+	if loudest == 0 {
+		t.Errorf("%d samples and not one of them positive: the WAV is silence, and %d sound "+
+			"requests went somewhere else", len(samples), res.Audio.Requests)
 	}
 }
 
@@ -542,18 +719,12 @@ func TestEvenFrameIsAStoredFlag(t *testing.T) {
 // that are about what a room's own contents do rather than about a recorded script.
 func roomScript(t *testing.T, room int16, frames int) *replay.Script {
 	t.Helper()
-	requireAssets(t, "houses")
-	requireAssets(t, "art")
-
 	s := replay.NewScript("CD Demo House", frames)
 	s.Room = room
 	// Mid-room and high up, so that in every room below the glider starts in free air and
 	// falls -- no transport under it, and nothing to collide with on the way down.
 	s.Where.H, s.Where.V = 240, 40
-	s.HouseDir = filepath.Join(assetRoot, "houses")
-	s.ArtDir = filepath.Join(assetRoot, "art")
-	s.HouseArtDir = filepath.Join(assetRoot, "houseart")
-	return s
+	return localAssets(t, s)
 }
 
 // TestABallBreaksTheEvenFrameInvariant is the other half of the pair above, and it is here
@@ -780,6 +951,8 @@ func TestBadScriptsAreRejected(t *testing.T) {
 		"house H\nat\n",              // missing frame
 		"house\n",                    // missing value
 		"house H\nwhere 1\n",         // where takes two numbers
+		"house H\nsound maybe\n",     // not on or off
+		"house H\nartdir\n",          // a keyword with its argument left off
 	}
 	for _, text := range bad {
 		if s, err := replay.Parse(strings.NewReader(text)); err == nil {
@@ -791,14 +964,7 @@ func TestBadScriptsAreRejected(t *testing.T) {
 // TestRunRejectsUnrunnableScripts covers the checks Run makes before it loads anything, so
 // that a bad script fails with a sentence instead of a panic three packages down.
 func TestRunRejectsUnrunnableScripts(t *testing.T) {
-	requireAssets(t, "houses")
-	base := func() *replay.Script {
-		s := replay.NewScript("CD Demo House", 10)
-		s.HouseDir = filepath.Join(assetRoot, "houses")
-		s.ArtDir = filepath.Join(assetRoot, "art")
-		s.HouseArtDir = filepath.Join(assetRoot, "houseart")
-		return s
-	}
+	base := func() *replay.Script { return localAssets(t, replay.NewScript("CD Demo House", 10)) }
 	cases := map[string]func(*replay.Script){
 		"no house":       func(s *replay.Script) { s.House = "" },
 		"zero frames":    func(s *replay.Script) { s.Frames = 0 },
@@ -826,11 +992,7 @@ func TestRunRejectsUnrunnableScripts(t *testing.T) {
 // you look at a room the way its author meant it to be entered -- and confusing them would
 // silently change what a bug report reproduces.
 func TestFirstRoomStartIsNotAResume(t *testing.T) {
-	requireAssets(t, "art")
-	s := replay.NewScript("CD Demo House", 5)
-	s.HouseDir = filepath.Join(assetRoot, "houses")
-	s.ArtDir = filepath.Join(assetRoot, "art")
-	s.HouseArtDir = filepath.Join(assetRoot, "houseart")
+	s := localAssets(t, replay.NewScript("CD Demo House", 5))
 	s.Room = 4
 
 	res, err := replay.Run(s)

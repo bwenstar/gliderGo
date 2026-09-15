@@ -41,6 +41,28 @@
 // constant, which is the distinction that makes it safe to have both: no file on disk holds
 // the value, so a deliberate pixel change costs nothing, while two runs of one script are
 // still required to agree on it.
+//
+// # Sound
+//
+// The audio is in the trace twice over, and the split is the same one: what happened is in the
+// samples, what it sounded like is reported at the end.
+//
+//	snd=              per frame, in the hashed line: every request, its priority, the channel
+//	                  it got and what it cut off. This is the sharp half -- a sound that was
+//	                  requested and refused is a bug report's whole content, and it is
+//	                  invisible in a recording
+//	Audio.Digest      once, at the end: a hash of the mix. Two runs of one script must agree
+//	Audio.Stats       once, at the end: the counters, including how many samples clipped
+//
+// Mixing is deterministic for the same reason the simulation is -- audio.Pump.FrameTick asks
+// for exactly one frame's worth of samples per frame from an engine with no clock and no
+// goroutine, so the stream is a function of the script and nothing else. RunTo will hand that
+// stream to a WAV, which is how the audio path is checked at all on a build host with no sound
+// card: `glidertool replay -wav` writes a file and somebody listens to it somewhere else.
+//
+// Sound can be switched off, and doing so is **not** the same run with the volume down: a build
+// with no sound system composes rooms differently, because a sound trigger whose sample cannot
+// be loaded gets no hot spot. See Script.Sound.
 package replay
 
 import (
@@ -56,6 +78,7 @@ import (
 	"strings"
 	"time"
 
+	"glidergo/internal/audio"
 	"glidergo/internal/game"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
@@ -79,17 +102,38 @@ type Script struct {
 	// House is a house name (looked up in HouseDir) or a path ending in ".house".
 	House string
 
-	// The three asset roots. Empty means the defaults below, which are the layout
+	// The four asset roots. Empty means the defaults below, which are the layout
 	// `make assets` produces and the one cmd/glidergo defaults to.
 	HouseDir    string
 	ArtDir      string
 	HouseArtDir string
+	SoundDir    string
 
 	Seed      int32 // the random stream; 0 is a legal seed here, unlike in cmd/glidergo
 	Frames    int   // how many simulated frames to run before quitting
 	Neighbors int   // 1, 3 or 9: how much of the house is composed around the player
 	TwoPlayer bool
 	Clock     time.Time // the calendar's month and the red clock's hands
+
+	// Sound and Music are the two audio preferences, used verbatim: the zero value of a
+	// Script is silent, and NewScript is what turns them on. That is Facing's convention
+	// rather than Gliders' (see both below), and it is the right way round here because a
+	// hand-built Script in a test wants no dependency on the sound tree until it asks for one.
+	//
+	// **Sound off is not merely quieter, it is a different simulation**, which is why it is a
+	// script field at all and not a flag on Run. A build with no sound system composes rooms
+	// differently: LoadTriggerSound cannot claim the reserved sample slot, so a sound trigger
+	// gets no hot spot and the kSoundIt rect a glider would have crossed is not there. That is
+	// the original's own `dontLoadSounds` behaviour (Sound.c:265-303 through
+	// game/hotspots.go's loadTriggerSound), so a fidelity corpus needs to be able to record
+	// both -- and a trace of one is not comparable with a trace of the other.
+	//
+	// Music off leaves the effects alone: no MusicChannel is wired, so the score never starts
+	// and nothing else changes. It is separate because the music chain is the one part of the
+	// audio path that calls back into the game (NextMusicPiece walks the score cursor), and a
+	// bug report about the effects should be able to switch it off.
+	Sound bool
+	Music bool
 
 	// Room and Where are the start override, and they are the one thing in a script a
 	// player could not have done.
@@ -142,11 +186,14 @@ func NewScript(houseName string, frames int) *Script {
 		HouseDir:    "assets/extracted/houses",
 		ArtDir:      "assets/extracted/art",
 		HouseArtDir: "assets/extracted/houseart",
+		SoundDir:    "assets/extracted/sound",
 		Frames:      frames,
 		Neighbors:   9,
 		Clock:       DefaultClock,
 		Room:        -1,
 		Facing:      1,
+		Sound:       true,
+		Music:       true,
 	}
 }
 
@@ -192,6 +239,24 @@ type Sample struct {
 	Guarded int64 // World.Diag.Guarded, cumulative
 	Dropped int64 // dropped work + back rects, cumulative
 
+	// Sounds is every PlayPrioritySound request made on this frame and what the mixer did
+	// with it, already rendered as the trace's `snd=` field: `-` for a silent frame,
+	// otherwise `name:priority:channel` per request, joined with commas, with `>name`
+	// appended when the grant cut something off and `x` in place of the channel when the
+	// request was refused. So `shred:903:0>tik` is a shred taking channel 0 from a score tik.
+	//
+	// A rendered string rather than a slice of events, for two reasons. It keeps Sample
+	// comparable, which is what lets the determinism test compare two runs frame by frame
+	// with `!=` and report the frame rather than a diff of two slices. And it is the text
+	// the digest hashes either way -- the structured form is on Result.Events, with the
+	// frame number attached, for a test that wants to assert on the mixer's decisions.
+	//
+	// The requests are attributed to the frame they were *made* on, which is exact: the hook
+	// reads World.Frame at the moment PlayPrioritySound is called. The *audio* for the frame
+	// is mixed slightly later -- see the note in RunTo -- so the two can disagree by less
+	// than a frame, and this column is the one to trust about ordering.
+	Sounds string
+
 	// Rand is World.RandSeed: the state of the one random stream.
 	//
 	// This is the strongest determinism claim in the trace and the only field that is
@@ -209,11 +274,17 @@ type Sample struct {
 // `glidertool replay -trace` prints, and the two must be the same text or a digest
 // mismatch cannot be diffed.
 func (s Sample) line() string {
+	snd := s.Sounds
+	if snd == "" {
+		// A run with no sound system at all, and a frame that requested nothing, both read
+		// as `-`. They are distinguished by the header's `audio` line, not per frame.
+		snd = "-"
+	}
 	return fmt.Sprintf(
-		"f=%d even=%d w2m=%d b2w=%d rend=%d pend=%d clock=%d room=%d mode=%d dest=%d,%d,%d,%d score=%d mortals=%d stars=%d guarded=%d dropped=%d rand=%d",
+		"f=%d even=%d w2m=%d b2w=%d rend=%d pend=%d clock=%d room=%d mode=%d dest=%d,%d,%d,%d score=%d mortals=%d stars=%d guarded=%d dropped=%d rand=%d snd=%s",
 		s.Frame, b2i(s.Even), s.Work2Main, s.Back2Work, s.Renders, s.Pendulums, s.ClockFrame,
 		s.Room, s.Mode, s.Dest.Top, s.Dest.Left, s.Dest.Bottom, s.Dest.Right,
-		s.Score, s.Mortals, s.Stars, s.Guarded, s.Dropped, s.Rand)
+		s.Score, s.Mortals, s.Stars, s.Guarded, s.Dropped, s.Rand, snd)
 }
 
 func b2i(b bool) int {
@@ -223,10 +294,52 @@ func b2i(b bool) int {
 	return 0
 }
 
+// Event is one sound request, with the frame it was made on.
+//
+// The audio package's own Event stamps requests with the mixer's sample cursor, which is what a
+// live host has; a replay knows the frame, which is what a bug report quotes.
+type Event struct {
+	Frame int64
+	audio.Event
+}
+
+// Audio is what the run's audio path did, and it is a report rather than a fixture: every field
+// is a count or a hash, and none of them is checked into a golden file except through the trace
+// header.
+type Audio struct {
+	audio.Stats
+
+	// Bank is how many bytes of samples were resident, and Triggers how many of them were the
+	// house's own. A house whose trigger sounds failed to extract runs silently past every
+	// sound trigger in it, and this is where that shows up.
+	Bank     int
+	Triggers int
+
+	// Samples is what the pump produced. On this path it is FrameTick's exact arithmetic --
+	// one frame's worth per recorded frame -- which is why the harness can assert it rather
+	// than merely report it. See RunTo.
+	Samples int64
+
+	// Digest is a hash of the mix itself: sixteen hex characters over the little-endian bytes
+	// a `-wav` run would have written. Two runs of one script must agree on it, and that is a
+	// far stronger statement than the sample digest can make -- it covers every sample of
+	// every channel, the priority policy's choice of channel, the clip point and the score.
+	Digest string
+}
+
 // Result is what a run produced.
 type Result struct {
 	Script  *Script
 	Samples []Sample
+
+	// Events is every sound request the run made, in order, and the only place the mixer's
+	// decisions survive in structured form. Empty for a run with sound off.
+	Events []Event
+
+	// Audio is the audio path's own report. Zero for a run with sound off, which is
+	// distinguishable from a silent run with sound on by Audio.Samples being 0 rather than
+	// the frame count times SamplesPerFrame.
+	Audio Audio
 
 	// The end state, which is the part a bug report leads with.
 	Frames    int64
@@ -241,6 +354,14 @@ type Result struct {
 	// runs of the same script agree on it or the port is not deterministic; two
 	// *different* scripts agreeing on it is meaningless, so it is always reported
 	// beside the script it came from.
+	//
+	// The sample line includes the frame's sound requests, so `sound off` gives a different
+	// value here even where it gives the same gameplay -- which is deliberate. A sound request
+	// is a decision the simulation made, at a frame, and a port that stopped playing the
+	// toaster would otherwise pass every digest comparison in the suite. `music off` does not
+	// change it, the score having no per-frame effect at all. Which of the two was in force is
+	// in the trace's header for exactly this reason, and Audio.Digest is the separate claim
+	// about the samples themselves.
 	Digest string
 
 	// Planes hashes the three index planes as the last frame left them: the pixel half
@@ -286,8 +407,37 @@ func planeDigest(s *render.Surface) string {
 	return hex.EncodeToString(sum.Sum(nil))[:16]
 }
 
-// Run plays a script and returns its trace.
-func Run(s *Script) (*Result, error) {
+// Run plays a script and returns its trace. The audio is mixed and hashed and then discarded,
+// which is what a test wants; RunTo is how a caller keeps it.
+func Run(s *Script) (*Result, error) { return RunTo(s, nil) }
+
+// RunTo is Run with somewhere for the mix to go: a WAV, a player's stdin, an audio.Tee of both.
+//
+// A nil sink still mixes. That is not waste -- the mix is where a silent bug lives. A sound that
+// was requested, granted a channel and then cut off after four milliseconds by a louder one on
+// the same channel is a *correct* trace line and a wrong noise, and only the samples can tell the
+// difference. Mixing always also means Audio.Digest is always available, so "is the audio
+// deterministic" is answered by every run of every script rather than by the ones that asked.
+//
+// **RunTo closes the sink**, on every path out of this function. A WAV's header is patched on
+// Close, so a harness that forgot would leave a file that says it holds no samples; and the
+// alternative -- the caller closing after reading Result -- gets the order wrong for a Tee whose
+// pipe wants draining before the report is printed. That includes the failures below and the case
+// of a sink handed to a script with `sound off`, both of which produce a valid empty file rather
+// than a truncated one. audio.WAV.Close is idempotent, so a `defer w.Close()` at the call site is
+// still safe.
+func RunTo(s *Script, sink audio.Sink) (*Result, error) {
+	// Ownership of the sink passes to the pump when there is one; until then it is this
+	// function's to close, including on the validation errors immediately below.
+	owned := false
+	if sink != nil {
+		defer func() {
+			if !owned {
+				sink.Close()
+			}
+		}()
+	}
+
 	if s.House == "" {
 		return nil, fmt.Errorf("replay: no house")
 	}
@@ -353,6 +503,86 @@ func Run(s *Script) (*Result, error) {
 
 	res := &Result{Script: s}
 
+	// soundsThisFrame is the sampler's view of the request log: the `snd=` field for the frame
+	// being sampled. A run with no audio keeps this stub and every frame reads `-`.
+	soundsThisFrame := func() string { return "" }
+
+	// ---- audio ----
+	//
+	// The three effect hooks, the music channel and a pump. Everything here is off unless the
+	// script asks for it, and a script that asks for it and cannot have it is an **error**: a
+	// trace recorded against a half-extracted sound tree would be a plausible-looking file
+	// whose `snd=` column is empty for a reason that has nothing to do with the game. That is
+	// the same argument the sticky assets.Err() check at the bottom of this function makes,
+	// made earlier because the bank is loaded before the run rather than during it.
+	//
+	// The pump is driven by FrameTick from flush() below -- exactly SamplesPerFrame per
+	// recorded frame, from an engine with no clock -- which is what makes two runs of one
+	// script produce the same bytes. cmd/glidergo drives ClockTick instead, and the two paths
+	// share every line of the mixer.
+	var eng *audio.Engine
+	var pump *audio.Pump
+	var mixHash *audio.Digest
+	if s.Sound {
+		dir := s.SoundDir
+		if dir == "" {
+			dir = "assets/extracted/sound"
+		}
+		bank, err := audio.LoadBank(dir)
+		if err != nil {
+			return nil, err
+		}
+		// The house's own trigger sounds, which is HouseIO.c's resource-fork swap. A house
+		// with none is not an error; a broken manifest is.
+		if err := bank.LoadHouse(name); err != nil {
+			return nil, err
+		}
+
+		eng = audio.New(bank)
+		mixHash = audio.NewDigest()
+		var out audio.Sink = mixHash
+		if sink != nil {
+			out = audio.Tee{mixHash, sink}
+		}
+		pump = audio.NewPump(eng, out)
+		owned = true
+
+		// The request log. It keys on World.Frame at the moment of the call, which is why
+		// the `snd=` column is exact about ordering even though the samples for the frame
+		// are mixed a little later: the game requests a sound from inside the input pass or
+		// the interaction pass, long before the frame's last Present.
+		curFrame := int64(-1)
+		var frameEvents []audio.Event
+		eng.On = func(ev audio.Event) {
+			if w.Frame != curFrame {
+				curFrame, frameEvents = w.Frame, frameEvents[:0]
+			}
+			frameEvents = append(frameEvents, ev)
+			res.Events = append(res.Events, Event{Frame: w.Frame, Event: ev})
+		}
+		soundsThisFrame = func() string {
+			if curFrame != w.Frame {
+				return ""
+			}
+			return formatSounds(frameEvents)
+		}
+
+		w.SoundPlayer = eng.PlayPrioritySound
+		w.TriggerSoundExists = eng.LoadTriggerSound
+		w.FlushTriggerSound = eng.FlushTriggerSound
+
+		if s.Music {
+			// Both preferences on and then InitMusic, which is the order cmd/glidergo
+			// uses and the order Music.c's own InitMusic implies: it starts the splash
+			// score if isPlayMusicIdle is already set.
+			w.Music = eng
+			eng.NextPiece = w.NextMusicPiece
+			w.PlayMusicGame = true
+			w.PlayMusicIdle = true
+			w.InitMusic()
+		}
+	}
+
 	// The sampler. Present is the *sampling point* and Frame is the quantity, and they
 	// are not the same number: a transition presents once per wipe strip (116 or 160
 	// times inside one frame) and HideGlider presents on its own. So each frame's record
@@ -370,6 +600,26 @@ func Run(s *Script) (*Result, error) {
 		if have {
 			res.Samples = append(res.Samples, cur)
 			have = false
+			// One frame's audio per recorded frame, mixed here because this is the only
+			// place in the harness that knows a frame is over.
+			//
+			// It is a *little* late, and the shift is worth stating: this runs at the
+			// first Present of frame N+1, by which time N+1's input pass has already
+			// asked for its sounds, so a sound requested on N+1 begins at the top of the
+			// block that is nominally N's. The offset is under one frame -- 33
+			// milliseconds -- it is constant, and it cannot reorder anything, because the
+			// engine starts a sample the moment it is requested. The `snd=` column is
+			// what carries exact per-frame attribution; this carries the samples.
+			//
+			// The alternative would be a hook at the bottom of PlayGame's loop, which
+			// would be a second frame-boundary notion in World for the harness's benefit
+			// alone. The package's one rule is that nothing here may affect the
+			// simulation, and adding a hook to the loop to make a WAV 33 ms tidier is a
+			// poor trade against it.
+			//
+			// pump is nil for a script that asked for silence, and every Pump method
+			// tolerates a nil receiver on purpose (pump.go), so this needs no guard.
+			pump.FrameTick()
 		}
 	}
 	w.Present = func() {
@@ -392,6 +642,7 @@ func Run(s *Script) (*Result, error) {
 			Stars:      w.StarsLeft,
 			Guarded:    w.Diag.Guarded,
 			Dropped:    w.Diag.DroppedWorkRects + w.Diag.DroppedBackRects,
+			Sounds:     soundsThisFrame(),
 			Rand:       w.RandSeed,
 		}
 		have = true
@@ -465,12 +716,60 @@ func Run(s *Script) (*Result, error) {
 		Back: planeDigest(scene.Back),
 	}
 
+	// The audio report, after the last frame's mix and after the sink is closed so that a WAV
+	// handed in by the caller has its header patched before anybody reads the file.
+	if eng != nil {
+		closeErr := pump.Close()
+		res.Audio = Audio{
+			Stats:    eng.Stats(),
+			Bank:     eng.Bank().Bytes(),
+			Triggers: len(eng.Bank().Triggers),
+			Samples:  pump.Mixed(),
+			Digest:   mixHash.Sum(),
+		}
+		// A sink error is reported and does not stop the run: the trace is still valid, and
+		// "the WAV could not be written" is a different failure from "the game misbehaved".
+		// The pump's own latched error comes first because it is the earlier one.
+		if err := pump.Err; err != nil {
+			return res, err
+		}
+		if closeErr != nil {
+			return res, closeErr
+		}
+	}
+
 	// Sticky asset errors, reported once at the end. A replay against a half-extracted
 	// asset tree would otherwise produce a plausible trace of a game drawing nothing.
 	if err := assets.Err(); err != nil {
 		return res, err
 	}
 	return res, nil
+}
+
+// formatSounds renders one frame's requests as the `snd=` field. See Sample.Sounds.
+func formatSounds(evs []audio.Event) string {
+	if len(evs) == 0 {
+		return ""
+	}
+	parts := make([]string, len(evs))
+	for i, ev := range evs {
+		ch := strconv.Itoa(ev.Channel)
+		if ev.Channel < 0 {
+			ch = "x" // refused: no channel was quiet enough
+		}
+		s := soundName(ev.Slot) + ":" + strconv.Itoa(int(ev.Priority)) + ":" + ch
+		if ev.Displaced != audio.NoSoundPlaying {
+			s += ">" + soundName(ev.Displaced)
+		}
+		parts[i] = s
+	}
+	return strings.Join(parts, ",")
+}
+
+// soundName is audio.Name with the spaces taken out, because the trace line is space-delimited
+// and "score tik" would end a field in the middle of itself.
+func soundName(slot int16) string {
+	return strings.ReplaceAll(audio.Name(slot), " ", "-")
 }
 
 // keysAt is the timeline lookup: the last entry at or below frame, or all keys up.
@@ -505,6 +804,10 @@ func (r *Result) Trace(out io.Writer) error {
 	if r.Script.Room >= 0 {
 		fmt.Fprintf(bw, "# start room=%d where=%d,%d\n", r.Script.Room, r.Script.Where.H, r.Script.Where.V)
 	}
+	// The audio settings go in the header and not the footer, because they change what the
+	// samples below mean: sound off is a different composition (see Script.Sound), so a reader
+	// comparing two traces has to know before the first frame line rather than after the last.
+	fmt.Fprintf(bw, "# audio sound=%s music=%s\n", onOff(r.Script.Sound), onOff(r.Script.Music))
 	fmt.Fprintf(bw, "# digest=%s\n", r.Digest)
 	for _, s := range r.Samples {
 		fmt.Fprintln(bw, s.line())
@@ -513,10 +816,23 @@ func (r *Result) Trace(out io.Writer) error {
 		r.Frames, r.GameOver, r.Score, r.StarsLeft, r.Mortals, r.Room)
 	fmt.Fprintf(bw, "# diag guarded=%d droppedWork=%d droppedBack=%d\n",
 		r.Diag.Guarded, r.Diag.DroppedWorkRects, r.Diag.DroppedBackRects)
+	if r.Script.Sound {
+		a := r.Audio
+		fmt.Fprintf(bw, "# sound requests=%d played=%d refused=%d trigger-refused=%d cut=%d music=%d triggers=%d\n",
+			a.Requests, a.Granted, a.Refused, a.TriggerRefused, a.Displaced, a.MusicStarted, a.Triggers)
+		fmt.Fprintf(bw, "# mix samples=%d clipped=%d digest=%s\n", a.Samples, a.Clipped, a.Digest)
+	}
 	for _, d := range r.Diag.Seen {
 		fmt.Fprintf(bw, "# deviation %s\n", d)
 	}
 	return bw.Flush()
+}
+
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
 }
 
 func players(s *Script) int {
@@ -546,6 +862,8 @@ func players(s *Script) int {
 //	gliders 2                the resume path's mortal count
 //	stars 5                  the resume path's remaining stars
 //	clock 1994-09-14T10:09:00Z
+//	sound off                no sound system at all, which changes the composition
+//	music off                effects but no score
 //	at 0 right               from frame 0, player one holds right
 //	at 45 - band             player one lets go, player two fires a band
 //
@@ -634,6 +952,40 @@ func Parse(in io.Reader) (*Script, error) {
 			}
 			return strconv.ParseInt(fields[i], 10, 64)
 		}
+		// word is num's counterpart for the keywords whose argument is a string, and it
+		// exists because the four directory keywords used to index fields[1] directly: a
+		// bug-report file with a bare `artdir` line panicked the tool that was meant to read
+		// it. Every keyword in this switch now answers a missing argument with a sentence.
+		word := func(i int) (string, error) {
+			if i >= len(fields) {
+				return "", fmt.Errorf("missing argument")
+			}
+			return fields[i], nil
+		}
+		// onOffArg reads the `on`/`off` the two audio keywords take. Nothing else is
+		// accepted -- not `true`, not `1` -- because a script is read by people and a second
+		// spelling is a second thing to remember.
+		onOffArg := func() (bool, error) {
+			v, err := word(1)
+			if err != nil {
+				return false, err
+			}
+			switch v {
+			case "on":
+				return true, nil
+			case "off":
+				return false, nil
+			}
+			return false, fmt.Errorf("want on or off, have %q", v)
+		}
+		set := func(dst *string, i int) error {
+			v, err := word(i)
+			if err != nil {
+				return bad(err)
+			}
+			*dst = v
+			return nil
+		}
 		switch fields[0] {
 		case "house":
 			// Unquoted and space-bearing: "CD Demo House" is a real file name, so the
@@ -643,11 +995,33 @@ func Parse(in io.Reader) (*Script, error) {
 				return nil, bad(fmt.Errorf("missing argument"))
 			}
 		case "housedir":
-			s.HouseDir = fields[1]
+			if err := set(&s.HouseDir, 1); err != nil {
+				return nil, err
+			}
 		case "artdir":
-			s.ArtDir = fields[1]
+			if err := set(&s.ArtDir, 1); err != nil {
+				return nil, err
+			}
 		case "houseartdir":
-			s.HouseArtDir = fields[1]
+			if err := set(&s.HouseArtDir, 1); err != nil {
+				return nil, err
+			}
+		case "sounddir":
+			if err := set(&s.SoundDir, 1); err != nil {
+				return nil, err
+			}
+		case "sound":
+			on, err := onOffArg()
+			if err != nil {
+				return nil, bad(err)
+			}
+			s.Sound = on
+		case "music":
+			on, err := onOffArg()
+			if err != nil {
+				return nil, bad(err)
+			}
+			s.Music = on
 		case "seed":
 			n, err := num(1)
 			if err != nil {
@@ -760,6 +1134,11 @@ func (s *Script) Write(out io.Writer) error {
 	fmt.Fprintf(bw, "neighbors %d\n", s.Neighbors)
 	fmt.Fprintf(bw, "players %d\n", players(s))
 	fmt.Fprintf(bw, "clock %s\n", s.Clock.Format(time.RFC3339))
+	// Written even when they are the defaults, like `neighbors` and `players` above: the whole
+	// point of the emitted template is that a reporter can see what a run's settings were
+	// without knowing what this package's defaults happen to be this month.
+	fmt.Fprintf(bw, "sound %s\n", onOff(s.Sound))
+	fmt.Fprintf(bw, "music %s\n", onOff(s.Music))
 	if s.Room >= 0 {
 		fmt.Fprintf(bw, "room %d\n", s.Room)
 		if s.Where != (house.Point{}) {

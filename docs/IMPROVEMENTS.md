@@ -1092,6 +1092,109 @@ between a diagnostic and a tool. Watched corpus-wide by the `dr=` column of
 dropping; `TestDroppedRegistrationsNameTheObjectThatVanished` fills the table by hand and
 enumerates the three refusals in order.
 
+### 2.45 The loop points in the sound headers are ignored — **note; the samples are written to be retriggered**
+
+Every `'snd '` header carries `loopStart` and `loopEnd`, and the port reads neither. That looks
+like an omission and is not: the original does not loop either — it issues `bufferCmd` and a
+`callBackCmd`, and a `bufferCmd` plays a buffer once — and the four sounds that need to be
+continuous are *composed* to be retriggered instead. `Hiss` is 2960 samples, which is four game
+frames to the last sample (4 × 740), and `Input.c:174` asks for it every fourth frame while the
+helium key is held, so one channel plays it back to back with no seam. `Sizzle` is three frames
+long and is asked for every frame, so it occupies three channels and covers itself the same way.
+`Thrust` and `Shred` are cut slightly *short* of their cadence, so their copies overlap and
+thicken.
+
+Looping would therefore be a bug rather than a feature. A looped `Thrust` would keep firing after
+the player let go of the key, and — worse — its channel's completion callback would never run, so
+`priorityN` would never fall back to 0 and the channel would be lost for the rest of the session:
+2.47's failure, arrived at from the other direction. The table is checked against the extracted
+samples by `TestContinuousSoundsCoverTheirCadence`, so the argument fails loudly if a future
+extraction disagrees with it.
+
+### 2.46 The mix is labelled 22255 Hz and the samples are 22254.5454… Hz — **note; 35 ppm, accepted deliberately**
+
+The Macintosh rate is the exact fraction 244800/11 Hz, which is what the resource headers carry
+(`Fixed 0x56EE8BA3`). The port labels its output stream with the rounded integer, because every
+audio API worth writing to — WAV headers included — takes an integer rate, and it does not
+resample to get there.
+
+The error is 0.4545 Hz in 22254.5, which is 35 parts per million, or 0.06 cents of pitch: four
+hundred times smaller than the smallest pitch difference a human ear can detect, and about a
+twentieth of a sample's drift per second. The alternative is a rational resampler on every sample
+in the bank — either at load time, which loses information for no audible gain, or in the mixer,
+which puts an interpolator in the hot path of a mono 22 kHz mix to correct a 0.06-cent error. It
+is not worth its complexity. What *is* worth doing is the per-sound conversion the houses need
+(nine distinct rates occur across their 58 usable sounds), and that is implemented: `Sound.Step`
+is a 16.16 fixed-point increment and `stepFor` rounds it so that every sound authored at any of
+the three spellings of the Macintosh rate gets exactly `FixedOne` and is copied rather than
+resampled. Drop-sample and not interpolating is the original's own choice, not a shortcut —
+`Sound.c:379` and `Music.c:287` create all four channels with `initNoInterp`.
+
+### 2.47 `FlushAnyTriggerPlaying` silences the game permanently — **DONE as a reported deviation, 1.6**
+
+`FlushAnyTriggerPlaying` (`Sound.c:262-273`) stops a trigger sound that is still playing when the
+player leaves the room. It issues `quietCmd` to stop the sample and `flushCmd` to empty the
+channel's command queue — and the `callBackCmd` that `PlaySoundN` queued behind the `bufferCmd`
+is *in* that queue. Flushing it means the completion callback never runs, and the callback is the
+only thing in the program that ever writes `priorityN` back to 0. The channel is left claiming
+`kTriggerPriority`, which is 999, for the rest of the session: `InitSound` runs once, at launch
+(`Main.c:337`), and nothing else resets it.
+
+One interrupted trigger sound costs a channel. **Three of them leave `PlayPrioritySound` with
+`lowestPriority == 999`, which refuses every ordinary request, while the trigger-exclusivity rule
+refuses every trigger. The 1994 game goes silent and stays silent until it is relaunched.**
+Reaching it needs a house with a sound trigger, a sound long enough to still be playing on the way
+out of the room, and a player who leaves — which is a description of `Art Museum`, whose
+"Security" is 2.2 seconds and whose triggers are in corridors.
+
+The port quiets the channel *and* resets the three fields, as though the callback had run. Two
+things make that safe rather than presumptuous: nothing in the simulation reads channel state, so
+no replay and no digest can move; and the deviation can only ever make the port louder than the
+original, never quieter, so it cannot hide a sound the 1994 build played. There is also one piece
+of evidence that the author knew something was wrong here — the call to `FlushAnyTriggerPlaying`
+inside `LoadTriggerSound` is commented out (`Sound.c:275`).
+
+### 2.48 The audio sink is a subprocess, not a device — **note; a native driver is Stage 4 and Stage 6 work**
+
+The port has no audio driver. `audio.Pipe` writes raw PCM to `pw-play`, `paplay`, `aplay`,
+`ffplay` or `play`, whichever is installed, and `audio.WAV` writes a file. That began as a
+constraint — the build host is airgapped, so there is no `golang.org/x/sys`, no `oto` and no
+`ebiten`, and ALSA or PulseAudio means cgo — but it is a defensible answer on Linux on its own
+merits: every desktop ships at least one of those five, they all read s16le mono on stdin, and a
+player that crashes takes nothing with it, which is more than can be said for a cgo audio callback
+inside the game's address space.
+
+The cost is honest: one process, one pipe, and a latency the port does not choose, because the
+player picks its own buffer size. A sound is heard 50 to 200 ms after the frame that asked for it.
+Nothing in Glider PRO depends on sub-frame audio timing, so this is fine — but it is fine *on
+Linux*. **Windows has no such tool in the box, and this is the one part of the audio path that
+Stage 4 cannot simply cross-compile.** `Sink` is two methods wide precisely so that a native
+driver can be dropped in behind it without the engine knowing; WASAPI via `syscall` (no cgo, and
+no dependency the airgap forbids) is the likely shape, and CoreAudio at Stage 6 is the same
+problem again. Until then Windows gets `-wav` and silence, which must be stated in the release
+notes rather than discovered.
+
+### 2.49 Five house sounds ship as silence — **note; blocked on data, and 4.1's linter should say so**
+
+Five of the 63 `'snd '` resources in the shipped houses are MACE 6:1 compressed (`cmpSH`,
+`compressionID` 4): `CD Demo House` 3007 "Door Chime", `Demo House` 3011 "Meow",
+`Nemo's Market` 3001 "Door Chime", 3003 "Cash Register" and 3004 "Cat Meow". The quantisation
+tables that would decode them live in the Sound Manager and are in no file in this tree, so the
+extractor records them as explicit skips and the port plays nothing.
+
+That is not merely a missing noise. A sound trigger whose sound does not load gets **no hot spot
+at all** (`game/hotspots.go`), which is the C's behaviour too — so those five rooms compose
+slightly differently from how their authors saw them, and `Demo House`'s only custom sound is one
+of the five. The port is faithful here by accident rather than by choice, which is the reason to
+write it down.
+
+Two ways out, neither urgent: take the published MACE tables from an open-source Mac audio decoder
+(`audio.md` OQ3), or re-record five short sounds — which is a content change and belongs with the
+Stage 2 houses, not in Stage 1. What is owed sooner is that the Stage 2 linter (4.1) already has
+"custom trigger sounds that do not load" on its list from 2.14, and these five are the corpus it
+should be tested against: a house author whose sound is silently dropped should be told at build
+time, not by playing the room.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -1144,13 +1247,31 @@ why a linter is worth more than a runtime check.
 A public release gets reports like "sometimes the glider sticks in the third room", which
 nobody can reproduce. `internal/replay` and `glidertool replay` are the answer: a script is
 a house, a seed, a start point and a keystroke log, and it reproduces the frame exactly on
-any machine with no display, no sound and no timing dependency.
+any machine with no display, no sound card and no timing dependency.
 
 ```
 glidertool replay -house "CD Demo House" -frames 600 -room 4 -where 420,20
 glidertool replay -trace -o bug.trace bug.script
 glidertool replay -digest bug.script        # one token, for "do we still agree"
+glidertool replay -wav bug.wav bug.script   # ...and what it sounded like
 ```
+
+**The audio is part of the format as of 1.6**, which is not a footnote either. "The sound cut out"
+is exactly the class of report that is unfalsifiable without one: the trace's `snd=` column names
+every sound the frame asked for and which of the three channels it landed on, the footer counts the
+requests that were refused and the ones that were cut off mid-sample, and a second digest covers
+the mix itself — every sample of every channel, the priority policy's choices and the clip point.
+`-wav` writes the same samples to a file, which on a build host with no sound card is the only way
+to *hear* a replay at all. Two properties make the pair trustworthy: the recorded path mixes
+exactly `SamplesPerFrame` per frame from an engine with no clock, so two runs agree byte for byte;
+and the mix digest is a checksum of the WAV payload, so `sha256sum` on the file anybody can produce
+answers to the sixteen characters in the report.
+
+Silence is a *different run* and the trace says which it was in its header. A sound trigger whose
+sound does not load gets no hot spot at all, so `sound off` can change the composition — and even
+where it does not, it changes the digest, because a sound request is a decision the simulation made
+at a frame. A port that stopped playing the toaster would otherwise pass every determinism test in
+the suite.
 
 Three things had to be pinned to make a run reproducible, and they are the three a bug
 report cannot leave to the machine: the random seed, the calendar clock (`DrawCalendar`
@@ -1205,7 +1326,7 @@ illustrating. 1.8 should carry several short scripts, one per subsystem, instead
 — and the general rule is the one 2.38's survey also taught: a test that follows the game rather
 than asserting about it has to be able to say what it stopped covering.
 
-### 4.4 A comment naming a test that does not exist is worse than no comment — **DONE, 1.5e; the sweep is 1.8**
+### 4.4 A comment naming a test that does not exist is worse than no comment — **DONE, 1.5e and 1.6; the linter is 1.8**
 
 `internal/render/srcrects.go` had promised since 1.5c that "`TestStripRectsTileTheirSheet`
 checks each array against its sheet's declared bounds, and a transcribed table is what that
@@ -1227,12 +1348,49 @@ One more of the same class was found and fixed at the same time: `bands.go`'s he
 `TestClampedBandSurvivesTheKillTest` where the test is actually
 `TestBandBouncesOffTheWallAndSurvivesTheKillTest`.
 
-**The sweep is owed at 1.8.** This codebase's comments carry a lot of load — most of what is
-known about the original lives in them — and a named-but-absent test is a specific, mechanical
-failure: it tells a future reader that a property is pinned when it is not, and it does so most
-convincingly exactly where the property is subtle. `glidertool` should grow a check that every
-`Test[A-Z]\w+` mentioned in a comment resolves to a real test function, run from `make check`.
-Cheap, and it closes the whole class rather than the two instances found by chance.
+**The sweep was run by hand at 1.6 and found two more.** This codebase's comments carry a lot
+of load — most of what is known about the original lives in them — and a named-but-absent test
+is a specific, mechanical failure: it tells a future reader that a property is pinned when it is
+not, and it does so most convincingly exactly where the property is subtle. Three lines of
+`grep | comm` over the whole tree:
+
+```bash
+grep -rhoE "\bTest[A-Z][A-Za-z0-9]+\b" --include=*.go internal cmd | sort -u > /tmp/mentioned
+grep -rhoE "^func (Test[A-Z][A-Za-z0-9]+)" --include=*_test.go internal cmd | sed 's/func //' | sort -u > /tmp/defined
+comm -23 /tmp/mentioned /tmp/defined
+```
+
+- `cmd/glidertool/glidertool_test.go` named `TestCheckFindsUndefined`; the test is
+  `TestCheckFindsUndefinedWhat`. Comment corrected.
+- `internal/game/grease_test.go` and `internal/game/bands_test.go` both deferred to
+  "`TestRenderFrameOrder` in play_test.go", which had never been written — and it was the one
+  worth having, because both of those tests explicitly decline to pin the position in the
+  sequence on the grounds that something else does. Written, in `play_test.go`: it parses
+  `render_frame.go` with `go/parser` and asserts the fifteen receiver calls in `RenderFrame`
+  come out in Render.c's order, that the two per-player calls are P1 before P2, and that
+  flames and stars are the two arms of one `if` on `EvenFrame` rather than two statements.
+  A source test rather than a behavioural one because registration order *is* z-order and the
+  behavioural equivalent needs a room with a mirror, grease, a pendulum, a flame, a dynamic, a
+  flying point, a sparkle, a shred and a band overlapping at once.
+
+**The linter is still owed at 1.8**, because the sweep above is a thing someone has to remember
+to run. `glidertool` should grow a `lint` subcommand that does it, run from `make check`. Three
+false-positive shapes this tree already contains, which are the whole design problem — a naive
+`\bTest[A-Z]\w+\b` matcher reports all three:
+
+| Shape | Where | Why it is not a dangling reference |
+|---|---|---|
+| A wildcard standing for a family of tests | `internal/house/house.go:12` says `TestCorpus*` | Matches the eight `TestCorpus…` tests in `corpus_test.go` |
+| A hyphenated line break | `internal/render/locale.go:101` ends a line with `TestFrame-` | Continues `CountsMatchTheSrcTables` on the next line, and that test exists |
+| The C's own identifier | `internal/game/play.go:208` cites `TestHighScore` | `HighScores.c:374`, not a Go test |
+
+So the check has to skip a match followed by `*`, **join** a comment's lines before matching —
+not merely ignore a trailing `-`, since a hyphen split hides a dangling name exactly as well as
+it hides a valid one — and exempt names that appear inside a citation of the original source.
+The last one is the interesting one: `TestHighScore` will become a real Go test's name at 1.7,
+at which point the false positive resolves itself and the exemption stops being needed — which
+suggests the rule should be "a name cited alongside a `.c` filename is the C's", not a
+hand-maintained allowlist.
 
 ### 4.5 A bug report could not say that two machines drew different pixels — **DONE, 1.5f**
 
@@ -1284,6 +1442,8 @@ animated families' cels come out of a filmstrip and register no back rect at all
 | 2.43 The fifth confetti cloud is dropped, and the refusal is reported through `badIndex` | 1.5f | this stage |
 | 2.44 (the report half) `Scene.SavedMapDrops`, the `dr=` golden column, and the 4,070-room census | 1.5f | this stage |
 | 4.5 `Result.Planes`: three index-plane hashes, so a report can say the *pixels* differ | 1.5f | this stage |
+| 2.47 `FlushTriggerSound` resets the flushed channel's priority, so three trigger sounds cannot silence the game | 1.6 | this stage |
+| 4.2 (audio half) the `snd=` column, the mix digest and `glidertool replay -wav` | 1.6 | this stage |
 
 Four bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

@@ -12,7 +12,7 @@ LDFLAGS := -s -w
 export GOPROXY      := off
 export GOTOOLCHAIN  := local
 
-.PHONY: all build glidertool houses run bench smoke headless test vet fmt check \
+.PHONY: all build glidertool houses run bench smoke headless audio test vet fmt check \
 	clean clean-assets cross-windows assets assets-check tools help
 
 all: build glidertool
@@ -64,6 +64,22 @@ headless:
 	$(BIN)/glidergo-null -frames 3 -dump /tmp/glidergo-frames
 	@ls -1 /tmp/glidergo-frames
 
+## audio: replay 600 frames and write the mix to /tmp/glidergo-audio.wav
+#
+# The build host has no sound card, so this is the only end-to-end check the audio path can
+# get here: it runs the whole chain -- extracted bank, house trigger sounds, channel policy,
+# mixer, RIFF writer -- and leaves a file to carry to a machine that does have one. It prints
+# the two digests, which is what a bug report quotes, and skipped rather than failed without
+# assets, for `make houses`' reason: a fresh clone has none and `check` must still pass.
+audio: glidertool
+	@if [ -d $(ASSETS)/sound ]; then \
+		$(BIN)/glidertool replay -house "CD Demo House" -room 4 -where 423,20 -frames 600 \
+			-wav /tmp/glidergo-audio.wav | grep -E 'sound|mix|digest'; \
+		ls -l /tmp/glidergo-audio.wav; \
+	else \
+		echo "no extracted sounds -- run \`make assets\` first"; \
+	fi
+
 ## cross-windows: prove the Windows target still compiles (null backend until win32 lands)
 cross-windows:
 	@mkdir -p $(BIN)
@@ -83,9 +99,9 @@ fmt:
 	$(GO) fmt $(PKG)
 
 ## check: everything CI would do; adds an on-screen bench when there is a display
-check: fmt vet test build glidertool houses headless cross-windows smoke
+check: fmt vet test build glidertool houses headless audio cross-windows smoke
 	@echo
-	@echo "gliderGo: check passed -- toolchain, cgo, tests, houses, headless and cross-build"
+	@echo "gliderGo: check passed -- toolchain, cgo, tests, houses, headless, audio and cross-build"
 
 ## assets: extract the 1994 art, sound, houses and movies into assets/extracted/
 assets:

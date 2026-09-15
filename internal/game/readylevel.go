@@ -81,6 +81,15 @@ func (w *World) Rebuild() {
 	// FlushAnyTriggerPlaying() and DumpTriggerSound() free the one reserved sound
 	// slot. Clearing TriggerSoundHeld is what re-arms it, and is what makes the
 	// first kSoundTrigger of each room the one that works -- see loadTriggerSound.
+	//
+	// The hook is both C functions together: the engine stops the sound if it is
+	// still playing and drops the sample. It is nil in a silent build, and this flag
+	// is cleared either way -- which is what makes a room compose the same with and
+	// without audio in this one respect. See audio.Engine.FlushTriggerSound, which
+	// documents the one deviation the port makes here.
+	if w.FlushTriggerSound != nil {
+		w.FlushTriggerSound()
+	}
 	w.R.TriggerSoundHeld = false
 
 	// tvInRoom = false; tvWithMovieNumber = -1. DrawARoomsObjects sets them again if

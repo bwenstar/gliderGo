@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"glidergo/internal/audio"
 	"glidergo/internal/replay"
 )
 
@@ -28,6 +29,10 @@ func replayCmd(args []string) error {
 		houseDir  = fs.String("houses", "assets/extracted/houses", "directory of extracted houses")
 		artDir    = fs.String("art", "assets/extracted/art", "extracted application art tree")
 		houseArt  = fs.String("houseart", "assets/extracted/houseart", "extracted per-house resource forks")
+		soundDir  = fs.String("sounds", "assets/extracted/sound", "extracted sound bank")
+		sound     = fs.Bool("sound", true, "mix the sound; -sound=false replays in silence")
+		music     = fs.Bool("music", true, "play the music (needs sound)")
+		wav       = fs.String("wav", "", "write the mix to this WAV file")
 		frames    = fs.Int("frames", 0, "frames to run (overrides the script)")
 		seed      = fs.Int("seed", -1, "random seed (overrides the script)")
 		neighbors = fs.Int("neighbors", 0, "compose 1, 3 or 9 rooms (overrides the script)")
@@ -42,8 +47,8 @@ func replayCmd(args []string) error {
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), `usage: %s replay [flags] [script]
 
-Runs the game with no window and no sound, from a script, and reports what each
-frame did. With no script file, the flags alone describe the run.
+Runs the game with no window, from a script, and reports what each frame did.
+With no script file, the flags alone describe the run.
 
 A script is line-oriented; %s replay -script - prints one to copy:
 
@@ -58,7 +63,13 @@ A script is line-oriented; %s replay -script - prints one to copy:
 Keys are left, right, batt, band, command, delete and pause, joined with commas;
 - is none. An 'at' line takes player one's keys then optionally player two's.
 
-`, prog, prog)
+The sound is mixed even with nowhere to send it, so every run reports which
+sounds were asked for and a digest of the samples. -wav keeps them, which on a
+machine with no sound card is the only way to hear what a replay sounded like:
+
+  %s replay -wav bug.wav -trace -o bug.txt bug.script
+
+`, prog, prog, prog)
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -88,6 +99,15 @@ Keys are left, right, batt, band, command, delete and pause, joined with commas;
 	// Only flags the caller actually set may override, which is why the numeric
 	// defaults above are out-of-range sentinels rather than the real defaults: a script
 	// that says `seed 7` must not be silently reset to 0 by a flag nobody typed.
+	//
+	// A bool has no spare value to use as a sentinel -- an unset -sound and -sound=false are
+	// the same false -- so the three booleans ask the flag package which ones were typed. That
+	// also makes the override work in both directions: -sound=false silences a script, -music
+	// on its own re-enables the score in a script that turned it off, and -two=false runs a
+	// two-player script with one glider.
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+
 	if *houseName != "" {
 		s.House = *houseName
 	}
@@ -100,8 +120,14 @@ Keys are left, right, batt, band, command, delete and pause, joined with commas;
 	if *neighbors != 0 {
 		s.Neighbors = *neighbors
 	}
-	if *two {
-		s.TwoPlayer = true
+	if set["two"] {
+		s.TwoPlayer = *two
+	}
+	if set["sound"] {
+		s.Sound = *sound
+	}
+	if set["music"] {
+		s.Music = *music
 	}
 	if *room >= 0 {
 		s.Room = int16(*room)
@@ -119,7 +145,7 @@ Keys are left, right, batt, band, command, delete and pause, joined with commas;
 	// The directories always come from the flags, because they describe this machine
 	// rather than the run. A script mailed in by a player names a house, not a path on
 	// the reporter's disk.
-	s.HouseDir, s.ArtDir, s.HouseArtDir = *houseDir, *artDir, *houseArt
+	s.HouseDir, s.ArtDir, s.HouseArtDir, s.SoundDir = *houseDir, *artDir, *houseArt, *soundDir
 
 	// A directed sentence rather than fs.Usage(): the caller knows what a replay is and has
 	// left out one thing, so fifteen flag descriptions bury the answer.
@@ -140,7 +166,53 @@ Keys are left, right, batt, band, command, delete and pause, joined with commas;
 		return closeOut()
 	}
 
-	res, err := replay.Run(s)
+	// Sound is on by default, and on a checkout with no extracted sound tree that default has to
+	// give way: `make assets` is a separate step, and a tool that refused to replay a house until
+	// it had been run would be answering a question nobody asked. Typing -sound makes it a
+	// request instead, and a request that cannot be met is replay.RunTo's error, which names the
+	// file that is missing.
+	//
+	// This is deliberately below -script: the fallback is a fact about *this machine*, the way
+	// the directory flags are, and a resolved script written out here is going to somebody else's
+	// machine. Writing `sound off` into it because the developer had not run `make assets` would
+	// mail them the wrong run.
+	//
+	// The note goes to stderr because stdout is the trace, and it is worth printing: "the sound
+	// column is empty" and "this machine has no sounds extracted" look identical in the output
+	// otherwise, and the first is a bug while the second is a Makefile target.
+	if s.Sound && !set["sound"] && !audio.HasBank(*soundDir) {
+		s.Sound = false
+		fmt.Fprintf(os.Stderr, "%s: no sound bank in %s; replaying in silence (make assets, or -sounds dir)\n", prog, *soundDir)
+	}
+
+	// -wav is not exclusive with anything: the mix goes to the file and to the digest at the
+	// same time, so the recording and the trace beside it describe one run rather than two.
+	// replay.RunTo closes it, on the error paths too.
+	//
+	// There is deliberately no flag to play a replay through the speakers. The headless path
+	// mixes one frame's samples per frame as fast as the machine can simulate -- ten minutes of
+	// audio in a few seconds -- so a live player would drop almost all of it. Recording and
+	// then playing the file is the same sound, correctly paced.
+	var sink audio.Sink
+	if *wav != "" {
+		if !s.Sound {
+			why := "the script says `sound off`"
+			switch {
+			case set["sound"]:
+				why = "-sound=false"
+			case !audio.HasBank(*soundDir):
+				why = "there is no sound bank in " + *soundDir
+			}
+			return fmt.Errorf("-wav has nothing to write: the sound is off (%s)", why)
+		}
+		f, err := audio.CreateWAV(*wav)
+		if err != nil {
+			return err
+		}
+		sink = f
+	}
+
+	res, err := replay.RunTo(s, sink)
 	// A sticky asset error still comes back with a usable result: the trace is worth
 	// printing before the complaint, because "every room composed empty" is the symptom
 	// the missing PICT explains.
@@ -193,6 +265,19 @@ func summary(w io.Writer, res *replay.Result) {
 		res.Diag.DroppedWorkRects, res.Diag.DroppedBackRects, res.Diag.Guarded)
 	for _, d := range res.Diag.Seen {
 		fmt.Fprintf(w, "    deviation: %s\n", d)
+	}
+	// The sound, in the same shape as the rest: what was asked for, what was heard, and a
+	// digest to compare with. Refused and cut-off are on the first line because they are the
+	// two numbers that explain "a sound did not play" without anybody having to listen -- the
+	// first means three louder sounds were already going, the second means one was interrupted
+	// mid-sample by a louder one on its channel.
+	if s.Sound {
+		a := res.Audio
+		fmt.Fprintf(w, "  sound   %d asked, %d played, %d refused, %d cut off, %d trigger refused   music %d\n",
+			a.Requests, a.Granted, a.Refused, a.Displaced, a.TriggerRefused, a.MusicStarted)
+		fmt.Fprintf(w, "  mix     %d samples (%.1fs)  %d clipped  digest %s   bank %d KiB, %d house sounds\n",
+			a.Samples, float64(a.Samples)/float64(audio.Rate), a.Clipped, a.Digest,
+			(a.Bank+512)/1024, a.Triggers)
 	}
 	fmt.Fprintf(w, "  digest %s\n", res.Digest)
 	// The picture, beside the behaviour and clearly labelled as a different claim. Two

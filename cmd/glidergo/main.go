@@ -12,7 +12,16 @@
 //	go run ./cmd/glidergo -room 12 -neighbors 3    # start elsewhere, smaller view
 //	go run ./cmd/glidergo -two                     # two gliders on one keyboard
 //	go run ./cmd/glidergo -bench                   # 300 frames unpaced, report the rate
+//	go run ./cmd/glidergo -audio list              # which external players this machine has
+//	go run ./cmd/glidergo -sound=false             # the original's dontLoadSounds
+//	go run ./cmd/glidergo -wav /tmp/session.wav    # record the mix as well as play it
 //	go run -tags nullbackend ./cmd/glidergo -frames 300 -dump /tmp/f   # headless
+//
+// Sound goes to an external player's stdin -- pw-play, paplay, aplay, ffplay or sox, whichever
+// is installed -- because the port is standard-library-only Go and cannot open a device
+// directly. internal/audio/sink.go has the whole argument. A machine with none of them plays in
+// silence and says so; -wav writes the same mix to a file, which is how a session on such a
+// machine can be listened to somewhere else.
 //
 // Keys. Player one has the four arrows, as the original does: left and right to steer, up
 // to fire a rubber band, down for the battery. Tab pauses -- which is the original's
@@ -35,6 +44,7 @@ import (
 	"strings"
 	"time"
 
+	"glidergo/internal/audio"
 	"glidergo/internal/game"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
@@ -65,8 +75,30 @@ func run() error {
 		bench     = flag.Bool("bench", false, "run with no frame pacing and report the rate the machine sustains")
 		dump      = flag.String("dump", "", "with -tags nullbackend, write each frame as a PNG into this directory")
 		quiet     = flag.Bool("quiet", false, "do not print the startup and shutdown summaries")
+
+		sound    = flag.Bool("sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
+		sounds   = flag.String("sounds", "assets/extracted/sound", "directory of extracted sound assets")
+		music    = flag.Bool("music", true, "play the score as well as the effects")
+		volume   = flag.Int("volume", 7, "output volume, 0 to 7; 0 is silence and also stops the score")
+		audioOut = flag.String("audio", "", "external player to pipe the mix to, or \"list\" for what this machine has")
+		wav      = flag.String("wav", "", "write the mix to this WAV file")
 	)
 	flag.Parse()
+
+	// -audio list answers and exits, before a house is opened: somebody who has just been told
+	// there is no sound wants the answer now, not after a megabyte of samples has loaded.
+	if *audioOut == "list" {
+		found := audio.Players()
+		if len(found) == 0 {
+			fmt.Println("glidergo: no audio player found; -wav writes a file instead")
+			return nil
+		}
+		fmt.Printf("glidergo: audio players on this machine, best first: %s\n", strings.Join(found, " "))
+		return nil
+	}
+	if *volume < 0 || *volume > audio.FullVolume {
+		return fmt.Errorf("-volume must be 0 to %d", audio.FullVolume)
+	}
 
 	if *scale < 1 {
 		return fmt.Errorf("-scale must be at least 1")
@@ -157,6 +189,89 @@ func run() error {
 	// released build should always pause on focus loss and should not offer the choice.
 	w.DoBackground = true
 
+	// ---- audio ----------------------------------------------------------------
+	//
+	// InitSound and InitMusic (Sound.c:438-474, Music.c:312-369), which in the original run
+	// once each at launch (Main.c:337) and are the reason a Mac that could not spare the
+	// memory played the whole game in silence rather than refusing to start. Every failure
+	// here takes that same path -- a line on stderr and a silent game, never a returned error
+	// -- with one exception: a player named on the command line and not installed *is* an
+	// error, because the flag exists for somebody diagnosing one specific player and quietly
+	// using a different one would waste their afternoon.
+	//
+	// The four hooks and the music channel are hung on the World here rather than in the
+	// section below, because they are all one subsystem's and because Present has to be able
+	// to see the Pump.
+	var (
+		eng  *audio.Engine
+		pump *audio.Pump
+		sink audio.Sink
+	)
+	if *sound {
+		bank, err := audio.LoadBank(*sounds)
+		if err != nil {
+			// The usual cause is a checkout with no assets: assets/extracted is
+			// gitignored, being reproducible from GliderPRO/, so `make assets` is the
+			// fix. The game is fully playable without it.
+			fmt.Fprintf(os.Stderr, "glidergo: no sound: %v\n", err)
+		} else {
+			// The sound half of the resource-fork swap done for art above: for as long
+			// as a house is open its own 'snd ' resources are the ones GetResource
+			// finds. Thirteen of the twenty-two shipped houses have any and twelve have
+			// one that can be read (five resources are MACE 6:1 compressed), and a
+			// house with none is not an error -- it is a house whose sound triggers get
+			// no hot spot at all, which is the C's behaviour and is why this loads
+			// before the first room is composed.
+			if err := bank.LoadHouse(name); err != nil {
+				fmt.Fprintf(os.Stderr, "glidergo: %s: no custom sounds: %v\n", name, err)
+			}
+
+			var where string
+			sink, where, err = openSink(*audioOut, *wav)
+			if err != nil {
+				if *audioOut != "" {
+					return err
+				}
+				fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
+			}
+
+			eng = audio.New(bank)
+			eng.SetVolume(int16(*volume))
+			pump = audio.NewPump(eng, sink)
+			defer pump.Close()
+
+			// The three requests the game makes of the mixer, and the one it makes of
+			// the score. All four are documented on their fields in
+			// internal/game/world.go; TriggerSoundExists is the one that is not just
+			// sound, because whether a sound trigger loads decides whether the room
+			// gets a kSoundIt hot spot at all -- so a house with custom sounds composes
+			// differently with audio than without it.
+			w.SoundPlayer = eng.PlayPrioritySound
+			w.TriggerSoundExists = eng.LoadTriggerSound
+			w.FlushTriggerSound = eng.FlushTriggerSound
+			w.Music = eng
+
+			// The one call that goes the other way: the mixer asks the game which piece
+			// of the score is next, from inside Mix, on this goroutine. See
+			// internal/audio/music.go for why the score walk stays on the game's side.
+			eng.NextPiece = w.NextMusicPiece
+
+			// One flag for both preferences. The original has two -- music in a game and
+			// music on the splash screen -- and they are separate because a player can
+			// want one and not the other; there is no splash screen to want it on until
+			// 1.7, which is where they become two settings rather than one flag.
+			w.PlayMusicGame = *music
+			w.PlayMusicIdle = *music
+			w.InitMusic()
+
+			if !*quiet {
+				fmt.Printf("glidergo: audio=%s %d sounds + %d music = %d KiB, rate %d Hz, volume %d/%d\n",
+					where, audio.TriggerSlot, audio.MaxMusic, bank.Bytes()/1024,
+					audio.Rate, *volume, audio.FullVolume)
+			}
+		}
+	}
+
 	// ---- the five host hooks --------------------------------------------------
 	//
 	// This is the entire seam between the game and the machine. Each hook is documented on
@@ -194,6 +309,14 @@ func run() error {
 			w.Quitting = true
 			w.SwitchedOut = false
 		}
+
+		// The mixer's only pacer on the live path, and it is *here* rather than on the
+		// frame loop for one reason: Present is called once per frame during play and
+		// once per strip during a room wipe -- 116 or 160 times inside a single frame,
+		// which is the one part of the game that takes far longer than a frame to draw.
+		// A pump driven by the frame counter would starve the player through every door
+		// the glider takes. Nil until the bank loads, and safe on a nil receiver.
+		pump.ClockTick()
 	}
 
 	// The event pump. HandlePlayEvent calls this and the game's three arms are
@@ -282,9 +405,6 @@ func run() error {
 		}
 	}
 
-	// Sound is 1.6. Left nil, which PlayPrioritySound treats as "no channels", so every
-	// call is dropped rather than queued -- see internal/game/env.go.
-
 	// ---- play -----------------------------------------------------------------
 
 	if *roomNum >= 0 {
@@ -323,6 +443,7 @@ func run() error {
 			// 2 on a 60.15 Hz clock, so a Mac that kept up ran at 30.07 frames a second.
 			fmt.Printf("glidergo: unpaced -- %.1fx the original's 30.07 fps target\n", rate/30.07)
 		}
+		reportAudio(eng, pump, sink)
 	}
 
 	// Sticky asset errors, reported once at the end rather than at every blit, because the
@@ -350,6 +471,90 @@ func run() error {
 // run that crosses a room boundary writes a file per wipe strip. That is the useful
 // behaviour for looking at a transition frame by frame, and it is why the limit lives here
 // rather than in the dumper.
+// openSink decides where the mix goes, and returns a one-word description of it for the
+// startup line.
+//
+// Three cases, and the middle one is the one worth stating:
+//
+//	-wav alone          write the file and look for no player. Recording is the intent, and
+//	                    starting a player as well would be a surprise on a build machine.
+//	-audio and -wav     both, through a Tee: play it and keep what was played.
+//	neither             the first player that exists. An empty answer is not an error here --
+//	                    this host has no sound card at all -- so the caller warns and plays on.
+func openSink(prefer, wav string) (audio.Sink, string, error) {
+	var sinks []audio.Sink
+	var where []string
+
+	if wav != "" {
+		f, err := audio.CreateWAV(wav)
+		if err != nil {
+			return &audio.Discard{}, "none", err
+		}
+		sinks = append(sinks, f)
+		where = append(where, wav)
+	}
+
+	if prefer != "" || wav == "" {
+		pipe, err := audio.OpenPipe(prefer)
+		if err != nil {
+			if len(sinks) == 0 {
+				return &audio.Discard{}, "none", err
+			}
+			// A WAV is already open, so the session is not silent and the missing
+			// player is worth less than the recording: report it and keep the file.
+			return sinks[0], where[0], err
+		}
+		sinks = append(sinks, pipe)
+		where = append(where, pipe.Name())
+	}
+
+	switch len(sinks) {
+	case 0:
+		return &audio.Discard{}, "none", nil
+	case 1:
+		return sinks[0], where[0], nil
+	default:
+		return audio.Tee(sinks), strings.Join(where, "+"), nil
+	}
+}
+
+// reportAudio is the audio half of the shutdown summary.
+//
+// Three of these numbers are the ones a bug report needs and cannot get any other way.
+// *refused* is the channel policy doing its job -- three channels and a busy room -- and a
+// large number there is not a defect. *skipped* is the frame loop having stalled for more than
+// four frames, which is a game problem wearing an audio problem's clothes. *dropped* is the
+// external player having stopped reading, which is the player's problem or the machine's. They
+// have three different fixes, which is why they are three different counters.
+func reportAudio(eng *audio.Engine, pump *audio.Pump, sink audio.Sink) {
+	if eng == nil {
+		return
+	}
+	st := eng.Stats()
+	fmt.Printf("glidergo: sound -- %d requests, %d played, %d refused, %d cut off, %d music pieces\n",
+		st.Requests, st.Granted, st.Refused+st.TriggerRefused, st.Displaced, st.MusicStarted)
+
+	line := fmt.Sprintf("glidergo: mix -- %.1fs of audio", float64(pump.Mixed())/audio.Rate)
+	if st.Clipped > 0 {
+		line += fmt.Sprintf(", %d samples clipped", st.Clipped)
+	}
+	if pump.Skipped > 0 {
+		line += fmt.Sprintf(", %.2fs skipped after stalls", float64(pump.Skipped)/audio.Rate)
+	}
+	if p, ok := sink.(*audio.Pipe); ok {
+		if n := p.Dropped(); n > 0 {
+			line += fmt.Sprintf(", %d samples dropped by %s", n, p.Name())
+		}
+		if err := p.Err(); err != nil {
+			line += fmt.Sprintf(", %s stopped reading (%v)", p.Name(), err)
+		}
+	}
+	if pump.Err != nil {
+		line += fmt.Sprintf(", sink error (%v)", pump.Err)
+	}
+	fmt.Println(line)
+}
+
 func wrapPresentLimit(w *game.World, n int64) func() {
 	prev := w.Present
 	return func() {
