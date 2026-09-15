@@ -546,6 +546,20 @@ var BreadSrc = [6]Rect{
 	{Top: 145, Left: 0, Bottom: 174, Right: 32},
 }
 
+// bandsSrcMap, 16x18 -- the smallest sheet in the game, 304 pixels by the
+// original's own comment (StructuresInit.c:222). BandRects[0..2], 16x6, stride 6
+// in v: a rubber band in flight, cycling 0,1,2 one frame at a time.
+//
+// The three cels are the band's *spin*, not its direction: HandleBands advances
+// the index every frame regardless of which way the band is travelling, and
+// nothing ever reads it as a facing. A band fired left and one fired right show
+// the same three pictures.
+var BandRects = [3]Rect{
+	{Top: 0, Left: 0, Bottom: 6, Right: 16},
+	{Top: 6, Left: 0, Bottom: 12, Right: 16},
+	{Top: 12, Left: 0, Bottom: 18, Right: 16},
+}
+
 // dripSrcMap, 16x72. DripSrc[0..5], 16x12, stride 12 in v. The static room draw
 // uses frame 3 -- the hanging drop -- and not srcRects[kDrip], which is frame 0.
 var DripSrc = [6]Rect{

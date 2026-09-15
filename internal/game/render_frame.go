@@ -568,13 +568,9 @@ func (w *World) RenderFrame() {
 // Each names its sub-stage and what the game looks like without it, because that is
 // the difference between a stub and a gap.
 
-// HandleGrease is Grease.c:79-121 and belongs to 1.5e. Without it a spilt bucket
-// leaves no slick, so the glider never slides.
-//
-// Grease.c:105-118 is worth reading first whatever order these get written in: it is the
-// one place the Carbon conversion got the port switching right, and it is the model
-// HandleOutlet should have followed. docs/IMPROVEMENTS.md 2.34.
-func (w *World) HandleGrease() {}
+// HandleGrease landed in 1.5e and is in grease.go. It is the one function in this list
+// that is not a renderer -- it advances simulation state from inside RenderFrame, and it
+// rewrites the collision table while it is there.
 
 // RenderPendulums is Render.c:260-322 and belongs to 1.5f. Without it a grandfather
 // clock's pendulum stands still and the room is silent -- it owns the tik/tok sounds,
@@ -601,7 +597,5 @@ func (w *World) RenderStars() {}
 // Note when it lands that kShredSound is replayed on *every* growth frame, not once.
 func (w *World) RenderShreds() {}
 
-// RenderBands is Render.c:534-555 and belongs to 1.5e. Without it firing a rubber
-// band costs nothing and draws nothing; see World.AddBand's stub, which returns false
-// so that it also costs no ammunition.
-func (w *World) RenderBands() {}
+// RenderBands landed in 1.5e and is in bands.go, with the rest of RubberBands.c. It is
+// last in RenderFrame and therefore on top of everything, gliders included.

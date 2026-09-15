@@ -733,10 +733,9 @@ func (w *World) GetDemoInput(g *player.Glider) {}
 
 // HandleDynamics landed with 1.5c and lives in dynamics.go.
 
-// HandleBands is Bands.c:120-193 and belongs to 1.5e. Ungated like HandleDynamics.
-// Without it a fired rubber band never moves or lands, so the band inventory drains with
-// no effect.
-func (w *World) HandleBands() {}
+// HandleBands landed with 1.5e and lives in bands.go. It stays ungated like
+// HandleDynamics: a band in flight when the last mortal is spent keeps flying, and can
+// still trip a switch after the glider that fired it is dead.
 
 // DoGameOver is GameOver.c:60-69: the player finished the house.
 //

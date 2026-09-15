@@ -159,12 +159,20 @@ type World struct {
 	NumDynamics int16
 
 	// BandList is bands[] (StructuresInit2.c:241) and NumBands is numBands: the two
-	// rubber bands that can be in the air at once. 1.5e owns every writer; 1.5c has
-	// them because DidBandHitDynamic reads them, and one table read by two stages beats
-	// two tables that can disagree. NumBands is 0 until then, which makes a band strike
-	// on a balloon unreachable rather than wrong.
-	BandList [MaxRubberBands]Band
-	NumBands int16
+	// rubber bands that can be in the air at once. Declared here in 1.5c because
+	// DidBandHitDynamic reads them, and written from 1.5e onward by bands.go -- one table
+	// read by two stages beats two tables that can disagree.
+	//
+	// BandHitLast is bandHitLast (RubberBands.c:29): the hot-spot index the *most recent*
+	// band collision was against, and the game's entire band debounce. **Its zero value
+	// is load-bearing.** The C's global starts at 0 rather than -1 and KillAllBands does
+	// not reset it, so the very first band collision of a session is silently swallowed if
+	// it happens to be with hot spot 0. Go's zero value reproduces that for free, which is
+	// why there is no initialiser -- see bands.go for the two larger ways the same one
+	// global fails to debounce anything.
+	BandList    [MaxRubberBands]Band
+	NumBands    int16
+	BandHitLast int16
 
 	// Sparkles is sparkles[] and FlyingPoints is flyingPoints[] (DynamicMaps.c:31):
 	// the effects layer, three slots each.

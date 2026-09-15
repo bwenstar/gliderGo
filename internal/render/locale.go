@@ -216,9 +216,9 @@ type Scene struct {
 	TempManholes []Rect
 	MirrorRects  []Rect
 
-	// numGrease is the count Grease.c keeps beside its own array, which is Stage
-	// 1.5's; only the cap is visible here.
-	numGrease int
+	// Grease is grease[] (Grease.c:26), capped at kMaxGrease. Written by both halves
+	// of the port -- see grease.go for why it is on Scene rather than behind a hook.
+	Grease []Grease
 
 	// ListLocalObjects is ListAllLocalObjects (Objects.c:300-348), called from the
 	// middle of DrawLocale. It is a hook because the object graph belongs to
@@ -246,6 +246,17 @@ type Scene struct {
 	// RestoreEntireGameScreen reaches DrawLocale directly (Play.c:814) without going
 	// through Rebuild -- the trap readylevel.go documents.
 	ZeroDinahs func()
+
+	// KillAllBands is KillAllBands (RubberBands.c:307-317), the third line of
+	// DrawLocale's reset head. A hook for exactly ZeroDinahs' reason: the band table
+	// is simulation state on World and this is the same composition.
+	//
+	// nil composes the same image -- bands are drawn by RenderBands, which the
+	// renderer's own tests never reach -- so unlike Scene.Grease there is nothing
+	// lost by keeping the table on the game side. Note what the reset means: **a
+	// band in flight does not survive a room change.** Walking through a door
+	// deletes it, and the ammunition is not refunded.
+	KillAllBands func()
 
 	// AddDynamicObject is AddDynamicObject (Dynamics3.c:187-554), called from
 	// seventeen places inside DrawARoomsObjects. `where` is room-local, playOrigin
@@ -294,8 +305,8 @@ func NewScene(v *View, a *Assets, h *house.House) *Scene {
 // together with as much of its surroundings as NumNeighbors asks for.
 func (s *Scene) DrawLocale() {
 	// ZeroFlamesAndTheLike, ZeroDinahs, KillAllBands, ZeroMirrorRegion,
-	// ZeroTriggers, numTempManholes = 0. The band table belongs to 1.5e and the
-	// trigger table is reset by World.Rebuild; the rest are here.
+	// ZeroTriggers, numTempManholes = 0. The trigger table is reset by
+	// World.Rebuild; the rest are here.
 	s.SavedMaps = s.SavedMaps[:0]
 	s.Flames = s.Flames[:0]
 	s.TikiFlames = s.TikiFlames[:0]
@@ -304,9 +315,12 @@ func (s *Scene) DrawLocale() {
 	s.Stars = s.Stars[:0]
 	s.TempManholes = s.TempManholes[:0]
 	s.MirrorRects = s.MirrorRects[:0]
-	s.numGrease = 0
+	s.Grease = s.Grease[:0]
 	if s.ZeroDinahs != nil {
 		s.ZeroDinahs()
+	}
+	if s.KillAllBands != nil {
+		s.KillAllBands()
 	}
 
 	roomV := int16(0)
@@ -829,7 +843,18 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 				if _, ok := Sect(itsRect, testRect); ok {
 					// The first of dynaNum's three meanings: a grease slot, not a
 					// dinahs slot. See the game side's SetDynaNum.
-					dynamicNum = int16(s.addGrease(room, int16(i), redraw))
+					//
+					// The two branches are two different functions rather than
+					// one with a flag, because a redraw must not claim a second
+					// saved-map slot for a jar that already has one -- see
+					// ReBackUpGrease.
+					if redraw {
+						dynamicNum = s.ReBackUpGrease(room, int16(i))
+					} else {
+						dynamicNum = s.AddGrease(room, int16(i),
+							itsRect.Left, itsRect.Top, c.Length,
+							thisObject.What == kGreaseRt)
+					}
 					if dynamicNum != -1 {
 						s.drawGrease(thisObject.What, itsRect, c.Length, true)
 					}
@@ -1406,21 +1431,8 @@ func (s *Scene) patch(r Rect) *Surface {
 	return p
 }
 
-// addGrease is Grease.c:206-250. The saved map it takes is 32x108 -- the whole
-// spill strip, not the object's rect -- because a spill spreads as it is used.
-func (s *Scene) addGrease(where, who int16, redraw bool) int {
-	if redraw {
-		return s.backUpToSavedMap(SetRect(0, 0, 32, 108), where, who, true)
-	}
-	if s.numGrease >= kMaxGrease {
-		return -1
-	}
-	if s.backUpToSavedMap(SetRect(0, 0, 32, 108), where, who, false) == -1 {
-		return -1
-	}
-	s.numGrease++
-	return s.numGrease - 1
-}
+// AddGrease and ReBackUpGrease are Grease.c's and live in grease.go, beside the
+// table they write and the strip they bake.
 
 // addCandleFlame is DynamicMaps.c:316-343. The bounds handed to the saved map are
 // one frame wide and five frames tall, so the slot holds the frame strip as well

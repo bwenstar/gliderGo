@@ -139,15 +139,14 @@ func (w *World) checkGliders(who int16, doOffset bool) {
 
 // Band is bandType (GliderStructs.h:274-279): one rubber band in flight.
 //
-// Declared here rather than with the rest of Bands.c's port because DidBandHitDynamic is
-// 1.5c's and reads Dest, and a second declaration in 1.5e would be a second table that
-// could disagree with this one. 1.5e adds the *writers* -- AddBand, HandleBands,
-// RenderBands, KillAllBands -- and uses these same five fields; the struct is complete as
-// the C has it, so there is nothing for 1.5e to add to it.
+// Declared here rather than with the rest of RubberBands.c's port because DidBandHitDynamic
+// is 1.5c's and reads Dest, and a second declaration in 1.5e would have been a second table
+// that could disagree with this one. 1.5e added the *writers* -- AddBand, HandleBands,
+// RenderBands, KillAllBands, all in bands.go -- and they use these same five fields
+// unchanged, which is what that arrangement was betting on.
 //
-// Until 1.5e lands, NumBands is 0 for the whole game, which makes the three band tests in
-// HandleBalloon, HandleCopter and HandleDart unreachable -- exactly as they are in a game
-// where the player never presses the fire key.
+// So the three band tests in HandleBalloon, HandleCopter and HandleDart are reachable from
+// 1.5e onward. Before it they could not fire at all, because NumBands was never non-zero.
 type Band struct {
 	Dest        Rect
 	Mode, Count int16

@@ -409,9 +409,9 @@ lines of C ✅ *done*
   `evenFrame` bullet is now measured — the desynchronisation is **one frame wide, not
   permanent**, because only the loop head toggles and the other three writers assign, so the
   composition write and the ball's first idle write cancel.
-- **One correction to close, carried into 1.5e.** 2.34's `PaintRect`-with-no-destination is
-  resolved for the outlet (`HandleOutlet` names `w.R.Work` at the call site) and still open for
-  `HandleGrease`, which is where the same conversion mistake would land next.
+- **One correction carried into 1.5e, and closed there.** 2.34's `PaintRect`-with-no-destination
+  was resolved for the outlet in 1.5c (`HandleOutlet` names `w.R.Work` at the call site) and for
+  `HandleGrease` in 1.5e, which names both maps at the call site and registers the rect it filled.
 
 **1.5d Rewards, switches, per-room persistence** — ~465 lines of C ✅ *done*
 - `Interactions.c:756-1194` (`HandleRewards`' fifteen prizes, `HandleSwitches`, `HandleMicrowave-
@@ -472,15 +472,51 @@ lines of C ✅ *done*
   which is written up as `docs/IMPROVEMENTS.md` 4.3 and is an argument for several short scripts at
   1.8 rather than one long one.
 
-**1.5e Bands and grease** — ~630 lines of C
-- All of `RubberBands.c` and `Grease.c`, plus `RenderBands`.
+**1.5e Bands and grease** — ~630 lines of C ✅ *done*
+- All of `RubberBands.c` and `Grease.c`, plus `RenderBands`. Three new source files —
+  `internal/game/bands.go`, `internal/game/grease.go`, `internal/render/grease.go` — plus the
+  `BandRects` table in `internal/render/srcrects.go`, and **six stubs closed**: `AddBand`,
+  `HandleBands`, `RenderBands`, `HandleGrease`, `SpillGrease` and `RedrawAllGrease`. Two
+  additions carry them: `World.BandHitLast`, and `Scene.KillAllBands` wired as a hook in
+  `Rebuild` — the fifth of the cross-boundary hooks and the only one whose nil composes an
+  identical image.
+- Grease is split across the render boundary and the split is not arbitrary. The **table** lives
+  on `Scene`, unlike the dinahs table, which is behind a hook: a nil dinahs hook composes the
+  same image, because an unregistered dinah is simply a still one, but a jar's *draw* is gated on
+  its registration succeeding, so a nil hook there would compose a room with no grease jar in it
+  and the renderer's own goldens would stop showing one. A table both sides write is the honest
+  description, so that is what it is.
 - The last two writers into `hotSpots[]`, and what makes the table **mutable mid-frame**:
   `HandleGrease` runs *inside* `RenderFrame` and rewrites hot-spot bounds after the interaction
   sweep, so a slide rect created on frame N is not collidable until N+1.
-- *Acceptance:* a band fired into each of the five actions `CheckBandCollision` filters for
-  produces the C's effect and no other; the debounce, the two-band cap, the wall bounce and the
-  floor kill each have a test, including that a band clamped by phase 1 **survives** phase 5. A
-  grease jar is stepped through all four modes with the slide rect pinned per frame.
+- *Acceptance met.* All five filtered actions, the debounce, the two-band cap, the wall bounce,
+  the doorway kill, the floor kill and the phase-1-clamp survival have tests
+  (`internal/game/bands_test.go`); a jar walks all four modes with the slide rect pinned per
+  frame, and the registration half is `internal/render/grease_test.go`.
+- **What the acceptance criteria actually found**, in the order the tests failed:
+  - **Phase 1 tests the room's *thresholds* and phase 5 tests the wall *constants*.** So in a
+    room with an open side phase 1 declines to clamp and phase 5 deletes the band the moment it
+    passes x=12 anyway: **a rubber band cannot travel through a doorway.** That is a rule of the
+    game — it keeps bands a within-room tool and stops a player clearing a room they cannot see —
+    and it reads as an inconsistency until you notice the other half. The two interlock the other
+    way too: phase 1's clamp writes `left = kLeftWallLimit` *exactly*, so phase 5's `<` is false
+    by one pixel and the rebounding band survives the frame it rebounds on. One pixel is the
+    whole margin.
+  - **The debounce does not debounce**, in three independent ways, all reachable. Written up as
+    `docs/IMPROVEMENTS.md` 2.41 and transcribed rather than fixed, per 1.8's replays.
+  - **Only five of 28 actions see a band, and `kRewardIt` is filtered to grease.** Bands cannot
+    collect prizes — a design decision hidden inside a type test.
+  - **The band sound is *inside* the two-player escape guard, and the transfer is not gated on
+    having an effect.** So two live gliders touching one band give two thuds and one shove, where
+    one dead glider gives one thud and one shove. The pair pins the difference between "the arm
+    ran and did nothing" and "the arm did not run".
+  - **`KillBand` is a swap-remove that does not clear the slot it copies out of**, which is why
+    `AddBand` opens with `mode = 0` rather than trusting the slot it is handed.
+  - **The grease tip is four frames, not three**, because `Frame` starts at -1 and `HandleGrease`
+    pre-increments. The jar steps two pixels on the frame it becomes a slick as well, so it has
+    moved eight — which is exactly the ∓8 `AddGrease` subtracts to undo `backupGrease`'s walk.
+- Two comments naming tests that did not exist were found and closed, and the class is charged to
+  1.8 as a `make check` lint: `docs/IMPROVEMENTS.md` 4.4.
 
 **1.5f Background animations and the saved-map economy** — ~800 lines of C
 - The rest of `DynamicMaps.c` — the five `BackUp`/`ReBackUp`/`Add` triples, shreds — and

@@ -93,13 +93,13 @@ func (w *World) Rebuild() {
 	// point the C does, between the localNumbers loop and the first PaintRect.
 	w.R.ListLocalObjects = w.ListAllLocalObjects
 
-	// Four of the five dinahs hooks. In the original these are ordinary calls inside
-	// RoomGraphics.c and ObjectDrawAll.c, because the dinahs table, the hotSpots table
-	// and the master-object graph are all globals in the same program. Here the tables
-	// are internal/game's and the numbering is internal/render's, so the object pass
-	// reaches back across the boundary four times: it clears the table at the top,
-	// registers into it per object, reads a hotSpots index for the six switch kinds, and
-	// writes whichever number it ended up with into the master graph. See
+	// Four of the five dinahs hooks, plus KillAllBands. In the original these are
+	// ordinary calls inside RoomGraphics.c and ObjectDrawAll.c, because the dinahs table,
+	// the hotSpots table and the master-object graph are all globals in the same program.
+	// Here the tables are internal/game's and the numbering is internal/render's, so the
+	// object pass reaches back across the boundary four times: it clears the table at the
+	// top, registers into it per object, reads a hotSpots index for the six switch kinds,
+	// and writes whichever number it ended up with into the master graph. See
 	// Scene.AddDynamicObject for why the coordinate conversion is on the render side.
 	//
 	// Assigned here, next to ListLocalObjects, rather than at Scene construction: the
@@ -108,10 +108,19 @@ func (w *World) Rebuild() {
 	// what the renderer is allowed to call during a compose finds all five in one
 	// paragraph. The fifth, UpdateOutletsLighting, is *not* one of them and is bound in
 	// NewWorld; RedrawCentralRoom is its only caller and does not come through here.
+	//
+	// KillAllBands is the odd one out and is here for the same mechanical reason rather
+	// than the same conceptual one: it is DrawLocale's third reset line, but the band table
+	// is on World, so the renderer cannot clear it itself. Unlike the dinahs four a nil
+	// hook composes an identical image -- bands are drawn by RenderBands, which the
+	// renderer's own goldens never reach -- so it is safe to leave unbound in a
+	// render-only test. What it *means* is that a band in flight does not survive a room
+	// change, and the ammunition is not refunded.
 	w.R.ZeroDinahs = w.ZeroDinahs
 	w.R.AddDynamicObject = w.AddDynamicObject
 	w.R.SetDynaNum = w.SetDynaNum
 	w.R.MasterHotNum = w.MasterHotNum
+	w.R.KillAllBands = w.KillAllBands
 
 	w.R.NumChimes = 0
 	w.R.DrawLocale()

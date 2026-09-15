@@ -217,25 +217,18 @@ func (w *World) Survivor() *player.Glider {
 // Not yet implemented: the nine that belong to later work
 // ---------------------------------------------------------------------------
 //
-// Four of the 48: three with empty bodies and AddBand, which has to return something.
-// These are honest stubs, not approximations. Each says which commit or sub-stage fills
-// it and what the stub's behaviour means in the meantime, because a stub that silently
-// does something plausible is worse than one that does nothing: the first hides a gap and
-// the second is visible in a test.
+// Three of the 48, all with empty bodies. These are honest stubs, not approximations. Each
+// says which commit or sub-stage fills it and what the stub's behaviour means in the
+// meantime, because a stub that silently does something plausible is worse than one that
+// does nothing: the first hides a gap and the second is visible in a test.
 //
-// The four this commit removed are Scoreboard.c's -- QuickBatteryRefresh,
-// QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard -- now real in scoreboard.go
-// alongside the seven functions of that file that no interface names. The nine removed
-// before them were the dirty-rect protocol, the four transit handlers, OffAMortal,
-// FlagStillOvers and ForceKillGlider. Between them that is what makes the game playable
-// and what puts a score on the screen.
-
-// AddBand is Input.c:352-361 and belongs to 1.5e, bands and grease. It returns false --
-// "the band array is full" -- which is the correct stub, and not merely a safe one: the
-// C's false is what makes the shot *not cost a band*, so a player firing into a stage
-// with no band subsystem loses no ammunition. The alternative stub, returning true,
-// would silently drain the inventory into nothing.
-func (w *World) AddBand(g *player.Glider, h, v int16, facing bool) bool { return false }
+// The one this commit removed is AddBand, now real in bands.go. Before it went, its `return
+// false` was load-bearing rather than merely safe -- the C's false is what makes a refused
+// shot *not cost a band* -- so a player firing into a stage with no band subsystem lost no
+// ammunition. The four removed before that were Scoreboard.c's -- QuickBatteryRefresh,
+// QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard -- and the nine before them were
+// the dirty-rect protocol, the four transit handlers, OffAMortal, FlagStillOvers and
+// ForceKillGlider.
 
 // AddAShreddedGlider queues the shredded-glider particles and belongs to 1.5c, dynamics,
 // which owns RenderShreds. With it inert a shredded glider vanishes rather than coming

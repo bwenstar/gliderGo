@@ -738,14 +738,19 @@ zap**, after that frame's `timer <= 0` arm has already cleared `position`, and o
 room with no lights. Its purpose is to paint the socket out of a dark room rather than
 leave `outletSrc[0]` showing. An outlet at rest never reaches this code.
 
-**Resolved for the outlet in 1.5c; still open for grease at 1.5e.**
-`internal/game/dynamics_appliances.go:427` is now
+**DONE — the outlet in 1.5c, grease in 1.5e.**
+`internal/game/dynamics_appliances.go:427` is
 `w.R.Work.Fill(w.Dinahs[who].Dest, render.Black8)` — the destination is named at the call
 site, which is what the commented-out `SetPort((GrafPtr)workSrcMap)` was for, and the
-`AddRectToWorkRects` on the next line is therefore telling the truth. `HandleGrease`
-(`internal/game/render_frame.go:577`) is still an empty stub charged to 1.5e and must do the
-same; `Grease.c:105-118` above is the model it should follow, back map then work map, both
-explicit.
+`AddRectToWorkRects` on the next line is therefore telling the truth.
+
+`HandleGrease`'s spreading arm (`internal/game/grease.go`) is now the model the C already
+was, transcribed rather than repaired: `w.R.Back.Fill(src, ...)` then
+`w.R.Work.Fill(src, ...)` then `w.AddRectToWorkRects(...)`, back map first as
+`Grease.c:105-118` has it, all three naming the same `src`.
+`TestSpreadingGreaseRegistersTheRectItPainted` asserts the registered rect *is* the filled
+one, in screen coordinates with no conversion between them — which is the property the
+outlet's version cannot have and the one this entry is about.
 
 Transcribing the *bug* would have been untestable here for a reason worth stating: the port
 has no ambient current port to leak into, so a missing destination is a compile error or an
@@ -948,6 +953,47 @@ Stage 5 editor should not present a link the game cannot honour: either the pick
 sound triggers as switch targets, or 1.6 makes the arm reachable on purpose and the fidelity
 replays get a note.
 
+### 2.41 The rubber band debounce does not debounce — **note; three separate defeats, all transcribed**
+
+`bandHitLast` (`RubberBands.c:29`) is meant to stop a band resting against a switch from
+toggling it thirty times a second. It is a single global holding a single hot-spot index, and
+it fails in three independent ways. All three are reachable in the shipped houses, all three
+are reproduced, and each has a test in `internal/game/bands_test.go`.
+
+**One band, two rects.** The debounce suppresses the *effect* and not the sweep, so after
+tripping hot spot 5 the loop carries on and hot spot 9 sees `bandHitLast == 5`, trips too, and
+leaves `bandHitLast == 9`. Next frame hot spot 5 trips again because the latch now names 9.
+Two switches within sixteen pixels of each other toggle each other's latch for ever.
+`TestTwoRectsDefeatTheDebounceForEachOther`.
+
+**Two bands.** The reset is per band, not per frame: `CheckBandCollision` ends with
+`if (!nothingCollided) …` else clearing the latch to -1, so a *second* band in free flight
+clears it every frame and the first band's latch never survives. This is the easy one to hit
+deliberately — fire twice, hold one band against a switch — and it is a straightforward way
+for a player to farm a switched prize. `TestSecondBandDefeatsTheDebounce`.
+
+**The initial value.** It is a zeroed global rather than -1, and `KillAllBands` does not reset
+it, so the first band collision of a session is silently *swallowed* if it happens to be with
+hot spot 0. Go's zero value reproduces that for free, which is why `World.BandHitLast` is
+deliberately left uninitialised. `TestFirstCollisionWithHotSpotZeroIsSwallowed` and
+`TestKillAllBandsLeavesTheDebounceLatched`.
+
+Not fixed at 1.5e, for the usual reason: the effect is visible in play, so 1.8's fidelity
+replays have to hold it before it can move. The shape of a fix is not in doubt though, and it
+is smaller than the bug — a per-hot-spot `bandStillOver` flag cleared by the same sweep that
+clears the glider's `StillOver`, which is what `HandleSwitches` already has and what the band
+path borrows without getting its own. That makes it the same fix as giving bands their own edge
+detector, and it belongs with 2.19/2.20/2.22/2.39 behind the modern-options flag rather than as
+a silent correction, because the two-band defeat is exploitable and someone's route through a
+house may depend on it.
+
+One consequence worth separating out, because it is a *design* decision and not a defect: only
+five of the 28 hot-spot actions are offered to a band, and `kRewardIt` is filtered to grease
+alone. **Bands cannot collect prizes.** Without that filter a player could farm a room's clocks
+from across it. `TestOnlyFiveActionsSeeABand` pins the list in both directions, driven off
+`NumHotSpotActions` so that a twenty-ninth action added without a decision about bands fails
+there rather than in a house.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -1061,6 +1107,35 @@ illustrating. 1.8 should carry several short scripts, one per subsystem, instead
 — and the general rule is the one 2.38's survey also taught: a test that follows the game rather
 than asserting about it has to be able to say what it stopped covering.
 
+### 4.4 A comment naming a test that does not exist is worse than no comment — **DONE, 1.5e; the sweep is 1.8**
+
+`internal/render/srcrects.go` had promised since 1.5c that "`TestStripRectsTileTheirSheet`
+checks each array against its sheet's declared bounds, and a transcribed table is what that
+test can actually catch a mistake in". No such test existed. That promise was the stated reason
+the nine frame-strip rect tables were written out longhand instead of computed from a stride —
+so its absence made the choice pointless: a hand-typed table with nothing checking it is
+strictly worse than a loop.
+
+Written in 1.5e rather than deleted, because 1.5e added `BandRects` to exactly the set of tables
+the comment describes. `internal/render/srcrects_test.go` now derives each expected rect from
+`stripBounds` — transcribed from `StructuresInit.c`'s `QSetRect` calls — while the tables under
+test come from its *loops*, so the two independently-transcribed sources have to agree and a
+single typo cannot satisfy both. `TestEverySrcRectFitsItsSheet` adds containment for the
+irregular tables, which catches the failure a golden image hides: `Surface.Copy` clips silently,
+so a rect past the end of a sheet gives a short or empty blit rather than a panic, and an object
+that animates to nothing looks like a logic bug in its handler.
+
+One more of the same class was found and fixed at the same time: `bands.go`'s header named
+`TestClampedBandSurvivesTheKillTest` where the test is actually
+`TestBandBouncesOffTheWallAndSurvivesTheKillTest`.
+
+**The sweep is owed at 1.8.** This codebase's comments carry a lot of load — most of what is
+known about the original lives in them — and a named-but-absent test is a specific, mechanical
+failure: it tells a future reader that a property is pinned when it is not, and it does so most
+convincingly exactly where the property is subtle. `glidertool` should grow a check that every
+`Test[A-Z]\w+` mentioned in a comment resolves to a real test function, run from `make check`.
+Cheap, and it closes the whole class rather than the two instances found by chance.
+
 ---
 
 ## Done
@@ -1079,6 +1154,8 @@ than asserting about it has to be able to say what it stopped covering.
 | 2.25 `Scene.RedrawCentralRoom`: a light switch repaints one room, not nine | 1.5c | this stage |
 | 2.34 (outlet half) `HandleOutlet` names its destination instead of inheriting an ambient port | 1.5c | this stage |
 | 4.3 (first half) The golden trace's failure report names the frame that moved, not the digest | 1.5d | this stage |
+| 2.34 (grease half) `HandleGrease` names both destinations at the call site, back map then work | 1.5e | this stage |
+| 4.4 `TestStripRectsTileTheirSheet` written, closing a comment that had promised it since 1.5c | 1.5e | this stage |
 
 Four bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught
