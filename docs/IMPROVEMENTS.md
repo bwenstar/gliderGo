@@ -512,22 +512,31 @@ two-player mode, or a test that builds two worlds on one view — would find it 
 fix at that point is a `World.JustRoomsRect` plus a parameter on the two render entry
 points, and it is cheap; it is only cheap *now* because nothing else writes it.
 
-### 2.31 `DrawCalendar` still draws no month — **planned, 1.5b, the next commit**
+### 2.31 `DrawCalendar` drew no month — **DONE, 1.5b**
 
 `ObjectDraw2.c:1132-1166` draws the calendar's month name in the same application font:
 `GetTime` for the real month, `GetIndString(monthStr, kMonthStringID, month)` for its name
-and `ColorText` at `left + (64 - StringWidth(monthStr))/2` to centre it. The port draws the
-calendar's picture and stops there, so a calendar in a room renders as a blank one.
+and `ColorText` at `left + (64 - StringWidth(monthStr))/2` to centre it. The port drew the
+calendar's picture and stopped there, so a calendar in a room rendered as a blank one.
 
-It was waiting on the font, and the other two things it needs are both already in place: `STR# 1005`
-is extracted at `assets/extracted/res/STR#/1005.bin`, and `Scene.Clock` already exists and is
-already fixed to 14 October 1994 by the golden-corpus test, so nothing about this has to be
-nondeterministic. What is left is a `STR#` decoder (a count and twelve Pascal strings) and
-`render.StringWidth` for the centring.
+It was waiting on the font. The other two things it needed were already in place: `Scene.Clock`
+exists and is already fixed to 14 October 1994 by the golden-corpus test, so nothing here has
+to be nondeterministic, and the twelve month names are `STR# 1005`.
 
-It is a separate commit from the font because it moves the golden hash of every room that
-contains a calendar, and a corpus diff is worth having on its own so it can be looked at and
-explained rather than buried in a commit about glyphs.
+They are transcribed into `objectdraw2.go` rather than loaded, which is the choice
+`palette.go` already makes for `'clut'` 128: the data is twelve words that have not changed
+since 1994, a room's appearance should not depend on a second asset tree being present at
+runtime, and `TestMonthNamesMatchTheResource` decodes the shipped resource and fails if the
+copy drifts. When 1.7 needs `STR# 150`'s fifty-one strings the general decoder can be lifted
+out of that test; fifty-one strings is where a loader starts paying for itself and twelve is
+not.
+
+It was a separate commit from the font because it moved the golden hash of 62 of the corpus's
+4,070 rooms, and that diff is worth reading on its own rather than buried in a commit about
+glyphs. One finding came out of it and is pinned by
+`TestCalendarIsOnePixelNarrowerThanItsCentring`: the C centres the month in **64** pixels and
+the calendar picture is **63** wide, so the original's own text sits a pixel right of centre.
+The port keeps the 64.
 
 ---
 
@@ -587,6 +596,7 @@ why a linter is worth more than a runtime check.
 | 2.17 `World.WaitTick` hook, and a sleeping limiter in `cmd/glidergo` | 1.5b | this stage |
 | 2.27 `platform.EventExpose`, emitted by the x11 backend and handled by the host | 1.5b | this stage |
 | 2.29 A bitmap font, full Mac Roman coverage, wired into the scoreboard's three panels | 1.5b | this stage |
+| 2.31 `DrawCalendar` draws its month, from `STR# 1005` and `Scene.Clock` | 1.5b | this stage |
 
 Two bugs found and fixed in the port itself while writing this, neither of which is an
 "improvement" so much as a repair, both recorded here because the reason no test caught

@@ -451,17 +451,40 @@ func (s *Scene) DrawWallWindow(window Rect) {
 	s.Back.Line(pane.Left-5, pane.Top-7, pane.Right+5, pane.Top-7, tanC)
 }
 
-// DrawCalendar draws the calendar picture, then the current month's name across
-// it in bold nine-point application font, centred in the picture's 64 pixels.
+// monthNames is STR# kMonthStringID (1005), "Months", index 1..12 -- the only
+// resource-borne string the static room needs, and the only one the port has any
+// reason to hold before the shell arrives at 1.7.
 //
-// The text is not drawn yet, though the two things it was waiting on are both
-// here now: font.go has a font (the game's own was the Mac's, whose bitmaps are
-// in the system rather than in the game), and Scene.Clock supplies the month
-// without making the drawing depend on the wall clock. What is left is a STR#
-// decoder -- the strings are STR# kMonthStringID (1005) index 1..12 -- and the
-// pen, which is kDarkFleshColor at (left + (64 - StringWidth)/2, top + 55).
-// The picture is drawn, so a calendar renders as a blank one until then. See
-// docs/IMPROVEMENTS.md 2.31.
+// It is transcribed rather than loaded, which is the same choice palette.go makes
+// for 'clut' 128 and for the same two reasons: the data is twelve short words that
+// have not changed since 1994, and a room's appearance should not depend on a
+// second asset tree being present. TestMonthNamesMatchTheResource decodes the
+// shipped STR# and fails if this drifts from it, so the transcription is checked
+// rather than trusted. All caps is the resource's, not a shout.
+var monthNames = [12]string{
+	"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+	"JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
+}
+
+// DrawCalendar draws the calendar picture, then the current month's name across
+// it, centred in the picture's 64 pixels (ObjectDraw2.c:1132-1166).
+//
+// The month comes from Scene.Clock rather than time.Now, which is the port's one
+// change and is what makes a composition containing a calendar reproducible; the
+// original calls GetTime here, and cmd/glidergo sets Clock from time.Now once at
+// startup, so the visible behaviour is the same.
+//
+// The type is not the original's. The C asks for the application font at nine
+// point bold and the port has one hand-authored face (font.go, and
+// docs/IMPROVEMENTS.md 2.29), whose seven-pixel capitals are in fact nearer nine
+// point Geneva than the twelve point the scoreboard asks for. Centring is
+// recomputed from this font's own StringWidth, so a narrower face moves the text
+// right rather than leaving it hanging off the left edge: the widest month,
+// SEPTEMBER, is 54 of the available 64 pixels.
+//
+// The 64 is the original's literal and the picture is 63 wide, so the text sits a
+// pixel right of true centre. That is transcribed rather than corrected; see
+// TestCalendarIsOnePixelNarrowerThanItsCentring.
 func (s *Scene) DrawCalendar(theRect Rect) {
 	art := s.A.Pict(kCalendarPictID)
 	if art == nil {
@@ -469,6 +492,10 @@ func (s *Scene) DrawCalendar(theRect Rect) {
 	}
 	bounds := Offset(SetRect(0, 0, int16(art.W), int16(art.H)), theRect.Left, theRect.Top)
 	s.Back.Copy(art, art.Bounds(), bounds, SrcCopy)
+
+	// GetIndString is 1-based; time.Month is too.
+	month := monthNames[(int(s.Clock.Month())-1)%12]
+	s.Back.DrawString(theRect.Left+(64-StringWidth(month))/2, theRect.Top+55, month, DarkFlesh)
 }
 
 // DrawBulletin is the notice board: its picture at its own size, offset to the
