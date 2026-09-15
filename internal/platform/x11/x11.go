@@ -29,6 +29,19 @@ static unsigned int ev_keycode(XEvent *e) { return e->xkey.keycode; }
 static unsigned long ev_msg0(XEvent *e)   { return (unsigned long)e->xclient.data.l[0]; }
 static void ev_size(XEvent *e, int *w, int *h) { *w = e->xconfigure.width; *h = e->xconfigure.height; }
 static int  ev_expose_count(XEvent *e) { return e->xexpose.count; }
+
+// ev_text is XLookupString: what this keystroke typed, given the modifiers and the
+// keyboard mapping the server is using. It is the only part of this backend that
+// knows about characters at all -- the game binds physical keys -- and it exists so
+// that the high-score screen can be typed into on a keyboard that is not American.
+//
+// The bytes come back as ISO Latin-1 and not in the locale's encoding, which is
+// exactly what the caller wants: Latin-1 is the first 256 code points of Unicode, so
+// each byte is its own rune with no conversion table.
+static int ev_text(XEvent *e, char *buf, int n) {
+	KeySym ignored;
+	return XLookupString(&e->xkey, buf, n, &ignored, NULL);
+}
 */
 import "C"
 
@@ -196,16 +209,38 @@ func (w *Window) PollEvents() []platform.Event {
 			// binds physical keys, not characters.
 			ks := C.XkbKeycodeToKeysym(w.dpy, C.KeyCode(C.ev_keycode(&ev)), 0, 0)
 			k := w.keysyms[ks]
+
+			// What the keystroke typed, on presses only -- a key release types
+			// nothing, and a held key types repeatedly, so auto-repeat carries text
+			// too. This is a second question about the same event and not a
+			// replacement for the first: the glider is steered by Key and a player's
+			// name is spelled by Text (see platform.Event).
+			text := ""
+			if isDown {
+				text = eventText(&ev)
+			}
+
 			if k == platform.KeyUnknown {
+				// A key this port has no name for still types. On a French layout the
+				// keysym under the physical Q is `a`, and every accented key and every
+				// key on a layout nobody here has seen is unmapped; dropping those
+				// would make the high-score screen unusable outside the US. The event
+				// goes out with KeyUnknown, which no binding matches, so a text field
+				// sees the character and the game sees nothing.
+				if text == "" {
+					continue
+				}
+				out = append(out, platform.Event{Kind: platform.EventKeyDown, Text: text})
 				continue
 			}
+
 			repeat := isDown && w.down[k]
 			w.down[k] = bool(isDown)
 			kind := platform.EventKeyUp
 			if isDown {
 				kind = platform.EventKeyDown
 			}
-			out = append(out, platform.Event{Kind: kind, Key: k, Repeat: repeat})
+			out = append(out, platform.Event{Kind: kind, Key: k, Repeat: repeat, Text: text})
 		case C.ClientMessage:
 			if C.Atom(C.ev_msg0(&ev)) == w.wmDelete {
 				w.closed = true
@@ -234,6 +269,37 @@ func (w *Window) PollEvents() []platform.Event {
 		}
 	}
 	return out
+}
+
+// eventText is the printable part of what a key press typed.
+//
+// Everything unprintable is dropped rather than passed on, because the caller is a text
+// field and the keys that produce control codes here are keys it handles itself: Return
+// is 0x0D, Escape 0x1B, Tab 0x09 and Delete 0x7F, and all four already arrive as a Key.
+// A field that appended Text blindly would put a carriage return in the middle of a
+// player's name.
+//
+// The 0x80..0x9F band is dropped for the same reason: those are C1 control codes in
+// Latin-1, not characters, whatever a Mac Roman table might make of the same bytes.
+func eventText(ev *C.XEvent) string {
+	// Sixteen is generous. XLookupString returns one byte for a character key and a
+	// handful for the few keysyms with multi-character mappings; it truncates rather
+	// than overflowing, and a truncated keystroke is not a case worth a heap
+	// allocation per key press.
+	var buf [16]C.char
+	n := int(C.ev_text(ev, &buf[0], C.int(len(buf))))
+	if n <= 0 {
+		return ""
+	}
+	var rs []rune
+	for i := 0; i < n && i < len(buf); i++ {
+		b := byte(buf[i])
+		if b < 0x20 || (b >= 0x7F && b < 0xA0) {
+			continue
+		}
+		rs = append(rs, rune(b)) // Latin-1 byte == Unicode code point
+	}
+	return string(rs)
 }
 
 // KeyDown reports whether k is held right now.

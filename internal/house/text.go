@@ -217,8 +217,16 @@ func (t *textWriter) scores(s *Scores) {
 	t.pstr("banner", s.Banner[:])
 	t.printf("    #     %-19s %10s  %12s  %s\n", "name", "score", "timestamp", "rooms")
 	for i := range s.Names {
-		t.printf("    entry %-19s %10d  %12d  %d\n",
+		// The date is a comment because nothing reads it back and nothing ever drew it
+		// (docs/IMPROVEMENTS.md 2.57) -- but it is the only record of when the shipped
+		// boards were set, so a dump is where somebody can see it.
+		row := fmt.Sprintf("    entry %-19s %10d  %12d  %d",
 			QuoteMacRoman(s.Names[i].Text()), s.Scores[i], s.TimeStamps[i], s.Levels[i])
+		if c := timeComment(int32(s.TimeStamps[i])); c != "" {
+			t.printf("%-56s # %s\n", row, c)
+		} else {
+			t.printf("%s\n", row)
+		}
 		if t.opt.Residue && s.Names[i].HasResidue() {
 			t.kv(fmt.Sprintf("entry.%d.residue", i), "%s", hexBytes(s.Names[i].Residue()))
 		}

@@ -95,3 +95,91 @@ func TestParseKeyAliasesAndRejections(t *testing.T) {
 		}
 	}
 }
+
+// KeyChar is the fallback for a backend that reports keys but not text, so what it must
+// not do is invent characters for keys that type nothing: a text field that appended
+// KeyChar's answer for Escape or F1 would put junk in the player's name.
+func TestKeyCharTypesOnlyWhatTypes(t *testing.T) {
+	for _, tc := range []struct {
+		k       Key
+		plain   rune
+		shifted rune
+	}{
+		{KeyA, 'a', 'A'},
+		{KeyZ, 'z', 'Z'},
+		{Key0, '0', ')'},
+		{Key1, '1', '!'},
+		{Key9, '9', '('},
+		{KeySpace, ' ', ' '},
+		{KeyMinus, '-', '_'},
+		{KeyEqual, '=', '+'},
+		{KeyComma, ',', '<'},
+		{KeyPeriod, '.', '>'},
+		{KeySlash, '/', '?'},
+		{KeySemicolon, ';', ':'},
+		{KeyQuote, '\'', '"'},
+		{KeyBackslash, '\\', '|'},
+		{KeyGrave, '`', '~'},
+		{KeyLeftBracket, '[', '{'},
+		{KeyRightBracket, ']', '}'},
+	} {
+		if got, ok := KeyChar(tc.k, false); !ok || got != tc.plain {
+			t.Errorf("KeyChar(%q, false) = %q,%v; want %q,true", KeyName(tc.k), got, ok, tc.plain)
+		}
+		if got, ok := KeyChar(tc.k, true); !ok || got != tc.shifted {
+			t.Errorf("KeyChar(%q, true) = %q,%v; want %q,true", KeyName(tc.k), got, ok, tc.shifted)
+		}
+	}
+
+	for _, k := range []Key{
+		KeyUnknown, KeyLeft, KeyRight, KeyUp, KeyDown, KeyReturn, KeyEscape, KeyTab,
+		KeyDelete, KeyShift, KeyControl, KeyAlt, KeySuper, KeyF1, KeyF12, numKeys,
+	} {
+		if r, ok := KeyChar(k, false); ok {
+			t.Errorf("KeyChar(%q) invented %q; that key types nothing", KeyName(k), r)
+		}
+	}
+
+	// Every key that types something types exactly one rune, in both states. The
+	// original's name field is a Str15 of Mac Roman bytes, so a keystroke that produced
+	// two characters would silently change how many a name has room for.
+	for k := KeyUnknown + 1; k < numKeys; k++ {
+		for _, shift := range []bool{false, true} {
+			if r, ok := KeyChar(k, shift); ok && (r < 0x20 || r > 0x7E) {
+				t.Errorf("KeyChar(%q, %v) = %U, which is not printable ASCII", KeyName(k), shift, r)
+			}
+		}
+	}
+}
+
+// The two descriptions of a US keyboard in this package -- keyNames' aliases, which are
+// the engravings, and usUnshifted, which is what those keys type -- have to agree, or the
+// settings screen and the text field disagree about the same physical key.
+func TestKeyCharAgreesWithTheKeyNames(t *testing.T) {
+	for _, e := range keyNames {
+		r, ok := KeyChar(e.key, false)
+		if !ok {
+			continue
+		}
+		if e.key == KeySpace {
+			continue // its engraving is a word, and " " is the alias
+		}
+		if _, isAlias := keyOf[string(r)]; !isAlias {
+			t.Errorf("KeyChar says %s types %q, but %q is not one of its names",
+				e.name, r, string(r))
+			continue
+		}
+		if got := keyOf[string(r)]; got != e.key {
+			t.Errorf("KeyChar says %s types %q, but ParseKey(%q) is %s",
+				e.name, r, string(r), KeyName(got))
+		}
+	}
+
+	// And the other direction, so a key added to usUnshifted without a name is caught:
+	// every entry there is a key keyNames lists.
+	for k := range usUnshifted {
+		if KeyName(k) == "unknown" {
+			t.Errorf("usUnshifted has key %d, which keyNames does not name", int(k))
+		}
+	}
+}

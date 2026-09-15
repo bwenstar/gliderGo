@@ -455,6 +455,50 @@ func TestNumObjectsOverride(t *testing.T) {
 	}
 }
 
+// TestScoreEntryDatesAreCommentsOnly covers the one part of a board a dump has to
+// interpret. Nothing has ever drawn those timestamps (docs/IMPROVEMENTS.md 2.57), so
+// the dump is the only place the shipped dates are legible -- but a date on an `entry`
+// line must stay a comment: the parser wants exactly four arguments, and a fifth token
+// would be a parse error rather than a wrong date.
+func TestScoreEntryDatesAreCommentsOnly(t *testing.T) {
+	const stamp = 2888914094 // Slumberland's third row, 1995-07-18
+	h := &House{Version: HouseVersion, Rooms: []Room{{}}}
+	for i := range h.Rooms[0].Objects {
+		h.Rooms[0].Objects[i].What = ObjectIsEmpty
+	}
+	h.Rooms[0].Name.SetText("a")
+	h.HighScores.Names[0].SetText("Ozma")
+	h.HighScores.Scores[0] = 4900
+	h.HighScores.Levels[0] = 16
+	h.HighScores.TimeStamps[0] = stamp
+
+	txt, err := h.Text(TextOptions{NoHeader: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(txt, "# 1995-07-18") {
+		t.Errorf("the dated row was written without its date:\n%s", txt)
+	}
+	// Row 1 is untouched: a zero stamp is not a date and must not be rendered as 1904.
+	if strings.Contains(txt, "1904-01-01") {
+		t.Errorf("an empty row was dated:\n%s", txt)
+	}
+
+	back, err := ParseText(strings.NewReader(txt))
+	if err != nil {
+		t.Fatalf("a dumped board no longer parses: %v", err)
+	}
+	if got := back.HighScores.TimeStamps[0]; got != stamp {
+		t.Errorf("timestamp %d after a round trip, want %d", got, stamp)
+	}
+	if got := back.HighScores.Names[0].Text(); got != "Ozma" {
+		t.Errorf("name %q after a round trip", got)
+	}
+	if got := back.HighScores.Levels[0]; got != 16 {
+		t.Errorf("rooms %d after a round trip, want 16", got)
+	}
+}
+
 func TestTokenize(t *testing.T) {
 	cases := []struct {
 		in   string

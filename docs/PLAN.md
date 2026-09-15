@@ -711,10 +711,12 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     `DoCommandKey` stays an empty stub with a paragraph saying why — neither of its two chords
     reaches this port's hosts — and Q takes over as the way out of a paused game. Music-on-the-splash
     became the preference `music_on_title`, which 1.7d makes audible.
-  - **1.7c High scores** — the `scoresType` codec, the 22 shipped boards read and displayed but
-    never written back, the port's own per-house side-car for new scores, `TestHighScore`'s gate,
-    name and banner entry (DLOG 1020/1021), and `DrawHighScores`' geometry with PICT 1994/1995/1998
-    (P13, P14).
+  - **1.7c High scores** ✅ *done* — `internal/scores` (the board, `Qualify`/`Insert`, the two
+    entry dialogs from DLOG/DITL 1020 and 1021, `DrawHighScores`' geometry with PICT 1994/1995/1998,
+    and the per-house side-car `Store`), the shell's own High Scores screen and merged picker
+    footer, and `cmd/glidergo/highscore.go` — the three blocking loops the host owns. The 22
+    shipped boards are read and never written back. Plus the credits screen the shell has owed
+    since 1.7a (`internal/credits`, `docs/IMPROVEMENTS.md` 1.2 and 3.4).
   - **1.7d The in-game shell** — `BringUpBanner` (PICT 1991-1993), `DisplayStarsRemaining`
     (1017/1018), both as simulated-frame waits rather than `Delay` (2.32); `DoGameOver` and
     `DoDiedGameOver` feeding 1.7c; `restoreSplashScreen`.
@@ -828,6 +830,74 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     one, the first long stall — a room wipe, a pause, a house load — is followed by a burst of
     unpaced frames, which is worse than the dropped time it was meant to recover. That is frame-pacing
     work and it is charged to 1.8, with the reason recorded on the field itself.
+
+- **1.7c, what it settled.** Six decisions, and the first is the one the whole stage turns on:
+  - **The shipped houses are read and never written.** A high score is 292 bytes inside a 98 KB
+    house file, and the original writes the whole file back to record one (`gameDirty`, then a
+    full `WriteHouse`). This port writes a **side-car** instead: `$XDG_DATA_HOME/glidergo/<house>.scores`,
+    a board and nothing else. Three reasons, in order of weight — the 22 shipped houses are not
+    ours to rewrite (`docs/IMPROVEMENTS.md` 1.2 says the release ships code only and extracts on
+    first run, so the house files are the player's own copy); a whole-file rewrite to persist 292
+    bytes is one power cut away from a destroyed house; and a read-only asset tree is what lets
+    `make assets` be re-runnable. `Store.Load` merges the side-car over the house's own board, so a
+    score set in 1995 is still what a new player has to beat.
+  - **`internal/scores` owns the board; the host owns the blocking.** The package draws, sorts,
+    qualifies, encodes and lays out both dialogs, and never sleeps, polls or writes a file it was
+    not handed. The three things only a machine with a window and a clock can do — `ModalDialog`'s
+    loop, `Delay(8)`'s button flash, and `DelayTicks(60)` + `WaitForInputEvent(30)` — are
+    `cmd/glidergo/highscore.go`, on the same seam as the five other host hooks. That is why the
+    board and both dialogs are pixel-testable without a display.
+  - **The board reaches the screen, which it did not in 1994.** `DoHighScores` composes the whole
+    thing into the offscreen work map and returns without blitting it: both of its `DissBits` calls
+    are commented out and `RedrawSplashScreen`'s copy runs in the wrong direction
+    (`docs/analysis/scoring.md` 7.8). The analysis's instruction to a porter is explicit — treat the
+    intent as `CopyRectWorkToMain` and say so — so the screen a player sees here is the one the
+    original composed and threw away.
+  - **The high-score screen is a screen, not a panel.** `Shell.Draw` skips the backdrop, the menu
+    and the house label for it, because the board brings its own starfield, its own heading and its
+    own way out. The picker's footer and the board therefore read the *same* merged board, pinned by
+    a test that pixel-compares a footer drawn from a side-car against one drawn from a house file:
+    two screens disagreeing about the same house's best score is the bug that arrangement prevents.
+  - **The remembered name and banner are saved as soon as they are earned.** The original writes
+    `highName` at quit (`Main.c:223-224`). A game killed or crashed after a high score should not
+    also forget who set it, so `prefs.Save` runs inside the hook.
+  - **The credits are data, not a string literal.** `internal/credits` embeds `credits.txt`, and
+    that file is pinned against `GliderPRO/README.md` by its own tests: a person named on the screen
+    who is not named in the README fails, and a house the README credits that the screen does not
+    fails too. This is the item `docs/IMPROVEMENTS.md` 1.2 makes a legal obligation and 3.4 has been
+    tracking as unfinished since 1.7a, and the reason it is data is that an obligation discharged by
+    a literal inside a drawing function is one nobody ever diffs against its source.
+- **1.7c, what it found.** Six, and two of them are visible on screen:
+  - **The blue footer on the starfield is barely legible.** `DrawHighScores` writes "Hit a Key to
+    Exit" in `QDBlue` (211) over a near-black star field, which is faithful and is also the least
+    readable text in the port. Recorded as `docs/IMPROVEMENTS.md` 2.56 rather than fixed, because
+    1.8's corpus is measured against the original.
+  - **The stored timestamps were never drawn.** Every board carries a `TimeStamps[10]` written by
+    `Insert` and read by nothing: the original's own screen shows name, score and rooms and drops
+    the date. This port keeps writing them (the file format is the original's) and does not draw
+    them either — 2.57 — because a date column is a layout change and 1.8 measures the layout.
+  - **A hold that discards keys is not the original's hold.** `Delay(60)` does not drain the Mac
+    event queue, so a key pressed during that second was still queued when `WaitForInputEvent(30)`
+    looked and the board flashed past. This port discards during the hold, so the second is always
+    a second. Stated in `showBoard`'s comment as a deliberate deviation.
+  - **The character limit has to be enforced while typing.** The original lets a sixteenth
+    character into the field and then throws it away in `PasStringCopyNum` at commit, so its live
+    counter and the name it saves disagree. Refusing the keystroke is the deviation
+    (`docs/analysis/scoring.md` 7.11.1), and it also makes the counter honest.
+  - **Sampler is credited to nobody, and it is not from 1995.** Writing the credits meant reading
+    all 22 house banners. Nineteen of them credit nobody; `Castle o' the Air` names John Calhoun in
+    its own banner though the README does not; and `Sampler` — saved 2000-05-11, five years after
+    every other house — says only "Welcome to Omid's Happy Home." Whoever Omid is, the source
+    release does not say, which matters to 1.2's asset question and is now noted there. The boards
+    corroborate the date and widen it: decoding all twenty non-empty ones recovers the authors'
+    playtesting, eighteen of the twenty topped by a run between 1995-06-08 and 1996-10-17 with
+    `Ozma` on thirteen of them. The only rows outside that run are Slumberland's top two, stamped
+    the morning of 2000-05-11, and Sampler's two, stamped that evening 39 seconds after the save
+    that created the house. Whoever was there in 2000 touched two houses, not one (2.57).
+  - **The ineligible-score alert is unreachable, and should stay that way.** `ALRT 1046` exists to
+    tell a player they did not qualify, and nothing in the shipped game calls it
+    (`docs/analysis/scoring.md` 7.12). Silence is what a 1994 player got and it is also the right
+    answer: a dialog to tell somebody they did not win is a dialog nobody wants.
 
 **1.8 Fidelity pass**
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of

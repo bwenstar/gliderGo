@@ -1,0 +1,40 @@
+# Who made Glider PRO.
+#
+# Transcribed from GliderPRO/README.md lines 2 and 7-15, which is the whole of what the
+# source release says about authorship: the game has no credits screen, its About box is
+# three pictures, and a house file has no author field. So this cannot be read out of the
+# original at runtime and has to be carried as data.
+#
+# It is a data file rather than a Go literal so that it can be checked against its source.
+# credits_test.go reads the vendored README and fails if a person named here is not named
+# there, or if a house named there is not named here -- which is the only way a file like
+# this stays true after somebody edits it.
+#
+# Syntax: `[Section]`, then `who | what`, then any line with no `|` as a note. Lines are
+# not wrapped when drawn, and the shell's test fails one too wide for the screen.
+
+[the game]
+John Calhoun | wrote Glider PRO
+Casady & Greene Inc. | published it, 1994
+
+[the houses]
+John Calhoun, Kim Money | Demo House, CD Demo House
+Jonathan Chin, John Calhoun | Davis Station, Metropolis, Titanic
+Jonathan Chin | Grand Prix, Leviathan, ImagineHouse PRO II, In The Mirror
+Ward Hartenstein | Land of Illusion, Nemo's Market, Rainbow's End, SpacePods
+John Calhoun, Jonathan Chin, Steve Sullivan, Ward Hartenstein | Slumberland
+Shawn Brenneman | Teddy World
+Steve Sullivan | The Asylum Pro
+Jonathan Chin signs his houses as Paul Finn, which is the name their own banners carry.
+Six houses are credited to nobody: Art Museum, California or Bust!, Castle o' the Air,
+Empty House, Fun House and Sampler. The third of those names John Calhoun in its banner,
+and Sampler -- saved in 2000, five years after the rest -- names only "Omid".
+
+[the illustrations]
+John R. Neill | the Ozma plate (PICT 3975), from "Ozma of Oz"
+Winsor McCay | the About box (PICT 153), from a "Little Nemo in Slumberland" strip
+
+[this port]
+gliderGo | a Go port of the GPL v2 source, 2026
+It ships none of the art, the sounds or the houses above: `make assets` extracts those
+from your own copy of the game, and they stay on your own machine.

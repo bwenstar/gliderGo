@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"glidergo/internal/house"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 )
@@ -132,6 +133,16 @@ func (s *Shell) Draw() {
 	if scr == nil {
 		return
 	}
+	// The high-score board is a screen and not a panel: it brings its own backdrop, its own
+	// heading and its own way out (docs/analysis/scoring.md 7.9.1), and nothing of the title
+	// screen shows through it. So it replaces the backdrop rather than sitting on one, and
+	// there is no menu and no house label over it -- the house's name is already the board's
+	// title. If it declines to draw, it has put the mode back to the splash and the switch
+	// below draws that instead of nothing.
+	if s.mode == modeScores && s.drawScores() {
+		s.drawBand(scr)
+		return
+	}
 	s.drawBackdrop(scr)
 	switch s.mode {
 	case modeSplash:
@@ -142,6 +153,8 @@ func (s *Shell) Draw() {
 		s.drawSettings(scr)
 	case modeAbout:
 		s.drawAbout(scr)
+	case modeCredits:
+		s.drawCredits(scr)
 	}
 	s.drawBand(scr)
 }
@@ -328,10 +341,15 @@ func (s *Shell) drawPicker(scr *render.Surface) {
 // original silently omits a file that looked like a house and was not, which leaves
 // a player who can see the file in the folder with no way to find out why it is not
 // in the list (docs/IMPROVEMENTS.md 2.33).
+//
+// The score shown is off the *merged* board -- the file's rows plus anything this
+// installation has recorded since -- because otherwise the number here and the number on
+// the High Scores screen would disagree about the same house, and the one that disagreed
+// would be the one a player sees first.
 func (s *Shell) drawPickerFooter(scr *render.Surface) {
 	best := "no house selected"
 	if h, ok := s.picked(); ok {
-		if who, score, ok := h.Best(); ok {
+		if who, score, ok := bestOf(s.board(h)); ok {
 			best = fmt.Sprintf("best: %s %d", who, score)
 			if h.Locked {
 				best += "   (locked)"
@@ -361,16 +379,25 @@ func (s *Shell) picked() (House, bool) {
 	return s.lib.Houses[s.pick], true
 }
 
-// Best is the top row of the house's own high-score board.
+// Best is the top row of the house's own high-score board, as it was read off disk.
+//
+// This is the *file's* board and not the merged one: the picker's footer uses
+// bestOf(s.board(h)) instead, so that what it shows includes scores this installation has
+// recorded. Best stays because it is the answer to a question about a house on its own --
+// no side-car, no host -- which is what house.PeekFile hands back and what the tests ask
+// about.
+func (h House) Best() (string, int32, bool) { return bestOf(h.Scores) }
+
+// bestOf is the top row of a board.
 //
 // The board is stored sorted descending -- AddHighScore inserts in place
 // (docs/analysis/scoring.md 7.4) -- but this scans all ten rather than trusting row
 // zero, because these are 30-year-old files edited by a program with a house editor
 // in it and a board that is out of order is not worth a wrong answer. A zero score
 // means an empty row, which is how the original tells them apart too.
-func (h House) Best() (string, int32, bool) {
+func bestOf(b house.Scores) (string, int32, bool) {
 	best, at := int32(0), -1
-	for i, sc := range h.Scores.Scores {
+	for i, sc := range b.Scores {
 		if sc > best {
 			best, at = sc, i
 		}
@@ -378,7 +405,7 @@ func (h House) Best() (string, int32, bool) {
 	if at < 0 {
 		return "", 0, false
 	}
-	who := h.Scores.Names[at].Text()
+	who := b.Names[at].Text()
 	if strings.TrimSpace(who) == "" {
 		who = "(nameless)"
 	}
@@ -395,36 +422,7 @@ func (h House) Best() (string, int32, bool) {
 // the credit and the licence, and those have to be legible whether or not anybody
 // has extracted the artwork.
 func (s *Shell) drawAbout(scr *render.Surface) {
-	// The keys are read out of the live preferences, not written out here, and that is
-	// the whole point of listing them: three of the port's bindings are not the
-	// original's (see cmd/glidergo's package comment on player two, and
-	// docs/IMPROVEMENTS.md 2.3 and 2.52), and since 1.7b all eight are the player's to
-	// change -- so a hard-coded list would be wrong for anybody who has visited the
-	// settings screen, which is exactly the person most likely to open this box.
-	//
-	// With no Prefs on the host it describes this build's defaults, which is what -shot
-	// and the tests get and is still true of a fresh install.
-	p := s.host.Prefs
-	if p == nil {
-		p = prefs.Default()
-	}
-	lines := []aboutLine{
-		{"a port of Glider PRO", cream, 1},
-		{"John Calhoun / Casady & Greene, 1994", render.LtGray8, 1},
-		{},
-		{"source released under the GPL, version 2", render.LtGray8, 1},
-		{"the original artwork and sounds are not ours to give away:", render.LtGray8, 1},
-		{"`make assets` extracts them from your own copy", render.LtGray8, 1},
-		{},
-		{"player one:  " + controlsLine(p.Player1), cream, 1},
-		{"player two:  " + controlsLine(p.Player2), cream, 1},
-		{},
-		{upperFirst(p.PauseKey) + " or Esc pauses   Delete gives up a waiting glider", cream, 1},
-		{"Q while paused gives up the game and comes back here", cream, 1},
-		{"S on the title screen changes any of this", render.LtGray8, 1},
-		{},
-		{"press any key", label, 1},
-	}
+	lines := s.aboutLines()
 
 	// The plate, if there is one small enough to be a heading rather than the whole
 	// box. It replaces the drawn wordmark, which is what the original's About dialog
@@ -469,6 +467,45 @@ func (s *Shell) drawAbout(scr *render.Surface) {
 		}
 		v += l.tall()
 	}
+}
+
+// aboutLines is what the box says, in order. Separate from the drawing so that a test can
+// read it: the box is the port's only documentation, and the two things most likely to be
+// wrong in it are a control it describes that nobody has bound and a way out it does not
+// mention.
+func (s *Shell) aboutLines() []aboutLine {
+	// The keys are read out of the live preferences, not written out here, and that is
+	// the whole point of listing them: three of the port's bindings are not the
+	// original's (see cmd/glidergo's package comment on player two, and
+	// docs/IMPROVEMENTS.md 2.3 and 2.52), and since 1.7b all eight are the player's to
+	// change -- so a hard-coded list would be wrong for anybody who has visited the
+	// settings screen, which is exactly the person most likely to open this box.
+	//
+	// With no Prefs on the host it describes this build's defaults, which is what -shot
+	// and the tests get and is still true of a fresh install.
+	p := s.host.Prefs
+	if p == nil {
+		p = prefs.Default()
+	}
+	lines := []aboutLine{
+		{"a port of Glider PRO", cream, 1},
+		{"John Calhoun / Casady & Greene, 1994", render.LtGray8, 1},
+		{},
+		{"source released under the GPL, version 2", render.LtGray8, 1},
+		{"the original artwork and sounds are not ours to give away:", render.LtGray8, 1},
+		{"`make assets` extracts them from your own copy", render.LtGray8, 1},
+		{},
+		{"player one:  " + controlsLine(p.Player1), cream, 1},
+		{"player two:  " + controlsLine(p.Player2), cream, 1},
+		{},
+		{upperFirst(p.PauseKey) + " or Esc pauses   Delete gives up a waiting glider", cream, 1},
+		{"Q while paused gives up the game and comes back here", cream, 1},
+		{"S on the title screen changes any of this", render.LtGray8, 1},
+		{},
+		{"C names everybody who made the original", cream, 1},
+		{"press any other key", label, 1},
+	}
+	return lines
 }
 
 // controlsLine describes one glider's four keys in one line, in the order somebody

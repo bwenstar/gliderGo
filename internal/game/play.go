@@ -738,18 +738,59 @@ func (w *World) GetDemoInput(g *player.Glider) {}
 
 // DoGameOver is GameOver.c:60-69: the player finished the house.
 //
-// Outside 1.5 -- it owns the star animation, the final screen and the high-score
-// dialogue. The one thing PlayGame needs of it is the first statement, `playing = false`
-// (GameOver.c:62), which is what ends the loop. Without that the countdown block would
-// re-run every frame for ever.
+// Three of its six statements are still 1.7d's -- SetUpFinalScreen's starfield, the
+// ColorRect in palette index 244 and DoGameOverStarAnimation's angel (8.5). What landed
+// with 1.7c is the last two lines, and they are the reason the high-score hook returns a
+// Boolean at all:
+//
+//	if (!TestHighScore())
+//	    RedrawSplashScreen();
+//
+// The redraw is *suppressed* when the score qualified, because the high-score screen is
+// then already on the window and painting the splash over it would take it away
+// (GameOver.c:68). DoDiedGameOver does the opposite with the same call; see below.
+//
+// The one thing PlayGame needs of this function is still its first statement,
+// `playing = false` (GameOver.c:62), which is what ends the loop. Without that the
+// countdown block would re-run every frame for ever.
 func (w *World) DoGameOver() {
 	w.Playing = false
+
+	// SetUpFinalScreen(); SetPort(mainWindow); ColorRect(&mainWindowRect, 244);
+	// DoGameOverStarAnimation() -- 1.7d, with the rest of the animations.
+
+	if !w.TestHighScore() {
+		w.restoreSplashScreen()
+	}
 }
 
 // DoDiedGameOver is GameOver.c:400-510: the player ran out of gliders. Same contract as
-// DoGameOver -- it clears Playing (GameOver.c:492) -- and the same stage.
+// DoGameOver -- it clears Playing (GameOver.c:492) -- and the fluttering pages that give
+// it its name are 1.7d's, along with the two waits and the userAborted flag that cuts
+// them short (8.6).
+//
+// Its high-score call differs from the win path's in both of the ways the analysis calls
+// out, and both are transcribed:
+//
+//   - **A demo skips it entirely.** The attract mode plays itself and must not be able to
+//     put a score on the board, or an unattended machine would fill it.
+//   - **The return value is discarded and the splash is redrawn regardless.** So a player
+//     who dies with a qualifying score sees the board and then sees it replaced, where a
+//     player who *finished* the house keeps it. That is an inconsistency between two
+//     functions forty lines apart rather than a decision, and it is reproduced rather
+//     than tidied -- docs/IMPROVEMENTS.md has it as a 1.8 candidate.
 func (w *World) DoDiedGameOver() {
+	// userAborted, InitDiedGameOver, the two CopyRect grabs and the pagesStuck loop --
+	// 1.7d. Note that `playing = false` is step 21 there, *after* the animation, and is
+	// hoisted to the top here only because there is no animation yet to sit above it.
 	w.Playing = false
+
+	if !w.DemoGoing {
+		// WaitForInputEvent(10) first, which is 1.7d's. The answer is thrown away
+		// (GameOver.c:502).
+		w.TestHighScore()
+	}
+	w.restoreSplashScreen()
 }
 
 // BringUpBanner is Banner.c:171-197 and belongs to 1.7, with the rest of the shell: the

@@ -63,7 +63,7 @@ smoke: build
 		echo "       Run \`make bench\` from a desktop session to check X11."; \
 	fi
 
-## headless: dump 3 game frames and all three title screens as PNGs, with no display
+## headless: dump 3 game frames and every shell screen as PNGs, with no display
 #
 # Two halves, because the program has two halves. -frames dumps the game's own frames
 # through the null backend; -shot draws the shell, which needs no backend at all -- it
@@ -74,7 +74,7 @@ headless:
 	$(GO) build -tags nullbackend -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo-null ./cmd/glidergo
 	$(BIN)/glidergo-null -frames 3 -dump /tmp/glidergo-frames
 	@ls -1 /tmp/glidergo-frames
-	@for s in splash houses about; do \
+	@for s in splash houses settings about credits scores; do \
 		$(BIN)/glidergo-null -shot /tmp/glidergo-shell/$$s.png -shot-screen $$s || exit 1; \
 	done
 	@# And the first-run screens: no art and no houses is what a fresh clone has, and it is

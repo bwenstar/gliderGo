@@ -43,6 +43,7 @@ import (
 	"errors"
 	"fmt"
 
+	"glidergo/internal/house"
 	"glidergo/internal/platform"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
@@ -96,6 +97,22 @@ type Host struct {
 	// SavePrefs writes Prefs where it came from. Optional; see Prefs.
 	SavePrefs func() error
 
+	// Scores is the board as a player would see it: the house file's own table with
+	// whatever this installation has since recorded laid over the top.
+	//
+	// The shell cannot work that out for itself and should not try. House.Scores is
+	// what house.PeekFile read out of the file, which for the twenty-two shipped
+	// houses is a board from 1994 and nothing since -- this port never writes a house
+	// file it did not author, so every score earned here lives in a side-car that
+	// internal/scores owns and that only the host knows the path of. See
+	// docs/analysis/scoring.md 7.1 for why the original had a side-car too, and 7.14
+	// for the bug that made its version dead code.
+	//
+	// nil means "no side-car in this build", and then the shell shows House.Scores
+	// unchanged -- which is the right answer for -shot and for the tests, and is still
+	// true of a fresh install that has never finished a game.
+	Scores func(House) house.Scores
+
 	// ApplyPrefs is called after every change, for the settings the machine has to be
 	// told about rather than asked for: the volume, chiefly, which the mixer holds its
 	// own copy of. Optional.
@@ -142,6 +159,8 @@ const (
 	modeHouses
 	modeSettings
 	modeAbout
+	modeScores
+	modeCredits
 )
 
 // Shell is one title screen, with its state.
@@ -161,6 +180,19 @@ type Shell struct {
 	set      int
 	capture  int
 	setDirty bool
+
+	// boards caches what Host.Scores answered, by house. It exists because the picker
+	// asks for a board on *every frame* -- the footer shows the selected house's best
+	// score, and Draw redraws everything every pass (see screens.go) -- and reading a
+	// file sixty times a second to draw the same line would be an odd way to show a
+	// static screen.
+	//
+	// It is dropped whole after every game rather than patched, because a game can add
+	// a score to any house's board and the shell has no way to know which: the host's
+	// hook is what merges the side-car in, and the side-car is written from inside the
+	// game. Throwing the map away is one line and cannot be wrong; a selective
+	// invalidation would be three and could be.
+	boards map[string]house.Scores
 
 	// Frames counts passes through the loop. The tests use it as a clock, and it is
 	// the only way to tell from outside that the shell is alive.
@@ -235,8 +267,16 @@ func (s *Shell) Show(screen string) error {
 		}
 	case "about":
 		s.mode = modeAbout
+	case "credits":
+		s.mode = modeCredits
+	case "scores":
+		s.openScores()
+		if s.mode != modeScores {
+			return fmt.Errorf("shell: cannot show the high scores: %s", s.msg)
+		}
 	default:
-		return fmt.Errorf("shell: no screen called %q (splash, houses, settings or about)", screen)
+		return fmt.Errorf("shell: no screen called %q "+
+			"(splash, houses, settings, about, credits or scores)", screen)
 	}
 	return nil
 }
@@ -297,6 +337,22 @@ func (s *Shell) event(ev platform.Event) {
 		case modeSettings:
 			s.settingsKey(ev.Key)
 		case modeAbout:
+			// C is the one key that does not dismiss the box: it opens the credits,
+			// which the box itself says on its last line. Any other key still leaves,
+			// so nobody has to know that to get out.
+			if ev.Key == platform.KeyC {
+				s.mode = modeCredits
+			} else {
+				s.mode = modeSplash
+			}
+		case modeCredits:
+			// Straight back to the title screen rather than to the About box it was
+			// opened from. "Press any key" should mean the same thing on every screen
+			// that says it, and a key that puts up another panel would not.
+			s.mode = modeSplash
+		case modeScores:
+			// "Hit a Key to Exit", which is what the screen itself says (7.9.2's
+			// STR# 150 index 8, minus the mouse this port does not have).
 			s.mode = modeSplash
 		}
 	}
@@ -344,6 +400,11 @@ func (s *Shell) menu() []item {
 		{key: platform.KeyN, label: "New Game", ok: have, do: func() { s.play(false) }},
 		{key: platform.Key2, label: "Two Player Game", ok: have, do: func() { s.play(true) }},
 		{key: platform.KeyL, label: "Load House...", ok: len(s.lib.Houses) > 0, do: s.openPicker},
+		// Options > High Scores (Menu.c:417-419), which in the original is enabled
+		// whenever a house is open and does nothing else at all: it calls DoHighScores
+		// and returns. This is the item that makes the screen reachable without dying
+		// first, and it is the reason a board is worth keeping between games.
+		{key: platform.KeyH, label: "High Scores...", ok: have, do: s.openScores},
 		{key: platform.KeyS, label: "Settings...", ok: s.host.Prefs != nil, do: s.openSettings,
 			why: "this build has no preferences file"},
 		{key: platform.KeyA, label: "About...", ok: true, do: func() { s.mode = modeAbout }},
@@ -425,6 +486,13 @@ func (s *Shell) play(two bool) {
 	s.msg = "playing " + h.Name + "..."
 
 	out, err := s.host.Play(Choice{House: h, TwoPlayer: two})
+
+	// Whatever happened in there, the boards on disk may have moved: a qualifying score
+	// is written from inside the game, by the host's own high-score hook. So the cache
+	// goes, on every path out of a game including the error one -- a game that failed
+	// after recording a score is unlikely and is not worth a stale leaderboard.
+	s.boards = nil
+
 	if err != nil {
 		s.msg = h.Name + ": " + err.Error()
 		s.notify("glidergo: " + h.Name + ": " + err.Error())

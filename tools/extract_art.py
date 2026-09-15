@@ -234,7 +234,17 @@ BACKGROUNDS = list(range(2000, 2018))
 MISC = {3957: 'manhole_thru_floor'}
 
 # The 38 UI plates: about box, splash, dialog banners, editor tool palettes,
-# Room Info thumbnails, game-over and scoreboard art.  All opaque -- every one
+# Room Info thumbnails, game-over and scoreboard art.  Written opaque, because
+# whether a plate is a picture or another plate's mask is not a property of the
+# resource -- three of these are masks, and three of them are masked:
+#
+#     1989 masks 1990   the four game-over pages, 32x448
+#     1991 masks 1992   the banner page's bottom half, 330x30
+#     1998 masks 1994   the high-score plaque, 332x30
+#
+# and 1991-1993 are art a house may override, so 1992's mask has to be resolved
+# through the same fork chain the art is (internal/render/housepict.go's
+# uiMaskPairs, which is where the pairing is applied).  Everything else here
 # reaches the screen through DrawPicture or a srcCopy CopyBits.
 UI = ([150, 151, 153] + list(range(1000, 1019)) + [1021, 1022, 1023]
       + [1202, 1211, 1216, 1217] + list(range(1988, 1996)) + [1998])

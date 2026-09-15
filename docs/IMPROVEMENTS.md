@@ -58,6 +58,17 @@ Neill plate for *Ozma of Oz*, and 153 (the About box) from a Winsor McCay *Littl
 strip. Both are old enough to be very probably public domain, but "very probably" is not a
 licence audit.
 
+**Six of the twenty-two houses are credited to nobody, and one of them is not from 1995.**
+Found while writing 1.7c's credits screen, by reading all 22 house banners: Art Museum,
+California or Bust!, Castle o' the Air, Empty House, Fun House and Sampler appear in no line of
+the README. `Castle o' the Air`'s own banner says "(by john calhoun)", which settles that one.
+`Sampler` does not: its banner reads "Welcome to Omid's Happy Home." and its saved date is
+**2000-05-11**, five years after every other shipped house and after Casady & Greene stopped
+selling the game. Whoever Omid is, the source release does not say, and a house whose author is
+unknown is the one kind this project cannot re-licence by asking. It is two rooms and eleven
+objects, so losing it would cost nothing — but that is a decision for the same conversation as
+the rest of this item.
+
 The upstream repository does distribute the houses, so re-vendoring them under
 `GliderPRO/` is no worse than what the copyright holder already does. Shipping a
 **gliderGo release binary with the extracted art baked in** is a different act: a new
@@ -1519,16 +1530,112 @@ load, or a configuration directory that does not exist, leaves *usable* settings
 line on stderr. Refusing to start a game over a file the game itself wrote is not an acceptable
 failure mode (`prefs.Load`, `loadPrefs`).
 
+### 2.56 The high-score screen's way out is written in blue on a starfield — **note; the fix is a 2.x option**
+
+`DrawHighScores` writes its footer — the original's `Click Mouse or Hit a Key to Exit`, `STR# 150`
+index 8 — in `QDBlue` (palette 211) at baseline 308, over PICT 1995, which is a near-black star
+field (`docs/analysis/scoring.md` 7.9.2). It is the least readable text anywhere in this port, and
+it is the one line on the screen that tells a player what to do. Transcribed exactly anyway,
+because 1.8's corpus measures this port against the original and a colour changed here would be a
+corpus measuring the port against itself.
+
+The fix is one palette index and belongs with the other legibility work in 3.3: either the cream
+the plaque's own title uses (8) or plain white, behind the same "modern defaults" switch that 2.19,
+2.20 and 2.39 sit behind. Worth doing before the first public build, because the screen is the last
+thing a player who just earned a score looks at.
+
+### 2.57 Every board stores ten timestamps and nothing has ever drawn one — **note; a layout change, so 1.8 at the earliest**
+
+`scoresType` carries `TimeStamps[10]`, `unsigned long` Mac epoch seconds, written whenever a score
+is inserted and read by nothing: `DrawHighScores` shows name, score and rooms and drops the date
+(`docs/analysis/scoring.md` 7.5, 7.9.2). So the shipped houses carry dates no player has ever seen,
+and decoding all twenty non-empty boards turns out to recover the authors' own playtesting:
+`The Asylum Pro` 1995-06-08, then a run of fourteen houses played between 1995-07-03 and 1995-07-28,
+`California or Bust!` on 1995-09-08, `Art Museum` on 1996-01-13, `Davis Station` on 1996-10-17, and
+two stamped 2000-05-11 — Slumberland's top two rows that morning and the whole of `Sampler`,
+39 seconds after the save that created it (1.2). Thirteen of the twenty are topped by `Ozma`, two by
+`Paul` — and those two, ImagineHouse PRO II and Grand Prix, are exactly the two houses Jonathan Chin
+signs as Paul Finn in their banners, so the boards are a third, independent trace of that pen name.
+
+This port keeps writing them, because the file format is the original's and a side-car that dropped
+a field could not be read back into a house. Drawing them is a different matter: the plaque is 332
+pixels wide and already carries three columns, so a date column means a new layout, which means the
+corpus 1.8 is about to record would be recording it. Deferred rather than declined — a high-score
+board that can say "1995" is a better artefact than one that cannot, and this one has the data.
+
+### 2.58 The name dialog appears in the corner of the screen — **note; a 1.8 option**
+
+`BringUpDialog` has its `CenterDialog` call commented out (`GliderPRO/Sources/DialogUtils.c:26`),
+so DLOG 1020 appears at its stored bounds — `(0,0,109,316)`, the top-left corner — while DLOG 1021,
+whose stored bounds are `(40,40,162,356)`, appears very slightly inset. Two dialogs in the same
+sequence, one in the corner and one not, because one resource happened to be saved in a different
+place (`docs/analysis/scoring.md` 7.11.1).
+
+Both are reproduced exactly, and `internal/scores`' own test asserts both positions. Centring them
+is a one-line change per dialog and it is the right change for a release; it is listed here so that
+it is made deliberately, with the corpus regenerated, rather than as a tidy-up.
+
+### 2.59 A mask's resource id is not "the picture's id plus 1000" — **note; matters to every masked draw**
+
+The convention `docs/analysis/scoring.md` 2.8 states — `kPointsPictID` 4006, mask `PICT 5006` — is
+real but not general. The masks actually shipped are:
+
+| picture | its mask | offset |
+|---|---|---|
+| 4006 (points numerals) | 5006 | +1000 |
+| 4002 (bonus numerals) | 5002 | +1000 |
+| 1994 (high-score plaque) | **1998** | +4 |
+| 1019 (the angel) | **1020** | +1 |
+| 1990 (the GAME OVER pages) | **1989** | **-1** |
+
+So any code that derives a mask id by arithmetic is wrong for three of the five, and the one it is
+most wrong about is the game-over animation, where the mask id is *lower* than the picture's. Every
+pairing in this port is written out at the call site instead (`internal/scores`' 1994/1998, and
+1.7d's 1019/1020 and 1990/1989 when it gets there). Recorded because "+1000" reads like a rule and
+is a coincidence.
+
+### 2.60 The two game-over paths disagree about whether a high score suppresses the splash redraw — **note; 1.7d owns both paths**
+
+`TestHighScore()` has exactly two callers, and they use it differently
+(`docs/analysis/scoring.md` 8.7 and 9.8):
+
+| caller | context | return value | `RedrawSplashScreen()` |
+|---|---|---|---|
+| `GameOver.c:67` | the win ending | used | only when no score qualified |
+| `GameOver.c:503` | the loss ending | ignored | always |
+
+The win path is the considered one: the high-score screen has already covered the window, so
+redrawing the splash under it would be a wasted blit and a visible flash. The loss path does it
+unconditionally, which means the board a player just earned is drawn over the splash and then the
+splash is drawn over the board — except that `RedrawSplashScreen`'s copy runs in the wrong direction
+and draws nothing (7.8, and 2.56's cousin), so on a real Mac neither is visible and the bug hides
+the bug.
+
+1.7d ports both animations and both endings, and it should port the *win* path's arrangement to
+both: ask, and skip the redraw when the answer is yes. The high-score hook this stage installed
+already returns exactly that Boolean.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
 
-### 3.1 High scores — **planned, 1.7c (user-requested)**
+### 3.1 High scores — **DONE, 1.7c**
 
 The original does keep them (`internal/house.Scores`, and the board sorts on rooms
 visited, not points). A release needs them persisted somewhere sane — XDG
 `$XDG_DATA_HOME/glidergo/` on Linux, not next to the binary — and it must not corrupt or
 crash on a truncated or hand-edited file.
+
+**1.7c delivered all three.** `internal/scores.Store` writes one side-car per house under
+`$XDG_DATA_HOME/glidergo/` (`-scores` moves it; `-scores none` plays without recording), the 22
+shipped houses are read and never written, and `Store.Load` never fails: a truncated,
+hand-edited or half-restored file yields a playable board plus one note per thing that had to be
+worked around, on stderr. The board is reachable from the menu as well as by dying (H, which is
+the original's Options > High Scores), and the game asks for a name and — for first place — a
+banner, in the original's own two dialogs.
+
+Two things a release still wants, both noted above rather than done: the footer is illegible
+(2.56) and the dates the board already stores are never shown (2.57).
 
 ### 3.2 Difficulty is brutal by modern convention — **decision needed, Stage 2 at the earliest**
 
@@ -1545,7 +1652,7 @@ glider/shadow contrast (which is already low on some backgrounds), a "hold inste
 tap" input option, and not relying on sound alone for any warning. The expensive one is
 scaling text, which interacts with 2.1.
 
-### 3.4 There is no way in to the game — **DONE, 1.7a; the credits are still short of what 1.2 requires**
+### 3.4 There is no way in to the game — **DONE, 1.7a; the credits DONE, 1.7c**
 
 No title screen, no house picker, no options screen, no credits. 1.7 is scoped as "the
 shell" and owns all of it. Flagged here because the credits screen is not optional: the
@@ -1556,14 +1663,38 @@ regardless of how the asset question is resolved.
 menu, a house picker over all 22 houses (with each house's shipped high score and its room
 count), and an About box. The options screen is 1.7b.
 
-**The credits are not finished, and this is the item that tracks it.** The About box names
-John Calhoun, Casady & Greene and the GPL. It does not yet name the five house authors or
-either illustrator, which item 1.2 requires *regardless* of how the asset question is
-resolved — so the shipped build is not yet compliant with the decision this file already
-took. It is a data problem as much as a screen problem: the authors are named in the houses'
-own `banner` fields and in `docs/ORIGINAL_GAME.md`, and the honest fix is to read them from
-there rather than to type them into a Go string literal where they can rot. 1.7c opens those
-boards anyway, so it is the right stage for it.
+**1.7c finished the credits.** There is a credits screen — About, then C, which the About box
+says on its last line — and it names John Calhoun, Casady & Greene, all five house authors, both
+illustrators and which houses belong to whom. It is the only screen in the port with no original
+to be faithful to: the 1994 game credits nobody anywhere a player can see.
+
+It is data, not a screen full of string literals. `internal/credits` embeds `credits.txt`, and
+that file is pinned against `GliderPRO/README.md` by its own tests — a name on the screen that is
+not in the README fails, a house the README credits that the screen does not fails, and a house
+moved to the wrong author's row fails. `internal/shell` then checks that every name in the data
+reaches a placed line inside the panel, so a credit cannot be lost to a layout that outgrew the
+screen. That chain is the point: an obligation discharged by a literal inside a drawing function
+is one nobody ever diffs against its source.
+
+### 3.5 The original could be translated and this port cannot — **note; Stage 2 at the earliest**
+
+Every string the 1994 game shows a player comes out of a resource: `GetIndString(150, index)`
+through `StringUtils.c:321-327`, with `STR# 150`'s 51 strings and `STR# 160`'s alongside it
+(`docs/analysis/scoring.md` 7.9.2). That is not decoration — it is the standard Mac localisation
+mechanism, and it means a translator could ship a Glider PRO in French by editing a resource fork
+and touching no code. Index 6 is `room`, 7 is `rooms`, 8 is `Click Mouse or Hit a Key to Exit`.
+
+This port hard-codes English at every site. That was the right call for Stage 1, whose contract is
+fidelity and whose strings are mostly transcriptions with a resource id in a comment beside them,
+but it is a capability the original had and this does not — and the longer it is left, the more
+sites there are. The cheap version is one package with the shipped strings as data (the shape
+`internal/credits` now uses for the credits) and a language preference; the expensive part is that
+the port's own strings — the status band, the settings screen, the About box — are longer and more
+numerous than the original's 51, and several are composed with `fmt.Sprintf` in an order a
+translator may need to change.
+
+Worth deciding at Stage 2 rather than later: the new houses will have names, banners and room names
+of their own, and those are content a translator would also want.
 
 ---
 
@@ -1812,6 +1943,23 @@ and pinning them now would only generate churn.
 | 2.52 The About box lists this build's bindings instead of the original's | 1.7a | this stage |
 | 3.4 (the way in) Title screen, menu, house picker over all 22 houses, About box | 1.7a | this stage |
 | 4.6 `-shot` and five shell screens rendered by `make headless`, with no display | 1.7a | this stage |
+| 2.1 (the setting) `scale` is remembered in the preferences file | 1.7b | this stage |
+| 2.3 All eight bindings are the player's, and no glider steers with a modifier key | 1.7b | this stage |
+| 2.5 `DoPause` is a pause *state* with PICT 1015/1016, not a blocked process | 1.7b | this stage |
+| 2.7 (the in-game half) `Q` while paused gives up the game and comes back to the title screen | 1.7b | this stage |
+| 2.15 Leaving a game no longer waits for a physical key release | 1.7b | this stage |
+| 2.17 (the setting) `keep_real_time` declared, with the reason it is unwired on the field | 1.7b | this stage |
+| 2.19 The mirror-room flame blink, as an opt-in fidelity switch | 1.7b | this stage |
+| 2.20 The mirror's player-two foil, as an opt-in fidelity switch | 1.7b | this stage |
+| 2.21 `doBackground` split into a fidelity switch and not a user option | 1.7b | this stage |
+| 2.28 A paused game says so on screen | 1.7b | this stage |
+| 2.32 (one of three) The pause no longer stops the world from inside a frame | 1.7b | this stage |
+| 2.39 The switch's spurious corner sparkle, as an opt-in fidelity switch | 1.7b | this stage |
+| 2.53 A measurement never reads the player's settings (`-frames`, `-bench`, `-dump`) | 1.7b | this stage |
+| 2.54 `Assets.Plate`: the open house's fork first, then the application | 1.7b | this stage |
+| 2.55 Settings are saved at the change, `-import-prefs` refuses to overwrite | 1.7b | this stage |
+| 3.1 High scores: `internal/scores`, a per-house side-car, both entry dialogs, the board on screen | 1.7c | this stage |
+| 3.4 (the credits) `internal/credits`, pinned against `GliderPRO/README.md`, on a screen | 1.7c | this stage |
 
 Four bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

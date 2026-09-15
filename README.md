@@ -21,14 +21,17 @@ a very large house, and try to get further than you did last time.
 > sub-stages (117 object types, 19,849 hot spots, bands, grease, switches, rewards and the
 > six animated families) — and **1.6** audio (three effect channels with the original's
 > priority policy, the music score on a fourth, and a replay that records what it sounded
-> like), and **1.7a** the way in (the splash screen, the menu, the house picker and the
+> like), **1.7a** the way in (the splash screen, the menu, the house picker and the
 > About box — `glidergo` with no arguments is now a game you start rather than a house you
-> name).
+> name), **1.7b** preferences and a real pause (a settings screen, all eight key bindings
+> rebindable, a native config file, and Tab or Escape pausing with the original's placards),
+> and **1.7c** high scores (both entry dialogs, the board on screen, and a per-house
+> side-car so a new score is recorded without rewriting a 1994 house file) with the credits
+> screen the port owed its contributors.
 >
-> In progress: the rest of **1.7, the shell** — **1.7b** preferences and a real pause,
-> **1.7c** high scores, **1.7d** the in-game overlays and game over. Until those land the
-> settings are command-line flags, Tab pauses without drawing anything, and a score is
-> printed rather than recorded. See [docs/PLAN.md](docs/PLAN.md), and
+> In progress: the last of **1.7, the shell** — **1.7d** the in-game overlays and game over:
+> the house's own banner, the stars-remaining panel, the win and loss animations, and the
+> music on the title screen. See [docs/PLAN.md](docs/PLAN.md), and
 > [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
 > release someone else could play.
 
@@ -111,8 +114,9 @@ pointer, and the only mouse in Glider PRO was in its editor.
 | `Return` | choose |
 | `N` / `2` | one-player / two-player game |
 | `L` | load a house — `↑` `↓` move, `←` `→` page, a letter jumps, `Return` plays, `Space` selects |
+| `H` | the selected house's high scores |
 | `S` | settings |
-| `A` | about |
+| `A` | about — and `C` from there for the credits |
 | `Q` or `Esc` | quit |
 
 | In a game | Player one | Player two |
@@ -172,6 +176,34 @@ bin/glidergo -import-prefs "/path/to/Glider Prefs"   # convert a 1994 226-byte p
 opens, so there is nobody to ask. The four measurement modes — `-shot`, `-frames`, `-bench`
 and `-dump` — ignore the config directory for the same reason `make check` has to give the
 same answer on every machine (2.53); pass `-prefs <file>` to override even them.
+
+### High scores
+
+Every house carries a board of ten: a name, a score, how many rooms were visited, and a date
+nothing has ever drawn. Twenty of the 22 shipped houses arrive with theirs filled in, and what
+is on them is the authors' own playtesting — most of it between June and September 1995, `Ozma`
+on top of thirteen boards, `Paul` on top of the two of them Jonathan Chin signs as Paul Finn, and the best
+run in the box 108 rooms and 47,000 points through ImagineHouse PRO II on 1995-07-03. `H`
+on the title screen shows the selected house's board, which is one more way in than the original
+had: there, the only route to that screen was to earn a place on it.
+
+A score that beats the tenth row asks for a name; first place also gets to change the banner
+across the bottom of the board. **The board is sorted on rooms visited before points**, which is
+the original's order and is worth knowing before you optimise for score.
+
+New scores go in a file of their own, one per house, in the platform's data directory
+(`$XDG_DATA_HOME/glidergo/<house>.scores`, or `~/.local/share/glidergo/`). The house files
+themselves are never written to: they are your own copy of a 1994 game, a board is 292 bytes
+inside as much as 185 KB, and a whole-file rewrite to save 292 bytes is one power cut from a
+destroyed house.
+
+```bash
+make run ARGS='-scores /tmp/boards'   # keep the boards here instead
+make run ARGS='-scores none'          # play and record nothing
+```
+
+A hand-edited or truncated board is repaired rather than refused: you get a playable board and
+one line on stderr per thing that had to be worked around.
 
 ## What is in here
 

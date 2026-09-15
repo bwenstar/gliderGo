@@ -122,6 +122,54 @@ func TestPaletteMatchesClut(t *testing.T) {
 	}
 }
 
+// The three QuickDraw constants the high-score screen names, pinned to the RGB each one
+// meant in 1994 and to the palette entry the Color Manager would have picked for it.
+//
+// ForeColor(yellowColor) does not set a palette index; it asks the current GDevice's colour
+// table for the entry nearest a fixed RGB, so the index depends on 'clut' 128 and on the
+// matcher. palette.go writes the three answers down as constants, and a constant that no
+// longer matches the table it was derived from is exactly the kind of thing nothing else
+// here would notice: the text would still draw, in the wrong colour.
+//
+// IndexOf is checked as well as nearestIndex, because the tempting way to write these
+// constants -- look the RGB up in the palette -- is wrong for all three: none of the classic
+// colours is on the palette at all, and IndexOf's miss returns index 0, which is white.
+// A high-score screen written that way draws white on white.
+func TestTheQuickDrawColoursAreTheNearestPaletteEntries(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		r, g, b uint8
+		want    uint8
+		wantHex string
+	}{
+		{"yellowColor", 0xFC, 0xF3, 0x05, QDYellow, "FFFF00"},
+		{"cyanColor", 0x02, 0xAB, 0xEA, QDCyan, "0099FF"},
+		{"blueColor", 0x00, 0x00, 0xD4, QDBlue, "0000CC"},
+	} {
+		if got := nearestIndex(c.r, c.g, c.b); got != c.want {
+			t.Errorf("%s #%02X%02X%02X matches index %d, but the constant says %d",
+				c.name, c.r, c.g, c.b, got, c.want)
+		}
+		p := Palette[c.want]
+		if got := fmt.Sprintf("%02X%02X%02X", p.R, p.G, p.B); got != c.wantHex {
+			t.Errorf("%s -> index %d is #%s, want #%s", c.name, c.want, got, c.wantHex)
+		}
+		if i, ok := IndexOf(c.r, c.g, c.b); ok {
+			t.Errorf("%s is on the palette at index %d; these constants exist because the "+
+				"classic colours are not, and IndexOf's miss is white", c.name, i)
+		}
+	}
+
+	// The two omitted constants, and the reason they are omitted: black and white are on
+	// the palette exactly, so they need no matching and already have names.
+	if got := nearestIndex(0xFF, 0xFF, 0xFF); got != White8 {
+		t.Errorf("whiteColor matches index %d, want White8 %d", got, White8)
+	}
+	if got := nearestIndex(0x00, 0x00, 0x00); got != Black8 {
+		t.Errorf("blackColor matches index %d, want Black8 %d", got, Black8)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // The room queries, with no art at all
 // ---------------------------------------------------------------------------

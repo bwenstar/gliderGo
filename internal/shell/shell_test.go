@@ -168,16 +168,24 @@ func TestRunQuitsOnWindowClose(t *testing.T) {
 // The arrows move the menu cursor and Return chooses, which is the one deliberate
 // departure from the original's arcade key map (see the package comment).
 func TestArrowsMoveTheMenuAndReturnChooses(t *testing.T) {
-	// New Game, Two Player, Load House, Settings, About, Quit: four Downs lands on
-	// About.
-	s, f := shellOver(t, []string{"Slumberland"},
-		key(platform.KeyDown), key(platform.KeyDown), key(platform.KeyDown),
-		key(platform.KeyDown), key(platform.KeyReturn))
-	if err := s.Run(); err != nil {
-		t.Fatal(err)
+	// Counted rather than hard-coded, so that adding a menu item is not a test failure
+	// in a test about the arrow keys.
+	s, f := shellOver(t, []string{"Slumberland"})
+	at := -1
+	for i, it := range s.menu() {
+		if it.label == "About..." {
+			at = i
+		}
 	}
+	if at < 1 {
+		t.Fatalf("About is at menu index %d; this test needs it below the first item", at)
+	}
+	for i := 0; i < at; i++ {
+		s.event(key(platform.KeyDown)[0])
+	}
+	s.event(key(platform.KeyReturn)[0])
 	if s.mode != modeAbout {
-		t.Errorf("mode is %v after four Downs and a Return, want the About box", s.mode)
+		t.Errorf("mode is %v after %d Downs and a Return, want the About box", s.mode, at)
 	}
 	if len(f.plays) != 0 {
 		t.Error("About should not start a game")
@@ -255,8 +263,8 @@ func TestAboutBoxIsDismissedByAnyKey(t *testing.T) {
 	}
 }
 
-// An empty library must not be a dead end with no explanation: the two items that
-// need a house are unavailable, and pressing one says why.
+// An empty library must not be a dead end with no explanation: every item that needs a
+// house is unavailable, and pressing one says why.
 func TestEmptyLibraryExplainsItself(t *testing.T) {
 	s, f := shellOver(t, nil, key(platform.KeyN), key(platform.KeyL))
 	if err := s.Run(); err != nil {
@@ -273,7 +281,7 @@ func TestEmptyLibraryExplainsItself(t *testing.T) {
 	}
 	for _, it := range s.menu() {
 		switch it.label {
-		case "New Game", "Two Player Game", "Load House...":
+		case "New Game", "Two Player Game", "Load House...", "High Scores...":
 			if it.ok {
 				t.Errorf("%q should be unavailable with no houses", it.label)
 			}

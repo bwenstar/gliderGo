@@ -111,6 +111,7 @@ type options struct {
 
 	prefsPath   string
 	importPrefs string
+	scoresDir   string
 
 	sound    bool
 	sounds   string
@@ -137,10 +138,11 @@ func parseFlags() (*options, error) {
 	flag.BoolVar(&o.quiet, "quiet", false, "do not print the startup and shutdown summaries")
 
 	flag.StringVar(&o.shot, "shot", "", "draw one title-screen frame to this PNG and exit; needs no display")
-	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses, settings or about")
+	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses, settings, about, credits or scores")
 
 	flag.StringVar(&o.prefsPath, "prefs", "", "preferences file to use instead of the one in the config directory (\""+prefsNone+"\" = this build's defaults, saving nothing)")
 	flag.StringVar(&o.importPrefs, "import-prefs", "", "convert an original 226-byte \"Glider Prefs\" file into this port's settings, then exit")
+	flag.StringVar(&o.scoresDir, "scores", "", "directory for the high-score files, one per house (\""+scoresNone+"\" = play without recording any)")
 
 	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
 	flag.StringVar(&o.sounds, "sounds", "assets/extracted/sound", "directory of extracted sound assets")
@@ -330,6 +332,12 @@ func shot(o *options, p *prefs.Prefs) error {
 		// are this build's defaults, which is what makes the image reproducible.
 		Prefs: p,
 
+		// No Scores hook, so -shot-screen scores draws the board the *house file* carries
+		// and not this machine's. That is deliberate and it is the same argument as the
+		// scale below: a screenshot has to be reproducible, and a golden image that
+		// changed the first time somebody on the build machine got onto the board would be
+		// a test that fails for the best possible reason and still fails.
+
 		Version: version,
 	}
 	sh, err := shell.New(host, lib)
@@ -425,6 +433,11 @@ func (a *app) shellHost() shell.Host {
 		Play: func(c shell.Choice) (shell.Outcome, error) {
 			return a.play(c.House.Name, c.House.Path, c.TwoPlayer)
 		},
+
+		// The board the High Scores screen shows: the side-car over the house file's own
+		// rows. The shell caches whatever this answers and drops the cache after every
+		// game, so this is a file read per house per visit and not per frame.
+		Scores: a.board,
 
 		// The settings screen edits this in place, so the next game reads whatever it
 		// left behind -- which is the whole of how a rebind takes effect. The bindings

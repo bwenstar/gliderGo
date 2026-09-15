@@ -191,6 +191,80 @@ type Event struct {
 	Repeat  bool
 	Focused bool
 	W, H    int
+
+	// Text is what this key press *typed*, if anything: one rune for an ordinary
+	// character, empty for a key that types nothing. It is set on EventKeyDown only,
+	// including auto-repeat, since a held key types repeatedly.
+	//
+	// Key and Text answer two different questions and the game needs both. Key is the
+	// physical key, layout-independent, because that is what the original binds: the
+	// glider's controls come out of GetKeys, so "the key left of X" has to stay the key
+	// left of X whatever it is engraved with. Text is the character the host's own
+	// layout, modifiers and compose state produced, because the high-score screen asks
+	// the player to type their name (docs/analysis/scoring.md 7.11) and a name typed
+	// through a physical-key table would be mojibake on any layout but the one the
+	// table was written for.
+	//
+	// A backend that cannot report text leaves this empty; KeyChar is the US-layout
+	// fallback for that case, and the caller decides which it prefers.
+	Text string
+}
+
+// KeyChar is what a key types on a US layout: the fallback for a backend that reports
+// keys but not text.
+//
+// It is deliberately not the whole story and is not meant to be. Text entry belongs to
+// the host, which knows the player's layout, their dead keys and their input method;
+// this knows one arrangement of one keyboard. It exists so that a backend with no text
+// support at all -- and the scripted null backend, which has no keyboard -- can still
+// reach the one screen in this game that needs typing.
+//
+// The letters and digits are the enum's own ranges, the way keys.go names them; the
+// punctuation is a table, and TestKeyCharAgreesWithTheKeyNames holds it to the engravings
+// keys.go already lists as aliases, so the two descriptions of a US keyboard cannot drift
+// apart. Shift is written out rather than computed, because "the character above" is not
+// arithmetic.
+func KeyChar(k Key, shift bool) (rune, bool) {
+	var r rune
+	switch {
+	case k == KeySpace:
+		return ' ', true // shifted or not, and the one key where that is worth saying
+	case k >= KeyA && k <= KeyZ:
+		r = 'a' + rune(k-KeyA)
+	case k >= Key0 && k <= Key9:
+		r = '0' + rune(k-Key0)
+	default:
+		var ok bool
+		if r, ok = usUnshifted[k]; !ok {
+			return 0, false
+		}
+	}
+	if !shift {
+		return r, true
+	}
+	if r >= 'a' && r <= 'z' {
+		return r - 'a' + 'A', true
+	}
+	if up, ok := usShifted[r]; ok {
+		return up, true
+	}
+	return r, true
+}
+
+// usUnshifted is the punctuation a US keyboard engraves on the keys that are not letters,
+// digits or space.
+var usUnshifted = map[Key]rune{
+	KeyMinus: '-', KeyEqual: '=', KeyLeftBracket: '[', KeyRightBracket: ']',
+	KeyComma: ',', KeyPeriod: '.', KeySlash: '/', KeySemicolon: ';',
+	KeyQuote: '\'', KeyBackslash: '\\', KeyGrave: '`',
+}
+
+// usShifted is the same keys plus the digits, shifted.
+var usShifted = map[rune]rune{
+	'1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+	'6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+	'-': '_', '=': '+', '[': '{', ']': '}', '\\': '|',
+	';': ':', '\'': '"', ',': '<', '.': '>', '/': '?', '`': '~',
 }
 
 // Window is a host surface the game can present frames to.

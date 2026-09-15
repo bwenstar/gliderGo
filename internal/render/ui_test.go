@@ -240,6 +240,247 @@ func TestPlatePrefersTheOpenHouseAndStaysSilent(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// MaskedPlate
+// ---------------------------------------------------------------------------
+
+// writePlateFunc is writePlate with the caller choosing the pixels, which the mask tests
+// need: a mask is only a mask if its two colours are where the test put them.
+func writePlateFunc(t *testing.T, dir string, id int16, w, h int, at func(x, y int) uint8) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			c := Palette[at(x, y)]
+			img.Set(x, y, color.RGBA{c.R, c.G, c.B, 0xFF})
+		}
+	}
+	f, err := os.Create(filepath.Join(dir, fmt.Sprintf("%d.png", id)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// maskedCount is how many pixels of a surface are opaque, which is the whole of what
+// MaskedPlate produces that Plate does not.
+func maskedCount(s *Surface) int {
+	n := 0
+	for y := 0; y < s.H; y++ {
+		for x := 0; x < s.W; x++ {
+			if s.opaque(x, y) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// The basic contract: the art's pixels, the companion plate's non-white pixels as the
+// mask, and the art left alone.
+func TestMaskedPlateAppliesTheCompanionPlate(t *testing.T) {
+	app := t.TempDir()
+	ui := filepath.Join(app, "ui")
+	writePlateFunc(t, ui, 1994, 8, 4, func(int, int) uint8 { return Yellow })
+	// Left half white (clear), right half index 1, which is what the extractor writes
+	// for a set bit in a 1-bit mask PICT.
+	writePlateFunc(t, ui, 1998, 8, 4, func(x, y int) uint8 {
+		if x < 4 {
+			return White8
+		}
+		return 1
+	})
+
+	a := NewAssets(app)
+	s := a.MaskedPlate(1994)
+	if s == nil {
+		t.Fatalf("MaskedPlate(1994) is nil with both plates present: %v", a.Err())
+	}
+	if s.W != 8 || s.H != 4 {
+		t.Fatalf("masked plate is %dx%d, want the art's 8x4", s.W, s.H)
+	}
+	for i, v := range s.Pix {
+		if v != Yellow {
+			t.Fatalf("pixel %d is %d, want the art's %d: the mask must not touch the colour plane", i, v, Yellow)
+		}
+	}
+	for y := 0; y < s.H; y++ {
+		for x := 0; x < s.W; x++ {
+			if got, want := s.opaque(x, y), x >= 4; got != want {
+				t.Fatalf("opaque(%d,%d) = %v, want %v: a set mask bit is a non-white pixel", x, y, got, want)
+			}
+		}
+	}
+
+	// The art itself must come back unmasked from Plate, or the cache is aliased and the
+	// second caller of Plate(1994) gets a surface with holes in it.
+	if art := a.Plate(1994); maskedCount(art) != art.W*art.H {
+		t.Errorf("Plate(1994) is %d/%d opaque; MaskedPlate mutated the cached art",
+			maskedCount(art), art.W*art.H)
+	}
+	// Cached, because the game-over pages are drawn once a frame while they are up.
+	if again := a.MaskedPlate(1994); again != s {
+		t.Error("MaskedPlate rebuilt the pair on the second call")
+	}
+}
+
+// An id with no companion is Plate exactly, so a call site does not need to know which of
+// the plates it draws happens to have a mask.
+func TestMaskedPlateIsPlateForAnUnpairedID(t *testing.T) {
+	app := t.TempDir()
+	writePlate(t, filepath.Join(app, "ui"), 1015, 8, 5)
+
+	a := NewAssets(app)
+	if got, want := a.MaskedPlate(1015), a.Plate(1015); got != want {
+		t.Errorf("MaskedPlate(1015) = %v, want the identical surface Plate returns %v", got, want)
+	}
+	if got := a.MaskedPlate(1016); got != nil || a.Err() != nil {
+		t.Errorf("MaskedPlate(1016) on a tree without it gave %v / %v", got, a.Err())
+	}
+}
+
+// A missing mask draws the art opaque rather than nothing. A partial extraction is a
+// degraded picture; it is not a missing screen (docs/IMPROVEMENTS.md 2.6).
+func TestMaskedPlateWithoutItsMaskIsTheOpaqueArt(t *testing.T) {
+	app := t.TempDir()
+	writePlate(t, filepath.Join(app, "ui"), 1994, 8, 4)
+
+	a := NewAssets(app)
+	s := a.MaskedPlate(1994)
+	if s == nil {
+		t.Fatalf("MaskedPlate(1994) is nil with the art present and no mask: %v", a.Err())
+	}
+	if n := maskedCount(s); n != 8*4 {
+		t.Errorf("%d of 32 pixels opaque with no mask plate, want all of them", n)
+	}
+	if err := a.Err(); err != nil {
+		t.Errorf("a missing mask recorded a sticky error: %v", err)
+	}
+}
+
+// A mask smaller than its art leaves the uncovered pixels transparent, which is what
+// CopyMask reads out of the unwritten part of a fresh 1-bit GWorld. The alternative --
+// treating "no mask bit" as opaque -- would draw the whole plate on a checkout whose mask
+// PICT decoded short, and that is precisely the case the polarity has to survive.
+func TestMaskedPlateTreatsAShortMaskAsTransparent(t *testing.T) {
+	app := t.TempDir()
+	ui := filepath.Join(app, "ui")
+	writePlateFunc(t, ui, 1992, 8, 4, func(int, int) uint8 { return Yellow })
+	writePlateFunc(t, ui, 1991, 8, 2, func(int, int) uint8 { return 1 })
+
+	a := NewAssets(app)
+	s := a.MaskedPlate(1992)
+	if s == nil {
+		t.Fatalf("MaskedPlate(1992) is nil: %v", a.Err())
+	}
+	if n, want := maskedCount(s), 8*2; n != want {
+		t.Errorf("%d pixels opaque, want %d: only the rows the mask covers", n, want)
+	}
+}
+
+// The reason this lives in render at all rather than in the extractor: the art and the mask
+// are separate resources with separate ids, so a house may override one and not the other.
+// Thirteen of the twenty shipped houses carry their own 1991-1993, and on a Mac such a
+// house's 1992 pairs with the *application's* 1991.
+func TestMaskedPlateResolvesEachIDThroughTheForkSeparately(t *testing.T) {
+	app := t.TempDir()
+	ui := filepath.Join(app, "ui")
+	writePlateFunc(t, ui, 1992, 8, 4, func(int, int) uint8 { return Yellow })
+	writePlateFunc(t, ui, 1991, 8, 4, func(int, int) uint8 { return 1 }) // application mask: all opaque
+
+	// The house redefines the art and *not* the mask, which is the shipped case.
+	fork := t.TempDir()
+	writePlateFunc(t, filepath.Join(fork, "pict"), 1992, 8, 4, func(int, int) uint8 { return QDCyan })
+
+	a := NewAssets(app)
+	a.MaskedPlate(1992) // fork closed first, so a leaking cache would be caught below
+	a.OpenHouseResFork(fork)
+
+	s := a.MaskedPlate(1992)
+	if s == nil {
+		t.Fatalf("MaskedPlate(1992) is nil with the fork open: %v", a.Err())
+	}
+	if s.Pix[0] != QDCyan {
+		t.Errorf("pixel 0 is %d, want the house's %d: the art did not come from the fork", s.Pix[0], QDCyan)
+	}
+	if n := maskedCount(s); n != 8*4 {
+		t.Errorf("%d of 32 pixels opaque, want all: the application's mask should still apply", n)
+	}
+
+	// And the other way round: the house redefines only the mask, so the application's art
+	// is drawn through it. This is the pairing an extractor that baked the two together
+	// could not produce.
+	fork2 := t.TempDir()
+	writePlateFunc(t, filepath.Join(fork2, "pict"), 1991, 8, 4, func(x, y int) uint8 {
+		if y == 0 {
+			return 1
+		}
+		return White8
+	})
+	a.OpenHouseResFork(fork2)
+	s2 := a.MaskedPlate(1992)
+	if s2 == nil {
+		t.Fatalf("MaskedPlate(1992) is nil with the second fork open: %v", a.Err())
+	}
+	if s2.Pix[0] != Yellow {
+		t.Errorf("pixel 0 is %d, want the application's %d", s2.Pix[0], Yellow)
+	}
+	if n, want := maskedCount(s2), 8; n != want {
+		t.Errorf("%d pixels opaque, want %d: the house's mask should be the one applied", n, want)
+	}
+}
+
+// The measured pairs, over the shipped art. This is the evidence behind uiMaskPairs and it
+// is a test rather than a comment because the numbers are the argument: two of the three
+// masks carry information the colour plane does not, so "key out white instead" is wrong in
+// general -- and for the high-score plaque the two happen to agree exactly, which is worth
+// knowing when a screenshot of it is compared against a colour-keyed one.
+func TestTheThreeShippedMaskPairsAreMeasured(t *testing.T) {
+	a := NewAssets(requireAssets(t, "art"))
+
+	for _, c := range []struct {
+		art, mask                       int16
+		w, h                            int
+		opaque, maskOpaqueButArtIsWhite int
+	}{
+		{1990, 1989, 32, 448, 9356, 4475},
+		{1992, 1991, 330, 30, 9340, 5400},
+		{1994, 1998, 332, 30, 3409, 0},
+	} {
+		s := a.MaskedPlate(c.art)
+		if s == nil {
+			t.Fatalf("MaskedPlate(%d) is nil: %v", c.art, a.Err())
+		}
+		if s.W != c.w || s.H != c.h {
+			t.Errorf("PICT %d is %dx%d, want %dx%d", c.art, s.W, s.H, c.w, c.h)
+		}
+		if n := maskedCount(s); n != c.opaque {
+			t.Errorf("PICT %d/%d: %d opaque pixels, want %d", c.art, c.mask, n, c.opaque)
+		}
+
+		// The cross-tab against a white colour key, which is the substitute a port is
+		// tempted by: how many pixels the mask keeps that keying on white would drop.
+		holes := 0
+		for y := 0; y < s.H; y++ {
+			for x := 0; x < s.W; x++ {
+				if s.opaque(x, y) && s.Pix[y*s.W+x] == White8 {
+					holes++
+				}
+			}
+		}
+		if holes != c.maskOpaqueButArtIsWhite {
+			t.Errorf("PICT %d/%d: %d pixels are white and mask-opaque, want %d",
+				c.art, c.mask, holes, c.maskOpaqueButArtIsWhite)
+		}
+	}
+}
+
 // A house whose plate will not decode records, because that is a broken extraction rather
 // than an absent one -- the same line Pict and UI draw. The fallback panel is for art that
 // is not there, not for art that is there and wrong.

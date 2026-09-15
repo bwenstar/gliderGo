@@ -452,3 +452,73 @@ func (h *House) WriteTo(w io.Writer) (int64, error) {
 	n, err := w.Write(b)
 	return int64(n), err
 }
+
+// ------------------------------------------------- the high-score board, alone
+
+// The board is the one part of a house that has a life outside the file, and it has
+// had one since 1994. Glider PRO writes a house's high scores back into the house
+// itself (HouseIO.c), which means a read-only house -- one on a CD, one a player
+// downloaded, one shipped inside an application -- cannot record a score at all.
+// The original grew a second path for exactly that: a 292-byte side-car in the
+// Preferences folder holding nothing but a scoresType, creator 'ozm5', type 'gliS'
+// (docs/analysis/scoring.md 7.14). The code to read it survives in HighScores.c and
+// is dead, because nothing ever wrote one.
+//
+// This port takes the side-car as the only place it writes (internal/scores), so the
+// vendored houses stay byte-identical and a house from anywhere is playable. That
+// needs the board's 292 bytes on their own, without a house around them, which is
+// what these two are for. Save and Load keep using the unexported halves, so there
+// is exactly one description of the layout and the side-car cannot drift from the
+// header it came out of.
+
+// EncodeScores serialises one board as the same SizeofScores big-endian bytes it
+// occupies inside a house header.
+//
+// Every byte is written from the struct, including the residue past each Pascal
+// string's length -- so a board that was read out of a shipped house and never
+// modified encodes back to the bytes it came from, garbage included. That is not
+// tidiness: SortHighScores sorted through an uninitialised local, so the residue in
+// the shipped boards is real 1994 stack garbage, and reproducing it is what lets
+// TestScoresCodecMatchesEveryShippedHeader compare bytes rather than fields.
+func EncodeScores(s *Scores) []byte {
+	e := &encoder{b: make([]byte, SizeofScores)}
+	e.scores(s)
+	if e.off != len(e.b) {
+		// Unreachable: SizeofScores and encoder.scores describe the same layout, and
+		// the corpus round-trip would fail first. Checked anyway, because a silent
+		// short write here would produce a side-car that decodes to another board.
+		panic(fmt.Sprintf("house: internal: EncodeScores wrote %d of %d bytes",
+			e.off, len(e.b)))
+	}
+	return e.b
+}
+
+// DecodeScores parses a board from exactly SizeofScores bytes.
+//
+// The length is required rather than tolerated, which is the same split Load draws:
+// strict about structure, permissive about content. Any ten names, any ten scores and
+// any ten timestamps decode unchanged, however impossible -- Repair, not the reader,
+// decides what a board with a negative score means.
+//
+// The original is the counter-example. HighScores.c reads its side-car with GetEOF
+// followed by one FSRead of that many bytes straight into the house handle's
+// highScores member, with no check that the file is 292 bytes long: a longer file
+// overwrites the saved game and the room count behind it, and a shorter one leaves
+// the tail of the board holding whatever the house already had. A caller here that
+// wants to survive a truncated file overlays it onto a known-good board and says so
+// (internal/scores), which is a decision at the call site rather than an accident in
+// the reader.
+func DecodeScores(b []byte) (Scores, error) {
+	var s Scores
+	if len(b) != SizeofScores {
+		return s, fmt.Errorf("house: high-score board is %d bytes, want %d",
+			len(b), SizeofScores)
+	}
+	d := &decoder{b: b}
+	d.scores(&s)
+	if d.off != SizeofScores { // unreachable, as above
+		return s, fmt.Errorf("house: internal: DecodeScores read %d of %d bytes",
+			d.off, SizeofScores)
+	}
+	return s, nil
+}

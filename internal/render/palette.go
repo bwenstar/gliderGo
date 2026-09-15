@@ -145,6 +145,29 @@ const (
 	Black8       = 255
 )
 
+// The five classic 1-bit QuickDraw colours, resolved into this palette.
+//
+// They are a different colour API from the block above, not more entries in it.
+// `ForeColor(yellowColor)` takes one of the eight constants a 1961 Color QuickDraw
+// grafport understood (`blackColor` 33, `whiteColor` 30, `yellowColor` 69,
+// `cyanColor` 273, `blueColor` 409) and asks the current GDevice's colour table for
+// the nearest entry it has; `ColorText(str, index)` takes a palette index directly.
+// Glider PRO uses both -- the scoreboard indexes the palette (§5.5 of
+// docs/analysis/scoring.md) and the high-score screen names ForeColor constants
+// (§7.9.6) -- so a port that had only one of them would draw one of the two screens
+// in the wrong colours.
+//
+// The values are what nearestIndex answers for the classic RGB of each constant,
+// written down rather than computed so that a call site is a constant and a table
+// lookup cannot change under it; TestTheQuickDrawColoursAreTheNearestPaletteEntries
+// pins each one to its RGB. QDBlack and QDWhite are omitted deliberately: black and
+// white are exactly on the palette and already have names above.
+const (
+	QDYellow = 5   // #FCF305 -> #FFFF00, which is Yellow above
+	QDCyan   = 192 // #02ABEA -> #0099FF
+	QDBlue   = 211 // #0000D4 -> #0000CC
+)
+
 // itoa avoids pulling strconv into a package that is otherwise pure pixels.
 func itoa(n int) string {
 	if n == 0 {

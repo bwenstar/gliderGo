@@ -36,6 +36,7 @@ import (
 	"glidergo/internal/platform/backend"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
+	"glidergo/internal/scores"
 	"glidergo/internal/shell"
 )
 
@@ -53,6 +54,11 @@ type app struct {
 	// canSave says there is somewhere to write p. See loadPrefs.
 	canSave bool
 
+	// store is the high-score boards, one file per house. A nil store is a session that
+	// can play and cannot record -- -scores none, or no data directory -- and every method
+	// on it tolerates that, so this is never checked at a call site (internal/scores).
+	store *scores.Store
+
 	bank  *audio.Bank
 	eng   *audio.Engine
 	pump  *audio.Pump
@@ -66,7 +72,43 @@ type app struct {
 }
 
 func newApp(o *options, p *prefs.Prefs, canSave bool) *app {
-	return &app{o: o, p: p, canSave: canSave}
+	a := &app{o: o, p: p, canSave: canSave}
+	a.openScores()
+	return a
+}
+
+// scoresNone is what -scores takes to mean "play, and record nothing". It is spelled the
+// same as -prefs none and for the same reason: a run that must not touch the player's files
+// -- a bisect, a bug report's reproduction, a shared machine -- should be one word away.
+const scoresNone = "none"
+
+// openScores decides where the boards live.
+//
+// A failure to resolve the directory is not fatal and does not even wait for a score to be
+// earned before it is reported: somebody whose data directory cannot be found wants to know
+// at startup, not after the one game they were going to get onto the board with.
+func (a *app) openScores() {
+	switch a.o.scoresDir {
+	case scoresNone:
+		return
+	case "":
+		st, err := scores.Open()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "glidergo: high scores will not be recorded: %v\n", err)
+			return
+		}
+		a.store = st
+	default:
+		a.store = scores.OpenDir(a.o.scoresDir)
+	}
+}
+
+// board is the shell's Host.Scores: one house's board as a player should see it, which is the
+// side-car laid over whatever the house file itself carries.
+func (a *app) board(h shell.House) house.Scores {
+	b, notes := a.store.Load(h.Name, h.Scores)
+	a.reportScoreNotes(h.Name, notes)
+	return b
 }
 
 // openWindow opens the one window. The surfaces inside are always 640x480 -- the
@@ -514,6 +556,19 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 			paint()
 			time.Sleep(2 * time.Second / 60)
 		}
+	}
+
+	// The high scores, and only for a session with somebody in front of it.
+	//
+	// A measurement is not offered a board: the two dialogs block until Okay is pressed and
+	// there is no Cancel in either of them (docs/analysis/scoring.md 7.11.1), so a -frames
+	// run that happened to die would hang forever waiting for a name, and one that got past
+	// that would sit on the board for thirty seconds. Both are the reason
+	// World.TestHighScore treats a nil hook as "does not qualify" rather than as an error:
+	// a replay's outcome must not depend on the machine it runs on. `make headless` covers
+	// the screen through -shot instead.
+	if o.frames == 0 && !o.bench && o.dump == "" {
+		w.HighScore = a.highScoreHook(w, name, assets, &closed)
 	}
 
 	// -frames is the headless and timed path: a hook on the frame limiter is the only

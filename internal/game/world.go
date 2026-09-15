@@ -515,6 +515,19 @@ type World struct {
 	// DoDemoGame, cleared by NewGame's tail.
 	DemoGoing bool
 
+	// ResumedSavedGame is `resumedSavedGame` (HighScores.c:33), and it is the one hard
+	// ineligibility rule in the whole scoring subsystem: a game continued from a saved
+	// position cannot reach the high scores at all, however it ends. TestHighScore
+	// returns false on its first line when this is set (docs/analysis/scoring.md 7.5),
+	// and the Open Saved Game menu item says so up front with an alert of its own
+	// (ALRT 1046, 7.12).
+	//
+	// Nothing sets it yet: 1.10 owns saved games, and until then every game is a fresh
+	// one. It is here now rather than later because TestHighScore's *first statement*
+	// reads it, and a stage that added the flag afterwards would be adding it to code
+	// that had already been written as though the rule did not exist.
+	ResumedSavedGame bool
+
 	// DoBackground is `doBackground`: the preference "keep playing while switched
 	// out". It gates the entire event pump -- with it false, PlayGame never calls
 	// HandlePlayEvent at all, so the game neither pauses on deactivation nor processes
@@ -609,6 +622,29 @@ type World struct {
 	// is the right answer for a run with no keyboard, since nothing could ever clear the
 	// flag. See DoPause.
 	Pause func(paint func())
+
+	// HighScore is the host's half of TestHighScore: everything that blocks.
+	//
+	// The split is the same one PlayEvent and Pause are drawn along, and it falls in an
+	// unusually convenient place here, because the C's TestHighScore is two things
+	// bolted together (HighScores.c:374-426). The half this package keeps is the half
+	// that is about the game: is this game eligible, what did the player score, how many
+	// rooms did they see. The half the host takes is the half that is about a screen and
+	// a keyboard: the two modal dialogs where a name and a banner are typed, the board
+	// itself, and the waiting.
+	//
+	// It is handed the score and the room count and answers `placing != -1` -- true if
+	// the score qualified, which is what DoGameOver tests to decide whether to redraw
+	// the splash screen. Everything past qualification is the host's: internal/scores
+	// owns the board, the side-car and the prompts, and cmd/glidergo wires them to a
+	// window.
+	//
+	// nil is a headless build, and it makes TestHighScore answer false without touching
+	// anything -- the same shape as Pause's no-op. That is the right answer rather than
+	// a degraded one: with no keyboard there is nobody to type a name, and a fidelity
+	// replay must not have its outcome depend on whether a board file exists on the
+	// machine running it.
+	HighScore func(score int32, rooms int16) bool
 
 	// The four music preferences and states (Music.c, Prefs.c). All read by NewGame's
 	// two music ladders and nowhere else in this stage.

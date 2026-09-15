@@ -121,6 +121,106 @@ func (a *Assets) Plate(id int16) *Surface {
 	return a.UI(id)
 }
 
+// uiMaskPairs is the whole of the "one plate is another plate's mask" convention
+// outside the +1000 sheet family: art id -> mask id.
+//
+// It is a table and not a formula because the original's numbering is not one rule
+// but four (docs/analysis/resource-fork.md 683): sheets are art+1000, the angel is
+// art+1, these two are art-1, and the high-score plaque is art+4. Deriving any of
+// them by arithmetic would silently pair the wrong pictures the first time a fifth
+// convention turned up.
+//
+//	1990/1989  the four game-over pages, 32x448  (1.7d)
+//	1992/1991  the banner page's bottom half, 330x30  (1.7d)
+//	1994/1998  the high-score plaque, 332x30  (1.7c)
+//
+// Measured, over the shipped art, with "the mask's non-white pixels" against "the
+// art's non-white pixels" -- the same cross-tab docs/analysis/graphics-assets.md 5.2
+// runs on the sheet pairs:
+//
+//	pair       pixels  opaque  agree  mask-opaque & art white  mask-clear & art ink
+//	1990/1989  14,336   9,356  9,861                    4,475                     0
+//	1992/1991   9,900   9,340  4,500                    5,400                     0
+//	1994/1998   9,960   3,409  9,960                        0                     0
+//
+// So the mask is authoritative for two of the three and a white colour key would
+// punch 4,475 and 5,400 holes in them; for the plaque the two agree exactly, which
+// TestTheThreeShippedMaskPairsAreMeasured pins as a fact about that one piece of art
+// rather than as a licence to key on white.
+var uiMaskPairs = map[int16]int16{
+	1990: 1989,
+	1992: 1991,
+	1994: 1998,
+}
+
+// MaskedPlate is Plate for the three pictures whose companion plate is their 1-bit
+// mask: the art with that mask applied, ready for one Masked copy.
+//
+// It exists because the extractor cannot do this. The mask is a separate resource
+// with its own id, so a house may override the art and not the mask or the mask and
+// not the art -- thirteen of the twenty shipped houses carry their own 1991-1993, and
+// on a Mac such a house's 1992 pairs with the *application's* 1991. Baking the pair
+// together at extraction time would lose that; resolving each id through Plate and
+// combining here reproduces it, which is the same argument Plate itself makes for
+// consulting the fork first.
+//
+// Opaque where the mask plate's pixel is not white. That is the polarity
+// docs/analysis/graphics-assets.md 5.2 proves for the sheet masks -- a set bit in the
+// 1-bit PICT means "copy this pixel" -- and the extractor writes those set bits as
+// palette index 1 rather than as black, so the test is "not white" rather than a
+// specific index. A house's own mask, which arrives through nearestIndex, is covered
+// by the same test.
+//
+// Two absences are handled rather than reported, both the way the rest of this file
+// handles them:
+//
+//   - **No mask plate**: the art is returned unchanged, so a checkout with a partial
+//     extraction draws an opaque rectangle instead of nothing.
+//   - **A mask smaller than the art**: the uncovered pixels stay transparent, which is
+//     what CopyMask reads out of the unwritten part of a fresh 1-bit GWorld -- the same
+//     reasoning padded gives for the sheet that is one row short.
+//
+// An id with no entry in uiMaskPairs is just Plate, so a call site does not have to
+// know which of the plates it draws has a mask.
+func (a *Assets) MaskedPlate(id int16) *Surface {
+	art := a.Plate(id)
+	maskID, paired := uiMaskPairs[id]
+	if art == nil || !paired {
+		return art
+	}
+
+	// Keyed on the house directory as well as the id, because that is the whole of
+	// what the two Plate lookups depend on: the same id resolves to different art
+	// with a different house open.
+	a.mu.Lock()
+	key := fmt.Sprintf("masked:%d@%s", id, a.houseDir)
+	if s, ok := a.cache[key]; ok {
+		a.mu.Unlock()
+		return s
+	}
+	a.mu.Unlock()
+
+	mask := a.Plate(maskID)
+	if mask == nil {
+		return art
+	}
+
+	s := art.Clone()
+	s.Mask = make([]uint8, s.W*s.H)
+	for y := 0; y < s.H && y < mask.H; y++ {
+		for x := 0; x < s.W && x < mask.W; x++ {
+			if mask.Pix[y*mask.W+x] != White8 {
+				s.Mask[y*s.W+x] = 0xFF
+			}
+		}
+	}
+
+	a.mu.Lock()
+	a.cache[key] = s
+	a.mu.Unlock()
+	return s
+}
+
 // Bnds is GetResource('bnds', id): a house background's own opening flags.
 //
 // The resource is eight bytes laid out as a Rect and used as four independent
