@@ -376,8 +376,9 @@ lines of C ✅ *done*
 - `Dynamics3.c`'s `AddDynamicObject`/`HandleDynamics`/`RenderDynamics`, all of `Dynamics.c` and
   `Dynamics2.c`, all of `Trip.c` and `Triggers.c`, sparkles and flying points.
 - Before rewards and switches **on purpose**: the dependency graph has one genuine cycle, since
-  `HandleSwitches` dispatches into 21 `Toggle*`/`Trigger*` cases while `Trip.c`'s `TriggerSwitch`
-  calls back into `HandleSwitches`. Dynamics first leaves one stub; switches first leaves 21.
+  `HandleSwitches` dispatches into all fourteen `Toggle*` while `Trip.c`'s `TriggerSwitch` calls
+  back into `HandleSwitches`. Dynamics first leaves one stub — `TriggerSwitch`, and 1.5d closed
+  it; switches first would have left fourteen.
 - `CheckDynamicCollision` is a **second, earlier** collision channel and must not share an
   implementation with `kDissolveIt`: different mode gate, and one sheet of foil per two frames
   against two sheets every frame.
@@ -412,17 +413,64 @@ lines of C ✅ *done*
   resolved for the outlet (`HandleOutlet` names `w.R.Work` at the call site) and still open for
   `HandleGrease`, which is where the same conversion mistake would land next.
 
-**1.5d Rewards, switches, per-room persistence** — ~465 lines of C
+**1.5d Rewards, switches, per-room persistence** — ~465 lines of C ✅ *done*
 - `Interactions.c:756-1194` (`HandleRewards`' fifteen prizes, `HandleSwitches`, `HandleMicrowave-
   Action`) plus `DisplayStarsRemaining`. Unstubs the three actions 1.5b left and `TriggerSwitch`.
 - Small in lines, large in surface: this is where **per-room persistence becomes observable**,
   because every prize and switch writes a `state` byte back into the house through `SetObjectState`
   and that write is what survives leaving and re-entering a room.
-- *Acceptance:* **each of the fifteen reward cases and each of the 21 switch-dispatch cases has a
+- *Acceptance:* **each of the fifteen reward cases and each of the 23 switch-dispatch cases has a
   test pinning its trigger condition and effect** — score delta, inventory delta, sound, and the
   `state` byte written back — which is the per-object-class criterion the old 1.5 bullet asked for.
   Collecting a prize, leaving and re-entering finds it gone, for one of each of the twelve
   state-gated types. Taking the last star sets `gameOver` within one frame.
+  (The bullet said **21** switch cases from 1.5c's estimate; counted from `Interactions.c:1040-1147`
+  the answer is **23**, and the count matters because the two extra are among the three that turn
+  out to be unreachable.)
+- **All four clauses met, in `internal/game/rewards_test.go` and `switches_test.go`.** The reward
+  table asserts all eleven columns on every one of the fifteen rows — including the zeroes, since
+  the subject is a mapping and a row that awards nothing is as much a specification as one that
+  awards 5,000 points — and the switch table covers all 23 arms across 42 object types. (The
+  reward table has fifteen rows over fourteen arms: `kGreaseRt` and `kGreaseLf` share a body and
+  a test still has to prove both directions reach it.)
+- **The stage found and fixed two real defects in the port**, both in `docs/IMPROVEMENTS.md`'s
+  repairs list. `HandleRewards` was **missing the `kHelium` arm entirely**: a transcription slip
+  that built and ran and simply did nothing when a glider touched a helium balloon. And
+  `World.NewState` was a local, so **every switch lever drew the wrong state** — a light switch
+  animated to "off" while turning a lamp on, which is invisible without art and is now pinned by
+  a pixel comparison.
+- **The test that found the helium bug is the transferable part.**
+  `TestEveryDispatchableRewardIsConsumed` does not carry a list of reward types; it sweeps every
+  object code through `CreateActiveRects`, collects the ones that produce a `kRewardIt` rect, and
+  requires `HandleRewards` to consume each. A hand-written list would have had the same hole as
+  the switch statement it was checking. Every remaining function in the port that dispatches on
+  object type is a candidate for the same shape of test.
+- **Three findings recorded rather than fixed**, all in `docs/IMPROVEMENTS.md`, and the first is
+  the one that matters to Stage 2: a switch wired to a **star** removes it without decrementing
+  the star count, so **an author can build a house that cannot be finished** (2.38) — no shipped
+  house does, so the fix is free and is scheduled before the first new house ships; the switch's
+  uninitialised sparkle rect puts a stray puff at the corner of the play area **145 times across
+  the 22 original houses**, so it is something players of the shipped content actually see (2.39);
+  and three of the 23 arms — `kSlider`, `kSoundTrigger`, `kGuitar` — have never run in any build,
+  because `SetObjectState` returns false for all three, which means **a switch wired to a sound
+  trigger has never played its sound** (2.40).
+- **A corpus survey answers "does this matter?" with a number, and its first version was wrong.**
+  `TestShippedHousesWireSwitchesToPrizes` walks all 1,563 switch and trigger plates in the 22
+  houses. The first draft read `data.e.where` as a room index — it is a packed floor/suite pair —
+  resolved nothing, and reported a reassuringly clean corpus. It now resolves links through
+  `GetRoomLinked`, the way the game does, and **fails outright if no link resolves**, so a broken
+  predicate can no longer masquerade as a clean result. That guard is the reusable lesson from
+  this sub-stage's tooling: a survey that can find nothing must distinguish "nothing there" from
+  "not looking".
+- **The 600-frame golden trace changed, and the change is the stage's own proof.** Room 5 has a
+  `kInvisSwitch` flat against the ceiling, ForceOn, wired to a room-sized `kDeluxeTrans` that the
+  house file ships switched off. With `HandleSwitches` a stub the transporter stayed off and the
+  unattended glider bobbed under the ceiling for the whole run; now the glider trips the switch on
+  frame 224 and is transported to room 70, "Welcome…", on frame 240 — so the trace covers a switch
+  throw, a state change publishing a hot spot that did not previously exist, a room-to-room
+  transport and a second room. It also *lost* six of the toaster's nine bursts by leaving room 5,
+  which is written up as `docs/IMPROVEMENTS.md` 4.3 and is an argument for several short scripts at
+  1.8 rather than one long one.
 
 **1.5e Bands and grease** — ~630 lines of C
 - All of `RubberBands.c` and `Grease.c`, plus `RenderBands`.

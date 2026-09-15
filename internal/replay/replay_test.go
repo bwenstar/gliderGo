@@ -101,6 +101,40 @@ func script(t *testing.T, name string) *replay.Script {
 // regeneration that keeps the +1/+1 shape but moves those boundaries is a change to the
 // toaster's arithmetic and should be read as one.
 //
+// # The invisible switch, and why the trace changed in 1.5d
+//
+// Room 5 has a kInvisSwitch at v=0 -- flat against the ceiling, object 22 -- with type 1,
+// ForceOn, wired to object 0: the room-sized kDeluxeTrans whose rect is 1,5,313,501 and whose
+// state in the house file is off. HandleSwitches was a stub until Stage 1.5d, so that
+// transporter stayed off for the whole run and the unattended glider bobbed under the ceiling
+// to the end of it. It is live now, and the trace goes somewhere:
+//
+//	f=224   the glider trips the switch. `w2m` up one and `b2w` unchanged, the same
+//	        signature as a toaster landing and for the same reason: HandleSwitches blits
+//	        back->work directly (CopyRectBackToWork is not queued) and queues one
+//	        work->main rect. Silent, because an invisible switch has no lever and no click
+//	f=225   the transporter's kTransportIt rect is live, so it fires: 225-239 dissolving
+//	        (mode 10), TransportGliderOut counting the fade sequence down from 15
+//	f=240   TransportRoomToRoom lands the glider in **room 70, "Welcome…"** -- the
+//	        transporter's own link, and the house's start room -- then 16 frames
+//	        materialising (mode 23) and 345 frames normal
+//
+// Three details of the second half are worth knowing before reading it as a bug:
+//
+//	score 100 -> 200 on the transition is HandleRoomVisitation's award for reaching a new
+//	  room, not a prize. HandleRewards is never called anywhere in this run
+//	`w2m` and `b2w` drop to 1 and stay there, where room 5 held 2. Room 70 is a sky room
+//	  (bounds 0x0000, no floor), so the glider casts no shadow and there is one rect a
+//	  frame instead of two
+//	the glider never settles: room 70's kInvisBlower at v=139 h=236 holds it up, which is
+//	  why dest oscillates over five values to the end of the run
+//
+// What the trace gave up for that is six of the toaster's nine bursts -- 246-265 onward, all
+// of them after the glider leaves room 5. The three before it survive, and the arithmetic
+// itself is pinned closed-form by TestLaunchVelocityFromHeight and by the dynamics table, so
+// this costs an illustration rather than any coverage. The switch, the state change publishing
+// a hot spot that did not exist, the transport and a second room are all new to it.
+//
 // # The ClockFrame deviation
 //
 // PLAN.md's list of quantities to pin includes the original's `clockFrame`. The port has no
@@ -142,12 +176,18 @@ func TestSixHundredFramesMatchTheGoldenTrace(t *testing.T) {
 		return
 	}
 
-	// The report is the first differing line and a count, not a 600-line dump: the point
+	// The report is the first differing *frame* and a count, not a 600-line dump: the point
 	// of a per-frame trace is that the first divergence is the whole story, and everything
 	// after it is that divergence propagating.
+	//
+	// The comment lines are skipped when choosing which difference to print, and that is not
+	// tidiness. The digest on line 4 is a hash of every sample, so it changes whenever
+	// anything else does; reporting it as "the first divergence" names line 4 on every single
+	// failure and buries the frame that actually moved. It is still reported, separately and
+	// second, because a bug report can quote it in one line.
 	gotLines := strings.Split(strings.TrimRight(got.String(), "\n"), "\n")
 	wantLines := strings.Split(strings.TrimRight(string(want), "\n"), "\n")
-	diffs := 0
+	diffs, header := 0, 0
 	first := -1
 	for i := 0; i < len(gotLines) || i < len(wantLines); i++ {
 		g, w := "", ""
@@ -157,16 +197,28 @@ func TestSixHundredFramesMatchTheGoldenTrace(t *testing.T) {
 		if i < len(wantLines) {
 			w = wantLines[i]
 		}
-		if g != w {
-			diffs++
-			if first < 0 {
-				first = i
-				t.Errorf("trace diverges at line %d:\n  got  %s\n  want %s", i+1, g, w)
-			}
+		if g == w {
+			continue
+		}
+		diffs++
+		if strings.HasPrefix(g, "#") || strings.HasPrefix(w, "#") {
+			header++
+			continue
+		}
+		if first < 0 {
+			first = i
+			t.Errorf("trace diverges at line %d:\n  got  %s\n  want %s", i+1, g, w)
 		}
 	}
-	t.Errorf("%d of %d lines differ; regenerate with `go test ./internal/replay/ -update` "+
-		"and read the diff", diffs, len(wantLines))
+	if first < 0 {
+		// Only the header moved: the samples are identical and the digest is not, which
+		// means the digest function changed rather than the game.
+		t.Errorf("every sample matches but %d header line(s) differ -- the digest or the "+
+			"trace header changed, not the run", header)
+	}
+	t.Errorf("%d of %d lines differ (%d of them header); regenerate with "+
+		"`go test ./internal/replay/ -update` and read the diff",
+		diffs, len(wantLines), header)
 }
 
 // TestTheSameScriptTwiceIsTheSameRun is the property the whole package rests on.

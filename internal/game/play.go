@@ -754,22 +754,25 @@ func (w *World) DoDiedGameOver() {
 	w.Playing = false
 }
 
-// BringUpBanner is Banner.c:171-197 and belongs to 1.5d: the author's message on a sheet
-// of notebook paper, as a modal alert. It *blocks* -- WaitForInputEvent(15), or 4 in a demo
-// -- which is why InitGarbageRects follows it rather than precedes it, see NewGame.
+// BringUpBanner is Banner.c:171-197 and belongs to 1.7, with the rest of the shell: the
+// author's message on a sheet of notebook paper, as a modal alert. It *blocks* --
+// WaitForInputEvent(15), or 4 in a demo -- which is why InitGarbageRects follows it rather
+// than precedes it, see NewGame.
 //
 // Blocking is the part not to transcribe. See docs/IMPROVEMENTS.md 2.32: when this becomes
 // real it has to consume a count of simulated frames rather than sleep, or the window is
 // dead while it is up and no replay script can cross it.
 func (w *World) BringUpBanner() {}
 
-// DisplayStarsRemaining is Banner.c:205-243 and belongs to 1.5d: "N stars to go".
+// DisplayStarsRemaining is Banner.c:205-243 and belongs to 1.7 alongside it: "N stars to go".
 //
 // It blocks harder than BringUpBanner -- DelayTicks(60) then WaitForInputEvent(30), so one
 // to one and a half seconds -- and it is reached from two places, NewGame's resume arm here
-// and, more awkwardly, Interactions.c:946, which is the *middle* of a frame. Held keys are
-// swallowed by the wait, so a player who touches a star while walking stops walking. All
-// three problems are docs/IMPROVEMENTS.md 2.32.
+// and, more awkwardly, Interactions.c:946, which is the *middle* of a frame. That second
+// caller became real in 1.5d: HandleRewards' star arm calls this on every star but the last,
+// so from 1.7 a mid-flight star will stop the game dead for a second unless the fix lands
+// with it. Held keys are swallowed by the wait, so a player who touches a star while walking
+// stops walking. All three problems are docs/IMPROVEMENTS.md 2.32.
 func (w *World) DisplayStarsRemaining() {}
 
 // restoreSplashScreen is NewGame's tail (Play.c:257-273): repaint the work map and

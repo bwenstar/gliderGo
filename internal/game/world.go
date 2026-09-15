@@ -112,6 +112,28 @@ type World struct {
 	// accidentally matches.
 	ActiveRectEscaped int16
 
+	// NewState is `newState` (Objects.c:78), and it is a field rather than a local
+	// for one reason: HandleSwitches reads it.
+	//
+	// SetObjectState computes the state it is about to write into this global, and
+	// HandleSwitches -- having just called SetObjectState on the *linked* object --
+	// reads it back to draw its own lever (Interactions.c:1007, :1012, :1017, :1022,
+	// :1027). So the switch on the wall shows the state of the thing at the other end
+	// of the wire, which is correct and is *only* correct because the two functions
+	// share this variable. A port that made it a local would draw every lever from
+	// zero state, and a light switch would animate to "off" while turning a lamp on.
+	//
+	// It is only meaningful immediately after a SetObjectState call that returned
+	// true: every arm that can return true assigns it in the same call, and the three
+	// paths that leave it stale (kSlider, kKnifeSwitch, an unrecognised type) all
+	// return false. HandleSwitches reads it inside the `if` on that return value, so
+	// it can never see a stale value -- which is what makes reproducing the global
+	// here exact rather than merely faithful.
+	//
+	// Nothing initialises it in the C either, so its value before the first
+	// SetObjectState call is 0/false and Go's zero matches.
+	NewState bool
+
 	// Triggers is triggers[] (Triggers.c:27): sixteen fuses, each armed by the
 	// glider touching a trigger plate and fired by HandleTriggers when its timer
 	// runs out. Fixed-size, because FindEmptyTriggerSlot returning -1 -- and the

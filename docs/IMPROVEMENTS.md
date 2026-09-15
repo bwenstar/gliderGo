@@ -867,6 +867,87 @@ room change in the original, so a set switched on in one room restarts the movie
 later room that has one — that is 1994 behaviour to reproduce, not a bug to fix, and it is
 the field comment on `World.TVOn` that says so.
 
+### 2.38 A switch wired to a star makes a house impossible to finish — **fix planned, Stage 2 (needed before new houses ship); the linter is 4.1**
+
+`switchLinkedObject` (`internal/game/switches.go`) groups `kStar` with the eight other
+prizes, so a star removed by a switch gets the background restore and the puff of light and
+**neither `StopStar` nor the `StarsLeft--`** that `HandleRewards`' own star arm performs. Two
+consequences, and the second is not cosmetic:
+
+- the star's six-cel spin keeps animating over the background that was just put back, so the
+  room shows a rotating star with no star under it;
+- the star object is gone, so nothing can ever collect it, and `StarsLeft` never reaches zero.
+  **The house cannot be won.** There is no other decrement anywhere in the game.
+
+`game.TestSwitchOnAStarStrandsTheHouse` pins it in both halves — the count is unchanged, and
+a second attempt to collect the removed star also changes nothing.
+
+**No shipped house does it.** `game.TestShippedHousesWireSwitchesToPrizes` walks all 1,563
+switch and trigger plates in the 22 original houses, resolves each link the way
+`GetRoomLinked` does, and finds 165 links to a bonus object — 146 of them from a switch rather
+than a pressure plate — and **zero to a star**. So this is not a defect a player of the
+originals can reach; it is a trap for anything that authors new content, which is exactly what
+Stage 2 and Stage 5 are.
+
+(The link has to be resolved through `GetRoomLinked` and not read as a room index, which is
+what the first version of this survey did. `data.e.where` is a packed floor/suite pair — 6709
+is floor 26, suite 53 — so reading it as an index resolves nothing and reports a clean corpus.
+The test now fails outright if no link resolves, so the same mistake cannot produce a
+reassuring answer twice.)
+
+Three actions, in the order they are needed:
+
+1. **Stage 2, before the first new house ships:** fix it. The star arm needs its own case with
+   `StopStar` and the decrement, matching `HandleRewards`. Since no shipped house reaches the
+   arm, the fix cannot change any existing house's behaviour — which makes this the rare
+   reproduced bug that costs nothing to correct, and is why it is not on 2.35's leave-alone
+   list. The fidelity replays (1.8) will not notice, for the same reason.
+2. **4.1, the house linter:** an unreachable star is only one way to make a house
+   unwinnable; a linter that already walks the object graph should report any switch or
+   trigger link that can remove a star, and should do it whether or not the runtime is fixed.
+3. **Stage 5, the editor:** the link picker should not offer a star as a switch target at all.
+
+### 2.39 The switch's spurious corner sparkle fires 145 times in the shipped houses — **planned, 1.7 (opt-in fix)**
+
+`HandleSwitches` declares `bounds` and never assigns it before the prize arm's `AddSparkle`
+reads it (`Interactions.c:995` against `:1043`). On 68k that was whatever was on the stack; in
+Go it is the zero rect, so the puff lands at the top-left corner of the play area rather than
+somewhere unpredictable. The sparkle the player is *meant* to see comes from
+`RestoreFromSavedMap`'s own `doSparkle` arm one line earlier and is correctly placed on the
+prize, so this second one is pure noise — nothing reads it, nothing depends on it, and
+removing it changes only what is on screen.
+
+**It is not latent.** The same corpus survey counts **145 switch links into the prize arm**
+across the 22 original houses — 48 to paper, 40 to foil, 23 to a yellow clock, 12 to helium,
+and so on — so a player of the shipped content sees a stray flash at the corner of the room
+every time one of those switches is thrown. It is the sort of thing that reads as a rendering
+bug in the port rather than as fidelity to 1994.
+
+Kept for now, because 1.8's fidelity replays compare sparkle tables and this is a real
+difference in them. Removed behind the same modern-options flag as 2.19, 2.20 and 2.22, where
+one line deletes it. `game.TestTheSpuriousSparkleLandsAtTheCorner` asserts the current
+behaviour, including that the puff is at the origin rather than merely somewhere.
+
+### 2.40 Three of the twenty-three switch arms have never run in any build — **note; matters to Stage 5's editor**
+
+The second dispatch in `HandleSwitches` runs only when `SetObjectState` returned true, and
+`SetObjectState` returns false for `kSlider`, `kSoundTrigger` and `kGuitar`. So all three arms
+are dead code in the original as well as in the port, and `game.TestThreeSwitchArmsCannotBeReached`
+pins the fact against a future change to `SetObjectState` bringing one to life untested.
+
+`kSlider` and `kGuitar` cost nothing: the slider arm is empty anyway, and the author's own
+comment on the guitar is "really no point to change this state". `kSoundTrigger` is the loss.
+It sits in `SetObjectState`'s *switch* family, which returns false because a switch has no
+state of its own — so **a switch wired to a sound trigger has never played a sound**, in 1994
+or now, however plainly `switchLinkedObject` says it should. `FireTrigger`'s own sound-trigger
+arm does work, which is presumably why nobody noticed.
+
+Not fixed, because making it work would give existing wiring in the shipped houses a new
+audible effect, and because the custom sound loader it wants is 1.6. Recorded because the
+Stage 5 editor should not present a link the game cannot honour: either the picker omits
+sound triggers as switch targets, or 1.6 makes the arm reachable on purpose and the fidelity
+replays get a note.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -960,6 +1041,26 @@ Two further notes on that test, both of which cost time to find:
   of the transition frame therefore reports the glider offset by `-RoomWide` but not yet
   stepped, and misses the second of the frame's two renders entirely.
 
+### 4.3 The golden trace reported the digest as the first divergence — **DONE, 1.5d; the second half is 1.8**
+
+`duct.trace`'s line 4 is a digest of all 601 samples, so it changes whenever any sample does.
+The failure report printed the first differing line, which therefore named line 4 on every
+single failure and buried the frame that actually moved. In 1.5d that cost real time: the first
+reading of the divergence was "the digest changed", and the event — a switch thrown on frame
+224 — was 225 lines further down. The report now skips comment lines when choosing the
+difference to print, counts them separately, and says so explicitly in the one case where only
+the header moved, which means the digest function changed rather than the game.
+
+**The second half is a design limit and is owed at 1.8.** One 600-frame script can only pin the
+subsystems the glider happens to visit, and bringing an object to life can move the glider. That
+is exactly what 1.5d did: room 5's ceiling switch arms a transporter, so from frame 225 the
+trace is in room 70 and six of the toaster's nine bursts are gone from it. Nothing was lost this
+time, because the toaster's arithmetic is pinned closed-form by `TestLaunchVelocityFromHeight`,
+but the next stage that animates something may quietly walk the trace away from whatever it was
+illustrating. 1.8 should carry several short scripts, one per subsystem, instead of one long one
+— and the general rule is the one 2.38's survey also taught: a test that follows the game rather
+than asserting about it has to be able to say what it stopped covering.
+
 ---
 
 ## Done
@@ -977,9 +1078,10 @@ Two further notes on that test, both of which cost time to find:
 | 4.2 `internal/replay` and `glidertool replay`: the bug-report format | 1.5b | this stage |
 | 2.25 `Scene.RedrawCentralRoom`: a light switch repaints one room, not nine | 1.5c | this stage |
 | 2.34 (outlet half) `HandleOutlet` names its destination instead of inheriting an ambient port | 1.5c | this stage |
+| 4.3 (first half) The golden trace's failure report names the frame that moved, not the digest | 1.5d | this stage |
 
-Two bugs found and fixed in the port itself while writing this, neither of which is an
-"improvement" so much as a repair, both recorded here because the reason no test caught
+Four bugs found and fixed in the port itself while writing this, none of which is an
+"improvement" so much as a repair, all recorded here because the reason no test caught
 them is worth keeping:
 
 - **`render.bgrxLUT` was built from a zero-valued `Palette`.** Go runs every package-level
@@ -993,3 +1095,28 @@ them is worth keeping:
 - **`playTestWorld` budgeted presents, not frames.** See 2.4. `cmd/glidergo`'s `-frames`
   flag had the same bug and is fixed the same way; the mistake is easy to make twice because
   `Present` is the only per-frame hook a host owns, so it reads like a frame counter.
+- **`HandleRewards` was missing the `kHelium` arm entirely** (1.5d;
+  `Interactions.c:956-977`). A transcription slip, not a decision — the arm was dropped
+  between `kStar` and `kSlider`, and nothing complained because a helium balloon is a
+  `bonusType` like any other, so it built and ran and simply did nothing when touched. What
+  identified it as a slip rather than a deferral is that two comments in the same file already
+  counted *ten* restoring arms and *five* doubling arms, and both figures only hold with helium
+  present. The recovered arm is the battery's mirror with three sign inversions — the `< 0`
+  test, the `= -HeliumSupply` assignment, and a doubling that *subtracts* — and
+  `TestBatteryAndHeliumShareOneSignedCounter` exists because getting any one of them wrong
+  hands the player thrust where the balloon should have given buoyancy.
+
+  The lesson for the rest of the port is the test that found it, not the bug.
+  `TestEveryDispatchableRewardIsConsumed` does not list the reward types: it sweeps every
+  object code through `CreateActiveRects`, collects the ones that produce a `kRewardIt` rect,
+  and requires `HandleRewards` to consume each. A hand-written list would have had the same
+  hole as the switch statement. Any other port function that dispatches on object type is a
+  candidate for the same treatment.
+- **`World.NewState` was a local, so every switch lever showed the wrong state** (1.5d).
+  `SetObjectState` computes the state it writes into a file-scope global that `HandleSwitches`
+  reads back to draw the plate, which is what makes a light switch show the *lamp's* new state
+  rather than its own — a switch has no state of its own to show. With the value local, every
+  lever drew from a zero, so a switch animated to "off" while turning a lamp on. Invisible
+  without art, which is why `TestLeverShowsTheLinkedObjectsState` renders the plate twice and
+  compares pixels, with a second art-free test on the field for runs where the assets are not
+  extracted.

@@ -1,8 +1,8 @@
 package game
 
 // The poke path: trip.go's fourteen Toggle*, its eight Trigger* and its one
-// UpdateOutletsLighting, plus triggers.go's arm/tick/fire machinery, which is the only
-// thing that reaches any of them before 1.5d.
+// UpdateOutletsLighting, plus triggers.go's arm/tick/fire machinery. Since 1.5d the other way
+// in is HandleSwitches, and switches_test.go owns that side.
 //
 // Two shapes of test here and the difference is worth naming, because it decides what a
 // failure means.
@@ -18,9 +18,11 @@ package game
 // remote arm, and a `default` whose emptiness is a design decision (see
 // TestSevenTypesAreNotTriggerable, which trip.go's header points at by name).
 //
-// HandleSwitches is a stub until 1.5d, so TriggerSwitch cannot be tested for its effect.
-// It is tested for its *bound* instead -- which table it indexes -- and that turns out to
-// be the more valuable half anyway, since the bound is the thing hazard H2 is about.
+// TriggerSwitch is tested here for its *bound* -- which table it indexes -- and not for its
+// effect, even though HandleSwitches has been real since 1.5d. The bound is the half that
+// matters at this seam, because it is the thing hazard H2 is about: `who` is a hotSpots index
+// and not a dinahs slot, and every other Trigger* takes the other kind. The effects belong to
+// switches_test.go, which drives HandleSwitches directly.
 
 import (
 	"testing"
@@ -890,8 +892,10 @@ func TestFireTriggerDispatch(t *testing.T) {
 			check: func(t *testing.T, w *World) { wantSpilled(t, w) },
 		},
 		// The six switch arms. DynaNum is a hotSpots index here, not a dinahs slot, and
-		// with the hot-spot table empty the refusal is the proof the arm was taken --
-		// HandleSwitches being a stub until 1.5d.
+		// with the hot-spot table empty the refusal is the proof the arm was taken. That
+		// is still the right observable now HandleSwitches is real: a fixture with a
+		// populated hot-spot table would prove the dispatch through the switch's own
+		// effects, which is switches_test.go's job.
 		{name: "lightSwitch throws", target: LightSwitch, register: noDinah, dynaNum: 0,
 			check: wantForwardedToASwitch},
 		{name: "machineSwitch throws", target: MachineSwitch, register: noDinah, dynaNum: 0,
@@ -1030,8 +1034,8 @@ func wantSpilled(t *testing.T, w *World) {
 }
 
 // wantForwardedToASwitch is the six switch arms' assertion: TriggerSwitch was reached with
-// the target's DynaNum, and refused it because the hot-spot table is empty. That refusal is
-// the only observable the arm has while HandleSwitches is stubbed to 1.5d.
+// the target's DynaNum, and refused it because the hot-spot table is empty. The refusal is
+// what makes the forward observable without also dragging in everything a real switch does.
 func wantForwardedToASwitch(t *testing.T, w *World) {
 	t.Helper()
 	if len(w.Diag.Seen) != 1 || w.Diag.Seen[0].Kind != devHotSpot {

@@ -283,14 +283,18 @@ const (
 )
 
 // ---------------------------------------------------------------------------
-// The one poke FireTrigger dispatches to that is still a stub
+// The two grease functions, both charged to 1.5e
 // ---------------------------------------------------------------------------
 //
-// The other eight -- TriggerSwitch, TriggerToast, TriggerOutlet, TriggerBalloon,
-// TriggerCopter, TriggerDart, TriggerDrip, TriggerFish -- landed with the rest of Trip.c in
-// 1.5c and are in trip.go. This one is charged to 1.5e, so a trigger wired to grease still
-// spills it in the house copy (the SetObjectState call above is real) and simply does not
-// draw the slick.
+// The other eight pokes FireTrigger dispatches to -- TriggerSwitch, TriggerToast,
+// TriggerOutlet, TriggerBalloon, TriggerCopter, TriggerDart, TriggerDrip, TriggerFish --
+// landed with the rest of Trip.c in 1.5c and are in trip.go. SpillGrease is charged to
+// 1.5e, so a trigger wired to grease still spills it in the house copy (the SetObjectState
+// call above is real) and simply does not draw the slick.
+//
+// RedrawAllGrease is here beside it because it is the same subsystem and the same stage, and
+// because ten of HandleRewards' fourteen arms call it -- which makes "why is this empty" a
+// question worth answering once, next to the function it depends on.
 
 // SpillGrease is DynamicMaps.c: a grease bonus becomes a slick on the floor. 1.5e, bands
 // and grease. Its second argument is the object's HotNum, because the slick's kSlideIt
@@ -300,3 +304,21 @@ const (
 // branch condition has just proved is -1 (the C reads dinahs[-1] there), so this will need
 // World.dinah's refusal when it lands rather than an unguarded index.
 func (w *World) SpillGrease(dynaNum, hotNum int16) {}
+
+// RedrawAllGrease is Grease.c:270-303: repaint the black lines of every spilt slick into
+// both maps.
+//
+// **This empty body is exact, not a stub, and it stays empty until 1.5e.** The C's function
+// only draws a slick whose `mode != kGreaseIdle` -- one that has been knocked over and is
+// mid-spread -- and nothing can set that mode until SpillGrease above is real. So there is no
+// frame before 1.5e on which the C's loop would have painted anything.
+//
+// Why every reward arm calls it at all is the interesting part, and it is not obvious from
+// the name: RestoreFromSavedMap has just written a rectangle of *original* background into
+// the back map, and if a slick had been drawn across that rectangle earlier in the room's
+// life, the erase has just deleted part of it. This repaints the lot. It is a
+// belt-and-braces repair of one subsystem by another, which is why it is called by exactly
+// the ten reward arms that restore a saved map -- the other four (the shared grease arm, the
+// invisible bonus, the sparkle and the slider) do not call it -- and why the order matters:
+// after the restore, never before.
+func (w *World) RedrawAllGrease() {}

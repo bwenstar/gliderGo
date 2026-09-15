@@ -95,12 +95,16 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 	// should be findable.
 	changed := false
 
-	// `newState` is a **file-scope global** in the C (Objects.c:22), not a local.
-	// Nothing reads it outside this function, so the port makes it a local -- but
-	// the consequence of the C's choice is worth noting: after a call that matched
-	// no case, newState still holds the value the *previous* call left, and a
-	// debugger stepping through will show a stale value rather than garbage.
-	newState := false
+	// `newState` is a **file-scope global** in the C (Objects.c:78), not a local, and
+	// it stays one here as World.NewState because HandleSwitches reads it back to draw
+	// the switch's own lever (Interactions.c:1007-1027). See the field's comment for
+	// why that is exact.
+	//
+	// The consequence of the C's choice is still worth naming: after a call that
+	// matched no case it holds the value the *previous* call left, so the value is
+	// only meaningful when this function returns true. Nothing resets it on entry,
+	// here or there, which is why it is written as w.NewState at every one of the
+	// twenty sites below rather than copied into a local and published at the end.
 
 	switch obj.What {
 	// ---------------------------------------------------------------- blowers
@@ -113,30 +117,30 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 		cur := obj.Data[offBlowerState] != 0
 		switch action {
 		case Toggle:
-			newState = !cur
+			w.NewState = !cur
 			changed = true
 		case ForceOn:
 			changed = !cur
-			newState = true
+			w.NewState = true
 		case ForceOff:
 			changed = cur
-			newState = false
+			w.NewState = false
 		}
-		obj.Data[offBlowerState] = b2b(newState)
+		obj.Data[offBlowerState] = b2b(w.NewState)
 
 		if changed && local != -1 && w.masterValid(local) {
 			m := &w.R.Master[local]
-			m.TheObject.Data[offBlowerState] = b2b(newState)
+			m.TheObject.Data[offBlowerState] = b2b(w.NewState)
 			// thisRoom->objects[object].data.a.state = newState is the C's third
 			// write. This port has no separate thisRoom copy -- see World.ThisRoom
 			// -- so the house write above already covers it.
-			if newState {
+			if w.NewState {
 				w.PlayPrioritySound(SoundBlowerOn, PriorityBlowerOn)
 			} else {
 				w.PlayPrioritySound(SoundBlowerOff, PriorityBlowerOff)
 			}
 			if m.HotNum != -1 && int(m.HotNum) < len(w.R.Hot) {
-				w.R.Hot[m.HotNum].IsOn = newState
+				w.R.Hot[m.HotNum].IsOn = w.NewState
 			}
 		}
 
@@ -167,7 +171,7 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 	case RedClock, BlueClock, YellowClock, Cuckoo, Paper, Battery, Bands,
 		GreaseRt, GreaseLf, Foil, InvisBonus, Star, Sparkle, Helium:
 		changed = obj.Data[offBonusState] != 0
-		newState = false
+		w.NewState = false
 		obj.Data[offBonusState] = 0
 
 		if changed && local != -1 && w.masterValid(local) {
@@ -225,17 +229,17 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 		cur := obj.Data[offTransportWide] & 0x0F
 		switch action {
 		case Toggle:
-			newState = cur == 0 // !(wide & 0x0F), through Boolean
+			w.NewState = cur == 0 // !(wide & 0x0F), through Boolean
 			changed = true
 		case ForceOn:
 			changed = cur == 0x00
-			newState = true
+			w.NewState = true
 		case ForceOff:
 			changed = cur != 0x00
-			newState = false
+			w.NewState = false
 		}
 		obj.Data[offTransportWide] &= 0xF0
-		obj.Data[offTransportWide] += b2b(newState)
+		obj.Data[offTransportWide] += b2b(w.NewState)
 
 		if changed && local != -1 && w.masterValid(local) {
 			m := &w.R.Master[local]
@@ -244,7 +248,7 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 			// family.
 			m.TheObject.Data[offTransportWide] = obj.Data[offTransportWide]
 			if m.HotNum != -1 && int(m.HotNum) < len(w.R.Hot) {
-				w.R.Hot[m.HotNum].IsOn = newState
+				w.R.Hot[m.HotNum].IsOn = w.NewState
 			}
 		}
 
@@ -267,19 +271,19 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 		cur := obj.Data[offLightState] != 0
 		switch action {
 		case Toggle:
-			newState = !cur
+			w.NewState = !cur
 			changed = true
 		case ForceOn:
 			changed = !cur
-			newState = true
+			w.NewState = true
 		case ForceOff:
 			changed = cur
-			newState = false
+			w.NewState = false
 		}
-		obj.Data[offLightState] = b2b(newState)
+		obj.Data[offLightState] = b2b(w.NewState)
 
 		if changed && local != -1 && w.masterValid(local) {
-			w.R.Master[local].TheObject.Data[offLightState] = b2b(newState)
+			w.R.Master[local].TheObject.Data[offLightState] = b2b(w.NewState)
 		}
 
 	// -------------------------------------------------------------- appliances
@@ -294,8 +298,8 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 	// stereo is a music toggle, every press flips it whatever the action asked for,
 	// and a trigger sending ForceOn turns the music *off* if it was on.
 	case Stereo:
-		newState = !w.R.PlayMusicGame
-		w.R.PlayMusicGame = newState
+		w.NewState = !w.R.PlayMusicGame
+		w.R.PlayMusicGame = w.NewState
 		changed = true
 
 	// Eight switchable appliances. kGuitar and kStereo are handled above; the four
@@ -304,24 +308,24 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 		cur := obj.Data[offApplianceState] != 0
 		switch action {
 		case Toggle:
-			newState = !cur
+			w.NewState = !cur
 			changed = true
 		case ForceOn:
 			changed = !cur
-			newState = true
+			w.NewState = true
 		case ForceOff:
 			changed = cur
-			newState = false
+			w.NewState = false
 		}
-		obj.Data[offApplianceState] = b2b(newState)
+		obj.Data[offApplianceState] = b2b(w.NewState)
 
 		if changed && local != -1 && w.masterValid(local) {
 			m := &w.R.Master[local]
-			m.TheObject.Data[offApplianceState] = b2b(newState)
+			m.TheObject.Data[offApplianceState] = b2b(w.NewState)
 			if room == w.R.RoomNumber && obj.What == Shredder {
 				// The second bug. The C is
 				//
-				//	hotSpots[masterObjects[local].hotNum].isOn = newState;
+				//	hotSpots[masterObjects[local].hotNum].isOn = w.NewState;
 				//
 				// with **no hotNum != -1 test**, unlike every other family here. A
 				// shredder whose hot spot was never created -- the table was full at
@@ -333,7 +337,7 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 				// alternative is a Go panic, and a panic is not what the original
 				// did; the divergence is that a corrupt write becomes a no-op.
 				if m.HotNum != -1 && int(m.HotNum) < len(w.R.Hot) {
-					w.R.Hot[m.HotNum].IsOn = newState
+					w.R.Hot[m.HotNum].IsOn = w.NewState
 				}
 			}
 		}
@@ -351,19 +355,19 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 		cur := obj.Data[offEnemyState] != 0
 		switch action {
 		case Toggle:
-			newState = !cur
+			w.NewState = !cur
 			changed = true
 		case ForceOn:
 			changed = !cur
-			newState = true
+			w.NewState = true
 		case ForceOff:
 			changed = cur
-			newState = false
+			w.NewState = false
 		}
-		obj.Data[offEnemyState] = b2b(newState)
+		obj.Data[offEnemyState] = b2b(w.NewState)
 
 		if changed && local != -1 && w.masterValid(local) {
-			w.R.Master[local].TheObject.Data[offEnemyState] = b2b(newState)
+			w.R.Master[local].TheObject.Data[offEnemyState] = b2b(w.NewState)
 		}
 
 	// A cobweb is permanent. Its own state byte exists -- enemyType has one -- and

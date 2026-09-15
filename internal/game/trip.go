@@ -43,9 +43,10 @@ package game
 // The fourteen Toggle* (Trip.c:20-142)
 // ---------------------------------------------------------------------------
 //
-// HandleSwitches (Interactions.c:1090-1148) is the only caller of all fourteen, so until
-// 1.5d they are reachable only from FireTrigger's kSwitch arms -- via TriggerSwitch, which
-// forwards into that same stub -- and from tests.
+// HandleSwitches (Interactions.c:1090-1148) is the only caller of all fourteen, and it landed
+// in 1.5d, so the two ways into these functions are a glider touching a switch and a trigger
+// wired to one (FireTrigger's switch arm forwards through TriggerSwitch). Nothing else in the
+// game calls them.
 //
 // Nine are `active = !active` and nothing else. Three flip and force a four-frame timer.
 // One is asymmetric. One can refuse. They are written out one per function rather than
@@ -219,9 +220,10 @@ func (w *World) ToggleFish(index int16) {
 // and which is also hazard H2, since AddDynamicObject's hotSpots index is the wrong one
 // in eight of the nine rooms. See the table slice.
 //
-// So it is bounded against w.R.Hot rather than through World.dinah. HandleSwitches is
-// stubbed to 1.5d, which makes this a real forwarder into a stub -- the single stub
-// PLAN.md's 1.5c bullet promises. What can be tested now is the forward, not the effect.
+// So it is bounded against w.R.Hot rather than through World.dinah. HandleSwitches landed in
+// 1.5d, so this now forwards into a real function: a trigger wired to a switch throws it, and
+// through it reaches everything a switch can reach. See switches_test.go for the effects and
+// trip_test.go for the forward and its bound.
 func (w *World) TriggerSwitch(who int16) {
 	if w.badIndex(devHotSpot, int(who), len(w.R.Hot)) {
 		return
@@ -396,8 +398,8 @@ func (w *World) TriggerDart(who int16) {
 // with a non-zero count and its sockets would stop painting themselves out.
 //
 // One caller: RedrawRoomLighting, which is gated on the central room crossing between dark
-// and lit, and which is itself reached only from HandleSwitches' eight light arms. So this
-// is transcribed here and becomes reachable in 1.5d, exactly like TriggerSwitch.
+// and lit, and which is itself reached only from HandleSwitches' eight light arms. Both of
+// those landed in 1.5d, so throwing a light switch is now the whole path in.
 func (w *World) UpdateOutletsLighting(room, nLights int16) {
 	for i := int16(0); i < w.NumDynamics; i++ {
 		if w.Dinahs[i].Type == Outlet && w.Dinahs[i].Room == room {

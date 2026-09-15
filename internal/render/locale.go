@@ -108,6 +108,20 @@ type SavedMap struct {
 	// slot doubles as scratch for the frame strip.
 	Map *Surface
 
+	// Dest is the rect the pixels came from, in screen coordinates, and is where
+	// RestoreFromSavedMap puts them back.
+	//
+	// **It is not always the object's rect**, because the five animated families ask
+	// for a strip rather than a swatch: a star's second slot records (0,0,32,186),
+	// the top-left corner of the screen, because that is the rect AddStar handed to
+	// BackUpToSavedMap. Restoring through such a slot would paint the frame strip
+	// over the corner of the play area. Nothing does, and the reason is worth
+	// knowing: only prizes are ever restored, a prize's *first* slot is claimed by
+	// DrawARoomsObjects with the object's real rect, and RestoreFromSavedMap stops at
+	// the first match -- so the star's and the cuckoo's second slots are unreachable
+	// from it. See the note on addStar.
+	Dest Rect
+
 	// Where and Who identify the object, so RestoreFromSavedMap can find it.
 	Where int16
 	Who   int16
@@ -121,6 +135,20 @@ type Anim struct {
 	SavedMap int  // the savedMaps slot holding the background under Dest
 	Where    int16
 	Who      int16
+
+	// Stopped retires the entry. Only the pendulum and the star can be stopped --
+	// by collecting the cuckoo clock or the star they belong to -- and the C spells
+	// the same idea two ways: `pendulums[i].active = false` (DynamicMaps.c:698) and
+	// `theStars[i].mode = -1` (DynamicMaps.c:714). Both are read as a plain gate by
+	// Render.c:278 and :429, so one flag covers both.
+	//
+	// The two are not quite interchangeable in the C, and the difference does not
+	// matter only because nothing ever restarts either: a stopped pendulum keeps its
+	// phase in `mode` and would resume where it left off, while a stopped star has
+	// overwritten its phase with the sentinel and could not. 1.5f's animators read
+	// this flag; when they add their own phase field, the star's must not be
+	// re-seeded from it.
+	Stopped bool
 }
 
 // Scene is the room composition: the geometry, the art, the house, and the
@@ -1348,6 +1376,11 @@ func (s *Scene) ExtractFloorSuite(combo int16) (floor, suite int16) {
 // redraw selects ReBackUpSavedMap (DynamicMaps.c:100-127), which finds the
 // existing slot for this object and refreshes it instead of claiming a new one.
 // It is not reached by a fresh composition.
+//
+// **Dest is written only on the claim.** ReBackUpSavedMap re-copies the pixels and
+// leaves the rect alone, and that is reproduced rather than tidied: every redraw
+// passes the same rect the claim did, so writing it would be a no-op, and *not*
+// writing it is what says the slot's identity is fixed at claim time.
 func (s *Scene) backUpToSavedMap(theRect Rect, where, who int16, redraw bool) int {
 	if redraw {
 		for i := range s.SavedMaps {
@@ -1361,7 +1394,8 @@ func (s *Scene) backUpToSavedMap(theRect Rect, where, who int16, redraw bool) in
 	if len(s.SavedMaps) >= kMaxSavedMaps {
 		return -1
 	}
-	s.SavedMaps = append(s.SavedMaps, SavedMap{Map: s.patch(theRect), Where: where, Who: who})
+	s.SavedMaps = append(s.SavedMaps,
+		SavedMap{Map: s.patch(theRect), Dest: theRect, Where: where, Who: who})
 	return len(s.SavedMaps) - 1
 }
 
@@ -1458,6 +1492,34 @@ func (s *Scene) addStar(where, who, h, v int16) {
 		return
 	}
 	s.Stars = append(s.Stars, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
+}
+
+// StopPendulum is DynamicMaps.c:693-702 and StopStar is DynamicMaps.c:709-718: the
+// cuckoo clock or the star this animation belongs to has been collected, so retire it.
+//
+// Three things about the pair. They match on the *object* (Where, Who) rather than on
+// the table index, because the caller has an object and not an index. They do **not**
+// break on the first match -- unlike RestoreFromSavedMap, which does -- so a house that
+// somehow registered two pendulums for one clock would stop both; that is the original's
+// loop and it costs nothing. And neither erases anything: the pixels are put back by
+// RestoreFromSavedMap on the line before, and all these do is stop the animator drawing
+// over them again next frame. Calling them without the restore leaves the last cel
+// frozen on screen forever.
+func (s *Scene) StopPendulum(where, who int16) {
+	for i := range s.Pendulums {
+		if s.Pendulums[i].Where == where && s.Pendulums[i].Who == who {
+			s.Pendulums[i].Stopped = true
+		}
+	}
+}
+
+// StopStar is DynamicMaps.c:709-718. See StopPendulum.
+func (s *Scene) StopStar(where, who int16) {
+	for i := range s.Stars {
+		if s.Stars[i].Where == where && s.Stars[i].Who == who {
+			s.Stars[i].Stopped = true
+		}
+	}
 }
 
 // addDynamicObject forwards to the AddDynamicObject hook, subtracting playOrigin

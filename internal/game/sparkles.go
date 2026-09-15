@@ -141,10 +141,9 @@ func (w *World) AddSparkle(theRect Rect) {
 // so an author who types 700 gets the 1000 art. That is the original's behaviour and it is
 // visible in at least one shipped house.
 //
-// Every caller is a reward (Interactions.c:773, :789, :805, :822, :925), which is 1.5d's
-// work; this function is here now because it is the only producer for the table
-// RenderFlyingPoints walks, and one table with its producer beats a renderer with nothing
-// behind it. Until 1.5d lands, NumFlyingPts is 0 for the whole game.
+// Every caller is a reward (Interactions.c:773, :789, :805, :822, :925), so all five arrived
+// with HandleRewards in 1.5d: the three clocks, the cuckoo and the invisible bonus. Nothing
+// else in the game makes a flying point.
 func (w *World) AddFlyingPoint(theRect Rect, points, hVel, vVel int16) {
 	if w.NumFlyingPts >= MaxFlyingPts {
 		return
