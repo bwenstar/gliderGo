@@ -910,7 +910,24 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
 
 **1.8 Fidelity pass**
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of
-  reference frames.
+  reference frames. Three commits:
+  - **1.8a The corpus** ✅ *done* — `internal/fidelity`, and the first pixels this project has
+    ever checked in. Per-frame hashes of the three index planes as diffable text: 601 rows for
+    the 600-frame duct script, plus the six shell screens a player meets before a game starts,
+    which no replay script can reach. Hashes and not images, because `git diff` on the corpus
+    says *which frames* moved and 300MB of PNGs in a clone's history says nothing; a failing
+    test re-runs the one frame that diverged and writes it out as three PNGs, which is what
+    `Snapshot` is for. `internal/replay` grew exactly one thing for it — `Watch`, a per-frame
+    observer that copies the planes at each `Present` and hashes once per frame in `flush`, so
+    the harness's one rule (nothing here may affect the simulation) still holds and a
+    transition frame still costs one row instead of 161. `make fidelity` fails rather than
+    skips on a machine that has the assets.
+    - What building it pinned: the end state a replay reports is **not** the last frame the
+      player saw. After the loop, `PlayGame`'s unconditional arcade block blackens the
+      scoreboard band and blits it to the screen (`Play.c:551-593`), and `CopyRectsQD` has
+      already restored `Back` over `Work` — so `Result.Planes` carries twenty rows no frame
+      ever presented and an erase the frame did not have. Both answers are worth keeping; the
+      corpus is the frames, `Planes` is what the process was left holding.
 - **Demo replay is the harness, not a feature.** The original records input as `demoType`
   (`{long frame; char key; char padding}`, `GliderStructs.h`) — a keystroke stream keyed to frame
   numbers. Replaying one is a frame-exact determinism test, which is what Stage 3's race needs and

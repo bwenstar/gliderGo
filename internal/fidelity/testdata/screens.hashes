@@ -1,0 +1,17 @@
+# gliderGo fidelity reference -- screens
+# regenerate with `go test ./internal/fidelity -update` and read the diff:
+# every changed line is a pixel that moved.
+kind screens
+house CD Demo House
+houses 22
+skipped 0
+prefs defaults
+version fidelity
+view 640x480
+columns screen
+splash e44a0c9f147b8497
+houses 067937f78a8eddcc
+settings ad3a037061f4b196
+about 5369612841b1f841
+credits ff2f484f08cc2e17
+scores c7c5d05e5084299a

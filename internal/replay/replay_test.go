@@ -16,8 +16,11 @@ package replay_test
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +30,7 @@ import (
 	"glidergo/internal/audio"
 	"glidergo/internal/game/player"
 	"glidergo/internal/house"
+	"glidergo/internal/render"
 	"glidergo/internal/replay"
 )
 
@@ -1011,4 +1015,147 @@ func TestFirstRoomStartIsNotAResume(t *testing.T) {
 		t.Errorf("ended in room %d, want 4 -- `room` without `where` must not place the "+
 			"glider at a transit", res.Room)
 	}
+}
+
+// TestWatchSeesEveryFrameOnce pins the Watch contract, which internal/fidelity's whole corpus
+// rests on: one call per recorded frame, in order, with the sample the frame's counters were
+// taken from.
+//
+// The point being pinned is that Present is not a frame. It fires once per wipe strip inside a
+// transition -- and this script's glider takes a duct on frame 9, so the run has one -- and a
+// hook that reported per Present would hand a corpus 160 rows for one frame and pin the middle
+// of the wipe as if it were the frame.
+func TestWatchSeesEveryFrameOnce(t *testing.T) {
+	s := script(t, "duct.script")
+	s.Frames = 40
+
+	var seen []int64
+	var mains, works, backs []string
+	var kept *render.Surface
+	var keptHash string
+	res, err := replay.RunWatching(s, nil, func(sample replay.Sample, main, work, back *render.Surface) {
+		seen = append(seen, sample.Frame)
+		mains = append(mains, planeHash(main))
+		works = append(works, planeHash(work))
+		backs = append(backs, planeHash(back))
+		if kept == nil {
+			kept, keptHash = main, planeHash(main)
+		}
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if len(seen) != len(res.Samples) {
+		t.Fatalf("the watch saw %d frames and the trace has %d samples", len(seen), len(res.Samples))
+	}
+	for i, f := range seen {
+		if f != res.Samples[i].Frame {
+			t.Fatalf("watch call %d was frame %d, the trace's is %d", i, f, res.Samples[i].Frame)
+		}
+	}
+	if got := res.Samples[9].Renders; got < 2 {
+		t.Errorf("frame 9 rendered %d times: this script is supposed to cross a transition "+
+			"there, and without one the test is not pinning anything", got)
+	}
+
+	// The Back plane changes on the transition frame and nowhere else in this run, which is
+	// what proves the watch is being handed *this frame's* composition rather than one
+	// end-of-run surface: room 4's background is one hash for frames 0-8 and room 5's is
+	// another from frame 9 on.
+	if backs[8] == backs[9] {
+		t.Errorf("the composition is %s on both sides of the room change: the watch is not "+
+			"seeing a per-frame Back", backs[8])
+	}
+	for i := 10; i < len(backs); i++ {
+		if backs[i] != backs[9] {
+			t.Errorf("frame %d composes room 5 differently (%s, was %s): nothing in this "+
+				"run redraws the background after the transition", i, backs[i], backs[9])
+			break
+		}
+	}
+	// And frame 0 is the composition with nothing over it yet: the first render happens
+	// before anything has animated, so the composite *is* the background.
+	if works[0] != backs[0] {
+		t.Errorf("frame 0's work map (%s) already differs from the background (%s) before "+
+			"anything moved", works[0], backs[0])
+	}
+
+	// The last frame's Main is what the player was left looking at, and it is deliberately
+	// **not** Result.Planes.Main. Two things happen after that last Present: CopyRectsQD
+	// restores Back over Work (so the end state's Work is the erase, not the frame), and
+	// then PlayGame's unconditional arcade block blackens the scoreboard band and blits it
+	// to the screen (Play.c:551-593, scoreboard.go's arcadeBlackenBoard) -- so the end state
+	// includes twenty rows no frame ever presented.
+	//
+	// That gap is the reason a per-frame corpus is worth building at all: Planes is the
+	// state the process was left in, and internal/fidelity's rows are the pictures the game
+	// actually showed. Pinned as an inequality because the day they *do* match, either the
+	// arcade block stopped running or the shot is being taken after the erase.
+	last := len(mains) - 1
+	if mains[last] == res.Planes.Main {
+		t.Errorf("the last frame's Main and the end state both hash %s: the teardown's "+
+			"scoreboard blit is missing, or the watch is being called too late", mains[last])
+	}
+	if works[last] == res.Planes.Work {
+		t.Errorf("the last frame's work map and the end state both hash %s: the frame's "+
+			"composite is supposed to be captured before the Back2Work restore", works[last])
+	}
+
+	// And the surfaces are a reused scratch copy, which is the contract a watcher has to
+	// obey by cloning: the pointer from the first frame does not still hold the first frame.
+	if kept != nil && planeHash(kept) == keptHash {
+		t.Error("the surface handed to the watch still holds frame 0 at the end of the run; " +
+			"Watch documents a reused buffer and internal/fidelity clones on that basis")
+	}
+}
+
+// TestWatchingDoesNotChangeTheRun is the package's one rule, applied to its newest hook. A
+// harness that observes the picture must not be able to move a pixel of it.
+func TestWatchingDoesNotChangeTheRun(t *testing.T) {
+	s := script(t, "duct.script")
+	s.Frames = 60
+
+	plain, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	// A watcher that does the worst thing a watcher can do: writes to what it was handed.
+	// Because the surfaces are copies, this must be invisible to the run.
+	watched, err := replay.RunWatching(s, nil, func(_ replay.Sample, main, work, back *render.Surface) {
+		for i := range main.Pix {
+			main.Pix[i] = 0xFF
+		}
+		for i := range work.Pix {
+			work.Pix[i] = 0xFF
+		}
+		for i := range back.Pix {
+			back.Pix[i] = 0xFF
+		}
+	})
+	if err != nil {
+		t.Fatalf("run watching: %v", err)
+	}
+	if plain.Digest != watched.Digest {
+		t.Errorf("watching changed the trace: %s became %s", plain.Digest, watched.Digest)
+	}
+	if plain.Planes != watched.Planes {
+		t.Errorf("watching changed the picture:\n unwatched %+v\n watched   %+v", plain.Planes, watched.Planes)
+	}
+	if plain.Audio.Digest != watched.Audio.Digest {
+		t.Errorf("watching changed the mix: %s became %s", plain.Audio.Digest, watched.Audio.Digest)
+	}
+}
+
+// planeHash is the test's own hash of a surface: the same shape as the package's internal one
+// and the corpus's, kept separate because a test that shares the function it is checking
+// cannot catch a change to it.
+func planeHash(s *render.Surface) string {
+	if s == nil {
+		return "-"
+	}
+	sum := sha256.New()
+	fmt.Fprintf(sum, "%dx%d\n", s.W, s.H)
+	sum.Write(s.Pix)
+	return hex.EncodeToString(sum.Sum(nil))[:16]
 }

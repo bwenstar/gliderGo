@@ -42,6 +42,12 @@
 // the value, so a deliberate pixel change costs nothing, while two runs of one script are
 // still required to agree on it.
 //
+// The checked-in version of that question lives one package over, in internal/fidelity,
+// which drives this one through Watch to hash the picture at the end of every frame. It is
+// separated on purpose: a reference corpus is a file that a deliberate pixel change has to
+// be re-blessed against, and putting it in the trace format would make every script on file
+// a hostage to the next sub-stage's improvements.
+//
 // # Sound
 //
 // The audio is in the trace twice over, and the split is the same one: what happened is in the
@@ -407,9 +413,75 @@ func planeDigest(s *render.Surface) string {
 	return hex.EncodeToString(sum.Sum(nil))[:16]
 }
 
+// Watch observes the picture at the end of every recorded frame.
+//
+// It is how internal/fidelity gets a per-frame hash out of a run without this package
+// growing an opinion about what a reference frame is. The three surfaces are the same
+// three Planes reports, in the same order, and they hold the frame the sample describes:
+// the state at the *last* Present of it, which for Work is the full composite before
+// CopyRectsQD's Back2Work restore takes the animation back off again.
+//
+// Two rules, both because the surfaces handed over are a reused scratch copy rather than
+// the game's own:
+//
+//   - They are valid for the duration of the call. A watcher that keeps one keeps a buffer
+//     the next frame overwrites; Surface.Clone is what to do instead.
+//   - Writing to them is pointless rather than dangerous -- they are copies, so the game
+//     cannot see it -- but it makes the next frame's diff a lie. Read them.
+//
+// The scratch copy is the whole reason this is cheap enough to exist. See RunWatching.
+type Watch func(sample Sample, main, work, back *render.Surface)
+
+// shot is the scratch a Watch is handed: one reusable copy of each plane.
+//
+// Copying and then hashing once per frame is what makes a per-frame picture affordable at
+// all. Present fires up to 160 times inside a transition frame and only the last of them
+// describes what the player was left looking at, so a hash *at* Present would sweep three
+// planes 160 times to keep one answer. A copy is several times cheaper than a hash of the
+// same bytes, and this way the expensive half happens once per frame, in flush, on the
+// snapshot the last Present left behind.
+type shot struct {
+	main, work, back *render.Surface
+}
+
+// take copies the three planes as they stand. A nil receiver is a run with no watcher and
+// does nothing, which is what keeps the hook out of the way of every other caller.
+func (sh *shot) take(main, work, back *render.Surface) {
+	if sh == nil {
+		return
+	}
+	sh.main = copyInto(sh.main, main)
+	sh.work = copyInto(sh.work, work)
+	sh.back = copyInto(sh.back, back)
+}
+
+// copyInto copies src into dst, reallocating only when dst is missing or the wrong size.
+func copyInto(dst, src *render.Surface) *render.Surface {
+	if src == nil {
+		return nil
+	}
+	if dst == nil || dst.W != src.W || dst.H != src.H {
+		dst = render.NewSurface(src.W, src.H)
+	}
+	copy(dst.Pix, src.Pix)
+	// The masks of Main, Work and Back are all nil in practice -- they are destinations,
+	// and only art carries a mask -- but a watcher that writes a PNG of one would produce
+	// a differently transparent image if that ever stopped being true, so it is carried
+	// rather than assumed away.
+	switch {
+	case src.Mask == nil:
+		dst.Mask = nil
+	case len(dst.Mask) != len(src.Mask):
+		dst.Mask = append([]uint8(nil), src.Mask...)
+	default:
+		copy(dst.Mask, src.Mask)
+	}
+	return dst
+}
+
 // Run plays a script and returns its trace. The audio is mixed and hashed and then discarded,
 // which is what a test wants; RunTo is how a caller keeps it.
-func Run(s *Script) (*Result, error) { return RunTo(s, nil) }
+func Run(s *Script) (*Result, error) { return RunWatching(s, nil, nil) }
 
 // RunTo is Run with somewhere for the mix to go: a WAV, a player's stdin, an audio.Tee of both.
 //
@@ -426,7 +498,11 @@ func Run(s *Script) (*Result, error) { return RunTo(s, nil) }
 // of a sink handed to a script with `sound off`, both of which produce a valid empty file rather
 // than a truncated one. audio.WAV.Close is idempotent, so a `defer w.Close()` at the call site is
 // still safe.
-func RunTo(s *Script, sink audio.Sink) (*Result, error) {
+func RunTo(s *Script, sink audio.Sink) (*Result, error) { return RunWatching(s, sink, nil) }
+
+// RunWatching is RunTo with a per-frame look at the picture. A nil watch is RunTo exactly:
+// no snapshot is taken and no plane is copied.
+func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 	// Ownership of the sink passes to the pump when there is one; until then it is this
 	// function's to close, including on the validation errors immediately below.
 	owned := false
@@ -596,10 +672,23 @@ func RunTo(s *Script, sink audio.Sink) (*Result, error) {
 	// is looking at. Sampling the first present would report the middle of the wipe.
 	var cur Sample
 	have := false
+	var frame *shot
+	if watch != nil {
+		frame = &shot{}
+	}
 	flush := func() {
 		if have {
 			res.Samples = append(res.Samples, cur)
 			have = false
+
+			// The picture, to whoever asked for it, and before the audio for no reason
+			// except that a watcher is the cheaper of the two to reason about: it sees
+			// exactly the frame the sample describes, with none of the sub-frame offset the
+			// mix below carries.
+			if watch != nil {
+				watch(cur, frame.main, frame.work, frame.back)
+			}
+
 			// One frame's audio per recorded frame, mixed here because this is the only
 			// place in the harness that knows a frame is over.
 			//
@@ -646,6 +735,11 @@ func RunTo(s *Script, sink audio.Sink) (*Result, error) {
 			Rand:       w.RandSeed,
 		}
 		have = true
+
+		// And the picture the counters above describe, for a run that asked for it. Taken
+		// on every Present and overwritten, for the same reason cur is: the last one of the
+		// frame is the one that describes it.
+		frame.take(w.Main, scene.Work, scene.Back)
 
 		if w.Frame >= int64(s.Frames) {
 			// The same door the Quit menu item uses. SwitchedOut is cleared beside it
@@ -710,6 +804,11 @@ func RunTo(s *Script, sink audio.Sink) (*Result, error) {
 	// so hashing there would cost 160 sweeps of a 640x480 plane on those frames and pin the
 	// middle of a wipe. The end state is the cheap statement and the sharp one: 1,200 frames
 	// of divergence cannot reconverge to the same three planes by accident.
+	//
+	// A caller that wants the per-frame version anyway can have it -- that is what Watch is
+	// -- and the cost argument is why it copies at Present and hashes in flush instead. The
+	// two answers are not the same and both are worth having: this one is free and says
+	// *whether*, a reference corpus costs a file on disk and says *when*.
 	res.Planes = Planes{
 		Main: planeDigest(w.Main),
 		Work: planeDigest(scene.Work),

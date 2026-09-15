@@ -42,12 +42,13 @@ a very large house, and try to get further than you did last time.
 ```bash
 ./scripts/bootstrap-dev-env.sh    # rootless: installs Go 1.23 into ~/.local/opt/go
 . scripts/env.sh                  # PATH, GOROOT, GOPROXY=off
-make check                        # fmt, vet, test, build, headless, audio, cross-build (+ bench)
+make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
 make assets                       # extract the 1994 art/sound/houses/movies (57 s)
 make run                          # window at the original's 640x480
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 make houses                       # round-trip every original house through the codec
 make audio                        # replay 600 frames to /tmp/glidergo-audio.wav
+make fidelity                     # hash every frame's pixels against the checked-in corpus
 ```
 
 Run these from this directory — the parent directory above has no Makefile, so `make check`
@@ -217,6 +218,7 @@ one line on stderr per thing that had to be worked around.
 | `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
 | `internal/house/` | The house model and its two codecs: the 1994 binary format (byte-exact both ways) and a line-oriented text format meant to be written by hand and read in a diff. |
 | `internal/render/` | The room composition: an 8-bit indexed surface with the game's own 256-colour palette, the sprite atlas, and `DrawLocale`'s draw order object for object. Indexed rather than RGBA because the original's shadows OR palette *indices* together. |
+| `internal/replay/`, `internal/fidelity/` | The determinism harness. A script — house, seed, start point, keystroke timeline — replays headlessly to a trace with one line per frame, and `internal/fidelity` hashes the pixels of every one of those frames against a corpus checked in beside it. So a bug report is a file that reproduces on any machine, and a change that moves a pixel says which frame it moved. |
 | `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG) and the `types` reference table. |
 | `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
 | `assets/extracted/` | **Generated, gitignored.** 1,899 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 57 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |

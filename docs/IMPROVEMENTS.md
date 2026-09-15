@@ -1958,7 +1958,7 @@ animates ends every frame with the work map identical to the composition (so a r
 forgets its back rect fails there), and a room with a cuckoo in it never does, because the
 animated families' cels come out of a filmstrip and register no back rect at all.
 
-### 4.6 The screens a player meets first were the only ones no automated check could draw — **DONE, 1.7a**
+### 4.6 The screens a player meets first were the only ones no automated check could draw — **DONE, 1.7a; the corpus half in 1.8a**
 
 Every check in `make check` covered the game and none of them covered the way in, and the reason
 was structural rather than an oversight: the game's frames come out of the null backend
@@ -1981,6 +1981,54 @@ right edge — because a PNG nobody opens is not a check. And `-shot` is the nat
 a golden-image test for the shell in 1.8, which would make these five files a corpus rather than
 an artefact; it is deliberately not that yet, because 1.7b, c and d will all change these screens
 and pinning them now would only generate churn.
+
+### 4.7 Nothing on disk said what the game is supposed to look like — **DONE, 1.8a**
+
+4.5 gave a report three plane hashes and 4.2 gave it a script that reproduces on any machine, and
+between them they answer every question about pixels *except* the one a released game needs
+answered: has this build changed since the build somebody looked at? `Result.Planes` compares a
+run against another run, always both freshly computed, so a divergence introduced deliberately
+and a divergence introduced by accident are indistinguishable — both simply become the new
+answer. The only reference was human memory, and human memory of a 640x480 room is the thing
+2.50, 2.6 and 2.51 all proved unreliable.
+
+`internal/fidelity` is that reference: per-frame hashes of the three index planes, as text, one
+row per frame, checked in. 601 rows for the existing 600-frame duct script, and six rows for the
+shell's screens — which no replay script can reach, because `internal/shell` is a separate
+program from the simulation by design. `make fidelity` runs it and, on a machine that has the
+assets, treats a *skip* as a failure, because a silent skip is exactly the outcome this package
+exists to prevent.
+
+Four decisions in it are worth keeping:
+
+- **Hashes, not images.** `git diff` on hashes says *which frames* moved, which is most of the
+  finding: one row is a frame, every row is the palette or the view, three rows in the middle of
+  a transition is a wipe that got faster. The same corpus as PNGs is 300MB of binary in the
+  history of a repository a player is meant to be able to clone. What a hash cannot do is show a
+  human the difference, so a failing test re-runs the one frame that diverged and writes it out
+  as three PNGs — `Snapshot`, the failure path and only the failure path.
+- **The recorder cannot move a pixel.** `internal/replay` grew one hook, `Watch`, and it copies
+  the planes at each `Present` and hashes once per frame in `flush`. That ordering is the whole
+  trick: `Present` fires up to 161 times inside a transition frame, so hashing there would cost
+  161 sweeps of three planes to keep one answer and would pin the middle of a wipe as if it were
+  the frame. A test drives the hook with a watcher that scribbles `0xFF` over everything it is
+  handed and proves the trace, the planes and the mix all come out unchanged.
+- **The shell's screens are hashed as index planes, not as PNG bytes**, or the corpus would be a
+  corpus of Go's `image/png` encoder; and the version string the About box draws is pinned to a
+  constant, or tagging a release would invalidate six rows for no reason. This closes the promise
+  4.6 left open, one stage later than it guessed and by hashing the composition rather than the
+  file `-shot` writes.
+- **The end state is not the last frame.** Recording the corpus turned this up immediately and it
+  had been true since 1.5f: after the frame loop, `PlayGame` runs the unconditional arcade block,
+  which blackens the scoreboard band and blits it to the screen (`Play.c:551-593`), and
+  `CopyRectsQD` has already restored `Back` over `Work`. So `Result.Planes` describes a picture
+  that includes twenty rows no frame ever presented, over an erase the frame itself did not have.
+  Neither number is wrong and both are worth having — `Planes` is what the process was left
+  holding, the corpus is what the game showed — but a reader who assumed they were the same
+  thing would have spent an afternoon on it. The tests now say so out loud.
+
+What it does not close: 4.3's second half is still open, because one script still only pins the
+subsystems this glider visits, and the demo-replay codec (`demoType`) is 1.8b.
 
 ---
 
@@ -2035,6 +2083,8 @@ and pinning them now would only generate churn.
 | 2.60 Both endings ask `TestHighScore` before redrawing the splash | 1.7d | this stage |
 | 2.61 The win animation's out-of-bounds seeding write, skipped; its dead `RandomInt` draws, kept | 1.7d | this stage |
 | 2.62 The quit path's unreachable splash repaint dropped, so the replay corpus can check the erase pass | 1.7d | this stage |
+| 4.7 `internal/fidelity`: per-frame pixel hashes checked in, so a moved pixel names its frame | 1.8a | this stage |
+| 4.6 (the corpus half) The shell's six screens are compared against a reference, not just rendered | 1.8a | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

@@ -18,7 +18,7 @@ GAMEFLAGS := $(LDFLAGS) -X main.version=$(VERSION)
 export GOPROXY      := off
 export GOTOOLCHAIN  := local
 
-.PHONY: all build glidertool houses run bench smoke headless audio test vet fmt check \
+.PHONY: all build glidertool houses run bench smoke headless audio fidelity test vet fmt check \
 	clean clean-assets cross-windows assets assets-check tools help
 
 all: build glidertool
@@ -101,6 +101,29 @@ audio: glidertool
 		echo "no extracted sounds -- run \`make assets\` first"; \
 	fi
 
+## fidelity: compare this build's pixels against the checked-in reference corpus
+#
+# `make test` already runs these, and this step exists for the one thing it cannot do: refuse
+# to skip. internal/fidelity's tests skip without an extracted asset tree, because a fresh
+# clone has to be able to run its own suite -- so on a machine that *has* the assets, a skip
+# is silence where a pixel comparison was supposed to be, and silence is the failure mode this
+# whole package exists to prevent. Hence the guard: assets present, and any SKIP is an error.
+#
+# A failure here is not necessarily a bug. It is a pixel that moved, which is either the
+# change you just made -- `go test ./internal/fidelity -update`, read the diff, and say so in
+# the commit message -- or a change you did not know you had made.
+fidelity:
+	@if [ -d $(ASSETS)/art ] && [ -d $(ASSETS)/houses ] && [ -d $(ASSETS)/sound ]; then \
+		out=$$($(GO) test ./internal/fidelity/ -count=1 -v 2>&1) || { echo "$$out"; exit 1; }; \
+		echo "$$out" | grep -E '^(--- |ok|FAIL)'; \
+		if echo "$$out" | grep -q -- '--- SKIP'; then \
+			echo "fidelity: a test skipped on a machine that has the assets -- that is a failure"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "fidelity: no extracted assets -- run \`make assets\` to check the pixels"; \
+	fi
+
 ## cross-windows: prove the Windows target still compiles (null backend until win32 lands)
 cross-windows:
 	@mkdir -p $(BIN)
@@ -120,9 +143,9 @@ fmt:
 	$(GO) fmt $(PKG)
 
 ## check: everything CI would do; adds an on-screen bench when there is a display
-check: fmt vet test build glidertool houses headless audio cross-windows smoke
+check: fmt vet test build glidertool houses headless audio fidelity cross-windows smoke
 	@echo
-	@echo "gliderGo: check passed -- toolchain, cgo, tests, houses, headless, audio and cross-build"
+	@echo "gliderGo: check passed -- toolchain, cgo, tests, houses, headless, audio, pixels and cross-build"
 
 ## assets: extract the 1994 art, sound, houses and movies into assets/extracted/
 assets:

@@ -16,6 +16,7 @@ cd gliderGo
 make check                          # builds and smoke-tests the platform layer
 make assets                         # extract the 1994 data (57 s, gitignored output)
 make houses                         # read all 22 original houses and prove nothing changed
+make fidelity                       # hash every frame's pixels against the checked-in corpus
 ```
 
 Hard constraints you must design around (each proven below):
