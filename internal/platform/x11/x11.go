@@ -28,6 +28,7 @@ static int  ev_type(XEvent *e)     { return e->type; }
 static unsigned int ev_keycode(XEvent *e) { return e->xkey.keycode; }
 static unsigned long ev_msg0(XEvent *e)   { return (unsigned long)e->xclient.data.l[0]; }
 static void ev_size(XEvent *e, int *w, int *h) { *w = e->xconfigure.width; *h = e->xconfigure.height; }
+static int  ev_expose_count(XEvent *e) { return e->xexpose.count; }
 */
 import "C"
 
@@ -217,6 +218,15 @@ func (w *Window) PollEvents() []platform.Event {
 			out = append(out, platform.Event{Kind: platform.EventFocus, Focused: false})
 		case C.FocusIn:
 			out = append(out, platform.Event{Kind: platform.EventFocus, Focused: true})
+		case C.Expose:
+			// X sends one Expose per damaged rectangle, with `count` counting the
+			// ones still to come; the last of a series has count 0. Since Present
+			// uploads the whole framebuffer there is nothing to gain from the
+			// individual rects, so only the last one is reported and a series
+			// becomes a single redraw.
+			if C.ev_expose_count(&ev) == 0 {
+				out = append(out, platform.Event{Kind: platform.EventExpose})
+			}
 		case C.ConfigureNotify:
 			var cw, ch C.int
 			C.ev_size(&ev, &cw, &ch)

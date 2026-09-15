@@ -174,6 +174,14 @@ const (
 	EventQuit   // window closed or platform asked us to exit
 	EventFocus  // Focused reports whether we gained or lost focus
 	EventResize // backend surface changed; Framebuffer size is unaffected
+
+	// EventExpose says the window's contents were damaged and have to be drawn
+	// again. It is the original's update event (Play.c's updateEvt arm calls
+	// RefreshGameWindow) and it matters for exactly the reason it did in 1994: a
+	// paused game draws no frames, so if something obscures the window while it is
+	// paused, nothing else will ever repaint it. A backend that composites and
+	// retains window contents may never send one; a backend that does not, will.
+	EventExpose
 )
 
 // Event is one input or window notification.

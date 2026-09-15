@@ -165,6 +165,14 @@ This item was also the reason the first version of `playTestWorld` in
 transition presents 116 times inside one frame, so "100 frames" bought 61. The budget is
 frames now.
 
+`cmd/glidergo`'s `-frames` flag had the identical bug and it is fixed the same way. It
+counted its own `Present` calls, so `-frames 300` ran 298 frames in a static room — two
+presents happen outside the loop — and 137 in a run where the glider took a door, because
+one 160-strip wipe spent more than half the budget. A flag whose meaning depends on where
+the glider drifted is not a flag anyone can benchmark or replay with; `wrapPresentLimit`
+now tests `World.Frame`. The `-dump` PNG count is deliberately still per present, because
+one file per wipe strip is what you want when looking at a transition.
+
 ### 2.5 Pausing blocks the process, and unpausing leaves the screen black — **planned, 1.7**
 
 `DoPause` is called from inside `GetInput` and *blocks* until the player unpauses, which is
@@ -410,6 +418,43 @@ in the game is wrong — the port reads it the same way the original does — bu
 with a checkbox labelled "phone" wired straight to this field would be backwards. Rename
 it or invert it at the editor boundary.
 
+### 2.27 Exposures were selected for and then dropped — **DONE, 1.5b**
+
+The x11 backend asked for `ExposureMask` and had no `case C.Expose`, so the one event that
+says "your window's pixels are gone, draw them again" was thrown away. It went unnoticed
+because a compositing window manager retains window contents and replays them itself, and
+because a running game overwrites the whole framebuffer thirty times a second anyway.
+
+Neither of those covers the case that matters, which is a **paused** game: while
+`switchedOut` is set, `PlayGame` presents nothing at all, so an obscured window stays
+obscured for as long as the player leaves it. The original had the same requirement and the
+same answer — `HandlePlayEvent`'s `updateEvt` arm calls `RefreshGameWindow` — and the port
+now has the whole chain: `platform.EventExpose`, emitted by the backend for the last event
+of an expose series (`count == 0`, so a multi-rect damage is one redraw), handled in
+`cmd/glidergo`'s `PlayEvent` by calling `RefreshGameWindow`.
+
+Any other backend owes the same event. A backend on a platform that guarantees retained
+contents may legitimately never send one.
+
+### 2.28 A paused game is indistinguishable from a hung game — **planned, 1.7**
+
+Suspend-on-focus-loss is right (2.21) and it is also invisible: the window holds a frozen
+frame with no overlay, no dimming and no text. A player who alt-tabs away and back sees
+nothing wrong, but a player whose window manager quietly moves focus elsewhere sees a game
+that has stopped responding, and there is nothing on screen to tell them that clicking the
+window will resume it.
+
+This bit during development in a form worth recording, because it is the shape the bug will
+take for a player. `-frames 300` appeared to hang: the window opened, ran 34 frames, and
+stopped. It was not a hang — this host's window manager returns focus to the terminal about
+a second after a new window appears, and the game did exactly what it was told and paused.
+Nothing on screen or in the terminal said so. `cmd/glidergo` now exempts timed runs
+(`-frames`) from suspending at all, since a measurement or a replay has no user to pause
+for, but that is a fix for the tooling and not for the player.
+
+1.7 owes the pause a visible state: a dimmed frame and a "paused — click to resume" line,
+shared with `DoPause` (2.5) so both kinds of pause look the same.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -466,6 +511,7 @@ why a linter is worth more than a runtime check.
 | 1.1 GPLv2 `LICENSE` and a `README.md` licence section | 1.5a | earlier |
 | 2.9 Scoreboard moved on screen as a documented deviation | 1.5b | this stage |
 | 2.17 `World.WaitTick` hook, and a sleeping limiter in `cmd/glidergo` | 1.5b | this stage |
+| 2.27 `platform.EventExpose`, emitted by the x11 backend and handled by the host | 1.5b | this stage |
 
 Two bugs found and fixed in the port itself while writing this, neither of which is an
 "improvement" so much as a repair, both recorded here because the reason no test caught
@@ -479,4 +525,6 @@ them is worth keeping:
   any input — and nothing but the real host path calls it, while an all-black frame is
   indistinguishable from an uncomposed one. Fixed by deriving the table inside
   `palette.go`'s `init`; guarded by `TestBGRXLUTMatchesPalette`.
-- **`playTestWorld` budgeted presents, not frames.** See 2.4.
+- **`playTestWorld` budgeted presents, not frames.** See 2.4. `cmd/glidergo`'s `-frames`
+  flag had the same bug and is fixed the same way; the mistake is easy to make twice because
+  `Present` is the only per-frame hook a host owns, so it reads like a frame counter.

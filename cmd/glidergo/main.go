@@ -214,9 +214,26 @@ func run() error {
 			case ev.Kind == platform.EventFocus:
 				if ev.Focused {
 					w.Resume()
-				} else {
+				} else if *frames == 0 {
+					// **A timed run does not pause.** Suspending on focus loss is the
+					// original's behaviour and the right behaviour for a play session, but
+					// it makes the loop depend on the window manager: PlayGame spins on
+					// this hook while SwitchedOut and presents nothing, so a -frames run
+					// can never reach its limit once the window is backgrounded. That is
+					// not hypothetical -- on this host the WM hands focus back to the
+					// terminal about a second after the window opens, which is why
+					// `-frames 300` used to hang at frame 34 while `-frames 30` passed.
+					// A timed run is a measurement or a replay, and neither has a user to
+					// pause for.
 					w.Suspend()
 				}
+
+			case ev.Kind == platform.EventExpose:
+				// The original's updateEvt arm. It is needed for the same reason it was in
+				// 1994 and for one more: a suspended game draws no frames at all, so
+				// without this the window keeps whatever the X server happened to retain
+				// for as long as the game is paused. See docs/IMPROVEMENTS.md 2.27.
+				w.RefreshGameWindow()
 
 			case ev.Kind == platform.EventResize:
 				// The backend owns the scale transform; the game's surfaces are always
@@ -316,21 +333,30 @@ func run() error {
 	return nil
 }
 
-// wrapPresentLimit ends the game after n frames.
+// wrapPresentLimit ends the game once the simulation has run n frames.
 //
-// It wraps Present rather than counting inside the loop because Present is called once per
-// visible frame, which is what "-frames 300" means to someone timing the port. The
-// alternative -- counting World.Frame -- also counts the frames PlayGame simulates and does
-// not draw, and would make a headless dump and a windowed run disagree.
+// Present is the sampling point and World.Frame is the quantity, and they are not the same
+// number: **Present is not called once per frame.** NewGame's DumpScreenOn presents before
+// the loop starts, HideGlider presents on its own, and a room transition presents once per
+// wipe strip -- 116 or 160 times inside a single frame. This used to count its own calls,
+// and the arithmetic showed: `-frames 300` reported 298 in a static room and 137 in a run
+// where the glider happened to take a door, because one 160-strip wipe spent more than half
+// the budget. Counting World.Frame makes the flag mean what it says, makes two runs of the
+// same house comparable, and makes the fps line above -- w.Frame over elapsed -- a rate of
+// frames rather than of blits. It is the same mistake, and the same fix, as
+// docs/IMPROVEMENTS.md 2.4 in the test harness.
+//
+// One consequence worth stating: with -dump the PNG count is still the *present* count, so a
+// run that crosses a room boundary writes a file per wipe strip. That is the useful
+// behaviour for looking at a transition frame by frame, and it is why the limit lives here
+// rather than in the dumper.
 func wrapPresentLimit(w *game.World, n int64) func() {
 	prev := w.Present
-	var count int64
 	return func() {
 		if prev != nil {
 			prev()
 		}
-		count++
-		if count >= n {
+		if w.Frame >= n {
 			w.Quitting = true
 			w.SwitchedOut = false
 		}
