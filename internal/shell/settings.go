@@ -44,16 +44,23 @@ import (
 // fits at authoring time fits forever, and a measured layout would shift every row when
 // one label changed.
 const (
-	setLeft   = 40
-	setTop    = 44
-	setRight  = 600
-	setBottom = 436
+	setLeft  = 40
+	setTop   = 40
+	setRight = 600
 
-	setTitleV = 76
-	setFirst  = 112 // first row's baseline
+	// The panel ends 16 rows above the status band (screens.go's bandTall), which is as
+	// far down as it can go, and the block above starts as high as the title allows: with
+	// fourteen rows and three group gaps the list is 310 rows deep, and it fits with a
+	// row's clearance at each end. A fifteenth row does not fit -- it would have to come
+	// out of the pitch, and 22 is two rows of a doubled 8-row font plus 6 to separate
+	// them, which is the smallest gap the labels stay readable at.
+	setBottom = 444
+
+	setTitleV = 68
+	setFirst  = 100 // first row's baseline
 	setPitch  = 22
 	setGap    = 8 // extra space above the first row of a group
-	setFootV  = 420
+	setFootV  = 428
 
 	setGroupH = 56  // the group name, on the first row of each group
 	setLabelH = 190 // the setting's name
@@ -106,9 +113,6 @@ type setRow struct {
 //   - `keep_real_time` and the three entries under `fixes`, because they change what the
 //     simulation does and 1.8's fidelity replays compare against the C. A player has no
 //     way to judge them; a developer has prefs.json.
-//   - `music_on_title`, because the title screen is silent in this build (the score walk
-//     is bound to a World, internal/audio/music.go) and a switch that does nothing is
-//     worse than no switch. It comes back with the attract mode in 1.7d.
 //
 // `sound` is not here either, for a different reason: it is the original's `isSoundOn`,
 // which the original derives from the volume (`isSoundOn = (isVolume != 0)`, Main.c) and
@@ -162,6 +166,21 @@ var settings = []setRow{
 		label: "music in a game",
 		show:  func(p *prefs.Prefs) string { return yesNo(p.MusicInGame) },
 		step:  func(p *prefs.Prefs, _ int) { p.MusicInGame = !p.MusicInGame },
+	}, {
+		// The original's other music preference (`isPlayMusicIdle`), and the only row
+		// on this screen whose effect the player is listening to while the screen is
+		// still up: the host starts and stops the score from ApplyPrefs. It gets no
+		// hint for that reason -- there is nothing to explain about a setting that
+		// takes effect as it is pressed.
+		//
+		// "while idle" rather than "on the title screen" because the label column is
+		// 210 rows wide (setValueH - setLabelH) and the honest phrase measures 300 at
+		// setScale. It is also the original's own word for it -- idle music is what
+		// plays when nobody is playing -- and it is true of the house picker and this
+		// screen as well as the splash, which "on the title screen" is not.
+		label: "music while idle",
+		show:  func(p *prefs.Prefs) string { return yesNo(p.MusicOnTitle) },
+		step:  func(p *prefs.Prefs, _ int) { p.MusicOnTitle = !p.MusicOnTitle },
 	},
 }
 
@@ -261,7 +280,7 @@ func (s *Shell) settingsKey(k platform.Key) {
 		d := prefs.Default()
 		p.Player1, p.Player2 = d.Player1, d.Player2
 		p.PauseKey, p.Neighbors, p.Scale = d.PauseKey, d.Neighbors, d.Scale
-		p.Volume, p.MusicInGame = d.Volume, d.MusicInGame
+		p.Volume, p.MusicInGame, p.MusicOnTitle = d.Volume, d.MusicInGame, d.MusicOnTitle
 		s.changed(p, "settings reset to this build's defaults")
 	case platform.KeyEscape, platform.KeyTab:
 		s.closeSettings()

@@ -2036,7 +2036,7 @@ and pinning them now would only generate churn.
 | 2.61 The win animation's out-of-bounds seeding write, skipped; its dead `RandomInt` draws, kept | 1.7d | this stage |
 | 2.62 The quit path's unreachable splash repaint dropped, so the replay corpus can check the erase pass | 1.7d | this stage |
 
-Four bugs found and fixed in the port itself while writing this, none of which is an
+Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught
 them is worth keeping:
 
@@ -2076,3 +2076,14 @@ them is worth keeping:
   without art, which is why `TestLeverShowsTheLinkedObjectsState` renders the plate twice and
   compares pixels, with a second art-free test on the field for runs where the assets are not
   extracted.
+- **The mixer kept asking a finished game for the next piece of music** (1.7d's follow-on).
+  `Engine.NextPiece` was assigned in exactly one place, `bindAudio`, and never re-pointed, and
+  `NewGame`'s teardown ends every game by starting the idle score. So the music a player heard
+  over the title screen was being walked by the `World` of the game they had just quit — and
+  every game of a session stayed reachable from the engine and could not be collected. It was
+  inaudible, which is why it survived: the cursor is a cursor wherever it lives, and the score
+  sounded exactly right. What made it visible was writing the title screen's own score walk and
+  having to ask what the engine was pointing at, which is the general shape of the thing —
+  *nothing was wrong with the audio; something was wrong with who owned it.* Fixed by
+  `startTitleMusic` re-pointing `NextPiece` at the title screen's cursor on the way back out of
+  a game (`cmd/glidergo/music.go`), which is also what makes `music_on_title` audible at all.

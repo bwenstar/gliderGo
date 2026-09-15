@@ -247,6 +247,9 @@ func runShell(o *options, p *prefs.Prefs, canSave bool) error {
 	if err != nil {
 		return err
 	}
+	// The score behind the title screen, if the player wants it: the original plays it
+	// while nobody is playing, and it is a preference of its own. See music.go.
+	a.startTitleMusic()
 
 	// The house the player last played, which is what the original opens with too:
 	// `wasDefaultName` (Main.c:130), shipped as Slumberland. A name that is no longer
@@ -410,11 +413,10 @@ func (a *app) shellHost() shell.Host {
 				fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 				dead = true
 			}
-			// The mixer's pacer, for the same reason play.go's Present calls it: the
-			// splash screen is silent in this build, but the pump still has to be
-			// clocked or the tail of the last game's audio would sit in the buffer
-			// unplayed. When 1.7b makes music-on-the-splash a preference, this is
-			// what makes it audible.
+			// The mixer's pacer, for the same reason play.go's Present calls it,
+			// and now for two: it is what makes the title screen's score audible
+			// (music.go), and it would still have to be called for a silent one or
+			// the tail of the last game's audio would sit in the buffer unplayed.
 			a.pump.ClockTick()
 		},
 
@@ -431,7 +433,14 @@ func (a *app) shellHost() shell.Host {
 		Idle: func() { time.Sleep(16 * time.Millisecond) },
 
 		Play: func(c shell.Choice) (shell.Outcome, error) {
-			return a.play(c.House.Name, c.House.Path, c.TwoPlayer)
+			// The title screen's score does not cross into a game: the game gets
+			// its own cursor and its own two committed pieces, and both queues
+			// coming out of one channel is the one thing here a player could hear
+			// going wrong. music.go has the whole trade.
+			a.stopTitleMusic()
+			out, err := a.play(c.House.Name, c.House.Path, c.TwoPlayer)
+			a.startTitleMusic()
+			return out, err
 		},
 
 		// The board the High Scores screen shows: the side-car over the house file's own
@@ -460,6 +469,14 @@ func (a *app) shellHost() shell.Host {
 			}
 			a.eng.SetVolume(int16(a.p.Volume))
 			a.eng.SetSoundOn(a.p.Sound)
+			// Music on the title screen is the second setting that has to be
+			// pushed, and the first whose effect the player is listening to while
+			// the screen is still up: the row turns the score on and off where it
+			// stands. It follows the volume rather than leading it because at
+			// volume zero the mixer refuses to start the score at all, so raising
+			// the volume and starting in that order is what makes a mute
+			// recoverable in one keystroke.
+			a.startTitleMusic()
 		},
 
 		Title: func(s string) {

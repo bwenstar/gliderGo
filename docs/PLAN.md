@@ -726,7 +726,10 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     *seconds*, so the banner holds for fifteen of them, and it reports `didResume` rather than
     "input ended it". Three C defects recorded as decisions rather than repairs (2.60, 2.61) and
     one unreachable repaint dropped to give the replay corpus back its erase-pass invariant (2.62).
-    `music_on_title` is the one thing 1.7 still owes; it lands next, as its own commit.
+    `music_on_title` was the one thing 1.7 still owed and lands in the commit after this one:
+    the title screen's score is a bare `game.World` with nothing in it but a music channel, so
+    the transcribed `StartIdleMusic` ladder is still the only thing that knows what idle music
+    means and `internal/shell` still does not import `internal/game`.
 - **1.7a, what it settled.** Three decisions that the rest of 1.7 is built on:
   - **The shell does not import `internal/game`.** A game is reached through one hook,
     `Play(Choice) (Outcome, error)`, which `cmd/glidergo` fills in. So the whole of the way into the
@@ -805,10 +808,9 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     `runShell` noticing a different house. The original saves once, in `WriteOutPrefs` at quit
     (`Main.c:381`), which loses every setting a player changed if the game crashes; saving at the
     change costs one small file write and cannot lose one.
-  - **The settings screen offers less than the file holds, on purpose.** Three preferences are in the
+  - **The settings screen offers less than the file holds, on purpose.** Two preferences are in the
     JSON and not on the screen — `pause_when_unfocused` (2.21 argues a released build should always
-    pause and not offer the choice, and it *is* honoured), `music_on_title` (the title screen is silent
-    until 1.7d, and a switch that does nothing is worse than no switch), and `keep_real_time` with the
+    pause and not offer the choice, and it *is* honoured) and `keep_real_time` with the
     three `fixes` (they change what the simulation does; a player has no way to judge them and a
     developer has the file) — each with a paragraph in `internal/shell/settings.go` saying so. And
     `sound` is absent for a different reason: `Validate` derives it from `volume` both ways, so no file

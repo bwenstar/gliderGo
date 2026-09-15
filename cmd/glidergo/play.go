@@ -65,6 +65,10 @@ type app struct {
 	sink  audio.Sink
 	where string // one word for the startup line: which player, or "none"
 
+	// title is the cursor into the score that the title screen walks, and the only
+	// World in the process that is not a game. See music.go.
+	title *game.World
+
 	// artErr is the first sticky asset error from any game this session. It is
 	// reported rather than returned mid-session, because losing a finished game's
 	// score to a missing PICT would be a worse trade than a line on stderr.
@@ -226,9 +230,9 @@ func (a *app) bindAudio(w *game.World, name string) {
 	// The two music preferences, each from its own setting now. They are separate in the
 	// original because a player can want the score during a game and not on the title
 	// screen; -music is the one switch that covers both, for a run that wants silence.
-	// The title screen is silent in this build whatever MusicOnTitle says -- the score
-	// walk is bound to a World (internal/audio/music.go) and the shell has none -- and
-	// 1.7d's attract mode is what makes that preference audible.
+	// MusicOnTitle is set here as well as on the title screen's own World, because it is
+	// this World's teardown that starts the idle score when the game ends (NewGame,
+	// internal/game/play.go) and music.go's adoptScore is what carries the cursor across.
 	w.PlayMusicGame = a.p.MusicInGame
 	w.PlayMusicIdle = a.p.MusicOnTitle
 	w.InitMusic()
@@ -683,6 +687,12 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	}
 
 	w.NewGame(game.NewGameMode)
+
+	// NewGame's teardown has just started the idle score on this World, which is about to
+	// go out of scope. Hand its place in the score to the title screen's cursor before it
+	// does, so the score carries on across the transition the way one global would. See
+	// music.go's adoptScore.
+	a.adoptScore(w)
 
 	if !o.quiet {
 		el := time.Since(start)
