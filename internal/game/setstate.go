@@ -130,12 +130,10 @@ func (w *World) SetObjectState(room, object, action, local int16) bool {
 			// thisRoom->objects[object].data.a.state = newState is the C's third
 			// write. This port has no separate thisRoom copy -- see World.ThisRoom
 			// -- so the house write above already covers it.
-			if w.PlayPrioritySound != nil {
-				if newState {
-					w.PlayPrioritySound(SoundBlowerOn, PriorityBlowerOn)
-				} else {
-					w.PlayPrioritySound(SoundBlowerOff, PriorityBlowerOff)
-				}
+			if newState {
+				w.PlayPrioritySound(SoundBlowerOn, PriorityBlowerOn)
+			} else {
+				w.PlayPrioritySound(SoundBlowerOff, PriorityBlowerOff)
 			}
 			if m.HotNum != -1 && int(m.HotNum) < len(w.R.Hot) {
 				w.R.Hot[m.HotNum].IsOn = newState

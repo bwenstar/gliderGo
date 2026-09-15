@@ -62,22 +62,30 @@ type Env interface {
 	GetUpStairsRightEdge() int16
 	GetDownStairsLeftEdge() int16
 
-	// IsShadowVisible and SetShadowVisible are the *cached* `shadowVisible`
-	// global, not the predicate of the same name.
+	// IsShadowVisible and SetShadowVisible are a *mixed* pair, and that is not an
+	// accident of naming -- it is what the one call site needs.
 	//
-	// The original has both, spelled almost identically, and they are not
-	// interchangeable. Room.c's IsShadowVisible() recomputes the answer from the
-	// room's background. RoomGraphics.c's `shadowVisible` is a Boolean global with
-	// exactly four writers: three set it from that predicate (DrawLocale
-	// RoomGraphics.c:126, RedrawRoomLighting :459, and the glider placement at
-	// Modes.c:361), and the fourth forces it false -- Player.c:1286, the frame a
-	// glider starts being pulled into a shredder, so that its shadow does not go
-	// on lying on the floor while it is dragged off the floor plane.
+	// The original has two nearly identically spelled things. Room.c:1103's
+	// IsShadowVisible() is a pure predicate that recomputes the answer from the
+	// room's background. Player.c:53's `shadowVisible` is a Boolean global. They
+	// are not interchangeable, and the whole C tree contains exactly one read of
+	// the global (Render.c:465, the shadow draw) and four writes: three of the form
+	// `shadowVisible = IsShadowVisible()` -- DrawLocale RoomGraphics.c:126,
+	// RedrawRoomLighting :459, and the glider placement at Modes.c:361 -- and one
+	// that forces it false, Player.c:1286, the frame a glider starts being pulled
+	// into a shredder, so its shadow does not go on lying on the floor while it is
+	// dragged off the floor plane.
 	//
-	// So the two disagree from that frame until the glider is next placed, which
-	// is a second or so of real play, and Render.c:465 is reading the global the
-	// whole time. This pair is the global. A port that wired it to the predicate
-	// would leave a shadow under a glider being shredded.
+	// So the two disagree from that frame until the glider is next placed, about a
+	// second of real play, with Render.c:465 reading the global throughout.
+	//
+	// Which means: **IsShadowVisible is the predicate and SetShadowVisible writes
+	// the global.** modes.go:262 is Modes.c:361 transcribed --
+	// `e.SetShadowVisible(e.IsShadowVisible())` -- and handle.go:685 is
+	// Player.c:1286. Nothing in this package reads the global at all; the renderer
+	// does. Wiring the getter to the global instead would turn that assignment into
+	// a self-assignment, so the answer would never be recomputed on a room change
+	// and gliders would keep their shadows on rooftops.
 	IsShadowVisible() bool
 	SetShadowVisible(v bool)
 	// HasMirror is true in a room with a mirror object, which doubles every dirty

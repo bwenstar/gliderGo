@@ -105,9 +105,15 @@ type World struct {
 	ShowFoil  bool
 	StarsLeft int16
 
-	// SaidFollow counts how many times the two-player "follow me" prompt has
-	// played, capped for the whole game rather than per room (Modes.c:462-466).
-	SaidFollow int16
+	// SaidFollowCount is saidFollow (Modes.c:13): how many times the two-player
+	// "follow me" prompt has played, capped at three for the whole game rather than
+	// per room (Modes.c:462-466).
+	//
+	// The C's name is `saidFollow` and the Env accessor keeps it; the field carries
+	// the -Count suffix because Go will not let a struct have a field and a method of
+	// the same name, and the method is the one whose name is fixed by the interface.
+	// The same applies to SoundPlayer below.
+	SaidFollowCount int16
 
 	// Frame is gameFrame: frames since the game began, the clock every timer and
 	// animation phase is measured against. EvenFrame halves it for the animations
@@ -174,15 +180,20 @@ type World struct {
 	// That is the state of this stage; 1.6 supplies a real one.
 	TriggerSoundExists func(soundID int16) bool
 
-	// PlayPrioritySound is PlayPrioritySound (Sound.c): request a sound, which is
-	// granted only if nothing of higher priority is already playing. A hook for the
-	// same reason as TriggerSoundExists -- 1.6 fills it in -- and nil means silence.
+	// SoundPlayer is the injected implementation of PlayPrioritySound (Sound.c:40-85):
+	// request a sound, which is granted only if nothing of higher priority is already
+	// playing. A hook for the same reason as TriggerSoundExists -- 1.6 fills it in --
+	// and nil means silence.
+	//
+	// It is not called `PlayPrioritySound`, even though that is the C's name, because
+	// the method that satisfies player.Env owns that name (see env.go). The field is
+	// the backend; the method is the call site's view of it.
 	//
 	// Larger is higher: PlayPrioritySound finds the quietest of the three channels
 	// and plays only if `priority >= lowestPriority` (Sound.c:53-67). The scale runs
 	// from 100 for a wall bump to the 800s for the noisy appliances, so a blower's
 	// 701 displaces most things and is displaced by few.
-	PlayPrioritySound func(sound, priority int16)
+	SoundPlayer func(sound, priority int16)
 }
 
 // Room is the composed locale: the central room the glider is in, the eight

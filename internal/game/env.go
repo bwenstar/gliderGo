@@ -1,0 +1,261 @@
+package game
+
+// This file is *World's implementation of player.Env: the 46 calls the glider makes
+// outward at the moment it needs something that is not its own state.
+//
+// In the original there is no interface here at all. The player code calls free
+// functions over file-scope globals, and Player.c, Modes.c and Input.c are in the same
+// translation-unit soup as Play.c and Render.c. internal/game/player/env.go's own
+// header explains why the port cuts there instead; this file is the other side of that
+// cut, and its rule is that a method does exactly what the C function or global access
+// it names does, and nothing else. Where a method cannot yet do that -- because the
+// subsystem behind it belongs to a later sub-stage -- it says so in its own comment and
+// names the sub-stage, rather than quietly approximating.
+//
+// The compile-time assertion at the bottom is the point of the file: it is what makes
+// "*World implements player.Env in full" a fact the compiler checks rather than a claim
+// in a commit message.
+
+import (
+	"glidergo/internal/game/player"
+	"glidergo/internal/render"
+)
+
+// ---------------------------------------------------------------------------
+// Sound
+// ---------------------------------------------------------------------------
+
+// PlayPrioritySound is Sound.c:40-85, reached through the World.SoundPlayer hook.
+//
+// A nil hook is not a degraded mode to apologise for: it is exactly the original's
+// `dontLoadSounds` short circuit, which PlayPrioritySound tests first thing and returns
+// on (Sound.c:44). A silent build takes the same path a Mac with no sound memory took.
+func (w *World) PlayPrioritySound(sound, priority int16) {
+	if w.SoundPlayer == nil {
+		return
+	}
+	w.SoundPlayer(sound, priority)
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+//
+// Six accessors and a flag over four World fields. They are methods rather than
+// exported fields because the C reads and writes the globals directly and the player
+// package cannot see World; see env.go's note on the ~20 accessor methods.
+
+func (w *World) BatteryTotal() int16     { return w.Battery }
+func (w *World) SetBatteryTotal(n int16) { w.Battery = n }
+func (w *World) BandsTotal() int16       { return w.Bands }
+func (w *World) SetBandsTotal(n int16)   { w.Bands = n }
+func (w *World) FoilTotal() int16        { return w.Foil }
+func (w *World) SetFoilTotal(n int16)    { w.Foil = n }
+
+// SetShowFoil is the `showFoil` write at Player.c:1144-1152.
+//
+// It is a graphics-state change and not just a flag: the original swaps the entire
+// glider sprite sheet rather than tinting the sprite, so the next frame's RenderGlider
+// reads from a different atlas. Storing the flag is all this stage can do -- the atlas
+// swap is in the renderer and lands with RenderGlider in 1.5b's first commit -- but the
+// flag has to be stored *now* because the count and the artwork legitimately disagree
+// for one frame and the player code depends on that.
+func (w *World) SetShowFoil(on bool) { w.ShowFoil = on }
+
+// ---------------------------------------------------------------------------
+// Room geometry
+// ---------------------------------------------------------------------------
+
+// SetShadowVisible writes the `shadowVisible` global (Player.c:53).
+//
+// The *getter* of the same name is not here: it is IsShadowVisible in room.go, and it
+// is the Room.c:1103 predicate, not this field. That asymmetry is deliberate and
+// player/env.go explains it at length -- the one call site is
+// `shadowVisible = IsShadowVisible()`, so the pair has to be predicate-in,
+// global-out or the assignment degenerates into a no-op.
+func (w *World) SetShadowVisible(v bool) { w.R.ShadowVisible = v }
+
+func (w *World) HasMirror() bool   { return w.R.HasMirror }
+func (w *World) TopOpen() bool     { return w.R.TopOpen }
+func (w *World) BottomOpen() bool  { return w.R.BottomOpen }
+func (w *World) LeftThresh() int16 { return w.R.LeftThresh }
+
+func (w *World) RightThresh() int16 { return w.R.RightThresh }
+
+// Background is `thisBackground` and Tile is `thisTiles[i]` -- the *cached* copies
+// DrawRoomBackground writes for the central room (RoomGraphics.c:162-253), not the
+// house record's fields.
+//
+// The distinction matters in the same way the shadow pair's does. DetermineRoomOpenings
+// reads the house record because it runs as part of composing the room; the escape
+// checks read these caches because they run per frame, and on a frame where the room
+// has changed identity but has not yet been recomposed the two differ. Reading the
+// house record here would make the glider collide against the room it is arriving in
+// one frame before that room is drawn.
+func (w *World) Background() int16 { return w.R.ThisBackground }
+
+// Tile does not range-check i, because the original does not: callers test the index
+// themselves (`(offset >= 0) && (offset <= 7)`, Interactions.c:455) and Go's own bounds
+// check is a strictly better failure than the C's silent out-of-array read. Keeping the
+// check at the call sites is what keeps those transcriptions statement-for-statement.
+func (w *World) Tile(i int16) int16 { return w.R.ThisTiles[i] }
+
+// GetUpStairsRightEdge is ObjectRects.c:1135-1159 and GetDownStairsLeftEdge is
+// :1163-1185: the x a glider is clipped against while it walks behind a staircase.
+//
+// **Read the object codes twice.** GetUpStairs...  searches for kDownStairs and
+// GetDownStairs... searches for kUpStairs. That is the C, verbatim, and it is not a
+// typo in either language: the two staircase objects are the two ends of one flight, so
+// a glider on its way *up* out of this room is behind the banister of the object that
+// leads *down* into it. A port that "corrected" the pairing would clip both staircases
+// against the wrong edge, and in a room with only one of the two would clip against the
+// default instead -- which is kRoomWide and 0, i.e. no clipping at all.
+//
+// Both scan all 24 slots and break on the first match, so a room with two down
+// staircases uses the lower-numbered slot. Both read the house record rather than
+// Master, because the C reads `(*thisHouse)->rooms[thisRoomNumber].objects[i]` directly
+// -- it is looking for an object in *this* room only, and Master holds all nine.
+func (w *World) GetUpStairsRightEdge() int16 {
+	rightEdge := RoomWide
+	rm := w.ThisRoom()
+	if rm == nil {
+		return rightEdge
+	}
+	for i := 0; i < MaxRoomObs; i++ {
+		if rm.Objects[i].What == DownStairs {
+			rightEdge = rm.Objects[i].TopLeft().H + render.SrcRect(DownStairs).Right - 1
+			break
+		}
+	}
+	return rightEdge
+}
+
+func (w *World) GetDownStairsLeftEdge() int16 {
+	leftEdge := int16(0)
+	rm := w.ThisRoom()
+	if rm == nil {
+		return leftEdge
+	}
+	for i := 0; i < MaxRoomObs; i++ {
+		if rm.Objects[i].What == UpStairs {
+			leftEdge = rm.Objects[i].TopLeft().H + 1
+			break
+		}
+	}
+	return leftEdge
+}
+
+// SetTakingTheStairs writes `takingTheStairs` (RoomGraphics.c:38), which suppresses the
+// glider's own draw for the frame a staircase transition completes.
+func (w *World) SetTakingTheStairs(v bool) { w.R.TakingTheStairs = v }
+
+// ---------------------------------------------------------------------------
+// Two-player state
+// ---------------------------------------------------------------------------
+
+func (w *World) TwoPlayerGame() bool { return w.TwoPlayer }
+func (w *World) OnePlayerLeft() bool { return w.OneLeft }
+
+// PlayerDead is `playerDead` (Player.c:53), and it does not mean "a player is dead".
+// It names *which* player is dead, in the same true=Player1 encoding as Glider.Which,
+// and is only meaningful when OnePlayerLeft is set. Every read of it selects the other
+// glider; see Survivor.
+func (w *World) PlayerDead() bool { return w.DeadWhich }
+
+func (w *World) OtherPlayerEscaped() int16     { return w.Escaped }
+func (w *World) SetOtherPlayerEscaped(v int16) { w.Escaped = v }
+func (w *World) SetFirstPlayer(which bool)     { w.FirstPlayer = which }
+func (w *World) SaidFollow() int16             { return w.SaidFollowCount }
+func (w *World) SetSaidFollow(n int16)         { w.SaidFollowCount = n }
+
+// Survivor returns the glider of whichever player is not dead.
+//
+// It is the inverse of PlayerDead, and the inversion is the whole point: Player.c:349-352
+// reads `if (playerDead == kPlayer1) MoveRoomToRoom(&theGlider2, ...) else
+// MoveRoomToRoom(&theGlider, ...)` -- it moves the one playerDead does *not* name. Every
+// one-player-left branch in every transit handler does this, so that a dead player's
+// corpse does not drag the survivor's view around.
+func (w *World) Survivor() *player.Glider {
+	if w.DeadWhich == player.Player1 {
+		return &w.P2
+	}
+	return &w.P1
+}
+
+// ---------------------------------------------------------------------------
+// Not yet implemented: the seventeen that belong to later work
+// ---------------------------------------------------------------------------
+//
+// Seventeen of the 46: sixteen with empty bodies and AddBand, which has to return
+// something. These are honest stubs, not approximations. Each says which commit or
+// sub-stage fills it and what the stub's behaviour means in the meantime, because a stub
+// that silently does something plausible is worse than one that does nothing: the first
+// hides a gap and the second is visible in a test.
+//
+// They exist at all so that *World satisfies player.Env today. That is worth having
+// before they are filled, because it is what lets the frame loop be written and run
+// against a real World instead of NopEnv.
+
+// QuickBatteryRefresh, QuickBandsRefresh, QuickFoilRefresh and RefreshScoreboard are
+// Scoreboard.c's per-frame half, landing in 1.5b's second commit with the rest of the
+// scoreboard. Until then the inventory changes and nothing on screen says so, which is
+// a cosmetic gap and not a simulation one -- no game state reads the scoreboard back.
+func (w *World) QuickBatteryRefresh(force bool) {}
+func (w *World) QuickBandsRefresh(force bool)   {}
+func (w *World) QuickFoilRefresh(force bool)    {}
+func (w *World) RefreshScoreboard(mode int16)   {}
+
+// AddRectToWorkRects and CopyRectWorkToMain are Render.c's dirty-rect protocol, landing
+// in 1.5b's first commit with RenderFrame. The lists they append to already exist on
+// World; what is missing is the two clamp rectangles, which differ between the two
+// adders, and the silent-drop-on-overflow behaviour. Stubbing them rather than writing a
+// naive append is deliberate: an unclamped adder would look like it worked.
+func (w *World) AddRectToWorkRects(r player.Rect) {}
+func (w *World) CopyRectWorkToMain(r player.Rect) {}
+
+// The four room transitions are all of Transit.c, landing in 1.5b's first commit. They
+// are the reason this stub block is temporary rather than a design: with these inert a
+// glider walks to a room boundary and stops there, which is precisely the state the port
+// is in before 1.5b.
+func (w *World) MoveRoomToRoom(g *player.Glider, where int16) {}
+func (w *World) MoveDuctToDuct(g *player.Glider)              {}
+func (w *World) MoveMailToMail(g *player.Glider)              {}
+func (w *World) TransportRoomToRoom(g *player.Glider)         {}
+
+// FlagStillOvers is Interactions.c:1713-1730, landing with the hot-spot dispatcher in
+// 1.5b's first commit. Note what it does before implementing it: it marks every
+// overlapped hot spot as *already stood on*, which SUPPRESSES it. So the stub -- doing
+// nothing -- is the less faithful direction, not the safer one: a glider dropping out of
+// a ceiling duct onto a switch currently flips it, and should not.
+func (w *World) FlagStillOvers(g *player.Glider) {}
+
+// OffAMortal is Player.c:1443-1604, landing in 1.5b's second commit with the game-over
+// tail. With it inert a glider that dies stays dead in place and the game does not end.
+func (w *World) OffAMortal(g *player.Glider) {}
+
+// ForceKillGlider is Transit.c:449, the give-up key's path, landing with Transit.c.
+func (w *World) ForceKillGlider() {}
+
+// AddBand is Input.c:352-361 and belongs to 1.5e, bands and grease. It returns false --
+// "the band array is full" -- which is the correct stub, and not merely a safe one: the
+// C's false is what makes the shot *not cost a band*, so a player firing into a stage
+// with no band subsystem loses no ammunition. The alternative stub, returning true,
+// would silently drain the inventory into nothing.
+func (w *World) AddBand(g *player.Glider, h, v int16, facing bool) bool { return false }
+
+// AddAShreddedGlider queues the shredded-glider particles and belongs to 1.5c, dynamics,
+// which owns RenderShreds. With it inert a shredded glider vanishes rather than coming
+// apart; it still dies.
+func (w *World) AddAShreddedGlider(r player.Rect) {}
+
+// DoPause and DoCommandKey belong to 1.7, the shell: both open modal UI that does not
+// exist yet. DoPause in particular *blocks* in the original, called from inside GetInput,
+// which is why a paused game does not advance a frame -- see docs/IMPROVEMENTS.md 2.5 for
+// why a released build needs more than a faithful transcription of it.
+func (w *World) DoPause()      {}
+func (w *World) DoCommandKey() {}
+
+// _ asserts the whole interface at compile time. This is the acceptance criterion for
+// 1.5b's Env work in executable form: if a method is missing or its signature drifts,
+// the package does not build.
+var _ player.Env = (*World)(nil)
