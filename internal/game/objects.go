@@ -43,8 +43,21 @@ type MasterObject struct {
 	// right one by luck, and is why the blades stay lethal on a fan that is off.
 	HotNum int16
 
-	// DynaNum is the index into the dinahs table for an object that moves, or -1.
-	// Filled in by the dynamics registration in 1.5c, not here.
+	// DynaNum is an index into one of **three different tables**, chosen by the
+	// object's own type, or -1. The C's name for it -- `dynamicNum` -- names only the
+	// commonest of the three and is why this needs saying:
+	//
+	//	the seventeen registrable types  an index into Dinahs
+	//	kGreaseRt / kGreaseLf           a Scene.SavedMaps slot (the slick's backdrop)
+	//	the six switch types            the object's own HotNum, i.e. a Room.Hot index
+	//
+	// Everything else keeps -1. So the fourteen Toggle* read it as a dinah, and
+	// TriggerSwitch -- alone among the eight Trigger* -- reads the same field as a hot
+	// spot; see trip.go. Nothing disambiguates it at runtime, which is why every reader
+	// has to already know which family it is holding.
+	//
+	// Written back by SetDynaNum as the composition runs, one call per object. See
+	// internal/render/locale.go's header for the hook.
 	DynaNum int16
 
 	// TheObject is a **copy** of the house's object, taken at compose time. It is a

@@ -82,6 +82,25 @@ func script(t *testing.T, name string) *replay.Script {
 //	an unattended glider, so that the rest of the run is the dynamics, the sparkles and
 //	  the scoreboard moving on their own
 //
+// # The toaster, and why the trace changed in 1.5c
+//
+// Room 5's only dynamic object is its kToaster, and the golden file now records nine
+// twenty-frame bursts on a sixty-four-frame period: 54-73, 118-137, ... 566-585. That is
+// RenderToast, which was an empty stub until Stage 1.5c, and every number in it is
+// derivable from the house:
+//
+//	delay 15   -> Frame = Timer = delay * 3 = 45 reload frames
+//	height 37  -> launchVelocity solves 1+2+...+9 >= 37, so Count = 9, VVel = -9
+//	           -> airborne for 2*Count+1 = 19 frames, VVel walking -9 up to 9
+//	45 + 19    =  64, the period; the room is entered on frame 9, so the first launch
+//	              is 9 + 45 = 54
+//
+// The last frame of each burst is `w2m` up one but `b2w` unchanged, which is the landing:
+// HandleToast work-rects the trail and clears Moving, and RenderToast's gate then skips
+// the draw, so that frame registers a work rect with no matching erase. Any future
+// regeneration that keeps the +1/+1 shape but moves those boundaries is a change to the
+// toaster's arithmetic and should be read as one.
+//
 // # The ClockFrame deviation
 //
 // PLAN.md's list of quantities to pin includes the original's `clockFrame`. The port has no
@@ -262,11 +281,16 @@ func TestTheTransitionFrameRendersTwice(t *testing.T) {
 
 // TestEvenFrameIsAStoredFlag guards a shortcut somebody will eventually take.
 //
-// World.EvenFrame is a field the loop toggles, not `Frame & 1`, and in an uninterrupted run
-// the two agree -- which is exactly why replacing the field with the expression would look
-// like a simplification. The trace records the field, so this test states the invariant the
-// current code happens to satisfy and will fail if a future sub-stage ever skips a toggle,
-// rather than silently changing what the trace means.
+// World.EvenFrame is a field the loop toggles, not `Frame & 1`, and in a run that never
+// composes a ball the two agree -- which is exactly why replacing the field with the
+// expression would look like a simplification. The trace records the field, so this test
+// states the invariant the current code happens to satisfy and will fail if a future
+// sub-stage ever skips a toggle, rather than silently changing what the trace means.
+//
+// **The invariant is conditional, and duct.script is one of the runs it holds for.** Rooms 4
+// and 5 contain no kBall, and a ball is what breaks it -- see
+// TestABallBreaksTheEvenFrameInvariant, which is the other half of this pair and the reason
+// this one cannot be read as a universal law.
 func TestEvenFrameIsAStoredFlag(t *testing.T) {
 	s := script(t, "duct.script")
 	s.Frames = 60
@@ -277,6 +301,106 @@ func TestEvenFrameIsAStoredFlag(t *testing.T) {
 	for _, sm := range res.Samples {
 		if want := sm.Frame%2 == 1; sm.Even != want {
 			t.Errorf("frame %d: Even %v, want %v -- a toggle was skipped", sm.Frame, sm.Even, want)
+		}
+	}
+}
+
+// roomScript is a bare run that starts in one room and holds no keys, for the handful of tests
+// that are about what a room's own contents do rather than about a recorded script.
+func roomScript(t *testing.T, room int16, frames int) *replay.Script {
+	t.Helper()
+	requireAssets(t, "houses")
+	requireAssets(t, "art")
+
+	s := replay.NewScript("CD Demo House", frames)
+	s.Room = room
+	// Mid-room and high up, so that in every room below the glider starts in free air and
+	// falls -- no transport under it, and nothing to collide with on the way down.
+	s.Where.H, s.Where.V = 240, 40
+	s.HouseDir = filepath.Join(assetRoot, "houses")
+	s.ArtDir = filepath.Join(assetRoot, "art")
+	s.HouseArtDir = filepath.Join(assetRoot, "houseart")
+	return s
+}
+
+// TestABallBreaksTheEvenFrameInvariant is the other half of the pair above, and it is here
+// rather than in a unit test because the point is that this is reachable in shipped content:
+// three rooms of CD Demo House do it, on the frame the room is composed, with no input.
+//
+// Two writers put EvenFrame out of step with Frame, and **both are assignments to true, never
+// toggles**:
+//
+//	launchVelocityHalfRate, from the kBall and kFish arms of AddDynamicObject -- so it
+//	fires at composition time, before the first frame runs (hazard H1)
+//
+//	HandleBall's idle arm, on the frame a resting ball is kicked into motion -- which is
+//	deliberate, because it phase-locks the half-rate gravity to the launch
+//
+// Every ball in CD Demo House is authored `initial 1`, so the two fire exactly one frame
+// apart: the composition sets true, the loop head toggles it to false, and the ball's first
+// idle frame sets it back to true. **The second write undoes the first**, which is why the
+// divergence below is one frame wide and not permanent.
+//
+// That cancellation is arithmetic, not luck, and it is also parity-dependent: it holds because
+// these runs compose the room before frame 1, whose expected parity is the true the ball
+// writes. A ball switched on mid-game by a trigger has no second write one frame later to
+// cancel it, and a room ducted into on the other parity would keep the shift -- see
+// game.TestBallResetsParityRatherThanTogglingIt for the mechanism at one frame's resolution.
+//
+// So the honest statement is: EvenFrame is a stored flag, it *is* knocked out of step by real
+// shipped rooms, and deriving it from Frame would change the flame-versus-star alternation on
+// the frame a ball room is entered.
+func TestABallBreaksTheEvenFrameInvariant(t *testing.T) {
+	// The three rooms of CD Demo House that compose a kBall, and two controls that do not.
+	// The controls are what make this a fact about balls rather than about room composition.
+	cases := []struct {
+		room  int16
+		name  string
+		balls bool
+	}{
+		{30, "Ball Illusion", true},
+		{172, "Attica, Greece", true},
+		{175, "Dodgeball", true},
+		{4, "Sticky Fly Paper", false},
+		{5, "the pendulum room", false},
+	}
+
+	for _, tc := range cases {
+		res, err := replay.Run(roomScript(t, tc.room, 30))
+		if err != nil {
+			t.Fatalf("room %d %q: %v", tc.room, tc.name, err)
+		}
+		if len(res.Samples) < 30 {
+			t.Fatalf("room %d %q: %d samples, want the whole run", tc.room, tc.name,
+				len(res.Samples))
+		}
+
+		var diverged []int64
+		for _, sm := range res.Samples {
+			if sm.Even != (sm.Frame%2 == 1) {
+				diverged = append(diverged, sm.Frame)
+			}
+		}
+
+		if !tc.balls {
+			if len(diverged) != 0 {
+				t.Errorf("room %d %q has no ball but diverged on frames %v",
+					tc.room, tc.name, diverged)
+			}
+			continue
+		}
+
+		// Frame 0 is the composed state, before the loop has run once, so this is the
+		// composition's write and nothing else.
+		if len(diverged) != 1 || diverged[0] != 0 {
+			t.Errorf("room %d %q diverged on frames %v, want exactly [0]: the composition's "+
+				"write and then the idle arm's write cancelling it",
+				tc.room, tc.name, diverged)
+			continue
+		}
+		if !res.Samples[0].Even {
+			t.Errorf("room %d %q: frame 0 Even = false, want the true the composition wrote",
+				tc.room, tc.name)
 		}
 	}
 }

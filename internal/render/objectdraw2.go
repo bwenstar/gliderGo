@@ -228,10 +228,10 @@ func (s *Scene) DrawMacPlus(theRect Rect, isOn, isLit bool) {
 	if isLit {
 		s.maskSheet("appliance", srcRects[kMacPlus], theRect)
 	}
-	screen := Offset(ZeroCorner(plusScreen1), theRect.Left+10, theRect.Top+7)
-	src := plusScreen1
+	screen := Offset(ZeroCorner(PlusScreen1), theRect.Left+10, theRect.Top+7)
+	src := PlusScreen1
 	if isOn {
-		src = plusScreen2
+		src = PlusScreen2
 	}
 	s.opaqueSheet("appliance", src, screen)
 }
@@ -242,10 +242,10 @@ func (s *Scene) DrawTV(theRect Rect, isOn, isLit bool) {
 	if isLit {
 		s.maskObject(kTV, srcRects[kTV], theRect)
 	}
-	screen := Offset(ZeroCorner(tvScreen1), theRect.Left+17, theRect.Top+10)
-	src := tvScreen1
+	screen := Offset(ZeroCorner(TVScreen1), theRect.Left+17, theRect.Top+10)
+	src := TVScreen1
 	if isOn {
-		src = tvScreen2
+		src = TVScreen2
 	}
 	s.opaqueSheet("appliance", src, screen)
 }
@@ -256,10 +256,10 @@ func (s *Scene) DrawCoffee(theRect Rect, isOn, isLit bool) {
 	if isLit {
 		s.maskSheet("appliance", srcRects[kCoffee], theRect)
 	}
-	light := Offset(ZeroCorner(coffeeLight1), theRect.Left+32, theRect.Top+57)
-	src := coffeeLight1
+	light := Offset(ZeroCorner(CoffeeLight1), theRect.Left+32, theRect.Top+57)
+	src := CoffeeLight1
 	if isOn {
-		src = coffeeLight2
+		src = CoffeeLight2
 	}
 	s.opaqueSheet("appliance", src, light)
 }
@@ -275,10 +275,10 @@ func (s *Scene) DrawVCR(theRect Rect, isOn, isLit bool) {
 	if isLit {
 		s.maskObject(kVCR, srcRects[kVCR], theRect)
 	}
-	clock := Offset(ZeroCorner(vcrTime1), theRect.Left+64, theRect.Top+6)
-	src := vcrTime1
+	clock := Offset(ZeroCorner(VCRTime1), theRect.Left+64, theRect.Top+6)
+	src := VCRTime1
 	if isOn {
-		src = vcrTime2
+		src = VCRTime2
 	}
 	s.opaqueSheet("appliance", src, clock)
 }
@@ -288,10 +288,10 @@ func (s *Scene) DrawStereo(theRect Rect, isOn, isLit bool) {
 	if isLit {
 		s.maskObject(kStereo, srcRects[kStereo], theRect)
 	}
-	light := Offset(ZeroCorner(stereoLight1), theRect.Left+56, theRect.Top+20)
-	src := stereoLight1
+	light := Offset(ZeroCorner(StereoLight1), theRect.Left+56, theRect.Top+20)
+	src := StereoLight1
 	if isOn {
-		src = stereoLight2
+		src = StereoLight2
 	}
 	s.opaqueSheet("appliance", src, light)
 }
@@ -307,16 +307,16 @@ func (s *Scene) DrawMicrowave(theRect Rect, isOn, isLit bool) {
 	if isLit {
 		s.maskObject(kMicrowave, srcRects[kMicrowave], theRect)
 	}
-	panel := Offset(ZeroCorner(microOn), theRect.Left+14, theRect.Top+13)
+	panel := Offset(ZeroCorner(MicroOn), theRect.Left+14, theRect.Top+13)
 	switch {
 	case isOn:
 		for i := 0; i < 3; i++ {
-			s.opaqueSheet("appliance", microOn, panel)
+			s.opaqueSheet("appliance", MicroOn, panel)
 			panel = Offset(panel, 16, 0)
 		}
 	case isLit:
 		for i := 0; i < 3; i++ {
-			s.opaqueSheet("appliance", microOff, panel)
+			s.opaqueSheet("appliance", MicroOff, panel)
 			panel = Offset(panel, 16, 0)
 		}
 	}
@@ -335,11 +335,11 @@ func (s *Scene) DrawFish(what int16, theRect Rect) {
 	s.maskSheet("enemy", srcRects[what], theRect)
 }
 
-// DrawDrip is the drop of water hanging from a faucet. dripSrc[3] rather than
+// DrawDrip is the drop of water hanging from a faucet. DripSrc[3] rather than
 // srcRects[kDrip]: the two are the same 16x12 size but sit at different heights
 // in the sheet, and frame 3 is the hanging one.
 func (s *Scene) DrawDrip(theRect Rect) {
-	s.maskSheet("drip", dripSrc[3], theRect)
+	s.maskSheet("drip", DripSrc[3], theRect)
 }
 
 // DrawMirror is drawn from four nested frames over a white fill: grey, two rows

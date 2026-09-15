@@ -14,11 +14,12 @@ package game
 // used** -- so a seventeenth simultaneous trigger is consumed and never fires. Kept, per
 // the note on the caps in consts.go.
 //
-// The whole file is ported now rather than at 1.5c, because everything except
+// The whole file was ported in 1.5b rather than at 1.5c, because everything except
 // FireTrigger's dispatch is self-contained and the timer machinery is worth having
-// testable early. FireTrigger's nine dynamic-object arms are named no-ops with the
-// stage that fills them; its two structural halves -- the localLink split and the grease
-// arm's SetObjectState -- are real.
+// testable early. Eight of its nine dynamic-object arms became real in 1.5c, with Trip.c;
+// only the grease arm's SpillGrease is still a named no-op, charged to 1.5e. Its two
+// structural halves -- the localLink split and the grease arm's SetObjectState -- were
+// real from the start.
 
 import "encoding/binary"
 
@@ -282,31 +283,20 @@ const (
 )
 
 // ---------------------------------------------------------------------------
-// The nine dynamic-object pokes FireTrigger dispatches to
+// The one poke FireTrigger dispatches to that is still a stub
 // ---------------------------------------------------------------------------
 //
-// Named no-ops, following the convention render_frame.go set for the nine renderers: the
-// dispatch above is transcribed and live, and each of these becomes real in its own
-// stage without its call site being touched. Their one argument is the target's index
-// into the dinahs table, which does not exist yet and is -1 for everything, so each will
-// need the same bounds refusal when it lands.
+// The other eight -- TriggerSwitch, TriggerToast, TriggerOutlet, TriggerBalloon,
+// TriggerCopter, TriggerDart, TriggerDrip, TriggerFish -- landed with the rest of Trip.c in
+// 1.5c and are in trip.go. This one is charged to 1.5e, so a trigger wired to grease still
+// spills it in the house copy (the SetObjectState call above is real) and simply does not
+// draw the slick.
 
 // SpillGrease is DynamicMaps.c: a grease bonus becomes a slick on the floor. 1.5e, bands
 // and grease. Its second argument is the object's HotNum, because the slick's kSlideIt
 // rect is created by widening the bonus's own rect in place.
+//
+// Both arguments can be -1 here. FireTrigger's remote half passes a dynamic index the
+// branch condition has just proved is -1 (the C reads dinahs[-1] there), so this will need
+// World.dinah's refusal when it lands rather than an unguarded index.
 func (w *World) SpillGrease(dynaNum, hotNum int16) {}
-
-// TriggerSwitch is Dynamics.c: throw a switch that a trigger is wired to. 1.5d, rewards
-// and switches -- it is HandleSwitches' machinery seen from the other side.
-func (w *World) TriggerSwitch(dynaNum int16) {}
-
-// The seven remaining pokes all belong to 1.5c, dynamics: they start an animation on an
-// object that moves. Until then a trigger wired to any of them arms, counts down and
-// fires silently.
-func (w *World) TriggerToast(dynaNum int16)   {}
-func (w *World) TriggerOutlet(dynaNum int16)  {}
-func (w *World) TriggerBalloon(dynaNum int16) {}
-func (w *World) TriggerCopter(dynaNum int16)  {}
-func (w *World) TriggerDart(dynaNum int16)    {}
-func (w *World) TriggerDrip(dynaNum int16)    {}
-func (w *World) TriggerFish(dynaNum int16)    {}

@@ -324,7 +324,7 @@ the C has it as one shared global that `FollowTheLeader` reads from the *dead* l
 `DrawLocale` reset order, which two source reports had wrong.
 
 **1.5a The world and the room: live state, object graph, hot-spot table, room load** — ~2,230
-lines of C
+lines of C ✅ *done*
 - `internal/game` gains `World` (session-, game- and house-scope state) and `Room` (what
   `DrawLocale` rebuilds), scoped on **the C's own reset sites** rather than on intuition: session =
   `CreatePointers`, game = `Play.c:112-118` + `InitGlider`, room = `DrawLocale`
@@ -349,7 +349,7 @@ lines of C
   four actions against all 117 `what` codes without panicking.
 
 **1.5b The frame and the traversal: frame loop, hot-spot dispatcher, room transitions** — ~2,510
-lines of C
+lines of C ✅ *done*
 - `Play.c`'s `PlayGame` loop and game-over tail, `Render.c`'s frame spine and dirty-rect protocol,
   `Interactions.c:1198-1777` (`HandleHotSpotCollision`'s 28 cases, `CheckForHotSpots`,
   `FlagStillOvers`, `WebGlider`), all of `Transit.c` and `Transitions.c`, `OffAMortal`.
@@ -372,7 +372,7 @@ lines of C
   the pendulum reached the locale even though nothing swings it yet. Add `clockFrame` to the
   trace when 1.5f lands.
 
-**1.5c Dynamics: the `dinahs` table, appliances, movers, toggles, triggers** — ~2,510 lines of C
+**1.5c Dynamics: the `dinahs` table, appliances, movers, toggles, triggers** — ~2,510 lines of C ✅ *done*
 - `Dynamics3.c`'s `AddDynamicObject`/`HandleDynamics`/`RenderDynamics`, all of `Dynamics.c` and
   `Dynamics2.c`, all of `Trip.c` and `Triggers.c`, sparkles and flying points.
 - Before rewards and switches **on purpose**: the dependency graph has one genuine cycle, since
@@ -385,6 +385,32 @@ lines of C
   frame of its handler; all fourteen `Toggle*` and eight `Trigger*` have a test, and the seven
   target types `FireTrigger` silently ignores are pinned as no-ops; trigger timing asserted at
   three delays; the 18-slot cap asserted against a checked-in census of the busiest shipped room.
+- **All five clauses met, in `internal/game/dynamics_test.go` and `trip_test.go`.** The census is
+  `TestBusiestShippedLocaleSaturates`, which sweeps all 22 houses and names the answer:
+  `California or Bust!.house` room 10 "And the Pets, Too" holds exactly 18 registrable objects,
+  three locales in two houses reach the cap, and **none exceeds it** — so
+  `AddDynamicObject`'s `return -1` is live but never taken by a shipped house. That closes open
+  question 11 of `docs/analysis/object-dynamics.md`, and it means a Stage 2 house has to be
+  checked against the cap rather than assumed under it.
+- **Two files of depth beyond the stated minimum**, because the six movers and the two effect
+  tables turned out to hold most of the sub-stage's real behaviour: `movers_test.go` pins the
+  trailing-union invariant for all ten registrable non-appliance types over four frames each,
+  the per-handler `EvenFrame` gating, and each mover's retire conditions; `sparkles_test.go`
+  pins both effect tables as free lists — including the trap that a table not swept by
+  `InitGarbageRects` reads as three live effects and silently drops everything with no counter
+  drift — plus the flying point's exact 72-frame lifetime and its hard-against-the-array-end
+  cel walk.
+- **Four findings recorded rather than fixed**, all in `docs/IMPROVEMENTS.md`: the ungated
+  ball/drip/fish renderers spend 17 of the 47 dirty-rect slots standing still in `SpacePods`
+  room 55 (2.11); a four-frame enemy reload emits no warning sparkle and is unreachable only
+  because `Count = Delay * 3` (2.36); the television's movie branch is a deliberate blank while
+  all 15 shipped movies sit already extracted under `assets/extracted/movie` (2.37); and 2.35's
+  `evenFrame` bullet is now measured — the desynchronisation is **one frame wide, not
+  permanent**, because only the loop head toggles and the other three writers assign, so the
+  composition write and the ball's first idle write cancel.
+- **One correction to close, carried into 1.5e.** 2.34's `PaintRect`-with-no-destination is
+  resolved for the outlet (`HandleOutlet` names `w.R.Work` at the call site) and still open for
+  `HandleGrease`, which is where the same conversion mistake would land next.
 
 **1.5d Rewards, switches, per-room persistence** — ~465 lines of C
 - `Interactions.c:756-1194` (`HandleRewards`' fifteen prizes, `HandleSwitches`, `HandleMicrowave-

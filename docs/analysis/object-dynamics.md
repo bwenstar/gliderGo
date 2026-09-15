@@ -3873,14 +3873,25 @@ Editor defaults (`GliderPRO/Sources/ObjectAdd.c:589-644`): `kToaster` gets
     **Consequence if I am wrong:** an outlet in a dark neighbour room would paint its rect instead of
     restoring its sprite after a zap, or vice versa.
 
-11. **Are there houses with more than 18 dynamic objects visible in 9-room mode?** Seven of the eight
+11. **Are there houses with more than 18 dynamic objects visible in 9-room mode?** ~~Seven of the eight
     dynamic appliance types spawn for all nine rooms (§10.1) and the budget is
     `kMaxDynamicObs = 18` with a silent `return (-1)` (`Dynamics3.c:193-194`). The census gives
     totals per house but I did not compute, for each room of each house, the sum over the 3×3
-    neighbourhood of (appliance dinahs) + (central-room hazards + toasters + sparkles).
+    neighbourhood of (appliance dinahs) + (central-room hazards + toasters + sparkles).~~
+    **Answered — the budget is reached but never exceeded.** `game.TestBusiestShippedLocaleSaturates`
+    (`internal/game/dynamics_test.go:958`) computes exactly the per-locale sum described above over
+    all 22 shipped houses. The busiest locale is `California or Bust!.house` room 10
+    "And the Pets, Too" at **18** registrable objects — flush against the cap with nothing to spare.
+    Three locales in two houses (`California or Bust!` and `Teddy World`) reach 18; none exceeds it.
+    So `AddDynamicObject`'s `return -1` is *live but never taken* in the shipped corpus: the enrolment
+    order still has to be right for the slot indices to match, but no shipped object is ever silently
+    dropped. The test fails if a corpus change makes the cap unreachable, so the claim cannot go
+    stale unnoticed.
     **Consequence if I am wrong:** if the budget *is* exceeded anywhere, a faithful Go port must
     reproduce the *enrolment order* (NW, NE, N, SW, SE, S, W, E, Central, then slot 0..23) and the
-    silent drop, or different objects will go missing.
+    silent drop, or different objects will go missing. The port does both regardless; the census only
+    tells us the drop is not exercised by the originals, which is why a *new* house authored for
+    Stage 2 must be checked against this cap rather than assumed under it.
 
 12. **What did `kLgTrigger`'s dead `case kLgTrigger:` action label mean?**
     `HandleHotSpotCollision` has `case kTriggerIt: case kLgTrigger: ArmTrigger(who);`

@@ -258,7 +258,7 @@ var atlas = []atlasEntry{
 	{kFoil, artSheet, "bonus", 0, Rect{Top: 228, Left: 0, Bottom: 243, Right: 55}},
 	{kInvisBonus, artNone, "", 0, Rect{Top: 0, Left: 0, Bottom: 24, Right: 24}},     // hit/size template only
 	{kStar, artSheet, "bonus", 0, Rect{Top: 0, Left: 48, Bottom: 31, Right: 80}},    // starSrc[0..5] 32x31 stride 31 @(48,0)
-	{kSparkle, artSheet, "bonus", 0, Rect{Top: 70, Left: 0, Bottom: 89, Right: 20}}, // sparkleSrc[0..4] 20x19; frames 2,3,4 @(0,70),(0,89),(0,108); [0]=[4], [1]=[3]
+	{kSparkle, artSheet, "bonus", 0, Rect{Top: 70, Left: 0, Bottom: 89, Right: 20}}, // SparkleSrc[0..4] 20x19; frames 2,3,4 @(0,70),(0,89),(0,108); [0]=[4], [1]=[3]
 	{kHelium, artSheet, "bonus", 0, Rect{Top: 270, Left: 32, Bottom: 286, Right: 88}},
 	{kSlider, artNone, "", 0, Rect{Top: 0, Left: 0, Bottom: 16, Right: 64}}, // hit/size template only
 	{kUpStairs, artKey, "", 3997, Rect{Top: 0, Left: 0, Bottom: 267, Right: 160}},
@@ -295,15 +295,15 @@ var atlas = []atlasEntry{
 	{kTrackLight, artTmpl, "light", 0, Rect{Top: 0, Left: 0, Bottom: 24, Right: 64}},     // art = trackLightSrc[0..2] 24x24 stride 24 in x @(0,102); kTrackLightSpacing 64
 	{kInvisLight, artNone, "", 0, Rect{Top: 0, Left: 0, Bottom: 16, Right: 16}},          // hit/size template only
 	{kShredder, artSheet, "appliance", 0, Rect{Top: 0, Left: 0, Bottom: 22, Right: 73}},  // shredSrcMap 4010/5010 40x35 holds the shredded-paper animation
-	{kToaster, artSheet, "appliance", 0, Rect{Top: 22, Left: 0, Bottom: 49, Right: 48}},  // toastSrcMap 4009/5009 32x174 holds breadSrc[0..5] 32x29 stride 29
-	{kMacPlus, artSheet, "appliance", 0, Rect{Top: 49, Left: 0, Bottom: 107, Right: 48}}, // + plusScreen1 32x22 @(48,127) off / plusScreen2 @(48,149) on, srcCopy at +10,+7
+	{kToaster, artSheet, "appliance", 0, Rect{Top: 22, Left: 0, Bottom: 49, Right: 48}},  // toastSrcMap 4009/5009 32x174 holds BreadSrc[0..5] 32x29 stride 29
+	{kMacPlus, artSheet, "appliance", 0, Rect{Top: 49, Left: 0, Bottom: 107, Right: 48}}, // + PlusScreen1 32x22 @(48,127) off / PlusScreen2 @(48,149) on, srcCopy at +10,+7
 	{kGuitar, artKey, "", 3991, Rect{Top: 0, Left: 0, Bottom: 172, Right: 64}},
-	{kTV, artPair, "", 3992, Rect{Top: 0, Left: 0, Bottom: 77, Right: 92}},               // + tvScreen1 64x49 @(0,171) off / tvScreen2 @(0,220) on, from applianceSrcMap
-	{kCoffee, artSheet, "appliance", 0, Rect{Top: 107, Left: 0, Bottom: 171, Right: 43}}, // + coffeeLight1 8x4 @(72,171) off / coffeeLight2 @(72,175) on, srcCopy at +32,+57
-	{kOutlet, artSheet, "appliance", 0, Rect{Top: 22, Left: 64, Bottom: 46, Right: 80}},  // outletSrc[0..3] 16x24 stride 24 @(64,22) is the spark animation
-	{kVCR, artPair, "", 3990, Rect{Top: 0, Left: 0, Bottom: 22, Right: 96}},              // + vcrTime1 16x4 @(64,179) / vcrTime2 @(64,183) from applianceSrcMap
-	{kStereo, artPair, "", 3989, Rect{Top: 0, Left: 0, Bottom: 53, Right: 128}},          // + stereoLight1 4x1 @(68,171) / stereoLight2 @(68,172)
-	{kMicrowave, artPair, "", 3971, Rect{Top: 0, Left: 0, Bottom: 59, Right: 92}},        // + microOff 16x35 @(64,187) / microOn @(64,222)
+	{kTV, artPair, "", 3992, Rect{Top: 0, Left: 0, Bottom: 77, Right: 92}},               // + TVScreen1 64x49 @(0,171) off / TVScreen2 @(0,220) on, from applianceSrcMap
+	{kCoffee, artSheet, "appliance", 0, Rect{Top: 107, Left: 0, Bottom: 171, Right: 43}}, // + CoffeeLight1 8x4 @(72,171) off / CoffeeLight2 @(72,175) on, srcCopy at +32,+57
+	{kOutlet, artSheet, "appliance", 0, Rect{Top: 22, Left: 64, Bottom: 46, Right: 80}},  // OutletSrc[0..3] 16x24 stride 24 @(64,22) is the spark animation
+	{kVCR, artPair, "", 3990, Rect{Top: 0, Left: 0, Bottom: 22, Right: 96}},              // + VCRTime1 16x4 @(64,179) / VCRTime2 @(64,183) from applianceSrcMap
+	{kStereo, artPair, "", 3989, Rect{Top: 0, Left: 0, Bottom: 53, Right: 128}},          // + StereoLight1 4x1 @(68,171) / StereoLight2 @(68,172)
+	{kMicrowave, artPair, "", 3971, Rect{Top: 0, Left: 0, Bottom: 59, Right: 92}},        // + MicroOff 16x35 @(64,187) / MicroOn @(64,222)
 	{kCinderBlock, artKey, "", 3960, Rect{Top: 0, Left: 0, Bottom: 62, Right: 40}},
 	{kFlowerBox, artKey, "", 3959, Rect{Top: 0, Left: 0, Bottom: 32, Right: 80}},
 	{kCDs, artSheet, "appliance", 0, Rect{Top: 22, Left: 48, Bottom: 52, Right: 64}},
@@ -314,7 +314,7 @@ var atlas = []atlasEntry{
 	{kDartLf, artSheet, "dart", 0, Rect{Top: 0, Left: 0, Bottom: 19, Right: 64}},     // dartSrc[0..3] 64x19 stride 19
 	{kDartRt, artSheet, "dart", 0, Rect{Top: 0, Left: 0, Bottom: 19, Right: 64}},     // dartSrc[0..3] 64x19 stride 19
 	{kBall, artSheet, "ball", 0, Rect{Top: 0, Left: 0, Bottom: 32, Right: 32}},       // ballSrc[0..1] 32x32 stride 32
-	{kDrip, artSheet, "drip", 0, Rect{Top: 0, Left: 0, Bottom: 12, Right: 16}},       // static draw uses dripSrc[3] @(0,36), NOT srcRects[kDrip]; dripSrc[0..5] 16x12 stride 12
+	{kDrip, artSheet, "drip", 0, Rect{Top: 0, Left: 0, Bottom: 12, Right: 16}},       // static draw uses DripSrc[3] @(0,36), NOT srcRects[kDrip]; DripSrc[0..5] 16x12 stride 12
 	{kFish, artSheet, "enemy", 0, Rect{Top: 0, Left: 0, Bottom: 33, Right: 36}},      // static draw reads enemySrcMap 4016/5016; the 8-frame fishSrcMap 4017/5017 16x16 stride 16 is animation-only
 	{kCobweb, artPair, "", 3958, Rect{Top: 0, Left: 0, Bottom: 45, Right: 54}},
 	{kOzma, artOpaque, "", 3975, Rect{Top: 0, Left: 0, Bottom: 92, Right: 102}},
@@ -470,9 +470,9 @@ var (
 		{Top: 351, Left: 32, Bottom: 378, Right: 64},
 	}
 
-	// sparkleSrc[0..4], 20x19. Only three distinct frames exist: the strip is
+	// SparkleSrc[0..4], 20x19. Only three distinct frames exist: the strip is
 	// played out and back, so [0] aliases [4] and [1] aliases [3].
-	sparkleSrc = [5]Rect{
+	SparkleSrc = [5]Rect{
 		{Top: 108, Left: 0, Bottom: 127, Right: 20},
 		{Top: 89, Left: 0, Bottom: 108, Right: 20},
 		{Top: 70, Left: 0, Bottom: 89, Right: 20},
@@ -512,22 +512,22 @@ var (
 // appliance that has already been drawn, and the on/off pairs are adjacent so
 // that a boolean state selects between them.
 var (
-	plusScreen1  = Rect{Top: 127, Left: 48, Bottom: 149, Right: 80} // kMacPlus screen off, srcCopy at +10,+7
-	plusScreen2  = Rect{Top: 149, Left: 48, Bottom: 171, Right: 80} // kMacPlus screen on
-	tvScreen1    = Rect{Top: 171, Left: 0, Bottom: 220, Right: 64}  // kTV screen off
-	tvScreen2    = Rect{Top: 220, Left: 0, Bottom: 269, Right: 64}  // kTV screen on
-	coffeeLight1 = Rect{Top: 171, Left: 72, Bottom: 175, Right: 80} // kCoffee lamp off, srcCopy at +32,+57
-	coffeeLight2 = Rect{Top: 175, Left: 72, Bottom: 179, Right: 80} // kCoffee lamp on
-	vcrTime1     = Rect{Top: 179, Left: 64, Bottom: 183, Right: 80} // kVCR clock blank
-	vcrTime2     = Rect{Top: 183, Left: 64, Bottom: 187, Right: 80} // kVCR clock 12:00
-	stereoLight1 = Rect{Top: 171, Left: 68, Bottom: 172, Right: 72} // kStereo LED off -- four pixels by one
-	stereoLight2 = Rect{Top: 172, Left: 68, Bottom: 173, Right: 72} // kStereo LED on
-	microOff     = Rect{Top: 187, Left: 64, Bottom: 222, Right: 80} // kMicrowave door closed
-	microOn      = Rect{Top: 222, Left: 64, Bottom: 257, Right: 80} // kMicrowave door open
+	PlusScreen1  = Rect{Top: 127, Left: 48, Bottom: 149, Right: 80} // kMacPlus screen off, srcCopy at +10,+7
+	PlusScreen2  = Rect{Top: 149, Left: 48, Bottom: 171, Right: 80} // kMacPlus screen on
+	TVScreen1    = Rect{Top: 171, Left: 0, Bottom: 220, Right: 64}  // kTV screen off
+	TVScreen2    = Rect{Top: 220, Left: 0, Bottom: 269, Right: 64}  // kTV screen on
+	CoffeeLight1 = Rect{Top: 171, Left: 72, Bottom: 175, Right: 80} // kCoffee lamp off, srcCopy at +32,+57
+	CoffeeLight2 = Rect{Top: 175, Left: 72, Bottom: 179, Right: 80} // kCoffee lamp on
+	VCRTime1     = Rect{Top: 179, Left: 64, Bottom: 183, Right: 80} // kVCR clock blank
+	VCRTime2     = Rect{Top: 183, Left: 64, Bottom: 187, Right: 80} // kVCR clock 12:00
+	StereoLight1 = Rect{Top: 171, Left: 68, Bottom: 172, Right: 72} // kStereo LED off -- four pixels by one
+	StereoLight2 = Rect{Top: 172, Left: 68, Bottom: 173, Right: 72} // kStereo LED on
+	MicroOff     = Rect{Top: 187, Left: 64, Bottom: 222, Right: 80} // kMicrowave door closed
+	MicroOn      = Rect{Top: 222, Left: 64, Bottom: 257, Right: 80} // kMicrowave door open
 
-	// outletSrc[0..3], 16x24, stride 24 in v. Frame 0 is the unlit outlet and
+	// OutletSrc[0..3], 16x24, stride 24 in v. Frame 0 is the unlit outlet and
 	// is also srcRects[kOutlet]; 1..3 are the spark.
-	outletSrc = [4]Rect{
+	OutletSrc = [4]Rect{
 		{Top: 22, Left: 64, Bottom: 46, Right: 80},
 		{Top: 46, Left: 64, Bottom: 70, Right: 80},
 		{Top: 70, Left: 64, Bottom: 94, Right: 80},
@@ -536,8 +536,8 @@ var (
 )
 
 // toastSrcMap, 32x174 -- a strip, not a sheet: nothing in srcRects indexes it.
-// breadSrc[0..5], 32x29, stride 29 in v, is the slice rising out of a kToaster.
-var breadSrc = [6]Rect{
+// BreadSrc[0..5], 32x29, stride 29 in v, is the slice rising out of a kToaster.
+var BreadSrc = [6]Rect{
 	{Top: 0, Left: 0, Bottom: 29, Right: 32},
 	{Top: 29, Left: 0, Bottom: 58, Right: 32},
 	{Top: 58, Left: 0, Bottom: 87, Right: 32},
@@ -546,9 +546,9 @@ var breadSrc = [6]Rect{
 	{Top: 145, Left: 0, Bottom: 174, Right: 32},
 }
 
-// dripSrcMap, 16x72. dripSrc[0..5], 16x12, stride 12 in v. The static room draw
+// dripSrcMap, 16x72. DripSrc[0..5], 16x12, stride 12 in v. The static room draw
 // uses frame 3 -- the hanging drop -- and not srcRects[kDrip], which is frame 0.
-var dripSrc = [6]Rect{
+var DripSrc = [6]Rect{
 	{Top: 0, Left: 0, Bottom: 12, Right: 16},
 	{Top: 12, Left: 0, Bottom: 24, Right: 16},
 	{Top: 24, Left: 0, Bottom: 36, Right: 16},
@@ -556,3 +556,103 @@ var dripSrc = [6]Rect{
 	{Top: 48, Left: 0, Bottom: 60, Right: 16},
 	{Top: 60, Left: 0, Bottom: 72, Right: 16},
 }
+
+// The five enemy strips and the flying-points strip: art that only a *moving*
+// object reads, which is why none of it was needed before 1.5c.
+//
+// Every one is a single column with a constant stride, from the loops at
+// StructuresInit.c:688-720 and :576-580. Written out rather than computed for the
+// same reason BreadSrc and DripSrc are: TestStripRectsTileTheirSheet checks each
+// array against its sheet's declared bounds, and a transcribed table is what that
+// test can actually catch a mistake in.
+var (
+	// balloonSrcMap 24x240. BalloonSrc[0..7], 24x30, stride 30
+	// (kNumBalloonFrames = 8).
+	BalloonSrc = [8]Rect{
+		{Top: 0, Left: 0, Bottom: 30, Right: 24},
+		{Top: 30, Left: 0, Bottom: 60, Right: 24},
+		{Top: 60, Left: 0, Bottom: 90, Right: 24},
+		{Top: 90, Left: 0, Bottom: 120, Right: 24},
+		{Top: 120, Left: 0, Bottom: 150, Right: 24},
+		{Top: 150, Left: 0, Bottom: 180, Right: 24},
+		{Top: 180, Left: 0, Bottom: 210, Right: 24},
+		{Top: 210, Left: 0, Bottom: 240, Right: 24},
+	}
+
+	// copterSrcMap 32x300. CopterSrc[0..9], 32x30, stride 30
+	// (kNumCopterFrames = 10). The longest enemy strip in the game, and the only
+	// one whose frame count is not a power of two.
+	CopterSrc = [10]Rect{
+		{Top: 0, Left: 0, Bottom: 30, Right: 32},
+		{Top: 30, Left: 0, Bottom: 60, Right: 32},
+		{Top: 60, Left: 0, Bottom: 90, Right: 32},
+		{Top: 90, Left: 0, Bottom: 120, Right: 32},
+		{Top: 120, Left: 0, Bottom: 150, Right: 32},
+		{Top: 150, Left: 0, Bottom: 180, Right: 32},
+		{Top: 180, Left: 0, Bottom: 210, Right: 32},
+		{Top: 210, Left: 0, Bottom: 240, Right: 32},
+		{Top: 240, Left: 0, Bottom: 270, Right: 32},
+		{Top: 270, Left: 0, Bottom: 300, Right: 32},
+	}
+
+	// dartSrcMap 64x76. DartSrc[0..3], 64x19, stride 19 (kNumDartFrames = 4).
+	//
+	// The four frames are two *directions*, not an animation: a dart's registration
+	// sets frame 0 for kDartLf and frame 2 for kDartRt and nothing ever advances it.
+	// See HandleDart.
+	DartSrc = [4]Rect{
+		{Top: 0, Left: 0, Bottom: 19, Right: 64},
+		{Top: 19, Left: 0, Bottom: 38, Right: 64},
+		{Top: 38, Left: 0, Bottom: 57, Right: 64},
+		{Top: 57, Left: 0, Bottom: 76, Right: 64},
+	}
+
+	// ballSrcMap 32x64. BallSrc[0..1], 32x32, stride 32 (kNumBallFrames = 2).
+	BallSrc = [2]Rect{
+		{Top: 0, Left: 0, Bottom: 32, Right: 32},
+		{Top: 32, Left: 0, Bottom: 64, Right: 32},
+	}
+
+	// fishSrcMap 16x128. FishSrc[0..7], 16x16, stride 16 (kNumFishFrames = 8).
+	//
+	// Distinct from srcRects[kFish], which is the 36x33 still on the enemy sheet:
+	// the static room draw uses that one and only the leaping fish uses this strip.
+	// FishSrc[0] is already at the origin, which is why kFish is the one
+	// registration case in AddDynamicObject with no ZeroRectCorner.
+	FishSrc = [8]Rect{
+		{Top: 0, Left: 0, Bottom: 16, Right: 16},
+		{Top: 16, Left: 0, Bottom: 32, Right: 16},
+		{Top: 32, Left: 0, Bottom: 48, Right: 16},
+		{Top: 48, Left: 0, Bottom: 64, Right: 16},
+		{Top: 64, Left: 0, Bottom: 80, Right: 16},
+		{Top: 80, Left: 0, Bottom: 96, Right: 16},
+		{Top: 96, Left: 0, Bottom: 112, Right: 16},
+		{Top: 112, Left: 0, Bottom: 128, Right: 16},
+	}
+
+	// pointsSrcMap 24x120. PointsSrc[0..14], 24x8, stride 8
+	// (StructuresInit.c:412-416, which loops to 15 with no #define behind it).
+	//
+	// Fifteen rows of numerals, read in pairs: AddFlyingPoint picks a start index
+	// and an end index out of this strip and RenderFlyingPoints walks between them,
+	// which is how one 24x120 sheet spells 100, 250, 300, 500 and 1000. The walking
+	// index is flyingPoints[].mode and it indexes this array directly
+	// (Render.c:369).
+	PointsSrc = [15]Rect{
+		{Top: 0, Left: 0, Bottom: 8, Right: 24},
+		{Top: 8, Left: 0, Bottom: 16, Right: 24},
+		{Top: 16, Left: 0, Bottom: 24, Right: 24},
+		{Top: 24, Left: 0, Bottom: 32, Right: 24},
+		{Top: 32, Left: 0, Bottom: 40, Right: 24},
+		{Top: 40, Left: 0, Bottom: 48, Right: 24},
+		{Top: 48, Left: 0, Bottom: 56, Right: 24},
+		{Top: 56, Left: 0, Bottom: 64, Right: 24},
+		{Top: 64, Left: 0, Bottom: 72, Right: 24},
+		{Top: 72, Left: 0, Bottom: 80, Right: 24},
+		{Top: 80, Left: 0, Bottom: 88, Right: 24},
+		{Top: 88, Left: 0, Bottom: 96, Right: 24},
+		{Top: 96, Left: 0, Bottom: 104, Right: 24},
+		{Top: 104, Left: 0, Bottom: 112, Right: 24},
+		{Top: 112, Left: 0, Bottom: 120, Right: 24},
+	}
+)

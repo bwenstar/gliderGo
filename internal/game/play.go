@@ -731,16 +731,7 @@ func (w *World) GetDemoInput(g *player.Glider) {}
 // its real position now, so that filling it in later is a change to one function body
 // and cannot move anything else.
 
-// HandleDynamics is Dynamics.c:1391-1500 and belongs to 1.5c. It is the first call of
-// the loop body and it is ungated by GameOver, so the room keeps moving through the
-// death countdown. Without it every ball, fish, dart, balloon, toaster and enemy stands
-// still, and the rooms that are pure obstacle courses are walkable.
-//
-// One thing to know before transcribing HandleOutlet, which it reaches through
-// Dynamics3.c:60: its off-frame PaintRect has no destination in the shipped Carbon source,
-// because the SetPort that gave it one was commented out and nothing replaced it. Target the
-// work surface, as the correctly-converted Grease.c does. docs/IMPROVEMENTS.md 2.34.
-func (w *World) HandleDynamics() {}
+// HandleDynamics landed with 1.5c and lives in dynamics.go.
 
 // HandleBands is Bands.c:120-193 and belongs to 1.5e. Ungated like HandleDynamics.
 // Without it a fired rubber band never moves or lands, so the band inventory drains with

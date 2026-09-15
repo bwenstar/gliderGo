@@ -279,6 +279,27 @@ diagnostic nobody has.
 in a running game — there is no debug overlay and no log line — so a stranger who hits it
 still just sees flicker. That half needs 1.7's shell to have somewhere to put it.
 
+**Measured at 1.5c: three mover types spend rects whether or not anything is happening,
+and one shipped room burns a third of the budget standing still.** `RenderBall`,
+`RenderDrip` and `RenderFish` are the three renderers with no `Moving` gate — they cannot
+have one, for the reasons their comments give (a spent ball sits on the floor and is still
+lethal; the drip's hanging cel must survive the first back→work erase; a resting fish's
+unmasked water is the animation) — so each costs one work rect and one back rect on *every*
+frame for the life of the room. The drip is worse than the other two, because while the drop
+hangs its `Whole` is still the union of the last fall, so the rect it registers is the whole
+column rather than the drop. Counted over the shipped corpus, `SpacePods.house` room 55 "Ion
+Generator" holds 16 of these; `glidertool replay -house SpacePods -room 55 -trace` shows a
+flat **17 work and 17 back rects per frame** with the glider standing still and nothing
+triggered — 36% of the effective 47 gone before the room does anything. `California or
+Bust!` room 10 has 12, `SpacePods` room 105 has 11, `Grand Prix` room 7 has 10.
+
+That is faithful, and it stays. It is recorded here for two reasons. First, it sets the
+floor a house author has to budget against, which makes it input to 4.1's linter: a room
+with 16 ungated movers plus a mirror (2.19's unclipped per-frame rect) plus a busy glider is
+where the 47 actually runs out. Second, if presentation is ever reworked (2.10, 2.24) these
+three are the whole reason a naive "only upload dirty rects" backend would not be much
+cheaper than uploading the frame — the standing set is not small.
+
 ### 2.12 A missing graphic kills the application — **planned, 1.7**
 
 The original's answer to a failed PICT load is `RedAlert(kErrFailedGraphicLoad)`, which
@@ -349,6 +370,27 @@ invalidate any recorded demo. And `case kLgTrigger:` in the interaction dispatch
 unreachable, because the object code is never produced; it is transcribed as a dead branch
 and should stay dead.
 
+**1.5c makes this harder, and the reason is worth writing down before 1.8 hits it.** Three
+dynamics sites draw from the stream:
+
+- `AddDynamicObject` (`Dynamics3.c:208`) draws `RandomInt(60) + 15` per `kSparkle`
+  registered. Registration is per *locale*, filtered by `SectRect` against the screen, so
+  **the stream position after a room change is a function of how many sparkles were on
+  screen** — which is a function of the window size. Any demo trace is therefore only valid
+  at the resolution it was captured at, and 2.1's scaling work must not change which rooms
+  are composited.
+- `HandleSparkleObject` (`Dynamics.c:304`) draws `RandomInt(240) + 60` every 60..299 frames,
+  per emitter, forever.
+- `HandleCoffee` (`Dynamics.c:492`, `:506`) draws `RandomInt(200)` every 100..299 frames per
+  active coffee maker, forever.
+
+So from 1.5c onward the RNG is consumed by *scenery*, at a rate set by what an author put in
+the room, and not only by gameplay. 1.8's reference capture has to pin the house, the room,
+the window size and the frame count together, and `glidertool replay`'s trace header should
+carry all four. The alternative — giving the sparkles and the coffee maker their own
+generator — would be a real deviation and is not proposed; it is recorded here as the escape
+hatch if the demo replay proves impossible otherwise.
+
 ### 2.19 The mirror-room flame blink — **planned, 1.7 (opt-in), 2.x (default)**
 
 `DrawReflection` registers the *unclipped* reflected-glider rect with
@@ -416,12 +458,53 @@ becomes a pipeline stall the day the screen is a texture. There are only two of 
 their callers are known; anyone moving presentation onto a GPU should redirect them to a
 retained copy rather than read back.
 
-### 2.25 `RedrawRoomLighting` needs a redraw flag — **planned, 1.5c**
+### 2.25 `RedrawRoomLighting` redraws nine rooms where the original redraws one — **DONE, 1.5c**
 
-The lighting redraw runs on a schedule rather than on demand, which means it can miss a
-change made in the same frame and repaint one that did not change. The fix is a dirty flag
-set by whatever changes the room's lighting; noted at the call site in
-`internal/game/readylevel.go`.
+An earlier draft of this entry said the lighting redraw "runs on a schedule rather than on
+demand" and asked for a dirty flag. That was wrong on both counts, and is corrected here
+rather than quietly deleted: the port's `RedrawRoomLighting`
+(`internal/game/readylevel.go:139`) is already on-demand and already gated on the C's
+`wasLit != isLit` transition. The real deviation is the *width* of the redraw, and the
+function's own comment has recorded it accurately since 1.5b.
+
+`RoomGraphics.c:448-460` recomposes the **central room only**, in six steps:
+
+```c
+DrawRoomBackground(localNumbers[kCentralRoom], kCentralRoom, roomV);
+DrawARoomsObjects(kCentralRoom, true);          // <- the redraw flag
+DrawLighting();
+UpdateOutletsLighting(localNumbers[kCentralRoom], numLights);
+if (numNeighbors > 3) DrawFloorSupport();
+RestoreWorkMap();
+```
+
+The port calls `World.Rebuild()`, which is `DrawLocale` — all nine rooms, with
+`redraw == false`. `redraw == true` is what suppresses the registration sites inside
+`DrawARoomsObjects`, so the original repaints the pixels *without* re-creating the live
+objects; `Rebuild` re-creates them, which deletes a band in flight, rebuilds the mirror
+region and restarts a dinah mid-swoop. It is tolerable today only because no shipped room
+with a light switch also has one of those things.
+
+**Closed in 1.5c.** `Scene.RedrawCentralRoom` is `internal/render/locale.go:373` and holds
+the six steps verbatim; `internal/game/readylevel.go:164` calls it in place of `Rebuild`,
+keeping the recount, the work rect and the `ShadowVisible` recache on the game side exactly
+where the C splits them. A band in flight, the mirror region and a dinah mid-swoop now all
+survive a light switch. The paragraphs below are the analysis that got it there, kept because
+they say *why* the narrow redraw is the correct one.
+
+**Most of the fix already existed.** `internal/render/locale.go:510` is already
+`func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool)` with its twenty `!redraw`
+gates in place, and `candleFlame`, `backUpToSavedMap` and `addGrease` all take the flag
+through. `Scene.NumLights` (`locale.go:180`) is already the C's live per-room global,
+reassigned before each of the nine draws with the central room last (`:283`, `:291`,
+`:298`) — which is what makes `wasLit` read the central room's count. What is missing is a
+`Scene.RedrawCentralRoom()` holding the six steps above, which is `DrawLocale`'s own
+central-room tail (`locale.go:298-306`) with `redraw` flipped to `true` and one hook added.
+
+So the remaining work was one small render method and a one-line change at the call site.
+It was timed to 1.5c because step four, `UpdateOutletsLighting`, writes the `dinahs` table
+that 1.5c creates — the entry could not have been closed before it, and there was no reason
+to defer it past.
 
 ### 2.26 `phoneBitSet` means "no telephone" — **planned, Stage 5 (the editor)**
 
@@ -641,21 +724,148 @@ AddRectToWorkRects(&src);
 SetGWorld(wasCPort, wasWorld);
 ```
 
-So `HandleOutlet`'s off-frame — the blank rect it paints when the outlet is not zapping —
-lands in whichever GWorld the previous drawing call happened to leave set, while the
-`AddRectToWorkRects` on the next line asserts it went to the work map. The commented line
-names `workSrcMap`, so the 1994 behaviour is not in doubt; only the shipped Carbon build's
-is.
+So the blank rect `HandleOutlet` paints lands in whichever GWorld the previous drawing call
+happened to leave set, while the `AddRectToWorkRects` on the next line asserts it went to
+the work map. The commented line names `workSrcMap`, so the 1994 behaviour is not in doubt;
+only the shipped Carbon build's is.
 
-**The port has no outlet handler yet** — `HandleDynamics` is an empty stub at
-`internal/game/play.go:738`, charged to 1.5c, and `HandleGrease` is one at
-`render_frame.go:573`, charged to 1.5e. This entry exists so that whoever writes them
-targets the work surface explicitly rather than transcribing a commented-out line as a
-comment and leaving a `PaintRect` with no destination. Transcribing the *bug* would be
-untestable here for a reason worth stating: the port has no ambient current port to leak
-into, so a missing destination is a compile error or an obvious nil — the failure mode the C
-has is not available, which makes "be faithful" meaningless and "be correct" the only
-reading.
+*When* it paints was established while specifying 1.5c and is narrower than this entry
+first said. The `PaintRect` is the `else` of
+`if ((dinahs[who].position != 0) || (dinahs[who].hVel > 0))`, inside the
+`position != 0` zap branch — and `hVel` is the room's light count
+(`UpdateOutletsLighting`, `Trip.c:235-244`). So it is reached only on the **final frame of a
+zap**, after that frame's `timer <= 0` arm has already cleared `position`, and only in a
+room with no lights. Its purpose is to paint the socket out of a dark room rather than
+leave `outletSrc[0]` showing. An outlet at rest never reaches this code.
+
+**Resolved for the outlet in 1.5c; still open for grease at 1.5e.**
+`internal/game/dynamics_appliances.go:427` is now
+`w.R.Work.Fill(w.Dinahs[who].Dest, render.Black8)` — the destination is named at the call
+site, which is what the commented-out `SetPort((GrafPtr)workSrcMap)` was for, and the
+`AddRectToWorkRects` on the next line is therefore telling the truth. `HandleGrease`
+(`internal/game/render_frame.go:577`) is still an empty stub charged to 1.5e and must do the
+same; `Grease.c:105-118` above is the model it should follow, back map then work map, both
+explicit.
+
+Transcribing the *bug* would have been untestable here for a reason worth stating: the port
+has no ambient current port to leak into, so a missing destination is a compile error or an
+obvious nil — the failure mode the C has is not available, which makes "be faithful"
+meaningless and "be correct" the only reading. That is why this one is absent from 2.35's
+transcribed-bug list.
+
+### 2.35 Stage 1.5c transcribes four bugs the original shipped — **decided in the 1.5c specs**
+
+Distinct from 2.33, which is about reads the port *declines*. These four are wrong but
+harmless-to-run, they are visible in play, and 1.8's fidelity replays exist to hold them —
+so all four go in as written, each with a comment naming the intended behaviour. Listed here
+so that a future reader who spots one does not "fix" it, and so that if the project ever
+ships an opt-in fidelity-vs-fixes switch (compare 2.19, 2.20, 2.22) this is the candidate
+list. Full arguments in `docs/analysis/stage15-raw/plans/`.
+
+- **`AddDynamicObject` clobbers the global `evenFrame`** (`Dynamics3.c:474`, `:524`). The
+  neighbouring `lilFrame = true` is a *local* (`:191`); `evenFrame` is an extern (`:23`). The
+  author seeded what he took to be two loop-local toggles and one name resolved to a global,
+  so registering a ball or a fish resynchronises every flame and star in the locale on entry.
+  `HandleBall`'s third write (`Dynamics2.c:420`) is the deliberate one these were copied
+  from — it phase-locks the half-rate gravity so the reverse-engineered launch velocity
+  reaches the height the author typed. Transcribing this changes what
+  `internal/replay`'s `TestEvenFrameIsAStoredFlag` means, which is exactly what that test was
+  written to catch.
+
+  **Measured in 1.5c, and it is one frame wide, not permanent.** An earlier draft of this
+  bullet — and the field comment on `World.EvenFrame` — said a ball desynchronises the locale
+  for the rest of the room. It does not, because of a detail worth spelling out: the loop head
+  (`internal/game/play.go:297`) is the only writer that *toggles*. All three others **assign
+  `true`**, so a write forces a phase rather than flipping one, and a later write replaces an
+  earlier one instead of compounding it. In every shipped ball room the composition write and
+  the ball's first idle write (`dynamics_movers.go:452`) land one frame apart and cancel, which
+  leaves exactly one diverging frame at composition time. Confirmed by replaying rooms 30
+  "Ball Illusion", 172 "Attica, Greece" and 175 "Dodgeball" of CD Demo House against two
+  ball-free controls: `replay.TestABallBreaksTheEvenFrameInvariant`, with the mechanism pinned
+  by `game.TestBallResetsParityRatherThanTogglingIt`. A ball switched on *mid*-room by a
+  trigger has no cancelling write, so there the shift does persist — no shipped house does it
+  (all ten `kBall` lines in CD Demo House are `initial 1`), but a Stage 2 house could.
+- **`ObjectDrawAll.c` writes `dynamicNum` from the wrong index** (`:518`, `:531`, `:544`,
+  `:557`, `:570`, `:574`): `masterObjects[i].hotNum` with `i` the room-object *slot*, where
+  the master index is `n`. In range but wrong, so no guard applies. Correct only for the
+  central room, which is composited first with all 24 slots in order; for the other eight a
+  trigger wired to a switch throws the central room's hot spot at that slot, or reads
+  `hotSpots[-1]` — which *is* 2.33's territory and is refused there.
+- **`HandleOutlet`'s two-player fan-out passes `doOffset` inconsistently**
+  (`Dynamics.c:539`, `:541` versus `:545`, `:546`, `:550`). The outlet is one of the seven
+  appliance types whose registration bakes `playOriginH/V` into `dest`, so the surviving
+  player of a two-player game is tested against a screen-coordinate rect and the zap misses
+  by the scroll offset. Zero in a room at the house origin, wrong everywhere else. The port
+  writes that one fan-out longhand rather than through its shared helper, so the mismatch is
+  visible at the call site instead of hidden behind a parameter.
+- **`IsRectLeftOfRect` has an operator-precedence bug** (`RectUtils.c:185`):
+  `(w1) - (w2) / 2` where the author meant `(w1 - w2) / 2`. With a 48px glider and 24px art
+  the intended offset is -12 and the actual one is 0, so the shove direction is decided by
+  left edges rather than centres and a dart clipping the glider's left side shoves it
+  *into* the dart. One caller in the whole game, `Dynamics.c:53`.
+
+### 2.36 A four-frame enemy reload would fire with no warning sparkle — **note; unreachable by arithmetic, and a Stage 5 editor could reach it**
+
+`enemyWaiting` (`internal/game/dynamics_movers.go:121`) is the shared idle arm of the
+balloon, the copter and the dart, and it announces a coming enemy with a sparkle and
+`EnemyInSound` in two mutually exclusive places:
+
+- at launch, `if Count < StartSparkle` — a reload so short there is no room to warn early, so
+  the puff happens as the enemy appears;
+- four frames before launch, `else if Timer == StartSparkle` — the normal case.
+
+`StartSparkle` is 4, and the two conditions leave a hole at exactly `Count == 4`. `Count < 4`
+is false, and `Timer` is reset *to* `Count` and then decremented before it is compared, so it
+takes the values 3, 2, 1, 0 and never 4. An enemy on a four-frame reload would therefore
+launch in complete silence, every time, with no puff — the one reload period the original
+cannot announce.
+
+**It is unreachable in any house that exists, and the reason is arithmetic rather than
+authoring taste.** All four enemy arms compute `Count = (Delay * 6) / TicksPerFrame`
+(`internal/game/dynamics.go:390`, `:415`, `:442`, `:482`) and `TicksPerFrame` is 2, so
+`Count == Delay * 3` — always a multiple of three. 4 is not, so no value of the house file's
+one-byte `Delay` can produce it. Verified over the whole reachable set by
+`game.TestEnemyWaitingHasOneSilentPeriodAndItIsUnreachable`, which asserts both halves: that
+`Count == 4` really is silent, and that no `Delay` yields it.
+
+Recorded rather than fixed, and recorded rather than merely left alone, for one reason: the
+Stage 5 editor will write `Count` if it ever grows a per-object override, and 1.9's
+multiplayer tuning is the other place a frame count gets typed by hand. Anything that writes
+a reload period in frames instead of in `Delay` units can land on 4 and produce a bug that
+looks like a missing sound file. The test is the guard; this entry is why it exists.
+
+### 2.37 The television's movie branch is a deliberate blank, and the movies are already extracted — **planned, 1.5e (decoder) / note (the divergence)**
+
+`HandleTV` (`internal/game/dynamics_appliances.go:278`) always takes the non-QuickTime path,
+which is the behaviour of a 1994 Mac without QuickTime installed: switching a set on blits
+`tvScreen2`, the static "on" cel. On a machine that *had* QuickTime, and for a house that
+shipped a movie, the C's active arm is an **empty `if`** — no blit and no reveal — because the
+movie was expected to draw over that rect instead. The port cannot reach that arm even in
+principle: `Room.TVMovieNumber` stays at the `-1` that `Rebuild` resets it to, so the
+`who == tvWithMovieNumber` identity test is never true.
+
+**The divergence is bounded and known, but it is not empty.** Nineteen of the 22 shipped
+houses contain a television — `Titanic.house` has 13, `Land of Illusion.house` 10,
+`Slumberland.house` and `SpacePods.house` 8 each — and **15 houses shipped a movie**, which
+the extractor has already pulled out as 8-bit index buffers under `assets/extracted/movie/`
+(see `manifest.tsv`: all 64×49 except Demo House's 82×62, 7 to 45 frames apiece, `raw`, `rle`
+and `smc` codecs). So the missing feature is a decoder and a playback clock, not the assets.
+Until then, a TV in one of those 15 houses shows a still frame where the original showed
+video.
+
+Four sites are already named no-ops waiting for it, deliberately kept as functions rather
+than as comments so that 1.5e has one body each to fill and cannot fill three out of four:
+`World.restartRoomMovie` (`internal/game/transit.go:718`), the `StopMovie` block in
+`ReadyLevel` (`readylevel.go:44`), `ToggleTV`'s block (`trip.go:83`), and `HandleTV`'s own
+arm. `World.TVOn` is correspondingly never written, which is the correct transcription and
+not an omission — on a machine with no movie the C never enters the block that writes it
+either.
+
+Two things to get right when the decoder lands. The `raw`/`rle`/`smc` triple means three
+decompressors, and `smc` is the only one that is not trivial. And `TVOn` is not reset on a
+room change in the original, so a set switched on in one room restarts the movie in every
+later room that has one — that is 1994 behaviour to reproduce, not a bug to fix, and it is
+the field comment on `World.TVOn` that says so.
 
 ---
 
@@ -765,6 +975,8 @@ Two further notes on that test, both of which cost time to find:
 | 2.31 `DrawCalendar` draws its month, from `STR# 1005` and `Scene.Clock` | 1.5b | this stage |
 | 2.33 `badIndex`, one named path for every out-of-range read the C performs and the port refuses | 1.5b | this stage |
 | 4.2 `internal/replay` and `glidertool replay`: the bug-report format | 1.5b | this stage |
+| 2.25 `Scene.RedrawCentralRoom`: a light switch repaints one room, not nine | 1.5c | this stage |
+| 2.34 (outlet half) `HandleOutlet` names its destination instead of inheriting an ambient port | 1.5c | this stage |
 
 Two bugs found and fixed in the port itself while writing this, neither of which is an
 "improvement" so much as a repair, both recorded here because the reason no test caught

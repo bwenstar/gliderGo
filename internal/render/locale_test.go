@@ -408,10 +408,22 @@ func TestComposeEveryRoom(t *testing.T) {
 		s := NewScene(DefaultView(), assets, h)
 		s.Clock = clock
 
+		// The dinahs table lives on the game side, so this package counts
+		// registrations instead of holding them, and answers -1 as a saturated
+		// table would. The count is the same number the retired Scene.Dynamics
+		// slice held, which is why the golden file's dy= column did not move when
+		// the table moved.
+		dynamics := 0
+		s.ZeroDinahs = func() { dynamics = 0 }
+		s.AddDynamicObject = func(int16, Rect, house.Object, int16, int16, bool) int16 {
+			dynamics++
+			return -1
+		}
+
 		for n := range h.Rooms {
 			s.RoomNumber = int16(n)
 			s.DrawLocale()
-			lines = append(lines, fmt.Sprintf("%s|%d|%s|%s", name, n, digest(s.Back), tally(s)))
+			lines = append(lines, fmt.Sprintf("%s|%d|%s|%s", name, n, digest(s.Back), tally(s, dynamics)))
 		}
 		if err := assets.Err(); err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -468,10 +480,10 @@ func digest(s *Surface) string {
 // dynamic tables are as much a product of DrawLocale as the pixels are -- the
 // 24-slot saved-map cap decides which clocks appear at all -- so they are pinned
 // beside the hash where a diff will show them.
-func tally(s *Scene) string {
+func tally(s *Scene, dynamics int) string {
 	return fmt.Sprintf("sm=%d fl=%d tk=%d co=%d pd=%d st=%d dy=%d mh=%d mr=%d",
 		len(s.SavedMaps), len(s.Flames), len(s.TikiFlames), len(s.Coals),
-		len(s.Pendulums), len(s.Stars), len(s.Dynamics), len(s.TempManholes),
+		len(s.Pendulums), len(s.Stars), dynamics, len(s.TempManholes),
 		len(s.MirrorRects))
 }
 

@@ -82,6 +82,20 @@ func renderCmd(args []string) error {
 	scene.PlayMusicGame = *music
 	scene.Clock = clock
 
+	// This tool composes a Scene with no game World behind it, so the four dinahs
+	// hooks are nil and nothing registers. That is right for a static render -- the
+	// dinahs table holds only per-frame animation state and contributes no pixel to
+	// the background -- but the count is still worth reporting, because "this room
+	// wants nineteen dynamic objects and the table holds eighteen" is exactly the kind
+	// of thing a still image cannot show. So count the calls and answer -1 to all of
+	// them, which is what a saturated table answers anyway.
+	dynamics := 0
+	scene.ZeroDinahs = func() { dynamics = 0 }
+	scene.AddDynamicObject = func(int16, render.Rect, house.Object, int16, int16, bool) int16 {
+		dynamics++
+		return -1
+	}
+
 	rooms := []int{}
 	switch {
 	case *all:
@@ -125,7 +139,7 @@ func renderCmd(args []string) error {
 			return err
 		}
 		if !*quiet {
-			printSceneSummary(os.Stdout, scene, n, dst)
+			printSceneSummary(os.Stdout, scene, n, dst, dynamics)
 		}
 	}
 
@@ -144,7 +158,7 @@ func renderCmd(args []string) error {
 // printSceneSummary reports what the composition decided, which is most of what
 // goes wrong: the wrong neighbour, the wrong light count, a saved-map table that
 // filled up and silently dropped a clock.
-func printSceneSummary(w *os.File, s *render.Scene, n int, dst string) {
+func printSceneSummary(w *os.File, s *render.Scene, n int, dst string, dynamics int) {
 	rm := &s.H.Rooms[n]
 	fmt.Fprintf(w, "%s\n", dst)
 	fmt.Fprintf(w, "  room %d %q  floor %d suite %d  background %d  lights %d  objects %d\n",
@@ -153,7 +167,7 @@ func printSceneSummary(w *os.File, s *render.Scene, n int, dst string) {
 	fmt.Fprintf(w, "  structures %v\n", s.IsStructure)
 	fmt.Fprintf(w, "  savedMaps %d/%d  flames %d  tikis %d  coals %d  pendulums %d  stars %d  dynamics %d  manholes %d\n",
 		len(s.SavedMaps), 24, len(s.Flames), len(s.TikiFlames), len(s.Coals),
-		len(s.Pendulums), len(s.Stars), len(s.Dynamics), len(s.TempManholes))
+		len(s.Pendulums), len(s.Stars), dynamics, len(s.TempManholes))
 }
 
 // writePNG saves a surface, optionally upscaled by an integer factor. The upscale

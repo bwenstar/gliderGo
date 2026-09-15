@@ -17,6 +17,12 @@ const (
 	MaxGrease        = 16  // kMaxGrease
 	MaxTempManholes  = 8   // kMaxTempManholes (Objects.c:12, not GliderDefines.h)
 	MaxGarbageRects  = 48  // kMaxGarbageRects
+
+	// The two effects tables. Three apiece, and the fourth request in a frame is
+	// dropped: a room busy enough to retire two enemies and pay out a prize on one
+	// frame loses a puff. See AddSparkle.
+	MaxSparkles  = 3 // kMaxSparkles
+	MaxFlyingPts = 3 // kMaxFlyingPts
 )
 
 // The nine local room slots (GliderDefines.h:217-225). The numbering is the

@@ -593,20 +593,8 @@ func (w *World) RenderFlames() {}
 // each animated on alternate frames.
 func (w *World) RenderStars() {}
 
-// RenderDynamics is Dynamics.c and belongs to 1.5c: everything that moves and is not
-// a glider -- balls, fish, darts, copters, balloons, toast, the lot. It is the
-// largest of the nine by far. Without it a room's furniture is drawn where the
-// composition put it and stays there.
-func (w *World) RenderDynamics() {}
-
-// RenderFlyingPoints is Render.c:325-381 and belongs to 1.5c: the score numerals
-// that drift off a collected prize. Without it points are still scored and nothing
-// says so.
-func (w *World) RenderFlyingPoints() {}
-
-// RenderSparkles is Render.c:384-416 and belongs to 1.5c. Without it a prize
-// vanishes without its flash, and a shredded glider's final sparkle is missing.
-func (w *World) RenderSparkles() {}
+// RenderDynamics, RenderFlyingPoints and RenderSparkles landed with 1.5c and live in
+// dynamics.go and sparkles.go.
 
 // RenderShreds is Render.c:559-612 and belongs to 1.5f: the confetti a paper
 // shredder makes of a glider. Without it a shredded glider dies with no animation.

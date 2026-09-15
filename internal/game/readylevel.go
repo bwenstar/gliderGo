@@ -92,6 +92,27 @@ func (w *World) Rebuild() {
 	// The composition. Scene.DrawLocale calls back into ListAllLocalObjects at the
 	// point the C does, between the localNumbers loop and the first PaintRect.
 	w.R.ListLocalObjects = w.ListAllLocalObjects
+
+	// Four of the five dinahs hooks. In the original these are ordinary calls inside
+	// RoomGraphics.c and ObjectDrawAll.c, because the dinahs table, the hotSpots table
+	// and the master-object graph are all globals in the same program. Here the tables
+	// are internal/game's and the numbering is internal/render's, so the object pass
+	// reaches back across the boundary four times: it clears the table at the top,
+	// registers into it per object, reads a hotSpots index for the six switch kinds, and
+	// writes whichever number it ended up with into the master graph. See
+	// Scene.AddDynamicObject for why the coordinate conversion is on the render side.
+	//
+	// Assigned here, next to ListLocalObjects, rather than at Scene construction: the
+	// Scene is rebuilt in place by DrawLocale and these four are the same kind of thing
+	// ListLocalObjects is -- the game half of one composition -- so a reader looking for
+	// what the renderer is allowed to call during a compose finds all five in one
+	// paragraph. The fifth, UpdateOutletsLighting, is *not* one of them and is bound in
+	// NewWorld; RedrawCentralRoom is its only caller and does not come through here.
+	w.R.ZeroDinahs = w.ZeroDinahs
+	w.R.AddDynamicObject = w.AddDynamicObject
+	w.R.SetDynaNum = w.SetDynaNum
+	w.R.MasterHotNum = w.MasterHotNum
+
 	w.R.NumChimes = 0
 	w.R.DrawLocale()
 
@@ -122,20 +143,17 @@ func (w *World) Rebuild() {
 // when the second one is switched off, and the redraw happens on that transition
 // alone.
 //
-// **This function's redraw is wider than the C's, and that is a known deviation.**
-// The original redraws the central room *only*, in six steps -- DrawRoomBackground,
-// DrawARoomsObjects(kCentralRoom, true), DrawLighting, UpdateOutletsLighting, an
-// optional DrawFloorSupport, RestoreWorkMap -- and the `true` is a `redraw` flag that
-// suppresses nineteen registration sites inside DrawARoomsObjects. Those nineteen are
-// what create bands, triggers, dinahs, temporary manholes and the mirror region, so a
-// redraw deliberately re-draws the pixels *without* re-creating the live objects.
+// The six steps are Scene.RedrawCentralRoom's, and the `redraw == true` it passes to
+// DrawARoomsObjects is what makes this a redraw of the *pixels* rather than a fresh
+// composition: the twenty registration sites are suppressed, so a band in flight survives,
+// the mirror region is not rebuilt and a dinah mid-swoop keeps its place. Through 1.5b this
+// function called Rebuild -- all nine rooms, redraw == false -- which re-created all of
+// them; that was docs/IMPROVEMENTS.md 2.25 and it is closed here, because step four,
+// UpdateOutletsLighting, needed the dinahs table 1.5c builds.
 //
-// Calling Rebuild here re-composes all nine rooms with redraw == false, which
-// re-creates them: a band in flight is deleted, the mirror region is rebuilt, and any
-// dinah mid-swoop restarts. In a room with a light switch and none of those things --
-// which is every room in the shipped houses that has a switch -- the two produce the
-// same pixels, which is why it is tolerable now. It is fixed properly when the object
-// drawing slice lands the redraw flag; see docs/IMPROVEMENTS.md 2.25.
+// The three lines around the six steps are this side's, exactly as the C splits them: the
+// recount above (which also produces isLit), the work rect below, and the ShadowVisible
+// recache last. Scene.RedrawCentralRoom does not touch any of the three.
 func (w *World) RedrawRoomLighting() {
 	wasLit := w.R.NumLights > 0
 	w.R.NumLights = w.R.GetNumberOfLights(w.R.RoomNumber)
@@ -143,7 +161,7 @@ func (w *World) RedrawRoomLighting() {
 	if wasLit == isLit {
 		return
 	}
-	w.Rebuild()
+	w.R.RedrawCentralRoom()
 
 	// AddRectToWorkRects(&localRoomsDest[kCentralRoom]) -- RoomGraphics.c:458.
 	//
@@ -179,10 +197,20 @@ func (w *World) InitGarbageRects() {
 	w.Work2Main = w.Work2Main[:0]
 	w.Back2Work = w.Back2Work[:0]
 
-	// numSparkles = 0 with every sparkles[i].mode = -1, and the same for
-	// flyingPoints. Both tables are the effects layer's and arrive in 1.5c; the
-	// mode = -1 sweep is what makes a slot reusable, so they cannot be modelled as
-	// bare slices the way the two rect lists can.
+	// The two effects tables. The counter and the sweep are not redundant: Mode == -1
+	// is what makes a slot reusable, so a table that is only counted to zero reads as
+	// three live effects and AddSparkle finds nowhere to put a fourth. This is the only
+	// sweeper in the game, which is why sparkles.go's tables cannot be modelled as bare
+	// slices the way the two rect lists can.
+	w.NumSparkles = 0
+	for i := 0; i < MaxSparkles; i++ {
+		w.Sparkles[i].Mode = -1
+	}
+
+	w.NumFlyingPts = 0
+	for i := 0; i < MaxFlyingPts; i++ {
+		w.FlyingPoints[i].Mode = -1
+	}
 
 	w.NextFrame = w.Ticks() + TicksPerFrame
 }

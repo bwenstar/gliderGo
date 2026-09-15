@@ -95,6 +95,31 @@ func CenterIn(r, in Rect) Rect {
 	return r
 }
 
+// IsRectLeftOfRect is RectUtils.c:181-190, and it does not do what its name says.
+//
+//	offset = (rect1->right - rect1->left) - (rect2->right - rect2->left) / 2;
+//	if ((rect1->left) < (rect2->left + offset))
+//
+// **The `/ 2` binds to the second width alone.** The author plainly meant
+// `(width1 - width2) / 2`, which is the offset that would put the comparison at the
+// two rects' centres; what is written is `width1 - width2/2`. With a 24-wide dart
+// and a 48-wide glider the intended offset is -12 and the actual one is 0, so the
+// test degenerates to "is the dart's left edge left of the glider's left edge".
+//
+// It has exactly one caller -- CheckDynamicCollision (Dynamics.c:53), where it picks
+// which way a foil-clad glider is shoved -- so this is the only place the difference
+// can be seen, and what it produces is a dart overlapping the glider's left half
+// shoving the player *left*, into the dart. Transcribed rather than fixed: the shove
+// direction is exactly the sort of thing 1.8's fidelity replays pin, and "correcting"
+// it would change how a dart hit feels. See docs/IMPROVEMENTS.md.
+//
+// It lives here, next to CenterIn, because it is centring arithmetic gone wrong and
+// because RectUtils.c is where the original keeps it.
+func IsRectLeftOfRect(rect1, rect2 Rect) bool {
+	offset := (rect1.Right - rect1.Left) - (rect2.Right-rect2.Left)/2
+	return rect1.Left < rect2.Left+offset
+}
+
 // Empty reports the QuickDraw notion of an empty rect.
 func Empty(r Rect) bool { return r.Left >= r.Right || r.Top >= r.Bottom }
 

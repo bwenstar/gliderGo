@@ -117,7 +117,16 @@ func (w *World) StartIdleMusic() {
 func (w *World) StartMusic()   {}
 func (w *World) StopTheMusic() {}
 
-// ToggleMusicWhilePlaying is Music.c: mute on deactivation, unmute on return. Called
-// from both arms of the suspend/resume handler, which is why one function serves both
-// directions -- it reads switchedOut rather than taking an argument.
+// ToggleMusicWhilePlaying is Music.c:125-142: mute on deactivation, unmute on return. It
+// takes no argument and serves both directions because it reads isPlayMusicGame and
+// isMusicOn rather than being told which way to go -- start if the preference is on and
+// nothing is playing, stop if the preference is off and something is.
+//
+// **Four call sites, two of them a stereo.** Play.c:413 and :421 are the suspend/resume
+// arms, and Dynamics.c:681 and :698 are HandleStereo's -- once when a stereo finishes
+// switching on and once when it finishes switching off. The name says "while playing" and
+// means "while a game is in progress", not "while music is playing".
+//
+// The stereo pair is the reason it is a *toggle* rather than a setter, and the reason two
+// stereos in one room wired to one switch cancel out; HandleStereo has the full note.
 func (w *World) ToggleMusicWhilePlaying() {}

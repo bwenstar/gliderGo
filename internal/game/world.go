@@ -119,6 +119,43 @@ type World struct {
 	// Cleared by ZeroTriggers on every room change.
 	Triggers [MaxTriggers]TriggerSlot
 
+	// Dinahs is dinahs[] (Dynamics3.c:20) and NumDynamics is numDynamics: everything
+	// in the locale that moves or blinks. Eighteen slots for all nine rooms, filled
+	// by AddDynamicObject in *drawing* order, so slot 0 is the north-west room's.
+	//
+	// Like the triggers, this is discarded on every room change -- ZeroDinahs is in
+	// DrawLocale's reset head -- so by Room's own rule it looks as though it belongs
+	// there. It is on World for the reason dynamics.go gives: the handlers mutate
+	// World state (the RNG, the gliders, the score), AddDynamicObject writes
+	// EvenFrame, and in the original the table is a startup allocation that outlives
+	// every room. What is per-room is its *contents*, not its existence.
+	//
+	// Fixed-size for the same reason Triggers is: AddDynamicObject returning -1 past
+	// eighteen, and the nineteenth appliance in a busy locale silently never
+	// animating, is observable and is the original's behaviour.
+	Dinahs      [MaxDynamicObs]Dynamic
+	NumDynamics int16
+
+	// BandList is bands[] (StructuresInit2.c:241) and NumBands is numBands: the two
+	// rubber bands that can be in the air at once. 1.5e owns every writer; 1.5c has
+	// them because DidBandHitDynamic reads them, and one table read by two stages beats
+	// two tables that can disagree. NumBands is 0 until then, which makes a band strike
+	// on a balloon unreachable rather than wrong.
+	BandList [MaxRubberBands]Band
+	NumBands int16
+
+	// Sparkles is sparkles[] and FlyingPoints is flyingPoints[] (DynamicMaps.c:31):
+	// the effects layer, three slots each.
+	//
+	// Unlike every other table here, **the zero value is not "empty"** -- a free slot
+	// is Mode == -1 -- so these two are unusable until InitGarbageRects has swept them.
+	// That is the original's arrangement too and it is why the sweep is in ReadyLevel's
+	// tail rather than in a constructor; sparkles.go has the note.
+	Sparkles     [MaxSparkles]SparkleSlot
+	NumSparkles  int16
+	FlyingPoints [MaxFlyingPts]FlyingPoint
+	NumFlyingPts int16
+
 	// Phone is thePhone and Chimes is theChimes (Play.c): the two ambience clocks.
 	// Both are the same struct and the chimes use only its first field; see
 	// PhoneState. Phone survives every room change and every death, Chimes is
@@ -190,12 +227,23 @@ type World struct {
 	// four writers: PlayGame's loop head, which toggles it beside Frame (Play.c:434-435),
 	// a stalled ball or fish being kicked into motion mid-frame (Dynamics2.c:420), and
 	// the kBall and kFish arms of AddDynamicObject at room-build time (Dynamics3.c:474,
-	// :524), plus the launch-time init at InterfaceInit.c:131. Any
-	// of the last three desynchronises the flame/star alternation from frame parity,
-	// and nothing ever resynchronises it -- so a room with a ball in it animates its
-	// candles on the frames a room without one animates its stars, permanently.
-	// Deriving it from Frame would be a plausible-looking simplification that changes
-	// what the player sees.
+	// :524), plus the launch-time init at InterfaceInit.c:131.
+	//
+	// **Only the loop head toggles. The other three assign true.** So they do not flip the
+	// parity, they force it to a phase -- which means a write is a desynchronisation only
+	// when it lands on a frame whose parity was already false, and a later write replaces
+	// an earlier one rather than compounding it. Nothing resynchronises the flag
+	// deliberately, but two of these writes one frame apart cancel, and that is exactly
+	// what every shipped ball room does: the composition assigns true, the loop head
+	// toggles to false, and the ball's first idle frame assigns true again. See
+	// TestBallResetsParityRatherThanTogglingIt and
+	// replay.TestABallBreaksTheEvenFrameInvariant, which measures the resulting
+	// one-frame-wide divergence in three rooms of CD Demo House.
+	//
+	// A ball switched on by a trigger mid-room has no cancelling write, and that shift does
+	// persist -- from then on the room animates its candles on the frames a room without a
+	// ball animates its stars. Deriving the flag from Frame would be a plausible-looking
+	// simplification that changes what the player sees in both cases.
 	Frame     int64
 	EvenFrame bool
 	NextFrame int64
@@ -682,6 +730,12 @@ func NewWorld(h *house.House, sc *render.Scene, seed int32) *World {
 	// deviated High position is stated in exactly one place, placeScoreboard.
 	w.Board = render.NewScoreboard(sc.V, sc.A)
 	w.placeScoreboard(w.WasScoreboardMode)
+
+	// The one dinahs hook that is not part of a composition, so the one that cannot be
+	// assigned in Rebuild with the other four: Scene.RedrawCentralRoom calls it, and
+	// RedrawRoomLighting reaches that without going through Rebuild. Bound once here,
+	// where the Scene is.
+	sc.UpdateOutletsLighting = w.UpdateOutletsLighting
 	return w
 }
 

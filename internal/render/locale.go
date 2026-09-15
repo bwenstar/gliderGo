@@ -39,12 +39,16 @@ import (
 // the static background in the original either -- they are composited per frame
 // into workSrcMap, over the top of what this file produces.
 //
-// The one genuine simplification is masterObjects. DrawARoomsObjects sets
-// `dynamicNum = masterObjects[i].hotNum` for the six switch kinds, and at the end
-// of each object copies dynamicNum into every master-object entry pointing at
-// that object. Nothing in that chain affects a pixel -- it is the switch-to-object
-// link table, which Stage 1.5 needs and this stage does not -- so it is left out
-// and noted at the two places it would appear.
+// The one thing in here that affects no pixel at all is the dynamicNum
+// bookkeeping, and it is here anyway. DrawARoomsObjects tracks a per-slot
+// dynamicNum -- a savedMaps grease slot, a hotSpots index for the six switch
+// kinds, or a dinahs slot for the seventeen animated types -- and writes it back
+// into every master-object entry pointing at that object. That is the
+// switch-to-object link table the game runs on, and the object pass is the only
+// place that knows the numbers, so the three writes and one read cross the
+// package boundary as hooks (SetDynaNum, AddDynamicObject, ZeroDinahs,
+// MasterHotNum) rather than being reinvented on the game side. The tables they
+// index are internal/game's; the numbering is this file's.
 
 // The eighteen built-in room backgrounds (GliderDefines.h:227-244). kDirt,
 // kMeadow and kSky are declared in view.go, where DrawRoomBackground's
@@ -119,16 +123,6 @@ type Anim struct {
 	Who      int16
 }
 
-// Dynamic is one entry in the dinahs table (Dynamics3.c:187): an object that
-// moves or blinks. Registered here, animated in Stage 1.5.
-type Dynamic struct {
-	What int16
-	Rect Rect // room-local, playOrigin already subtracted
-	Room int16
-	Obj  int16
-	On   bool
-}
-
 // Scene is the room composition: the geometry, the art, the house, and the
 // offscreen surfaces the original calls backSrcMap and workSrcMap.
 //
@@ -191,7 +185,6 @@ type Scene struct {
 	Coals        []Anim
 	Pendulums    []Anim
 	Stars        []Anim
-	Dynamics     []Dynamic
 	TempManholes []Rect
 	MirrorRects  []Rect
 
@@ -210,6 +203,45 @@ type Scene struct {
 	// is what the renderer's own tests use -- nothing the graph holds reaches a
 	// pixel, which is why internal/render could be finished without it.
 	ListLocalObjects func()
+
+	// The five dinahs hooks, all for the same reason as ListLocalObjects and all
+	// nil-safe: the table is simulation state and lives in internal/game, but the
+	// composition is what decides which objects register and where.
+	//
+	// nil throughout composes exactly the same image -- a room where nothing moves,
+	// which is the correct still frame and is what internal/render's own tests and
+	// the golden use.
+
+	// ZeroDinahs is ZeroDinahs (Dynamics3.c:160), called from DrawLocale's reset
+	// head. A hook rather than something World.Rebuild does before calling
+	// DrawLocale, because the C's ordering has it *inside* DrawLocale and
+	// RestoreEntireGameScreen reaches DrawLocale directly (Play.c:814) without going
+	// through Rebuild -- the trap readylevel.go documents.
+	ZeroDinahs func()
+
+	// AddDynamicObject is AddDynamicObject (Dynamics3.c:187-554), called from
+	// seventeen places inside DrawARoomsObjects. `where` is room-local, playOrigin
+	// already subtracted, exactly as the C's seventeen call sites pass it. Returns
+	// the new slot or -1; DrawARoomsObjects writes that number back through
+	// SetDynaNum.
+	AddDynamicObject func(what int16, where Rect, obj house.Object, room, index int16, isOn bool) int16
+
+	// SetDynaNum is the write-back at ObjectDrawAll.c:952-960, called once per object
+	// slot at the bottom of DrawARoomsObjects' loop -- **including with -1**, which is
+	// what clears a stale slot number from the previous room. Gated on !redraw, like
+	// the C's `if (!redraw) // set up links`.
+	SetDynaNum func(room, obj, dyna int16)
+
+	// MasterHotNum answers the six switch cases' `dynamicNum = masterObjects[i].hotNum`.
+	// A read hook where the other two are write hooks; see its game-side comment for
+	// why the index it is given is the original's wrong one and stays that way.
+	MasterHotNum func(obj int16) int16
+
+	// UpdateOutletsLighting is Trip.c:235-244, step four of RedrawCentralRoom's six.
+	// The fifth dinahs hook and the only one not reached from DrawLocale: a light
+	// switch changes what an outlet in *this* room paints on its last zap frame, and
+	// only the game side can write that.
+	UpdateOutletsLighting func(room, nLights int16)
 }
 
 // NewScene sets up a composition. Nothing is drawn until DrawLocale.
@@ -234,18 +266,20 @@ func NewScene(v *View, a *Assets, h *house.House) *Scene {
 // together with as much of its surroundings as NumNeighbors asks for.
 func (s *Scene) DrawLocale() {
 	// ZeroFlamesAndTheLike, ZeroDinahs, KillAllBands, ZeroMirrorRegion,
-	// ZeroTriggers, numTempManholes = 0. The trigger and band tables belong to
-	// later stages; the rest are here.
+	// ZeroTriggers, numTempManholes = 0. The band table belongs to 1.5e and the
+	// trigger table is reset by World.Rebuild; the rest are here.
 	s.SavedMaps = s.SavedMaps[:0]
 	s.Flames = s.Flames[:0]
 	s.TikiFlames = s.TikiFlames[:0]
 	s.Coals = s.Coals[:0]
 	s.Pendulums = s.Pendulums[:0]
 	s.Stars = s.Stars[:0]
-	s.Dynamics = s.Dynamics[:0]
 	s.TempManholes = s.TempManholes[:0]
 	s.MirrorRects = s.MirrorRects[:0]
 	s.numGrease = 0
+	if s.ZeroDinahs != nil {
+		s.ZeroDinahs()
+	}
 
 	roomV := int16(0)
 	if rm := s.room(s.RoomNumber); rm != nil {
@@ -307,6 +341,52 @@ func (s *Scene) DrawLocale() {
 
 	// shadowVisible = IsShadowVisible(); takingTheStairs = false. Both are
 	// gameplay state read by the glider, not by the composition.
+}
+
+// RedrawCentralRoom is the body of RedrawRoomLighting (RoomGraphics.c:448-460): recompose
+// the central room alone, because a light in it just went on or off.
+//
+// It is DrawLocale's own central-room tail with two differences, and both are the point of
+// having a separate method:
+//
+//   - **`redraw` is true**, which suppresses the twenty registration sites inside
+//     DrawARoomsObjects. So the pixels are repainted and the *live objects are not
+//     re-created*: a band still in flight survives, the mirror region is not rebuilt, a
+//     dinah mid-swoop keeps its position, and SetDynaNum is not called with a stale -1.
+//     That is the whole reason the C passes a flag here and nowhere else.
+//   - **the reset head is skipped.** No ZeroDinahs, no ZeroFlamesAndTheLike, no
+//     ListAllLocalObjects, and no `Back.Fill` -- this draws over the eight neighbouring
+//     rooms already in backSrcMap rather than clearing them, which is what makes it a
+//     redraw of one ninth of the picture instead of a fresh composition.
+//
+// Step four is UpdateOutletsLighting, and it is a hook because it writes the dinahs table.
+// **NumLights is not recounted here.** The C recounts it in RedrawRoomLighting, above the
+// six steps, because the recount is also what produces `isLit` for the gate -- so the
+// caller owns it, and by the time this runs NumLights already holds the central room's new
+// count. Reassigning it here would be harmless but would put the same recount in two
+// places, and the one-writer property is what makes UpdateOutletsLighting's room filter
+// work at all (see its game-side comment).
+//
+// The caller likewise owns the gate and the two lines the C runs after RestoreWorkMap --
+// the work rect and the ShadowVisible recache -- because both are gameplay state; see
+// World.RedrawRoomLighting.
+func (s *Scene) RedrawCentralRoom() {
+	roomV := int16(0)
+	if rm := s.room(s.RoomNumber); rm != nil {
+		roomV = rm.Floor
+	}
+
+	s.DrawRoomBackground(s.LocalNumbers[kCentralRoom], kCentralRoom, roomV)
+	s.DrawARoomsObjects(kCentralRoom, true)
+	s.DrawLighting()
+	if s.UpdateOutletsLighting != nil {
+		s.UpdateOutletsLighting(s.LocalNumbers[kCentralRoom], int16(s.NumLights))
+	}
+
+	if s.NumNeighbors > 3 {
+		s.DrawFloorSupport()
+	}
+	s.RestoreWorkMap()
 }
 
 // DrawLighting is RoomGraphics.c:421-430 in full:
@@ -521,12 +601,21 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 	isLit := s.NumLights > 0
 
 	for i := 0; i < kMaxRoomObs; i++ {
-		// dynamicNum and legit are reset per object in the original. legit is
-		// used here; dynamicNum only ever feeds the master-object link table, so
-		// it is left out (see the file header).
+		// dynamicNum and legit are both reset per object in the original
+		// (ObjectDrawAll.c:45-46). dynamicNum is the slot number this object's
+		// registration returned, and the reset is what stops a stale one from the
+		// previous room surviving; see the write-back at the bottom of the loop.
+		dynamicNum := int16(-1)
 		legit := -1
 
 		if !s.IsThisValid(room, i) {
+			// The C's write-back is *outside* its IsThisValid guard, so an empty or
+			// invalid slot still has its stale dynaNum cleared. This port uses an
+			// early continue where the C nests, so the -1 has to be written here as
+			// well as at the bottom.
+			if !redraw && s.SetDynaNum != nil {
+				s.SetDynaNum(room, int16(i), -1)
+			}
 			continue
 		}
 
@@ -710,7 +799,10 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 				// Standing. Capped twice over: AddGrease has its own limit of 16
 				// and also takes a savedMaps slot.
 				if _, ok := Sect(itsRect, testRect); ok {
-					if s.addGrease(room, int16(i), redraw) != -1 {
+					// The first of dynaNum's three meanings: a grease slot, not a
+					// dinahs slot. See the game side's SetDynaNum.
+					dynamicNum = int16(s.addGrease(room, int16(i), redraw))
+					if dynamicNum != -1 {
 						s.drawGrease(thisObject.What, itsRect, c.Length, true)
 					}
 				}
@@ -746,7 +838,8 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 		case kSparkle:
 			// Dynamic only: a sparkle contributes nothing to the static room.
 			if visible() && !redraw && neighbor == kCentralRoom {
-				s.addDynamicObject(kSparkle, itsRect, room, int16(i), thisObject.Bonus().State != 0)
+				dynamicNum = s.addDynamicObject(kSparkle, itsRect, thisObject, room, int16(i),
+					thisObject.Bonus().State != 0)
 			}
 
 		// --- transports ----------------------------------------------------
@@ -787,10 +880,21 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 				s.DrawSwitch(thisObject.What, itsRect,
 					s.GetObjectState(s.GetRoomNumber(floor, suite), int16(e.Who)))
 			}
-			// dynamicNum = masterObjects[i].hotNum here.
+			// The second of dynaNum's three meanings, for all six switch kinds:
+			// a *hotSpots* index, which is what makes TriggerSwitch's
+			// HandleSwitches(&hotSpots[who]) well-typed. The index this is given
+			// is the original's wrong one for eight of the nine rooms -- see the
+			// game side's MasterHotNum.
+			if s.MasterHotNum != nil {
+				dynamicNum = s.MasterHotNum(int16(i))
+			}
 
 		case kInvisSwitch:
-			// dynamicNum = masterObjects[i].hotNum, and nothing else.
+			// A hotSpots index and nothing else -- an invisible switch draws
+			// nothing but is still throwable.
+			if s.MasterHotNum != nil {
+				dynamicNum = s.MasterHotNum(int16(i))
+			}
 
 		case kTrigger, kLgTrigger, kSoundTrigger:
 
@@ -835,7 +939,8 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 			if visible() {
 				s.DrawSimpleAppliance(thisObject.What, itsRect)
 				if !redraw && neighbor == kCentralRoom {
-					s.addDynamicObject(kToaster, itsRect, room, int16(i), thisObject.Appliance().State != 0)
+					dynamicNum = s.addDynamicObject(kToaster, itsRect, thisObject, room, int16(i),
+						thisObject.Appliance().State != 0)
 				}
 			}
 
@@ -860,7 +965,15 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 					s.DrawMicrowave(itsRect, isOn, isLit)
 				}
 				if !redraw {
-					s.addDynamicObject(thisObject.What, itsRect, room, int16(i), isOn)
+					dynamicNum = s.addDynamicObject(thisObject.What, itsRect, thisObject, room,
+						int16(i), isOn)
+					// `tvWithMovieNumber = dynamicNum` (ObjectDrawAll.c:707) belongs
+					// here, for kTV only: the one place in the game where a
+					// QuickTime handle is keyed by a dinahs slot. Not plumbed,
+					// because the port has no movie support and Room.TVMovieNumber
+					// therefore stays at the -1 Rebuild resets it to -- which makes
+					// ToggleTV's four-condition identity test unreachable, as its
+					// comment says.
 				}
 			}
 
@@ -870,7 +983,8 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 					s.DrawOutlet(itsRect)
 				}
 				if !redraw {
-					s.addDynamicObject(kOutlet, itsRect, room, int16(i), thisObject.Appliance().State != 0)
+					dynamicNum = s.addDynamicObject(kOutlet, itsRect, thisObject, room, int16(i),
+						thisObject.Appliance().State != 0)
 				}
 			}
 
@@ -880,14 +994,16 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 			// into the static background at all.
 			if neighbor == kCentralRoom && !redraw {
 				rect()
-				s.addDynamicObject(thisObject.What, itsRect, room, int16(i), thisObject.Enemy().State != 0)
+				dynamicNum = s.addDynamicObject(thisObject.What, itsRect, thisObject, room,
+					int16(i), thisObject.Enemy().State != 0)
 			}
 
 		case kDrip:
 			if visible() {
 				s.DrawDrip(itsRect)
 				if !redraw && neighbor == kCentralRoom {
-					s.addDynamicObject(kDrip, itsRect, room, int16(i), thisObject.Enemy().State != 0)
+					dynamicNum = s.addDynamicObject(kDrip, itsRect, thisObject, room, int16(i),
+						thisObject.Enemy().State != 0)
 				}
 			}
 
@@ -895,7 +1011,8 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 			if visible() {
 				s.DrawFish(thisObject.What, itsRect)
 				if !redraw && neighbor == kCentralRoom {
-					s.addDynamicObject(kFish, itsRect, room, int16(i), thisObject.Enemy().State != 0)
+					dynamicNum = s.addDynamicObject(kFish, itsRect, thisObject, room, int16(i),
+						thisObject.Enemy().State != 0)
 				}
 			}
 
@@ -941,7 +1058,13 @@ func (s *Scene) DrawARoomsObjects(neighbor int, redraw bool) {
 			}
 		}
 
-		// The link-table pass over masterObjects goes here; see the file header.
+		// `if (!redraw) // set up links` (ObjectDrawAll.c:952-960): record what this
+		// object's registration returned, for grease, dinahs and hot spots alike.
+		// The !redraw gate matters -- on a recompose the graph is already built and
+		// must not be rewritten.
+		if !redraw && s.SetDynaNum != nil {
+			s.SetDynaNum(room, int16(i), dynamicNum)
+		}
 	}
 }
 
@@ -1337,25 +1460,25 @@ func (s *Scene) addStar(where, who, h, v int16) {
 	s.Stars = append(s.Stars, Anim{Dest: dest, SavedMap: slot, Where: where, Who: who})
 }
 
-// addDynamicObject is Dynamics3.c:187: register something that moves or blinks.
+// addDynamicObject forwards to the AddDynamicObject hook, subtracting playOrigin
+// on the way.
 //
-// This stage records the registration and stops there. Nothing in the original's
-// version draws a pixel either -- it fills in a dinahs entry, whose per-kind
-// initial velocities, frame counters and RandomInt phases are Stage 1.5's
-// business. The rect is stored room-local, with playOrigin subtracted, because
-// that is the space the animation loop works in.
-func (s *Scene) addDynamicObject(what int16, itsRect Rect, room, obj int16, on bool) int {
-	if len(s.Dynamics) >= kMaxDynamicObs {
+// The subtraction is the one line each of the C's seventeen call sites writes for
+// itself -- `QOffsetRect(&rectA, -playOriginH, -playOriginV)` immediately before the
+// call (ObjectDrawAll.c:455, :651, :667, :700, :724, :741, :757, :773, :789, :801,
+// :812, :823, :834, :845, :856, :871, :887). It is hoisted into this wrapper rather
+// than repeated at the port's seven collapsed call sites so that there is one place
+// to read the coordinate space off, and because getting it wrong at one site out of
+// seventeen is exactly the sort of thing that produces an object drawn a screen's
+// width away.
+//
+// A nil hook returns -1, which is indistinguishable from a saturated table.
+func (s *Scene) addDynamicObject(what int16, itsRect Rect, obj house.Object, room, index int16, on bool) int16 {
+	if s.AddDynamicObject == nil {
 		return -1
 	}
-	s.Dynamics = append(s.Dynamics, Dynamic{
-		What: what,
-		Rect: Offset(itsRect, -s.V.OriginH, -s.V.OriginV),
-		Room: room,
-		Obj:  obj,
-		On:   on,
-	})
-	return len(s.Dynamics) - 1
+	return s.AddDynamicObject(what, Offset(itsRect, -s.V.OriginH, -s.V.OriginV),
+		obj, room, index, on)
 }
 
 // AddTempManholeRect is Objects.c:349-362: remember a manhole so

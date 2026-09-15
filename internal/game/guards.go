@@ -119,4 +119,6 @@ const (
 	devRoomObject   = "room object"   // rooms[r].objects[i], 24 slots
 	devMasterObject = "master object" // masterObjects[i], the composed nine-room graph
 	devTrigger      = "trigger"       // theTriggers[i]
+	devDynamic      = "dynamic"       // dinahs[i], 18 slots -- reached from DynaNum, which is -1
+	devHotSpot      = "hot spot"      // hotSpots[i] -- reached from DynaNum too, for a switch
 )
