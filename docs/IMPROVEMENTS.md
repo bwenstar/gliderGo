@@ -125,7 +125,7 @@ reads, and no future display refresh rate may change either. Frame *interpolatio
 60/120/144 Hz displays is a separate question — it belongs at the presentation step (2.10)
 and must not touch the simulation. The limiter's own cost is 2.17.
 
-### 2.3 Player 2's keys are modifier keys — **worked around in `cmd/glidergo`; a remapping UI is 1.7**
+### 2.3 Player 2's keys are modifier keys — **worked around in `cmd/glidergo`; documented in the About box, 1.7a; a remapping UI is 1.7b**
 
 The original hard-codes player 2 to Control, Command, Option and Shift
 (`InterfaceInit.c:148-151`), which a modern window manager or desktop environment may
@@ -191,7 +191,7 @@ fall. That is a visible bug in the original in its default configuration.
 A release needs a pause overlay that says what to press, a pause that yields to the OS
 instead of blocking, and a `RestoreEntireGameScreen` that publishes what it composed.
 
-### 2.6 A missing or wrong asset directory must not be a crash — **planned, 1.7**
+### 2.6 A missing or wrong asset directory must not be a crash — **DONE, 1.7a**
 
 Today the tests `t.Skipf` when `assets/extracted` is absent, which is right for tests and
 is not a shipped behaviour. A public binary run by someone who has not pointed it at a
@@ -201,12 +201,41 @@ built together. `render.Assets` already collects a sticky error rather than dyin
 blit (`assets.Err()`), which is the mechanism this needs; what is missing is a window to
 show it in.
 
-### 2.7 No way to quit that a stranger would find — **planned, 1.7**
+**1.7a built the window.** A fresh clone with no assets now comes up on the port's own
+title screen — a drawn wordmark, the credit, "no artwork found", and the command that
+produces the artwork — with a working menu over it, and the status band naming the
+directory it looked in. Three things make that a *tested* behaviour rather than a hopeful
+one:
+
+- `shell.Host.Assets` may be nil, and every plate goes through one accessor
+  (`Shell.plate`) that answers nil rather than reaching into it. There is no other path to
+  a PICT in the package, so a missing plate cannot become a nil dereference.
+- `Discover` failing is printed and not returned (`runShell` in `cmd/glidergo/main.go`):
+  the useful place to say "there are no houses here" is the screen, not a terminal the
+  player may never see. The three menu items that need a house are unavailable and say why
+  when pressed.
+- `make headless` renders the no-art and no-houses screens on every `make check`
+  (`-shot -art /nonexistent -houses /nonexistent`), because it is the one layout nobody
+  developing here ever sees by accident — and the first version of it put "no artwork
+  found" half underneath the menu panel.
+
+### 2.7 No way to quit that a stranger would find — **mostly DONE, 1.7a; the overlay and the confirmation are 1.7b**
 
 `cmd/glidergo` maps Escape to quit and that is undiscoverable. The original's answer was a
 menu bar, which a port does not have. A release needs a title screen with a Quit item
 (3.4), an in-game pause overlay with one (2.5), and a confirmation before abandoning a
 game in progress.
+
+**The title screen's Quit item exists**, on `Q` and on Escape, and the About box lists both
+along with every other binding. Escape *in a game* changed meaning to make room for it: it
+ends the game and hands the title screen back, where it used to end the process. Closing the
+window still ends the process, which is why `shell.Outcome` carries a `Closed` flag — the
+two exits look identical to the `World` and must not to the shell.
+
+Still owed, both 1.7b: the pause overlay with a visible way out (2.5, 2.28), and the
+confirmation before abandoning a game in progress. Escape today discards a game in one
+keystroke with no prompt, which is worse than the original — the original made you go to a
+menu.
 
 ### 2.8 The scale transform belongs at the present step and nowhere else — **planned, 1.7**
 
@@ -1197,9 +1226,73 @@ time, not by playing the room.
 
 ---
 
+### 2.50 A 50% dim is not a panel, on a surface with no alpha — **DONE as a decision, 1.7a**
+
+There is no way to draw a translucent panel over the splash illustration, because
+`render.Surface` is 8-bit indexed with the 1994 palette and has no channel to be translucent
+in. What the original does everywhere it puts something over existing pixels is
+`PenPat(gray)` with `PenMode(patOr)` — a 50% checkerboard ORed into the destination
+(`render.Surface.FillPatOrGray`), which turns half the pixels black, leaves the other half
+alone, and cost nothing on a 68k.
+
+**It is not sufficient for text.** The first version of the menu panel was exactly that dim,
+and it was very nearly illegible: the shipped splash art is a bright yellow wall, so cream
+letters sat on a checkerboard of black and bright yellow whose light half is as light as the
+letters. The inverse-video selection bar on the same panel was perfectly readable, which is
+what identified the cause — a solid ground, not a brighter ink.
+
+So panels are a solid `Black8` interior with a cream frame, and the dim survives as an
+eight-pixel halo around the box, which keeps the frame from sitting on the picture with a hard
+edge. That is also the game's own idiom rather than an invention: the scoreboard fills its band
+black and writes cream in it (`render/scoreboard.go`). The general rule, for 1.7b's settings
+screen and 1.7c's boards: **the dim is for de-emphasising artwork, never for backing text.**
+
+Two consequences worth writing down. Anything drawn over the splash has to be *placed* rather
+than composited, so every panel's rectangle is a named constant chosen against the shipped art
+— which is why the menu sits over the sky at the right rather than over the illustration's
+subject, and why the port's own fallback title screen is laid out around that same rectangle.
+And a magnified bitmap font is the only text this port has, so legibility is bought with
+`scale` and the original's one-pixel black drop shadow, not with a lighter weight.
+
+### 2.51 A disabled control under the cursor must not look like the one to press — **DONE, 1.7a**
+
+The original's answer to an unavailable command is a menu item drawn in grey and a keystroke
+that does nothing at all, which leaves a player with no idea what is wrong. The port's shell
+does two things about that: pressing an unavailable item writes the reason on the status band
+("no houses in … — run `make assets`"), and the item is drawn in grey.
+
+The grey was not enough on its own, because the shell also has a *cursor*, and the cursor
+starts on "New Game". On a machine with no houses — a fresh clone, which is the first screen a
+stranger sees — a filled inverse-video bar sat under the one item that cannot work, and an
+inverse-video bar is this shell's "Return does this". An unavailable item under the cursor now
+gets an outlined bar instead of a filled one.
+
+The general rule for the rest of 1.7: **every state has to be distinguishable from every other
+state it can be confused with, not merely rendered differently.** Enabled-and-selected,
+disabled-and-selected, enabled-and-not, disabled-and-not is four states and needs four
+appearances. 1.7b's settings screen has more of them than this menu does (a setting can also be
+unavailable *because of another setting*), and 2.28's pause overlay is the same problem in the
+game.
+
+### 2.52 The About box is the only documentation a player gets, and it was describing the wrong game — **DONE, 1.7a**
+
+Its first draft listed the original's keys. Three of this port's bindings are not the
+original's — player two is on A/D/W/S because the originals are modifier keys a window manager
+intercepts (2.3), Tab pauses, and Escape ends a game rather than the program (2.7) — so the
+1994 manual is actively wrong for this build, and the About box was repeating it.
+
+It now lists what this build actually does, per player. That fixes the immediate error and
+creates a maintenance hazard in its place, which is the part worth recording: **the list is a
+Go string literal and the bindings are data** (`player.Glider`'s key set). The moment 1.7b makes
+them configurable the two will disagree, and a wrong key list is worse than none. 1.7b must
+generate the list from the bindings — the same argument as 4.4's dangling-test linter, one step
+earlier.
+
+---
+
 ## 3. Things the original did not have and a 2026 release is expected to have
 
-### 3.1 High scores — **planned, 1.7 (user-requested)**
+### 3.1 High scores — **planned, 1.7c (user-requested)**
 
 The original does keep them (`internal/house.Scores`, and the board sorts on rooms
 visited, not points). A release needs them persisted somewhere sane — XDG
@@ -1221,12 +1314,25 @@ glider/shadow contrast (which is already low on some backgrounds), a "hold inste
 tap" input option, and not relying on sound alone for any warning. The expensive one is
 scaling text, which interacts with 2.1.
 
-### 3.4 There is no way in to the game — **planned, 1.7**
+### 3.4 There is no way in to the game — **DONE, 1.7a; the credits are still short of what 1.2 requires**
 
 No title screen, no house picker, no options screen, no credits. 1.7 is scoped as "the
 shell" and owns all of it. Flagged here because the credits screen is not optional: the
 five house authors in item 1.2 and both illustrators must be named in the shipped build
 regardless of how the asset question is resolved.
+
+**1.7a delivered the way in**: `glidergo` with no arguments is now a title screen with a
+menu, a house picker over all 22 houses (with each house's shipped high score and its room
+count), and an About box. The options screen is 1.7b.
+
+**The credits are not finished, and this is the item that tracks it.** The About box names
+John Calhoun, Casady & Greene and the GPL. It does not yet name the five house authors or
+either illustrator, which item 1.2 requires *regardless* of how the asset question is
+resolved — so the shipped build is not yet compliant with the decision this file already
+took. It is a data problem as much as a screen problem: the authors are named in the houses'
+own `banner` fields and in `docs/ORIGINAL_GAME.md`, and the honest fix is to read them from
+there rather than to type them into a Go string literal where they can rot. 1.7c opens those
+boards anyway, so it is the right stage for it.
 
 ---
 
@@ -1419,6 +1525,30 @@ animates ends every frame with the work map identical to the composition (so a r
 forgets its back rect fails there), and a room with a cuckoo in it never does, because the
 animated families' cels come out of a filmstrip and register no back rect at all.
 
+### 4.6 The screens a player meets first were the only ones no automated check could draw — **DONE, 1.7a**
+
+Every check in `make check` covered the game and none of them covered the way in, and the reason
+was structural rather than an oversight: the game's frames come out of the null backend
+(`-frames 3 -dump`), and a title screen drawn on the null backend still needs a backend. So
+`internal/shell` was built to compose into a surface with no window anywhere in the picture, and
+`glidergo -shot FILE -shot-screen splash|houses|about` writes one frame of it as a PNG with no
+display, no audio, no house and no game opened.
+
+`make headless` now renders five: the three screens against the real asset tree, and the two
+first-run layouts against a directory that does not exist (2.6). It is cheap — no process
+outlives the write — and it caught three defects in one sitting that the unit tests could not,
+because all three were about what the composite *looks* like rather than what any one function
+returns: the illegible dim (2.50), the fallback title screen laid out underneath the menu panel
+(2.6), and the selection bar on a disabled item (2.51).
+
+Two notes for the stages that inherit it. The unit tests still assert the things a test can
+assert and should keep doing so — `TestEveryScreenDrawsWithoutArt` counts cream and black pixels
+and fails on a blank screen, `TestHouseLabelPlacementAndClamping` checks that no ink reaches the
+right edge — because a PNG nobody opens is not a check. And `-shot` is the natural place to hang
+a golden-image test for the shell in 1.8, which would make these five files a corpus rather than
+an artefact; it is deliberately not that yet, because 1.7b, c and d will all change these screens
+and pinning them now would only generate churn.
+
 ---
 
 ## Done
@@ -1444,6 +1574,13 @@ animated families' cels come out of a filmstrip and register no back rect at all
 | 4.5 `Result.Planes`: three index-plane hashes, so a report can say the *pixels* differ | 1.5f | this stage |
 | 2.47 `FlushTriggerSound` resets the flushed channel's priority, so three trigger sounds cannot silence the game | 1.6 | this stage |
 | 4.2 (audio half) the `snd=` column, the mix digest and `glidertool replay -wav` | 1.6 | this stage |
+| 2.6 A fresh clone with no assets comes up on the port's own title screen and says which command produces them | 1.7a | this stage |
+| 2.7 (the title screen's half) Quit on the menu, on `Q` and on Escape; Escape in a game returns here | 1.7a | this stage |
+| 2.50 Panels are a solid ground with a cream frame; the 50% dim is a halo, never a backing for text | 1.7a | this stage |
+| 2.51 An unavailable item under the cursor is outlined, not filled, and says why when pressed | 1.7a | this stage |
+| 2.52 The About box lists this build's bindings instead of the original's | 1.7a | this stage |
+| 3.4 (the way in) Title screen, menu, house picker over all 22 houses, About box | 1.7a | this stage |
+| 4.6 `-shot` and five shell screens rendered by `make headless`, with no display | 1.7a | this stage |
 
 Four bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

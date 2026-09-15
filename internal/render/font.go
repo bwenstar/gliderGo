@@ -358,6 +358,66 @@ func (s *Surface) DrawString(h, v int16, text string, idx uint8) {
 	})
 }
 
+// DrawStringScaled is DrawString with every font pixel multiplied into a scale x scale
+// block: at scale 2 the 5x7 core in a 6x9 cell becomes a 10x14 core in a 12x18 cell, and
+// the baseline still lands on v.
+//
+// The original has no equivalent and needs none -- it asks the Toolbox for TextSize(9) or
+// TextSize(12) and gets a typeface designed at that size. A port with one authored bitmap
+// font cannot do that, so the shell magnifies instead. Blocky, and the alternative was
+// either a second hand-authored font or a title screen whose menu is nine pixels tall on a
+// display four times the diagonal of the Mac this was written for. Scale 1 is DrawString
+// exactly, and 0 or less draws nothing.
+func (s *Surface) DrawStringScaled(h, v int16, text string, idx uint8, scale int) {
+	if scale == 1 {
+		s.DrawString(h, v, text, idx)
+		return
+	}
+	if scale < 1 {
+		return
+	}
+	x := h
+	eachCell(text, func(_ rune, c cell, _ bool) {
+		s.drawGlyphScaled(x, v, glyphs[c.g], idx, scale)
+		if c.mark != noMark {
+			s.drawGlyphScaled(x, v, marks[c.mark], idx, scale)
+		}
+		x += FontWide * int16(scale)
+	})
+}
+
+// StringWidthScaled is StringWidth for DrawStringScaled.
+func StringWidthScaled(text string, scale int) int16 {
+	if scale < 1 {
+		return 0
+	}
+	return StringWidth(text) * int16(scale)
+}
+
+// drawGlyphScaled plots one magnified cell. The row offset is scaled with everything else,
+// so a scale-2 glyph's ascent is fourteen rows and not seven: a caller that mixes sizes
+// aligns them on the baseline, which is the one thing that stays put.
+func (s *Surface) drawGlyphScaled(h, v int16, g glyph, idx uint8, scale int) {
+	for r := 0; r < FontTall; r++ {
+		bits := g[r]
+		if bits == 0 {
+			continue
+		}
+		y := int(v) - fontAscent*scale + r*scale
+		for c := 0; c < fontCore; c++ {
+			if bits&(1<<(fontCore-1-c)) == 0 {
+				continue
+			}
+			x := int(h) + c*scale
+			for dy := 0; dy < scale; dy++ {
+				for dx := 0; dx < scale; dx++ {
+					s.plot(x+dx, y+dy, idx)
+				}
+			}
+		}
+	}
+}
+
 // drawGlyph plots one cell. Rows that are entirely blank -- most of them, in most glyphs
 // -- cost one test.
 func (s *Surface) drawGlyph(h, v int16, g glyph, idx uint8) {

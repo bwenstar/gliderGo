@@ -177,31 +177,9 @@ func (e *encoder) rect(r Rect) { e.i16(r.Top); e.i16(r.Left); e.i16(r.Bottom); e
 // explicit pass, not silently inside the reader.
 func Load(b []byte) (*House, error) {
 	d := &decoder{b: b}
-	if err := d.need(SizeofHouseHeader, "house header"); err != nil {
-		return nil, err
-	}
-
 	h := &House{}
-	h.Version = d.i16()
-	h.UnusedShort = d.i16()
-	h.TimeStamp = d.i32()
-	h.Flags = d.i32()
-	h.Initial = d.point()
-	d.bytes(h.Banner[:])
-	d.bytes(h.Trailer[:])
-	d.scores(&h.HighScores)
-	d.game(&h.SavedGame)
-	h.HasGame = d.u8()
-	h.UnusedBoolean = d.u8()
-	h.FirstRoom = d.i16()
-	h.NRooms = d.i16()
-
-	if d.off != offRooms { // unreachable unless the code above drifts
-		return nil, fmt.Errorf("house: internal: header decoded to %d bytes, want %d",
-			d.off, offRooms)
-	}
-	if h.NRooms < 0 {
-		return nil, fmt.Errorf("house: nRooms is negative (%d)", h.NRooms)
+	if err := d.header(h); err != nil {
+		return nil, err
 	}
 
 	if err := d.need(int(h.NRooms)*SizeofRoom, "rooms"); err != nil {
@@ -225,6 +203,38 @@ func Load(b []byte) (*House, error) {
 			tail, h.NRooms, PowerPCSlack)
 	}
 	return h, nil
+}
+
+// header decodes the 866 bytes before rooms[] and leaves d positioned at the first
+// room. It is separate from Load only so that PeekFile can stop here: a picker that
+// wants a name and a room count has no business reading 4,070 rooms, and the header
+// is also the only part a file has to have to be recognisable as a house at all.
+func (d *decoder) header(h *House) error {
+	if err := d.need(SizeofHouseHeader, "house header"); err != nil {
+		return err
+	}
+	h.Version = d.i16()
+	h.UnusedShort = d.i16()
+	h.TimeStamp = d.i32()
+	h.Flags = d.i32()
+	h.Initial = d.point()
+	d.bytes(h.Banner[:])
+	d.bytes(h.Trailer[:])
+	d.scores(&h.HighScores)
+	d.game(&h.SavedGame)
+	h.HasGame = d.u8()
+	h.UnusedBoolean = d.u8()
+	h.FirstRoom = d.i16()
+	h.NRooms = d.i16()
+
+	if d.off != offRooms { // unreachable unless the code above drifts
+		return fmt.Errorf("house: internal: header decoded to %d bytes, want %d",
+			d.off, offRooms)
+	}
+	if h.NRooms < 0 {
+		return fmt.Errorf("house: nRooms is negative (%d)", h.NRooms)
+	}
+	return nil
 }
 
 func (d *decoder) scores(s *Scores) {

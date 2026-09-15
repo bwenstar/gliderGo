@@ -185,6 +185,36 @@ func (a *Assets) Background(pictID int16) *Surface {
 		pictID, kFallbackBackground))
 }
 
+// UI returns one of the shell's PICT plates: the splash (1000), the two pause
+// overlays (1015, 1016), the stars-remaining panels (1017, 1018), the banner
+// sheet (1991-1993), the high-score header and starfield (1994, 1995, 1998), the
+// About pictures (150, 151, 153) and the Load House furniture (1001-1004).
+// tools/extract_art.py's UI list is the authority for which ids exist.
+//
+// **A missing plate is not an error here**, and that is the difference between
+// this and every other accessor in the file. The room path cannot draw a room
+// without its art, so a missing sheet is a bug and Err reports it; the shell can
+// always fall back to drawing its own panel, and a first run against a tree with
+// no extracted assets should reach a title screen that says so rather than a
+// fatal error (docs/IMPROVEMENTS.md 2.6). A plate that is present but will not
+// decode still records: that is a broken extraction rather than an absent one,
+// and silence would hide it.
+//
+// The open house's fork is deliberately *not* consulted, unlike Pict. On a Mac it
+// would be -- the house's resources sit in front of the application's for every
+// id -- and six of the shipped houses do carry their own 1991-1993 banner sheet
+// and two their own 1017/1018. Those belong to the banner, which is drawn during
+// a game and asks for them through Pict; the shell's own chrome is the
+// application's, and a house that could repaint the title screen is a house that
+// could hide the way out of it.
+func (a *Assets) UI(pictID int16) *Surface {
+	rel := fmt.Sprintf("ui/%d.png", pictID)
+	if _, err := os.Stat(filepath.Join(a.root, rel)); err != nil {
+		return nil
+	}
+	return a.load(rel)
+}
+
 // Misc returns a resource that is none of the above; only PICT 3957, the manhole
 // seen through a floor support, qualifies.
 func (a *Assets) Misc(pictID int16) *Surface {

@@ -228,6 +228,38 @@ func (s *Surface) FillOvalPatOrGray(r Rect, idx uint8) {
 	}
 }
 
+// FillPatOrGray is PaintRect under PenPat(gray) + PenMode(patOr): the rectangular
+// form of the same dithered OR, with none of the oval's rasterisation caveat.
+//
+// The room path does not reach it -- every procedural shadow in the original is an
+// oval or a region -- but the shell does, and for exactly what the Toolbox idiom is
+// for. Dimming with Black8 turns half the pixels black and leaves the other half
+// alone, which is how a 1994 Mac greyed out anything it could not draw an alpha
+// channel over.
+//
+// **It is not a backing for text**, which is worth saying here because it is the
+// obvious thing to reach for on a surface with no alpha and it does not work: the
+// untouched half of the checkerboard keeps the artwork's own brightness, so cream
+// letters over the splash illustration's bright yellow are very nearly illegible.
+// internal/shell uses it to de-emphasise artwork -- a halo around a panel -- and
+// draws the panel itself solid. docs/IMPROVEMENTS.md 2.50 has the whole argument.
+func (s *Surface) FillPatOrGray(r Rect, idx uint8) {
+	x0, y0, x1, y1, ok := s.clip(r)
+	if !ok {
+		return
+	}
+	for y := y0; y < y1; y++ {
+		row := y * s.W
+		for x := x0; x < x1; x++ {
+			if !grayPatternSet(x, y) {
+				continue
+			}
+			s.Pix[row+x] |= idx
+			s.setMaskOpaque(row + x)
+		}
+	}
+}
+
 // FillPolyPatOrGray is ColorRegion under PenPat(gray) + PenMode(patOr): the same
 // dithered OR as FillOvalPatOrGray, over a region built by OpenRgn/Line/CloseRgn.
 //

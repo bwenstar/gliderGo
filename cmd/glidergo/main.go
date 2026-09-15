@@ -1,57 +1,76 @@
 // Command glidergo is the game.
 //
-// It is the whole of the port's host layer: it loads a house and the extracted art,
-// builds a World, hangs the five host hooks off it, and calls NewGame. Everything after
-// that call happens inside internal/game, which is where the 1994 code lives; this file
-// contains no game logic and is the place to look for anything that is about *this*
-// machine rather than about Glider PRO.
+// Run with no arguments it comes up on the title screen, finds every house in
+// assets/extracted/houses and waits for somebody to start a game -- which is the
+// whole of what stage 1.7 adds, and the reason this is a game rather than a
+// demonstration. internal/shell is that title screen; internal/game is the 1994 code;
+// this file is the machine, and play.go is one game on it.
 //
-//	go run ./cmd/glidergo                          # Slumberland, the original's default
-//	go run ./cmd/glidergo -house "Demo House"      # any house in assets/extracted/houses
+//	go run ./cmd/glidergo                          # the title screen
+//	go run ./cmd/glidergo -house "Demo House"      # skip it and play, by name or path
 //	go run ./cmd/glidergo -scale 2                 # 2x nearest-neighbour magnification
 //	go run ./cmd/glidergo -room 12 -neighbors 3    # start elsewhere, smaller view
 //	go run ./cmd/glidergo -two                     # two gliders on one keyboard
 //	go run ./cmd/glidergo -bench                   # 300 frames unpaced, report the rate
+//	go run ./cmd/glidergo -shot /tmp/splash.png    # draw a screen to a PNG and exit
 //	go run ./cmd/glidergo -audio list              # which external players this machine has
 //	go run ./cmd/glidergo -sound=false             # the original's dontLoadSounds
 //	go run ./cmd/glidergo -wav /tmp/session.wav    # record the mix as well as play it
 //	go run -tags nullbackend ./cmd/glidergo -frames 300 -dump /tmp/f   # headless
 //
-// Sound goes to an external player's stdin -- pw-play, paplay, aplay, ffplay or sox, whichever
-// is installed -- because the port is standard-library-only Go and cannot open a device
-// directly. internal/audio/sink.go has the whole argument. A machine with none of them plays in
-// silence and says so; -wav writes the same mix to a file, which is how a session on such a
-// machine can be listened to somewhere else.
+// Any of -house, -frames, -bench and -dump means "play, do not stop at a title
+// screen": the first because naming a house is asking for it, and the other three
+// because a timed run, a benchmark and a frame dump are measurements, and a
+// measurement that waits for a keypress is not one. Everything else is the shell.
 //
-// Keys. Player one has the four arrows, as the original does: left and right to steer, up
-// to fire a rubber band, down for the battery. Tab pauses -- which is the original's
-// default, `isEscPauseKey` being false at Main.c:184 -- and Delete abandons a glider that
-// is waiting in limbo for the other player. Escape quits.
+// Sound goes to an external player's stdin -- pw-play, paplay, aplay, ffplay or sox,
+// whichever is installed -- because the port is standard-library-only Go and cannot
+// open a device directly. internal/audio/sink.go has the whole argument. A machine
+// with none of them plays in silence and says so; -wav writes the same mix to a file,
+// which is how a session on such a machine can be listened to somewhere else.
+//
+// Keys. On the title screen the arrows move and Return chooses, and every item has a
+// letter (N, 2, L, A, Q); see internal/shell on why that differs from the original's
+// arcade key map. In a game player one has the four arrows, as the original does: left
+// and right to steer, up to fire a rubber band, down for the battery. Tab pauses --
+// which is the original's default, `isEscPauseKey` being false at Main.c:184 -- and
+// Delete abandons a glider that is waiting in limbo for the other player. Escape ends
+// the game and gives the title screen back; closing the window ends the program.
 //
 // Player two has A and D to steer, W for bands and S for the battery. **That is a
 // deliberate departure.** The original binds player two to Control, Command, Option and
 // Shift (InterfaceInit.c:148-151), which a modern window manager intercepts before the
 // application sees it and which many keyboards cannot report independently. The bindings
-// are per-glider data in player.Glider precisely so that 1.7's settings screen can make
+// are per-glider data in player.Glider precisely so that 1.7b's settings screen can make
 // all eight of them the player's choice; see docs/IMPROVEMENTS.md 2.3.
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"glidergo/internal/audio"
-	"glidergo/internal/game"
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
 	"glidergo/internal/platform"
-	"glidergo/internal/platform/backend"
 	"glidergo/internal/render"
+	"glidergo/internal/shell"
 )
+
+// version is what the title screen and a bug report quote. The Makefile sets it from
+// `git describe`; a plain `go build` leaves it as it stands here.
+var version = "dev"
+
+// defaultHouse is the house the original opens with -- Slumberland is what its
+// shipped preferences name (PrefsInit, docs/analysis/ui-dialogs.md P1). It is the
+// shell's opening selection when it is present, and the house the measurement flags
+// use when they are given without one.
+const defaultHouse = "Slumberland"
 
 func main() {
 	if err := run(); err != nil {
@@ -60,419 +79,342 @@ func main() {
 	}
 }
 
-func run() error {
-	var (
-		houseName = flag.String("house", "Slumberland", "house to play, by name or by path")
-		houses    = flag.String("houses", "assets/extracted/houses", "directory of extracted .house files")
-		artDir    = flag.String("art", "assets/extracted/art", "extracted application art tree")
-		houseArt  = flag.String("houseart", "assets/extracted/houseart", "extracted per-house resource forks")
-		roomNum   = flag.Int("room", -1, "start in this room number instead of the house's first")
-		neighbors = flag.Int("neighbors", 9, "how much of the house to compose around the player: 1, 3 or 9")
-		scale     = flag.Int("scale", 1, "integer nearest-neighbour magnification of the 640x480 image")
-		two       = flag.Bool("two", false, "two players on one keyboard (the shell around this is stage 1.9)")
-		seed      = flag.Int64("seed", 0, "fix the random stream for a reproducible run (0 = use the clock)")
-		frames    = flag.Int("frames", 0, "quit after N frames, for headless and timed runs (0 = play)")
-		bench     = flag.Bool("bench", false, "run with no frame pacing and report the rate the machine sustains")
-		dump      = flag.String("dump", "", "with -tags nullbackend, write each frame as a PNG into this directory")
-		quiet     = flag.Bool("quiet", false, "do not print the startup and shutdown summaries")
+// options is the command line, parsed and checked once.
+type options struct {
+	house     string
+	houses    string
+	artDir    string
+	houseArt  string
+	roomNum   int
+	neighbors int
+	scale     int
+	two       bool
+	seed      int64
+	frames    int
+	bench     bool
+	dump      string
+	quiet     bool
 
-		sound    = flag.Bool("sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
-		sounds   = flag.String("sounds", "assets/extracted/sound", "directory of extracted sound assets")
-		music    = flag.Bool("music", true, "play the score as well as the effects")
-		volume   = flag.Int("volume", 7, "output volume, 0 to 7; 0 is silence and also stops the score")
-		audioOut = flag.String("audio", "", "external player to pipe the mix to, or \"list\" for what this machine has")
-		wav      = flag.String("wav", "", "write the mix to this WAV file")
-	)
+	shot       string
+	shotScreen string
+
+	sound    bool
+	sounds   string
+	music    bool
+	volume   int
+	audioOut string
+	wav      string
+}
+
+func parseFlags() (*options, error) {
+	o := &options{}
+	flag.StringVar(&o.house, "house", "", "play this house at once instead of showing the title screen (name or path; default "+defaultHouse+" for -frames/-bench/-dump)")
+	flag.StringVar(&o.houses, "houses", "assets/extracted/houses", "directory to search for houses")
+	flag.StringVar(&o.artDir, "art", "assets/extracted/art", "extracted application art tree")
+	flag.StringVar(&o.houseArt, "houseart", "assets/extracted/houseart", "extracted per-house resource forks")
+	flag.IntVar(&o.roomNum, "room", -1, "start in this room number instead of the house's first")
+	flag.IntVar(&o.neighbors, "neighbors", 9, "how much of the house to compose around the player: 1, 3 or 9")
+	flag.IntVar(&o.scale, "scale", 1, "integer nearest-neighbour magnification of the 640x480 image")
+	flag.BoolVar(&o.two, "two", false, "two players on one keyboard (the title screen's Two Player Game does the same)")
+	flag.Int64Var(&o.seed, "seed", 0, "fix the random stream for a reproducible run (0 = use the clock)")
+	flag.IntVar(&o.frames, "frames", 0, "quit after N frames, for headless and timed runs (0 = play)")
+	flag.BoolVar(&o.bench, "bench", false, "run with no frame pacing and report the rate the machine sustains")
+	flag.StringVar(&o.dump, "dump", "", "with -tags nullbackend, write each frame as a PNG into this directory")
+	flag.BoolVar(&o.quiet, "quiet", false, "do not print the startup and shutdown summaries")
+
+	flag.StringVar(&o.shot, "shot", "", "draw one title-screen frame to this PNG and exit; needs no display")
+	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses or about")
+
+	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
+	flag.StringVar(&o.sounds, "sounds", "assets/extracted/sound", "directory of extracted sound assets")
+	flag.BoolVar(&o.music, "music", true, "play the score as well as the effects")
+	flag.IntVar(&o.volume, "volume", 7, "output volume, 0 to 7; 0 is silence and also stops the score")
+	flag.StringVar(&o.audioOut, "audio", "", "external player to pipe the mix to, or \"list\" for what this machine has")
+	flag.StringVar(&o.wav, "wav", "", "write the mix to this WAV file")
 	flag.Parse()
 
-	// -audio list answers and exits, before a house is opened: somebody who has just been told
-	// there is no sound wants the answer now, not after a megabyte of samples has loaded.
-	if *audioOut == "list" {
+	if o.volume < 0 || o.volume > audio.FullVolume {
+		return nil, fmt.Errorf("-volume must be 0 to %d", audio.FullVolume)
+	}
+	if o.scale < 1 {
+		return nil, errors.New("-scale must be at least 1")
+	}
+	switch o.neighbors {
+	case 1, 3, 9:
+	default:
+		return nil, errors.New("-neighbors must be 1, 3 or 9")
+	}
+	if o.dump != "" {
+		os.Setenv("GLIDERGO_FRAMEDUMP", o.dump)
+	}
+	if o.bench && o.frames == 0 {
+		// An unpaced game with no end is not a benchmark and not playable either --
+		// the glider crosses the room in a few milliseconds. Three hundred frames is
+		// ten seconds of game time, which is long enough for the rate to settle.
+		o.frames = 300
+	}
+	return o, nil
+}
+
+func run() error {
+	o, err := parseFlags()
+	if err != nil {
+		return err
+	}
+
+	// -audio list answers and exits, before anything is opened: somebody who has just
+	// been told there is no sound wants the answer now, not after a megabyte of
+	// samples has loaded.
+	if o.audioOut == "list" {
 		found := audio.Players()
 		if len(found) == 0 {
 			fmt.Println("glidergo: no audio player found; -wav writes a file instead")
 			return nil
 		}
-		fmt.Printf("glidergo: audio players on this machine, best first: %s\n", strings.Join(found, " "))
+		fmt.Printf("glidergo: audio players on this machine, best first: %s\n",
+			strings.Join(found, " "))
 		return nil
 	}
-	if *volume < 0 || *volume > audio.FullVolume {
-		return fmt.Errorf("-volume must be 0 to %d", audio.FullVolume)
-	}
 
-	if *scale < 1 {
-		return fmt.Errorf("-scale must be at least 1")
-	}
-	switch *neighbors {
-	case 1, 3, 9:
+	switch {
+	case o.shot != "":
+		return shot(o)
+	case o.house != "" || o.frames > 0 || o.bench || o.dump != "":
+		return playDirect(o)
 	default:
-		return fmt.Errorf("-neighbors must be 1, 3 or 9")
+		return runShell(o)
 	}
-	if *dump != "" {
-		os.Setenv("GLIDERGO_FRAMEDUMP", *dump)
-	}
-	if *bench && *frames == 0 {
-		// An unpaced game with no end is not a benchmark and not playable either -- the
-		// glider crosses the room in a few milliseconds. Three hundred frames is ten
-		// seconds of game time, which is long enough for the rate to settle.
-		*frames = 300
+}
+
+// ---------------------------------------------------------------------------
+// The three ways to start
+// ---------------------------------------------------------------------------
+
+// runShell is the ordinary one: a window, a title screen, and games started from it.
+func runShell(o *options) error {
+	lib, err := shell.Discover(o.houses)
+	if err != nil {
+		// **Not fatal.** A missing or empty houses directory is what a fresh clone
+		// has, and the useful place to say so is the screen the player is looking at
+		// -- which is exactly what the shell does with an empty library. Exiting here
+		// would put the one piece of information they need on a terminal they may
+		// never see (docs/IMPROVEMENTS.md 2.6).
+		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 	}
 
-	// ---- the house and its art ------------------------------------------------
-
-	path := *houseName
-	if filepath.Ext(path) != ".house" {
-		path = filepath.Join(*houses, path+".house")
+	a := newApp(o)
+	if err := a.openWindow("gliderGo"); err != nil {
+		return err
 	}
-	h, err := house.LoadFile(path)
+	defer a.close()
+	if err := a.openAudio(); err != nil {
+		return err
+	}
+
+	sh, err := shell.New(a.shellHost(), lib)
 	if err != nil {
 		return err
 	}
-	if len(h.Rooms) == 0 {
-		return fmt.Errorf("%s: house has no rooms", path)
+	// The original's opening house, when it is there. 1.7b replaces this with the
+	// saved preference, which is what the original actually reads.
+	sh.Select(defaultHouse)
+
+	if err := sh.Run(); err != nil {
+		return err
 	}
+	return a.artErr
+}
 
-	// The house's name is its file name: houseType has no name field, because on a Mac the
-	// document's name was the file's. Every place the original shows a house name it is
-	// reading the FSSpec.
-	name := strings.TrimSuffix(filepath.Base(path), ".house")
+// playDirect skips the shell: one house, one game, then exit.
+func playDirect(o *options) error {
+	name := o.house
+	if name == "" {
+		name = defaultHouse
+	}
+	path := housePath(o, name)
+	name = houseName(path)
 
-	assets := render.NewAssets(*artDir)
-	// The house's own resource fork shadows the application's for as long as the house is
-	// open, which is what HouseIO.c does. Without it every custom background in the house
-	// falls back to PICT 2000 and half the shipped houses look wrong.
-	fork := filepath.Join(*houseArt, name)
-	if st, err := os.Stat(fork); err == nil && st.IsDir() {
-		assets.OpenHouseResFork(fork)
-	} else if !*quiet {
-		fmt.Fprintf(os.Stderr, "glidergo: no extracted resource fork at %s; custom art will fall back\n", fork)
+	a := newApp(o)
+	if err := a.openWindow("gliderGo -- " + name); err != nil {
+		return err
+	}
+	defer a.close()
+	if err := a.openAudio(); err != nil {
+		return err
+	}
+	if _, err := a.play(name, path, o.two); err != nil {
+		return err
+	}
+	return a.artErr
+}
+
+// shot draws one title-screen frame into a PNG and exits.
+//
+// It opens no window, no audio and no house, which is the point: it is how the shell
+// gets tested on a machine with no display and how `make headless` covers the screens
+// a player actually meets first. A frame of the *game* has had that since 1.5
+// (-frames with -dump); this is the same idea for the part of the program that is not
+// the game.
+func shot(o *options) error {
+	lib, err := shell.Discover(o.houses)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 	}
 
 	view := render.DefaultView()
-	scene := render.NewScene(view, assets, h)
-	scene.NumNeighbors = *neighbors
-	scene.Clock = time.Now()
-
-	// ---- the window -----------------------------------------------------------
-
-	win, err := backend.Open(platform.Config{
-		Title:  "gliderGo -- " + name,
-		Width:  int(view.Screen.Wide()),
-		Height: int(view.Screen.Tall()),
-		Scale:  *scale,
-	})
+	scr := render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
+	host := shell.Host{
+		Screen:  scr,
+		Assets:  render.NewAssets(o.artDir),
+		Present: func() {},
+		Poll:    func() []platform.Event { return nil },
+		Play: func(shell.Choice) (shell.Outcome, error) {
+			return shell.Outcome{}, errors.New("-shot does not play")
+		},
+		Version: version,
+	}
+	sh, err := shell.New(host, lib)
 	if err != nil {
 		return err
 	}
-	defer win.Close()
-
-	fb := platform.NewFramebuffer(int(view.Screen.Wide()), int(view.Screen.Tall()))
-
-	// ---- the world ------------------------------------------------------------
-
-	// A zero seed means "use the clock", which is what the original does: InitializeRandom
-	// seeds from the time at launch. A fixed seed makes a whole run reproducible, which is
-	// what 1.8's replay tests will want.
-	s := int32(*seed)
-	if s == 0 {
-		s = int32(time.Now().UnixNano())
+	if o.house != "" {
+		sh.Select(houseName(housePath(o, o.house)))
+	} else {
+		sh.Select(defaultHouse)
 	}
-	w := game.NewWorld(h, scene, s)
-	w.TwoPlayer = *two
-
-	// **DoBackground is true here and false in the original** (Main.c:186). It is the
-	// preference that decides whether PlayGame pumps host events at all, and in a port it
-	// is not optional: with it false the window never sees a keystroke, never repaints on
-	// exposure and never notices that it lost the foreground. The original could get away
-	// with it because the Toolbox drew the window's contents from the WindowRecord; a
-	// modern compositor cannot. docs/IMPROVEMENTS.md 2.21 is the longer form of this: a
-	// released build should always pause on focus loss and should not offer the choice.
-	w.DoBackground = true
-
-	// ---- audio ----------------------------------------------------------------
-	//
-	// InitSound and InitMusic (Sound.c:438-474, Music.c:312-369), which in the original run
-	// once each at launch (Main.c:337) and are the reason a Mac that could not spare the
-	// memory played the whole game in silence rather than refusing to start. Every failure
-	// here takes that same path -- a line on stderr and a silent game, never a returned error
-	// -- with one exception: a player named on the command line and not installed *is* an
-	// error, because the flag exists for somebody diagnosing one specific player and quietly
-	// using a different one would waste their afternoon.
-	//
-	// The four hooks and the music channel are hung on the World here rather than in the
-	// section below, because they are all one subsystem's and because Present has to be able
-	// to see the Pump.
-	var (
-		eng  *audio.Engine
-		pump *audio.Pump
-		sink audio.Sink
-	)
-	if *sound {
-		bank, err := audio.LoadBank(*sounds)
-		if err != nil {
-			// The usual cause is a checkout with no assets: assets/extracted is
-			// gitignored, being reproducible from GliderPRO/, so `make assets` is the
-			// fix. The game is fully playable without it.
-			fmt.Fprintf(os.Stderr, "glidergo: no sound: %v\n", err)
-		} else {
-			// The sound half of the resource-fork swap done for art above: for as long
-			// as a house is open its own 'snd ' resources are the ones GetResource
-			// finds. Thirteen of the twenty-two shipped houses have any and twelve have
-			// one that can be read (five resources are MACE 6:1 compressed), and a
-			// house with none is not an error -- it is a house whose sound triggers get
-			// no hot spot at all, which is the C's behaviour and is why this loads
-			// before the first room is composed.
-			if err := bank.LoadHouse(name); err != nil {
-				fmt.Fprintf(os.Stderr, "glidergo: %s: no custom sounds: %v\n", name, err)
-			}
-
-			var where string
-			sink, where, err = openSink(*audioOut, *wav)
-			if err != nil {
-				if *audioOut != "" {
-					return err
-				}
-				fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
-			}
-
-			eng = audio.New(bank)
-			eng.SetVolume(int16(*volume))
-			pump = audio.NewPump(eng, sink)
-			defer pump.Close()
-
-			// The three requests the game makes of the mixer, and the one it makes of
-			// the score. All four are documented on their fields in
-			// internal/game/world.go; TriggerSoundExists is the one that is not just
-			// sound, because whether a sound trigger loads decides whether the room
-			// gets a kSoundIt hot spot at all -- so a house with custom sounds composes
-			// differently with audio than without it.
-			w.SoundPlayer = eng.PlayPrioritySound
-			w.TriggerSoundExists = eng.LoadTriggerSound
-			w.FlushTriggerSound = eng.FlushTriggerSound
-			w.Music = eng
-
-			// The one call that goes the other way: the mixer asks the game which piece
-			// of the score is next, from inside Mix, on this goroutine. See
-			// internal/audio/music.go for why the score walk stays on the game's side.
-			eng.NextPiece = w.NextMusicPiece
-
-			// One flag for both preferences. The original has two -- music in a game and
-			// music on the splash screen -- and they are separate because a player can
-			// want one and not the other; there is no splash screen to want it on until
-			// 1.7, which is where they become two settings rather than one flag.
-			w.PlayMusicGame = *music
-			w.PlayMusicIdle = *music
-			w.InitMusic()
-
-			if !*quiet {
-				fmt.Printf("glidergo: audio=%s %d sounds + %d music = %d KiB, rate %d Hz, volume %d/%d\n",
-					where, audio.TriggerSlot, audio.MaxMusic, bank.Bytes()/1024,
-					audio.Rate, *volume, audio.FullVolume)
-			}
-		}
-	}
-
-	// ---- the five host hooks --------------------------------------------------
-	//
-	// This is the entire seam between the game and the machine. Each hook is documented on
-	// its field in internal/game/world.go; what follows is only this host's answer.
-
-	// The 60.15 Hz Mac tick. The original's clock is the Time Manager's, incremented by
-	// the vertical retrace; wall-clock milliseconds scaled by 60/1000.66 is the same thing
-	// to within a tick, and the game measures nothing in absolute time.
-	start := time.Now()
-	if !*bench {
-		w.TickCount = func() int64 {
-			return int64(time.Since(start).Seconds() * 60.15)
-		}
-
-		// The frame limiter's loop body. The original's is empty -- a busy-wait that pins a
-		// core for whatever fraction of the two ticks the frame did not need. Sleeping for a
-		// tick instead is docs/IMPROVEMENTS.md 2.17, and it is safe because it changes only
-		// *how* the wait is spent, not when it ends: awaitFrame still returns on the same tick.
-		w.WaitTick = func() { time.Sleep(time.Millisecond) }
-	}
-	// -bench leaves both hooks nil, which is how the game is told to run flat out: with no
-	// tick source awaitFrame skips its wait entirely and Ticks answers from the frame
-	// counter, so the *game* still keeps nominal time -- Frame * TicksPerFrame -- while the
-	// wall clock is free to run ahead. Nothing about the simulation changes, which is what
-	// makes the number it prints a measurement of the composition and blit path rather than
-	// of the limiter. It is also exactly the clock the headless build and every test in
-	// internal/game uses, so a benchmark and a replay see the same frames.
-
-	w.Present = func() {
-		w.Main.ToBGRX(fb.Pix, fb.Stride)
-		if err := win.Present(fb); err != nil {
-			// A failed present is a dead window, and there is nothing useful to do with
-			// the error from inside a void hook. Ending the game is the honest response
-			// and it goes through the same door the Quit menu item does.
-			w.Quitting = true
-			w.SwitchedOut = false
-		}
-
-		// The mixer's only pacer on the live path, and it is *here* rather than on the
-		// frame loop for one reason: Present is called once per frame during play and
-		// once per strip during a room wipe -- 116 or 160 times inside a single frame,
-		// which is the one part of the game that takes far longer than a frame to draw.
-		// A pump driven by the frame counter would starve the player through every door
-		// the glider takes. Nil until the bank loads, and safe on a nil receiver.
-		pump.ClockTick()
-	}
-
-	// The event pump. HandlePlayEvent calls this and the game's three arms are
-	// RefreshGameWindow, Suspend and Resume; only the *classification* below is ours.
-	w.PlayEvent = func() {
-		for _, ev := range win.PollEvents() {
-			switch {
-			case ev.Kind == platform.EventQuit,
-				ev.Kind == platform.EventKeyDown && ev.Key == platform.KeyEscape:
-				// SwitchedOut is cleared alongside Quitting because PlayGame's pump loop
-				// spins on SwitchedOut alone -- so a window closed while the game is in
-				// the background would otherwise never be noticed. The original has the
-				// same hole and cannot fall into it, because its Quit is a menu command
-				// and a background application has no menu bar.
-				w.Quitting = true
-				w.SwitchedOut = false
-
-			case ev.Kind == platform.EventFocus:
-				if ev.Focused {
-					w.Resume()
-				} else if *frames == 0 {
-					// **A timed run does not pause.** Suspending on focus loss is the
-					// original's behaviour and the right behaviour for a play session, but
-					// it makes the loop depend on the window manager: PlayGame spins on
-					// this hook while SwitchedOut and presents nothing, so a -frames run
-					// can never reach its limit once the window is backgrounded. That is
-					// not hypothetical -- on this host the WM hands focus back to the
-					// terminal about a second after the window opens, which is why
-					// `-frames 300` used to hang at frame 34 while `-frames 30` passed.
-					// A timed run is a measurement or a replay, and neither has a user to
-					// pause for.
-					w.Suspend()
-				}
-
-			case ev.Kind == platform.EventExpose:
-				// The original's updateEvt arm. It is needed for the same reason it was in
-				// 1994 and for one more: a suspended game draws no frames at all, so
-				// without this the window keeps whatever the X server happened to retain
-				// for as long as the game is paused. See docs/IMPROVEMENTS.md 2.27.
-				w.RefreshGameWindow()
-
-			case ev.Kind == platform.EventResize:
-				// The backend owns the scale transform; the game's surfaces are always
-				// 640x480. See docs/IMPROVEMENTS.md 2.8 on inserting the resize transform at
-				// the present step and nowhere else.
-
-			case ev.Kind == platform.EventNone:
-			}
-		}
-
-		// HandlePlayEvent's `sleep = 2`, and the only place it belongs. WaitNextEvent
-		// yields for up to two ticks when the queue is empty; during play that is
-		// invisible because awaitFrame is already spending the frame's budget, so
-		// reproducing it there would install a second pacer. The one case where it
-		// matters is this one: PlayGame spins on this hook while switched out, and
-		// without a yield a backgrounded game burns a core.
-		if w.SwitchedOut {
-			time.Sleep(2 * time.Second / 60)
-		}
-	}
-
-	// One poll, two gliders. The original snapshots the hardware KeyMap once, inside
-	// player one's GetInput, and player two reads that snapshot -- so both calls in a frame
-	// see the same keys. Reading the backend's held-key map has the same property for the
-	// same reason: it is only updated by PollEvents, which ran once, above.
-	w.KeyPoll = func(g *player.Glider) player.Keys {
-		if g.Which == player.Player2 {
-			return player.Keys{
-				Left:  win.KeyDown(platform.KeyA),
-				Right: win.KeyDown(platform.KeyD),
-				Batt:  win.KeyDown(platform.KeyS),
-				Band:  win.KeyDown(platform.KeyW),
-				// No Command, no Delete and no Pause. Player two has no give-up key and
-				// no way to reach the menus in the original either, which is one of the
-				// two-player asymmetries docs/IMPROVEMENTS.md 2.23 asks 1.9 to fix.
-			}
-		}
-		return player.Keys{
-			Left:    win.KeyDown(platform.KeyLeft),
-			Right:   win.KeyDown(platform.KeyRight),
-			Batt:    win.KeyDown(platform.KeyDown),
-			Band:    win.KeyDown(platform.KeyUp),
-			Delete:  win.KeyDown(platform.KeyDelete),
-			Pause:   win.KeyDown(platform.KeyTab),
-			Command: false, // 1.7's menus; the game asks DoCommandKey, which is a stub
-		}
-	}
-
-	// ---- play -----------------------------------------------------------------
-
-	if *roomNum >= 0 {
-		if *roomNum >= len(h.Rooms) {
-			return fmt.Errorf("-room %d out of range (house has %d)", *roomNum, len(h.Rooms))
-		}
-		// The house's authored start room, overridden before NewGame reads it. Cleaner
-		// than reaching past SetHouseToFirstRoom, and it is exactly what the editor's
-		// "set as first room" command writes.
-		h.FirstRoom = int16(*roomNum)
-	}
-
-	// -frames is the headless and timed path: a hook on the frame limiter is the only
-	// place that can end a game from outside without inventing a key. It sets the same
-	// flag the Quit menu item does.
-	if *frames > 0 {
-		w.Present = wrapPresentLimit(w, int64(*frames))
-	}
-
-	if !*quiet {
-		fmt.Printf("glidergo: %s -- %d rooms, first %d, %d stars\n",
-			name, len(h.Rooms), h.FirstRoom, w.CountStarsInHouse())
-		fmt.Printf("glidergo: backend=%s surface=%dx%d scale=%d neighbors=%d seed=%d\n",
-			backend.Name, fb.W, fb.H, *scale, *neighbors, s)
-	}
-
-	w.NewGame(game.NewGameMode)
-
-	if !*quiet {
-		el := time.Since(start)
-		rate := float64(w.Frame) / el.Seconds()
-		fmt.Printf("glidergo: %d frames in %v (%.1f fps), score %d, %d stars left\n",
-			w.Frame, el.Round(time.Millisecond), rate, w.Score, w.StarsLeft)
-		if *bench {
-			// The original's target, for something to compare against: kTicksPerFrame is
-			// 2 on a 60.15 Hz clock, so a Mac that kept up ran at 30.07 frames a second.
-			fmt.Printf("glidergo: unpaced -- %.1fx the original's 30.07 fps target\n", rate/30.07)
-		}
-		reportAudio(eng, pump, sink)
-	}
-
-	// Sticky asset errors, reported once at the end rather than at every blit, because the
-	// draw helpers are void in the original and a missing PICT there ends in RedAlert.
-	if err := assets.Err(); err != nil {
+	if err := sh.Show(o.shotScreen); err != nil {
 		return err
+	}
+
+	sh.Draw()
+	if err := writePNG(o.shot, scr, o.scale); err != nil {
+		return err
+	}
+	if !o.quiet {
+		fmt.Printf("glidergo: wrote %s -- the %s screen, %d houses, %d skipped\n",
+			o.shot, o.shotScreen, len(lib.Houses), len(lib.Skipped))
 	}
 	return nil
 }
 
-// wrapPresentLimit ends the game once the simulation has run n frames.
-//
-// Present is the sampling point and World.Frame is the quantity, and they are not the same
-// number: **Present is not called once per frame.** NewGame's DumpScreenOn presents before
-// the loop starts, HideGlider presents on its own, and a room transition presents once per
-// wipe strip -- 116 or 160 times inside a single frame. This used to count its own calls,
-// and the arithmetic showed: `-frames 300` reported 298 in a static room and 137 in a run
-// where the glider happened to take a door, because one 160-strip wipe spent more than half
-// the budget. Counting World.Frame makes the flag mean what it says, makes two runs of the
-// same house comparable, and makes the fps line above -- w.Frame over elapsed -- a rate of
-// frames rather than of blits. It is the same mistake, and the same fix, as
-// docs/IMPROVEMENTS.md 2.4 in the test harness.
-//
-// One consequence worth stating: with -dump the PNG count is still the *present* count, so a
-// run that crosses a room boundary writes a file per wipe strip. That is the useful
-// behaviour for looking at a transition frame by frame, and it is why the limit lives here
-// rather than in the dumper.
-// openSink decides where the mix goes, and returns a one-word description of it for the
-// startup line.
+// ---------------------------------------------------------------------------
+// The shell's host
+// ---------------------------------------------------------------------------
+
+// shellHost is the shell's side of this machine. It is short because the shell asks
+// for almost nothing: a surface, a way to show it, events, and a way to play.
+func (a *app) shellHost() shell.Host {
+	view := render.DefaultView()
+	scr := render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
+
+	// dead is how a failed present reaches a shell that has no error path: the next
+	// poll reports the window closed, which is true, and the shell stops. A void hook
+	// with nowhere to put an error is the same problem play.go's Present has, and it
+	// gets the same answer.
+	dead := false
+
+	return shell.Host{
+		Screen: scr,
+
+		// The application's art, with no house resource fork open. The shell's chrome
+		// is the application's even when a house redefines the same PICT ids: see
+		// render.Assets.UI.
+		Assets: render.NewAssets(a.o.artDir),
+
+		Present: func() {
+			scr.ToBGRX(a.fb.Pix, a.fb.Stride)
+			if err := a.win.Present(a.fb); err != nil {
+				fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
+				dead = true
+			}
+			// The mixer's pacer, for the same reason play.go's Present calls it: the
+			// splash screen is silent in this build, but the pump still has to be
+			// clocked or the tail of the last game's audio would sit in the buffer
+			// unplayed. When 1.7b makes music-on-the-splash a preference, this is
+			// what makes it audible.
+			a.pump.ClockTick()
+		},
+
+		Poll: func() []platform.Event {
+			if dead {
+				return []platform.Event{{Kind: platform.EventQuit}}
+			}
+			return a.win.PollEvents()
+		},
+
+		// A title screen has no reason to burn a core. One tick of the original's
+		// clock is well under what a static screen needs and keeps the audio pump
+		// clocked at about the rate the game clocks it.
+		Idle: func() { time.Sleep(16 * time.Millisecond) },
+
+		Play: func(c shell.Choice) (shell.Outcome, error) {
+			return a.play(c.House.Name, c.House.Path, c.TwoPlayer)
+		},
+
+		Title: func(s string) {
+			if a.win != nil {
+				a.win.SetTitle(s)
+			}
+		},
+		Notify:  func(s string) { fmt.Fprintln(os.Stderr, s) },
+		Version: version,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Odds and ends
+// ---------------------------------------------------------------------------
+
+// housePath turns whatever -house was given into a path. A name is looked up in the
+// houses directory; anything with a separator or an extension in it is taken as a
+// path, so a house sitting anywhere on the disk can be played without moving it.
+func housePath(o *options, name string) string {
+	if strings.ContainsRune(name, filepath.Separator) || filepath.Ext(name) != "" {
+		return name
+	}
+	return filepath.Join(o.houses, name+".house")
+}
+
+// houseName is the house's name: its file name without the extension. houseType has
+// no name field, because on a Mac the document's name was the file's, and every place
+// the original shows a house name it is reading the FSSpec.
+func houseName(path string) string {
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
+// writePNG saves a surface, optionally upscaled by an integer factor, so that 640x480
+// of 1994 pixels can be looked at without a viewer's own smoothing in the way.
+func writePNG(path string, s *render.Surface, scale int) error {
+	img := s.ToRGBA()
+	if scale > 1 {
+		b := img.Bounds()
+		big := image.NewRGBA(image.Rect(0, 0, b.Dx()*scale, b.Dy()*scale))
+		for y := 0; y < big.Rect.Dy(); y++ {
+			for x := 0; x < big.Rect.Dx(); x++ {
+				big.Set(x, y, img.At(x/scale, y/scale))
+			}
+		}
+		img = big
+	}
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := png.Encode(f, img); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// openSink decides where the mix goes, and returns a one-word description of it for
+// the startup line.
 //
 // Three cases, and the middle one is the one worth stating:
 //
@@ -553,17 +495,4 @@ func reportAudio(eng *audio.Engine, pump *audio.Pump, sink audio.Sink) {
 		line += fmt.Sprintf(", sink error (%v)", pump.Err)
 	}
 	fmt.Println(line)
-}
-
-func wrapPresentLimit(w *game.World, n int64) func() {
-	prev := w.Present
-	return func() {
-		if prev != nil {
-			prev()
-		}
-		if w.Frame >= n {
-			w.Quitting = true
-			w.SwitchedOut = false
-		}
-	}
 }

@@ -9,7 +9,7 @@ later Carbon work-in-progress. `docs/ORIGINAL_GAME.md` §2 has the evidence.)
 You are a paper glider. You ride the air from furnace vents, dodge the household hazards of
 a very large house, and try to get further than you did last time.
 
-> **Status: in development — the game is playable, and there is no way in yet.**
+> **Status: in development — the game is playable, and it now has a title screen.**
 > Complete: Stage 0 (foundations, environment, source archaeology), **1.1** asset
 > extraction (the 1994 art, sound, houses and movies), **1.2** house loading (all 22
 > original houses read, written and round-tripped byte-for-byte), **1.3** room rendering
@@ -21,12 +21,14 @@ a very large house, and try to get further than you did last time.
 > sub-stages (117 object types, 19,849 hot spots, bands, grease, switches, rewards and the
 > six animated families) — and **1.6** audio (three effect channels with the original's
 > priority policy, the music score on a fourth, and a replay that records what it sounded
-> like).
+> like), and **1.7a** the way in (the splash screen, the menu, the house picker and the
+> About box — `glidergo` with no arguments is now a game you start rather than a house you
+> name).
 >
-> Next is **1.7, the shell**: the splash screen, the house picker, preferences, the
-> scoreboard and high scores. Until it lands there is no title screen and no menu — the
-> game starts, and it starts in whichever house the command line names. See
-> [docs/PLAN.md](docs/PLAN.md), and
+> In progress: the rest of **1.7, the shell** — **1.7b** preferences and a real pause,
+> **1.7c** high scores, **1.7d** the in-game overlays and game over. Until those land the
+> settings are command-line flags, Tab pauses without drawing anything, and a score is
+> printed rather than recorded. See [docs/PLAN.md](docs/PLAN.md), and
 > [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
 > release someone else could play.
 
@@ -97,6 +99,37 @@ machine this was written on has no sound card, so that path is the one under tes
 
 The build needs no network access at run time and no third-party Go modules —
 see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
+
+## Controls
+
+The title screen is keyboard-only, because the game is: `internal/platform` reports no
+pointer, and the only mouse in Glider PRO was in its editor.
+
+| Title screen | |
+|---|---|
+| `↑` `↓` | move the cursor |
+| `Return` | choose |
+| `N` / `2` | one-player / two-player game |
+| `L` | load a house — `↑` `↓` move, `←` `→` page, a letter jumps, `Return` plays, `Space` selects |
+| `A` | about |
+| `Q` or `Esc` | quit |
+
+| In a game | Player one | Player two |
+|---|---|---|
+| steer | `←` `→` | `A` `D` |
+| throw a rubber band | `↑` | `W` |
+| use the battery | `↓` | `S` |
+| give up a waiting glider | `Delete` | — |
+| pause | `Tab` | — |
+| end the game | `Esc` | — |
+
+Three of those are the port's own and not the original's. Player two was on Control, Command,
+Option and Shift (`InterfaceInit.c:148-151`), which a modern window manager takes before the
+game sees it; the arrows on the title screen were wired straight to menu commands in the
+original's arcade build, which had no on-screen menu to move a cursor through; and `Esc` ends
+a game rather than quitting the program, so it hands the title screen back. All three become
+the player's choice in 1.7b — the bindings are already per-glider data for that reason
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.3).
 
 ## What is in here
 

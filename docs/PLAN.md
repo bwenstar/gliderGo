@@ -695,6 +695,61 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
   without touching a command line; a score good enough to place appears on that house's board
   and survives a restart; the 22 original houses' shipped boards are read and displayed but
   never written back.
+- **Split into four, because "the shell" is four unrelated subsystems** sharing only a screen. The
+  original interleaves them through the Toolbox — a menu handler that reaches into the preferences,
+  a scoreboard that runs a modal dialog, a pause that borrows the game's own port — and porting them
+  as one stage would mean one commit with four reasons to be wrong. The split is by *what owns
+  state*: the shell owns which screen is up (a), a preferences file owns the settings (b), a
+  side-car owns the boards (c), and the running `World` owns the in-game overlays (d).
+  - **1.7a The way in** ✅ *done* — `internal/shell`: the splash screen, the menu, the house picker,
+    the About box, and the status band. `cmd/glidergo` gains the title screen as its default and
+    splits into `main.go` (flags, dispatch, host) and `play.go` (one game).
+  - **1.7b Preferences and pause** — the native config directory, per-player key bindings
+    (`docs/IMPROVEMENTS.md` 2.3), volume, music, scale, `DoPause`/`DoCommandKey` as a real pause
+    state with PICT 1015/1016 (2.5, 2.32), the opt-in fidelity switches (2.19, 2.20, 2.39), and the
+    legacy 226-byte `prefsInfo` importer (P1). Music-on-the-splash becomes a preference here; the
+    shell is silent until it does.
+  - **1.7c High scores** — the `scoresType` codec, the 22 shipped boards read and displayed but
+    never written back, the port's own per-house side-car for new scores, `TestHighScore`'s gate,
+    name and banner entry (DLOG 1020/1021), and `DrawHighScores`' geometry with PICT 1994/1995/1998
+    (P13, P14).
+  - **1.7d The in-game shell** — `BringUpBanner` (PICT 1991-1993), `DisplayStarsRemaining`
+    (1017/1018), both as simulated-frame waits rather than `Delay` (2.32); `DoGameOver` and
+    `DoDiedGameOver` feeding 1.7c; `restoreSplashScreen`.
+- **1.7a, what it settled.** Three decisions that the rest of 1.7 is built on:
+  - **The shell does not import `internal/game`.** A game is reached through one hook,
+    `Play(Choice) (Outcome, error)`, which `cmd/glidergo` fills in. So the whole of the way into the
+    game is testable with no window, no house, no sound card and no game — `shell_test.go` drives it
+    with scripted key events — and the host wiring stays in one file where it can be read. It is
+    also what makes 1.7b's settings screen and 1.7c's boards cheap to test.
+  - **A house that will not load is a message, not an exit.** `PeekFile` decides what the picker
+    lists and `LoadFile` decides what plays, and the two can disagree — a truncated house sniffs as
+    one. The shell shows the loader's own sentence on the status band and stays up, because the
+    player's next move is to choose a different house (`docs/IMPROVEMENTS.md` 2.33). Tested
+    end-to-end against a real file, not a stub.
+  - **Keyboard only, and the arrows navigate.** `internal/platform` has no pointer, so the shell is
+    an arcade cabinet's: a list, a cursor, and a letter for every item. The original's arcade build
+    wires the arrows straight to commands (`Events.c:191-207`); this has an on-screen menu to move a
+    cursor through, so the arrows move it and Return chooses, with N/2/L/A/Q kept so that one
+    keypress still starts a game. Recorded as a deliberate departure in the package comment.
+- **1.7a, what drawing it found.** All four came out of rendering the screens with `-shot` and
+  looking at the PNGs, which is why that flag exists:
+  - **A 50% dim is not a panel** on this surface. `render.Surface` is 8-bit indexed with no alpha,
+    so the only way to darken artwork is the original's `PenPat(gray)` + `PenMode(patOr)`
+    checkerboard — and over the shipped splash art, which is a bright yellow wall, cream text on
+    half-black-half-yellow is very nearly illegible. Panels are solid black with a cream frame and
+    keep the dim only as an eight-pixel halo, which is what the game's own scoreboard does
+    (`render/scoreboard.go` blackens its band and writes cream in it).
+  - **The fallback title screen has to be laid out around the menu**, not centred on the screen.
+    Centring on 320 put "no artwork found" half underneath the menu panel — on the one screen a
+    fresh clone sees first.
+  - **A selection bar on a disabled item is a lie.** The cursor starts on "New Game", which cannot
+    work with no houses, and a filled inverse-video bar under it read as "press this". An
+    unavailable item under the cursor gets an outline instead.
+  - **The About box's key list was the original's, and this port's bindings are not.** Player two is
+    on A/D/W/S rather than the original's modifier keys (2.3), Tab pauses, Escape ends the game.
+    The box is the only place a player can find that out, so it lists what this build actually does;
+    when 1.7b makes the bindings configurable the list has to be generated from them.
 
 **1.8 Fidelity pass**
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of

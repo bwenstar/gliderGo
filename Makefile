@@ -7,7 +7,13 @@ GO      ?= $(shell test -x $(HOME)/.local/opt/go/bin/go && echo $(HOME)/.local/o
 BIN     := bin
 PKG     := ./...
 ASSETS  := assets/extracted
-LDFLAGS := -s -w
+
+# The version the title screen shows and a bug report quotes. `git describe` in a checkout
+# with no tags yet answers with the short hash; outside a checkout it answers nothing, and
+# "dev" -- the default in cmd/glidergo -- is then the honest string.
+VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS  := -s -w
+GAMEFLAGS := $(LDFLAGS) -X main.version=$(VERSION)
 # The build network has no Go module proxy, and nothing here needs one.
 export GOPROXY      := off
 export GOTOOLCHAIN  := local
@@ -20,7 +26,7 @@ all: build glidertool
 ## build: compile the game for this host (x11 backend)
 build:
 	@mkdir -p $(BIN)
-	$(GO) build -ldflags '$(LDFLAGS)' -o $(BIN)/glidergo ./cmd/glidergo
+	$(GO) build -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo ./cmd/glidergo
 
 ## glidertool: compile the house inspector (`bin/glidertool help`)
 glidertool:
@@ -57,12 +63,27 @@ smoke: build
 		echo "       Run \`make bench\` from a desktop session to check X11."; \
 	fi
 
-## headless: build the null backend and dump 3 frames as PNGs to /tmp/glidergo-frames
+## headless: dump 3 game frames and all three title screens as PNGs, with no display
+#
+# Two halves, because the program has two halves. -frames dumps the game's own frames
+# through the null backend; -shot draws the shell, which needs no backend at all -- it
+# composes one surface and writes a PNG, so the screens a player meets first are covered on
+# a machine with no X server. That is the whole reason -shot exists.
 headless:
 	@mkdir -p $(BIN)
-	$(GO) build -tags nullbackend -o $(BIN)/glidergo-null ./cmd/glidergo
+	$(GO) build -tags nullbackend -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo-null ./cmd/glidergo
 	$(BIN)/glidergo-null -frames 3 -dump /tmp/glidergo-frames
 	@ls -1 /tmp/glidergo-frames
+	@for s in splash houses about; do \
+		$(BIN)/glidergo-null -shot /tmp/glidergo-shell/$$s.png -shot-screen $$s || exit 1; \
+	done
+	@# And the first-run screens: no art and no houses is what a fresh clone has, and it is
+	@# the one layout nobody developing here ever sees by accident.
+	@$(BIN)/glidergo-null -shot /tmp/glidergo-shell/first-run.png \
+		-art /nonexistent -houses /nonexistent -quiet 2>/dev/null
+	@$(BIN)/glidergo-null -shot /tmp/glidergo-shell/about-no-art.png -shot-screen about \
+		-art /nonexistent -quiet
+	@ls -1 /tmp/glidergo-shell
 
 ## audio: replay 600 frames and write the mix to /tmp/glidergo-audio.wav
 #
