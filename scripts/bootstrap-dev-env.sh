@@ -36,6 +36,10 @@
 # or put a machine entry for the mirror host in ~/.netrc. They are never
 # written into the repository and never echoed. The public source needs none.
 #
+# The internal source also needs to be told where it is: there is no built-in
+# hostname, so `internal` is skipped entirely unless GLIDERGO_MIRROR_HOST is
+# exported. Nothing about anybody's private network is committed here.
+#
 # WHAT THIS SCRIPT IS NOT
 #
 # It is not required. `make check` finds a Go on PATH by itself (see the Makefile's
@@ -50,11 +54,23 @@ GO_DIR="$TOOLCHAIN_DIR/go"
 SYSROOT="$REPO_ROOT/.toolchain/sysroot"
 CACHE="$REPO_ROOT/.toolchain/cache"
 
-# --- the internal network ----------------------------------------------------
-MIRROR_HOST="${GLIDERGO_MIRROR_HOST:-mirror.internal.example.com}"
+# --- an internal package mirror, if there is one -------------------------
+# Opt-in, and deliberately so. This is empty unless GLIDERGO_MIRROR_HOST is
+# exported, because a hostname on a private network is worth nothing to anybody
+# else: the earlier default meant every stranger's `make doctor` resolved and
+# probed a company host they have no business knowing about, waited three seconds
+# for it, and then printed a row that reads like a missing prerequisite. The
+# airgapped host this port was written on exports the variable once and behaves
+# exactly as before.
+MIRROR_HOST="${GLIDERGO_MIRROR_HOST:-}"
 MIRROR="https://$MIRROR_HOST/repo"
 INTERNAL_UBUNTU="$MIRROR/archive.ubuntu.com-ubuntu"
 GO_IMAGE="$MIRROR_HOST/registry-1.docker.io/library/golang:1.23-bookworm"
+
+# have_internal is the guard every probe of that mirror goes through, so that an
+# unset host is "not configured" and never a failed connection to `https:///`.
+have_internal() { [[ -n "$MIRROR_HOST" ]]; }
+internal_reachable() { have_internal && reachable "$MIRROR/api/repositories"; }
 
 # --- the open internet -------------------------------------------------------
 # Both are overridable so that a third kind of network -- a company mirror that is
@@ -67,7 +83,26 @@ UBUNTU_SUITE="${GLIDERGO_UBUNTU_SUITE:-noble}"
 # The architecture words Debian and gcc use for this machine. Hardcoding
 # x86_64-linux-gnu was fine on one build host and wrong the first time anyone
 # builds on an arm64 laptop, which is a normal thing to own now.
-DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+#
+# dpkg is not the only way to ask, and it was the only way this asked: on Fedora,
+# Arch or macOS there is no dpkg, so the fallback silently answered `amd64` and the
+# public path would have downloaded an x86-64 Go onto an arm64 machine. `uname -m`
+# exists everywhere, and its answers only need translating into Debian's spelling.
+deb_arch() {
+  local a
+  a="$(dpkg --print-architecture 2>/dev/null)" && [[ -n "$a" ]] && { printf '%s\n' "$a"; return; }
+  case "$(uname -m 2>/dev/null)" in
+    x86_64|amd64)   printf 'amd64\n' ;;
+    aarch64|arm64)  printf 'arm64\n' ;;
+    armv7l|armv7*)  printf 'armhf\n' ;;
+    i386|i686)      printf 'i386\n' ;;
+    riscv64)        printf 'riscv64\n' ;;
+    ppc64le)        printf 'ppc64el\n' ;;
+    s390x)          printf 's390x\n' ;;
+    *)              printf 'amd64\n' ;;
+  esac
+}
+DEB_ARCH="$(deb_arch)"
 MULTIARCH="$(gcc -dumpmachine 2>/dev/null || echo x86_64-linux-gnu)"
 
 # Optional C dev libraries, only needed for the backends noted in brackets.
@@ -146,6 +181,14 @@ found_go() {
 # is installing from a network the user did not expect.
 choose_source() {
   if [[ "$SOURCE" != auto ]]; then
+    # The one forced source that can be impossible: there is no built-in internal
+    # mirror to fall back on, on purpose (see GLIDERGO_MIRROR_HOST above), so
+    # say which variable is missing rather than fetching from `https:///`.
+    if [[ "$SOURCE" == internal ]] && ! have_internal; then
+      die "--source internal needs a mirror to talk to, and none is configured.
+       Export GLIDERGO_MIRROR_HOST=<your mirror host> and re-run, or
+       use --source system (a Go already on PATH) or --source public (go.dev)."
+    fi
     log "Source: $SOURCE (forced with --source)"
     return
   fi
@@ -167,7 +210,7 @@ choose_source() {
     warn "$onpath is go$(go_version "$onpath"), older than go.mod's $floor -- looking for a newer one"
   fi
 
-  if reachable "$MIRROR/api/repositories"; then
+  if internal_reachable; then
     SOURCE=internal
     log "Source: internal -- $MIRROR_HOST answered"
     return
@@ -179,7 +222,7 @@ choose_source() {
   fi
 
   die "no source for a Go toolchain: no local go >= $floor, and neither
-       $MIRROR_HOST nor $GO_DL_HOST is reachable.
+       ${MIRROR_HOST:-no internal mirror configured} nor $GO_DL_HOST is reachable.
 
   If you have a Go tarball already, point at it and re-run:
       GLIDERGO_GO_TARBALL=/path/to/go$floor.linux-$DEB_ARCH.tar.gz $0
@@ -407,7 +450,7 @@ resolve_deb_source() {
       # diagnostic than this script guessing.
       if [[ -n "${GLIDERGO_UBUNTU_MIRROR:-}" ]]; then
         DEB_SOURCE=public
-      elif reachable "$MIRROR/api/repositories"; then
+      elif internal_reachable; then
         DEB_SOURCE=internal
       else
         DEB_SOURCE=public
@@ -630,7 +673,13 @@ check_env() {
 
   # Which networks this machine can see. Reported rather than acted on: --check
   # installs nothing, and knowing the answer is most of diagnosing a bootstrap.
-  reachable "$MIRROR/api/repositories" && probe "internal package mirror" "reachable" || probe "internal package mirror" "unreachable"
+  if have_internal; then
+    internal_reachable \
+      && probe "internal mirror ($MIRROR_HOST)" "reachable" \
+      || probe "internal mirror ($MIRROR_HOST)" "unreachable"
+  else
+    probe "internal mirror" "not configured (set GLIDERGO_MIRROR_HOST)"
+  fi
   reachable "$GO_DL_HOST/dl/" && probe "public $GO_DL_HOST" "reachable" || probe "public $GO_DL_HOST" "unreachable"
 
   if (( ok )); then

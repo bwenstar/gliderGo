@@ -74,31 +74,69 @@ The upstream repository does distribute the houses, so re-vendoring them under
 **gliderGo release binary with the extracted art baked in** is a different act: a new
 distribution of that art, in a new form, by someone who is not the rights holder.
 
-**The architecture is already right, by accident, and should be made deliberate.**
-`.gitignore` excludes `/assets/extracted/`, so no original art is in this repository and
-none can end up in a release tarball built from it. The release model that follows is:
+**This item used to claim the architecture was already right by accident. It was wrong, and
+the correction matters more than the original claim did.** What it said was that `.gitignore`
+excludes `/assets/extracted/`, so no original art is in this repository and none can reach a
+release tarball built from it. The first half is true and irrelevant; the second is false.
+`.gitignore` keeps *derived* files out of git. The originals are **tracked**:
 
-> gliderGo ships **code only**. On first run it asks for a copy of Glider PRO and
-> extracts what it needs locally, the way a ScummVM or a DOSBox front-end does.
+- `GliderPRO/Glider PRO.r` — 15,475,666 bytes, the entire resource fork: every PICT, every
+  `snd `, the `'demo'` stream, the lot.
+- `GliderPRO/Houses/*.binhex` — all 22 shipped houses, 34 MB.
+- `GliderPRO/Houses/*.mov` — the 15 QuickTime movies.
 
-That has a consequence worth stating plainly, because it changes the priority of a later
-stage: **Stage 2's new houses are the only content gliderGo can legally ship itself.**
+`git ls-files GliderPRO/` is 137 files, and `git archive HEAD` is about 52 MB of 1994 assets. So
+this repository already redistributes the art, and so does any archive, zip or GitHub release
+tarball made from a clone, unless something is done to exclude it.
+
+That is not a leak to be quietly plugged: it is exactly why `make assets` works offline from a
+bare clone, and therefore why a stranger can clone this repository and play without owning
+Glider PRO (see 5.6). But it means this decision is live *now*, not at release time, and the
+route that was previously written down as the obvious one is more work than it looked.
+
+**Needed from the user — one of:**
+
+- **(a) Keep vendoring.** Upstream distributes the same resource fork and the same houses, so
+  re-vendoring them is no worse than what the copyright holder already does; release archives
+  carry the assets and one download works. This is the honest description of what the
+  repository already is, and it is what I would do.
+- **(b) Code only.** Add `.gitattributes` `export-ignore` for `GliderPRO/Glider PRO.r` and
+  `GliderPRO/Houses/` so `git archive` and every GitHub release tarball drop them, and write
+  the fetch step that `make assets` would then need — from upstream, or from the player's own
+  copy of the game, the way a ScummVM or DOSBox front-end does. Note that this is *not* the
+  status quo plus a gitignore line, which is what this item used to imply: the fetch step has
+  to exist and needs somewhere to fetch from that is not this repository.
+- **(c) Either of those, plus contacting John Calhoun** for an explicit asset grant. That is
+  the only route to a single-download release of the original content that is unambiguously
+  licensed rather than merely no worse than upstream.
+
+Whichever way it goes, one consequence stands, because it changes the priority of a later
+stage: **Stage 2's new houses are the only content gliderGo can ship without asking anyone.**
 They stop being a nice extra and become the default content of the public build, with the
-original 22 houses available to anyone who owns the game. Stage 2 should be planned as
-original work on that basis — not as imitations of the shipped houses, which would inherit
-the same authorship question.
+original 22 houses available to anyone who owns the game or accepts route (a). Stage 2 should
+be planned as original work on that basis — not as imitations of the shipped houses, which
+would inherit the same authorship question.
 
-Needed from the user: a decision on whether to (a) ship code-only and extract at first
-run, which is what I would do, or (b) contact John Calhoun for an explicit asset grant,
-which is the only route to a single-download release of the original content.
+### 1.3 No `CHANGELOG.md` and none of the conventional repository files — **changelog DONE, end of Stage 1; the rest planned**
 
-### 1.3 No `CHANGELOG.md`, no `public/index.html` — **planned, end of Stage 1**
+gliderGo is a standalone repository: one `Makefile`, one CI workflow
+(`.github/workflows/ci.yml`), no parent project, no external release machinery, and — as of the
+end of Stage 1 — no reference anywhere in the tree to the private repository it was developed
+inside. An earlier version of this item measured gliderGo against that repository's own
+integration checklist, which does not apply to it and never did; the checklist item is dead
+rather than outstanding.
 
-Both are required by the parent-repository checklist in the root `CLAUDE.md`, along with eight
-other integration points (`release.sh`, its CI config, the root `README.md` table,
-`public-root/index.html`, `wiki/home.md`). gliderGo currently appears in **none** of them.
-Deferred deliberately to the end of Stage 1 rather than done now, because wiring a
-half-finished port into the Pages landing page advertises something not yet playable.
+What a public repository is actually missing:
+
+- `CHANGELOG.md` — **done**, at the end of Stage 1: one section per stage, each naming the
+  commit that closed it, with an `Unreleased` heading because there are no tags yet.
+- A project page. Deferred until there is a release to link to; 5.4 owns tagging, versioning
+  and artefacts. `VERSION` in the Makefile is `git describe --tags --always --dirty`, and with
+  no tags at all it resolves to a bare short hash, so every build so far is stamped that way.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and issue and pull-request templates:
+  none exist. Cheap and conventional, but all four are about *other people*, and they should be
+  written when the repository is actually public and there is somebody to address — recorded
+  here so that their absence is a decision. See 5.7.
 
 ---
 
@@ -2471,6 +2509,122 @@ than a reason to hide the step, which is why it is not hidden. Windows gets a re
 Stage 4 (pure-Go `syscall` to `user32`/`gdi32`, no cgo) and macOS at Stage 6; until then
 "it compiles on macOS" is the whole claim.
 
+### 5.6 Is a fresh checkout playable? — **audited and yes; four defects found and fixed, 1.10a**
+
+This item exists because the question had never been asked from the outside. Everything was
+verified on the machine that wrote it, where Go was already on `PATH`, `assets/extracted/`
+already existed, `DISPLAY` was already set, and `scripts/env.sh` had already been sourced — the
+one configuration in which a stranger never finds themselves. So the tree was cloned to a
+scratch directory and driven from the README, with nothing pre-warmed.
+
+What the audit established, as facts rather than intentions:
+
+- **A clone contains everything.** `git clone` → `apt-get install build-essential pkg-config
+  libx11-dev python3` → `make assets` → `make check` → `make run` is the whole sequence. Nothing
+  is fetched, because there is nothing to fetch: `internal/module` asserts stdlib-only, so there
+  is no `go.sum`, no `vendor/` and no proxy to be unreachable.
+- **The original game is not needed, because it is already here.** `make assets` reads exactly
+  **38 committed files, all under `GliderPRO/`**: `Glider PRO.r` (15,475,666 bytes, the derez'ed
+  resource fork carrying every PICT, `'snd '`, `STR#` and dialog), 22 `.binhex` houses and 15
+  `.mov` movies. It writes **1,899 files, 46 MB** into the gitignored `assets/extracted/` in
+  about 70 s, and `make assets-check` re-derives them to prove the output is a function of the
+  input. No copy of Glider PRO, no Macintosh, no network, no serial number.
+- **`make check` passes twice over: on the pre-warmed tree and on a clone with no extracted
+  assets and no `DISPLAY`.** The asset-dependent steps skip by name and `check-caveats` closes by
+  listing what it could not verify, so a green run on an empty tree never reads as a green run on
+  a full one.
+- **A clone is 96 MB** — 52 MB of working tree, 32 MB of history — which is the vendored 1994
+  data, not the port. 1.2 owns whether that stays.
+
+Four things the audit found, all fixed in the same commit as this entry:
+
+1. `make smoke`, and therefore `make check`, **failed** on a clone that had a display but no
+   extracted houses — it invoked the on-screen bench, which needs a house to fly in. That is the
+   first command the README hands a stranger, broken by the one condition nobody developing here
+   is ever in. It now skips with a reason and `check-caveats` reports the gap.
+2. `-house Titanic` only worked from a directory that happened to contain the file; a bare name
+   with an extension was never resolved against `-houses`. Both forms work now.
+3. `make cross`'s host cgo build could fail without failing the target: the exit status was
+   assigned to a variable that a later `printf` overwrote.
+4. `make headless` listed a stale output directory, so a shot from a previous run could be read
+   as work just done. It removes the directory first.
+
+Left open, and deliberately: the README's claims about Windows and macOS remain untested by
+anyone (5.5), the public dependency path remains untested from here (5.1), and where an
+*installed* copy looks for its assets is still repo-relative (5.3). The audit's subject was a
+developer's clone, which is the only thing gliderGo currently ships.
+
+### 5.7 The four files a public repository is expected to have, and the two templates — **planned, when the repository is actually public**
+
+1.3 records that `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and the issue and
+pull-request templates do not exist. This is where the reasoning lives, because "add the standard
+files" is a worse plan than it sounds: each of them is a promise to somebody, and writing a
+promise before there is anyone to make it to produces the boilerplate that every reader learns to
+skip.
+
+What each one would have to say that is specific to gliderGo, and is therefore not yet writable:
+
+- **`CONTRIBUTING.md`** — the useful content is already spread across the tree and would mostly
+  be links: `docs/DEV_ENVIRONMENT.md` for the two ways in, `make check` as the gate,
+  `internal/module`'s stdlib-only invariant as the one rule a patch can break without noticing,
+  and the fidelity corpus as the reason a rendering change needs
+  `go test ./internal/fidelity -update` and a hash in the diff. The part that cannot be written
+  yet is the review process, because there is no second reviewer.
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1, whose only project-specific field is the
+  reporting address. There is no address to put in it, and a code of conduct with an unattended
+  contact is worse than none.
+- **`SECURITY.md`** — the honest text is narrow and worth writing precisely: gliderGo parses
+  untrusted binary house files and BinHex, and `internal/house` is the attack surface a malicious
+  `.house` reaches. It has no network listener in Stage 1; Stage 3's race protocol adds one and
+  that is when this file stops being cheap. Again blocked on a reporting address.
+- **Issue and pull-request templates** — the one genuinely valuable field is a `glidertool replay`
+  trace, since 4.2 built the format precisely so a bug report can carry a reproducible input
+  rather than a description. That template can be written the day the repository is public.
+
+The decision recorded here is that all six wait for the public push, and that when they are
+written they say the gliderGo-specific thing above rather than the generic thing.
+
+### 5.8 What the fresh-checkout audit found and deliberately did not fix — **notes, 1.10a**
+
+Recorded so that none of these is rediscovered as a surprise. Each one is small; each was left
+alone for a stated reason rather than missed.
+
+- **`go.mod` says `module glidergo`, and a public repository's module path should be its URL.**
+  The Go-idiomatic path is `github.com/<owner>/glidergo`, which makes the package importable and
+  the source browsable from a stack trace. It is a one-line change plus every import in the tree,
+  and it is the one item here that **cannot be guessed**: it needs the account the repository will
+  actually live under. Nothing breaks meanwhile — a bare module path builds and tests fine, and
+  with no dependencies there is nothing for a proxy to resolve. Ask before changing it.
+- **`LICENSE` omits GPLv2's "How to Apply These Terms to Your New Programs" appendix.** That
+  appendix is instructions to the *next* author, not part of the licence's operative text, and its
+  absence changes nothing legally; the terms are complete (sections 0–12 plus the preamble). Left
+  out because it invites a reader to think the boilerplate notice it contains has been applied to
+  every source file, which is not true — see the next item.
+- **No per-file copyright headers.** 394 tracked files carry none; the licence is stated once, in
+  `LICENSE` and in the README's licence section. This is a defensible choice and a common one, but
+  it is a choice: a file copied out of this tree carries no notice with it. Revisit if there is
+  ever a second contributor, at which point 5.7's `CONTRIBUTING.md` is the place to state it.
+- **`scripts/bootstrap-dev-env.sh` defaults its Ubuntu suite to `noble`.** Already overridable
+  with `GLIDERGO_UBUNTU_SUITE`, so this is a default rather than a hard-coding, and the default
+  matches the only host it has ever run on (Ubuntu 24.04.4). It will go stale; the fix is a
+  release-file probe, which is more machinery than the problem deserves until somebody hits it.
+- **Three Go files cite `docs/analysis/stage15-raw/`, which is gitignored** —
+  `internal/game/transit.go:25`, `internal/game/guards.go:6`, `internal/replay/replay.go:7`. The
+  citations point at working drafts that were deliberately not committed (`.gitignore` says why:
+  they still contain the errors the review pass corrected, and committing both would leave two
+  disagreeing sources of truth). A reader of a fresh clone therefore follows those three
+  references to nothing. The "releasePolish N" numbering they quote exists only in those drafts,
+  so the citations cannot simply be repointed at the committed spec — closing this properly means
+  giving the surviving decisions numbers in a committed file. Deferred; noted here so the dead
+  reference is a known one.
+- **The asset flags still default to paths relative to the working directory** (`-art
+  assets/extracted/art`, and three more). Already owned by 5.3, which is about the packaged case;
+  what the audit adds is that `-version` now reports whether each tree was found, so the failure
+  is at least legible from a bug report.
+- **Audio still shells out to an external player on Linux and has no sink at all elsewhere.**
+  Already 2.48. The audit's only addition is that `-version` prints the backend, so a report from
+  a null-backend build is identifiable as one.
+
 ---
 
 ## Done
@@ -2554,6 +2708,18 @@ Stage 4 (pure-Go `syscall` to `user32`/`gdi32`, no cgo) and macOS at Stage 6; un
 | 2.66 `menuRect(n)` derives the menu panel's bottom edge, so the rows cannot fall outside the box they sit in | 1.10 | this stage |
 | 2.67 `World.SetPauseHint` erases the old hint row before changing it, so a shrinking hint leaves no tail | 1.10 | this stage |
 | 2.70 `Shell.status()` orders the status band's three sources, so the resume message cannot be silently overwritten | 1.10 | this stage |
+| 5.6 The fresh-checkout audit: a clone is playable with no network and no copy of Glider PRO, proven by driving the README from a scratch directory | 1.10a | this stage |
+| `make smoke` (and so `make check`) no longer fails on a clone that has a display but no extracted houses — the first command the README gives a stranger | 1.10a | this stage |
+| `-house Titanic` resolves against `-houses`, so a bare name works from anywhere and not only from the directory holding the file | 1.10a | this stage |
+| `make cross`'s host cgo build can fail the target again: its exit status was being overwritten by a later `printf` | 1.10a | this stage |
+| `make headless` clears its output directory first, so a shot from a previous run cannot be read as work just done | 1.10a | this stage |
+| Every reference to the private repository this was developed inside is gone from the tree, and 46 absolute home paths across 21 documents are now repo-relative | 1.10a | this stage |
+| `scripts/bootstrap-dev-env.sh`'s internal mirror is opt-in via `GLIDERGO_MIRROR_HOST`, and `deb_arch()` translates `uname -m` instead of answering `amd64` | 1.10a | this stage |
+| 1.3 `CHANGELOG.md`: one section per stage, each naming the commit that closed it, under `Unreleased` because there are no tags | 1.10a | this stage |
+| The About box and the no-assets title screen say where the art actually comes from — it ships with the source, undecoded — instead of "your own copy" | 1.10a | this stage |
+| `.gitattributes`: `* -text`, so a Windows checkout cannot rewrite `Glider PRO.r`'s 199,843 LFs and silently change the extractor's input hashes | 1.10a | this stage |
+| `glidergo -version` prints the build, the compiled-in backend, the Go that built it, the platform, and whether each asset tree is there | 1.10a | this stage |
+| 5.7 and 5.8 written: the conventional repository files as a dated decision, and seven audit findings deliberately left alone with the reason each | 1.10a | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

@@ -92,13 +92,23 @@ bench: build
 # that needs a display, and `check` has to pass over SSH and in CI, so a missing
 # DISPLAY is reported and skipped rather than failing the build. `make bench`
 # still fails without one, because there it is what was asked for.
+#
+# It needs a house as well as a display, and that second guard is the one that was missing.
+# `-bench` flies Slumberland, so on a desktop machine with a fresh clone and nothing
+# extracted this target used to fail `check` with `open assets/extracted/houses/
+# Slumberland.house: no such file or directory` -- the first command the README gave a
+# stranger, broken by the one condition nobody developing here is ever in. Every other
+# asset-consuming step already guarded; this one guarded on DISPLAY alone.
 smoke: build
-	@if [ -n "$$DISPLAY" ]; then \
-		$(BIN)/glidergo -frames 300 -bench; \
-	else \
+	@if [ -z "$$DISPLAY" ]; then \
 		echo "smoke: DISPLAY is unset -- skipped the on-screen bench;"; \
 		echo "       the blit path is still covered by \`make headless\`."; \
 		echo "       Run \`make bench\` from a desktop session to check X11."; \
+	elif ! $(HAVE_HOUSES); then \
+		echo "smoke: no extracted houses -- skipped the on-screen bench, which needs one to fly in."; \
+		$(NO_ASSETS); \
+	else \
+		$(BIN)/glidergo -frames 300 -bench; \
 	fi
 
 ## headless: dump 3 game frames and every shell screen as PNGs, with no display
@@ -114,6 +124,10 @@ smoke: build
 headless:
 	@mkdir -p $(BIN)
 	$(GO) build -tags nullbackend -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo-null ./cmd/glidergo
+	@# Both output directories are cleared first, because both are listed afterwards and $(OUT)
+	@# is a fixed path: without this, a run that skips the frame dump for want of assets still
+	@# lists the frames an earlier run left behind, and the listing reads as work just done.
+	@rm -rf $(OUT)/glidergo-frames $(OUT)/glidergo-shell
 	@if $(HAVE_HOUSES) && $(HAVE_SOUND); then \
 		$(BIN)/glidergo-null -frames 3 -dump $(OUT)/glidergo-frames && ls -1 $(OUT)/glidergo-frames; \
 	else \
@@ -210,6 +224,12 @@ cross-windows:
 # cross-compiler, and without one the build dies inside runtime/cgo with
 # `gcc_arm64.S: Error: no such instruction`. A native arm64 host builds the x11 backend fine,
 # so this is a limitation of cross-compiling, not of the port.
+#
+# The last row -- the host's own cgo build -- used to run inside the `$(...)` that fed printf
+# its size, so the `|| fail=1` after it was dead: printf succeeded whatever the compiler did,
+# and a broken x11 build left `make cross` exiting 0. It is now an if/elif/else, and a host
+# with no x11 pkg-config metadata says `skipped` instead of `FAILED`, because compiling the
+# release targets is what this target is for and the host backend is `make build`'s job.
 CROSS_TARGETS := windows/amd64 windows/arm64 darwin/amd64 darwin/arm64 linux/arm64 linux/amd64
 cross:
 	@mkdir -p $(BIN)/cross
@@ -225,8 +245,16 @@ cross:
 		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -o $(BIN)/cross/glidertool-$$os-$$arch$$ext ./cmd/glidertool 2>&1; then \
 			:; else printf '  %-22s glidertool FAILED\n' "$$os/$$arch"; fail=1; fi; \
 	done; \
-	printf '  %-22s %8s KiB  x11 backend (this host)\n' "linux/amd64 +cgo" \
-		"$$(CGO_ENABLED=1 $(GO) build -ldflags '$(GAMEFLAGS)' -o $(BIN)/cross/glidergo-linux-amd64-x11 ./cmd/glidergo && wc -c < $(BIN)/cross/glidergo-linux-amd64-x11 | awk '{print int($$1/1024)}')" || fail=1; \
+	host=$(BIN)/cross/glidergo-linux-amd64-x11; \
+	if ! pkg-config --exists x11 2>/dev/null; then \
+		printf '  %-22s %8s       x11 backend skipped: no libx11 pkg-config metadata\n' \
+			"linux/amd64 +cgo" "--"; \
+	elif CGO_ENABLED=1 $(GO) build -ldflags '$(GAMEFLAGS)' -o $$host ./cmd/glidergo; then \
+		printf '  %-22s %8s KiB  x11 backend (this host)\n' "linux/amd64 +cgo" \
+			"$$(( $$(wc -c < $$host) / 1024 ))"; \
+	else \
+		printf '  %-22s FAILED\n' "linux/amd64 +cgo"; fail=1; \
+	fi; \
 	exit $$fail
 
 ## test: run the test suite
@@ -278,6 +306,12 @@ check: fmt-check vet test build glidertool houses headless audio fidelity cross 
 # checkout with no extracted assets skips houses, audio and pixels. A hosted CI runner hits all
 # three at once. Claiming the pixels were checked when no pixel was compared is the one way a
 # fidelity suite can actively mislead, so the summary now enumerates the gaps instead.
+#
+# One caveat about the caveats: the libx11 branch cannot fire during `make check`, because `vet`
+# and `test` compile internal/platform/backend first and die on the missing pkg-config metadata
+# with an error of pkg-config's own. It is reachable by running `make check-caveats` directly,
+# which is what `make doctor`-adjacent use looks like, and it stays for that. There is no silent
+# fallback to the null backend: that is `make headless`, asked for by name.
 check-caveats:
 	@n=0; \
 	if [ "$$($(GO) env CGO_ENABLED)" != "1" ]; then \
@@ -290,6 +324,8 @@ check-caveats:
 	fi; \
 	if [ -z "$$DISPLAY" ]; then \
 		echo "  - DISPLAY is unset, so the on-screen blit was NOT exercised"; n=1; \
+	elif ! $(HAVE_HOUSES); then \
+		echo "  - there is a display, but no house to fly in, so the on-screen blit was NOT exercised"; n=1; \
 	fi; \
 	if [ $$n -eq 0 ]; then \
 		echo "         toolchain, cgo, tests, houses, headless, audio, pixels, cross-build and the blit path"; \

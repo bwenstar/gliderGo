@@ -35,7 +35,7 @@ what a thrust value *means*, object semantics, rendering, sound, house file form
 
 Line numbers in citations refer to the source files **after CR→LF conversion**
 (`tr '\r' '\n'`), which is the form a modern editor shows. Paths are relative to the repo
-root the repository root.
+root.
 
 ## Sources read
 

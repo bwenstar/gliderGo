@@ -232,8 +232,8 @@ func TestTheImportRuleAcceptsTheStandardLibraryAndRefusesModules(t *testing.T) {
 		{"glidergo/internal/game", true}, // and its packages
 
 		{"github.com/user/repo", false},
-		{"golang.org/x/image/draw", false}, // the one a renderer would reach for first
-		{"gitlab.internal.example.com/x", false},
+		{"golang.org/x/image/draw", false},       // the one a renderer would reach for first
+		{"gitlab.internal.example.com/x", false}, // a self-hosted forge, dots and all
 		{"example.com", false},
 		{"./local", false},
 		{"../sibling", false},

@@ -18,7 +18,7 @@ documents. Where the main loop calls into them, the call site and its ordering
 constraint *are* specified here, because ordering is load-bearing.
 
 All line citations are of the form `GliderPRO/Sources/File.c:NNN` and are
-relative to the repository root the repository root. The original
+relative to the repository root. The original
 sources use classic-Mac CR-only line endings; a CR→LF conversion is byte-for-byte
 length-preserving and 1:1 on line boundaries (verified: every `.c` file contains
 zero `0x0A` bytes, and each converted file has exactly as many `\n` as the

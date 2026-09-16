@@ -36,7 +36,7 @@ gameplay RNG.
 ### Conventions
 
 * All citations are of the form `GliderPRO/Sources/Play.c:434`, path relative to the
-  repository root the repository root.
+  repository root.
 * **Line numbers are from a CR→LF converted copy of the file.** The originals are
   Classic Mac text (bare `\r`). The conversion used was:
   ```

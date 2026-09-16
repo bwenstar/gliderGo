@@ -63,11 +63,13 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"glidergo/internal/audio"
 	"glidergo/internal/platform"
+	"glidergo/internal/platform/backend"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
 	"glidergo/internal/saved"
@@ -122,6 +124,43 @@ type options struct {
 	volume   int
 	audioOut string
 	wav      string
+
+	showVersion bool
+}
+
+// printVersion answers -version. It prints more than the version string because the
+// thing it is for is the first line of a bug report, and the four facts underneath
+// are the ones that decide whether a report is even about the same program: which
+// backend was compiled in (the null one draws nothing and is chosen silently by any
+// build without cgo, or off Linux), which Go built it, which OS and architecture, and
+// whether `make assets` has ever run -- a missing asset tree explains a large class
+// of "it starts and there is nothing there" reports on its own.
+//
+// It deliberately does not open a window, load a sound bank or read the preferences,
+// so it answers on a machine where the game itself cannot start.
+func printVersion(o *options) {
+	fmt.Printf("glidergo %s\n", version)
+	fmt.Printf("  backend   %s\n", backend.Name)
+	fmt.Printf("  built by  %s\n", runtime.Version())
+	fmt.Printf("  platform  %s/%s\n", runtime.GOOS, runtime.GOARCH)
+
+	// Named individually rather than as one yes/no: the three trees are extracted by
+	// separate passes of tools/extract_all.py and a half-extracted tree is a real
+	// state, not a hypothetical one (docs/IMPROVEMENTS.md 5.2).
+	for _, t := range []struct {
+		what string
+		path string
+	}{
+		{"art", filepath.Join(o.artDir, "manifest.json")},
+		{"sound", filepath.Join(o.sounds, "manifest.tsv")},
+		{"houses", o.houses},
+	} {
+		state := "missing -- run `make assets`"
+		if _, err := os.Stat(t.path); err == nil {
+			state = "found"
+		}
+		fmt.Printf("  %-9s %s (%s)\n", t.what, state, t.path)
+	}
 }
 
 func parseFlags() (*options, error) {
@@ -155,7 +194,15 @@ func parseFlags() (*options, error) {
 	flag.IntVar(&o.volume, "volume", 7, "output volume, 0 to 7; 0 is silence and also stops the score")
 	flag.StringVar(&o.audioOut, "audio", "", "external player to pipe the mix to, or \"list\" for what this machine has")
 	flag.StringVar(&o.wav, "wav", "", "write the mix to this WAV file")
+
+	flag.BoolVar(&o.showVersion, "version", false, "print the build, the compiled-in backend and whether the assets are extracted, then exit")
 	flag.Parse()
+
+	// Before every other check, because -version has to work on a machine where nothing
+	// else does -- including one where the flags it is given alongside are wrong.
+	if o.showVersion {
+		return o, nil
+	}
 
 	if o.volume < 0 || o.volume > audio.FullVolume {
 		return nil, fmt.Errorf("-volume must be 0 to %d", audio.FullVolume)
@@ -197,6 +244,11 @@ func run() error {
 	o, err := parseFlags()
 	if err != nil {
 		return err
+	}
+
+	if o.showVersion {
+		printVersion(o)
+		return nil
 	}
 
 	// -audio list answers and exits, before anything is opened: somebody who has just
@@ -529,8 +581,27 @@ func (a *app) shellHost() shell.Host {
 // housePath turns whatever -house was given into a path. A name is looked up in the
 // houses directory; anything with a separator or an extension in it is taken as a
 // path, so a house sitting anywhere on the disk can be played without moving it.
+//
+// The extension test needs the fallback below, because `-house Titanic.house` is what
+// somebody who has just run `ls assets/extracted/houses` will type, and it has an
+// extension and no separator -- so the rule above resolved it against the working
+// directory and the game said `open Titanic.house: no such file or directory` while the
+// file sat where it was always going to be. A name with a separator in it is still taken
+// at its word: there the player has said where to look.
 func housePath(o *options, name string) string {
-	if strings.ContainsRune(name, filepath.Separator) || filepath.Ext(name) != "" {
+	if strings.ContainsRune(name, filepath.Separator) {
+		return name
+	}
+	if filepath.Ext(name) != "" {
+		if _, err := os.Stat(name); err == nil {
+			return name
+		}
+		inHouses := filepath.Join(o.houses, name)
+		if _, err := os.Stat(inHouses); err == nil {
+			return inHouses
+		}
+		// Neither exists. Report the path the player named rather than the one they did
+		// not, so the error names something they can go and look for.
 		return name
 	}
 	return filepath.Join(o.houses, name+".house")

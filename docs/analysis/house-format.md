@@ -47,7 +47,7 @@ numbers (`GliderPRO/Sources/HouseIO.c:349`, `GliderPRO/Sources/HouseIO.c:382`).
 - Offsets are decimal unless prefixed `0x`. "abs" means offset from the start of
   the data fork; "rel" means offset from the start of the containing record.
 - Citations take the form `GliderPRO/Sources/HouseIO.c:341`, with paths relative
-  to the repository root the repository root. **Line numbers refer to
+  to the repository root. **Line numbers refer to
   the sources with classic-Mac CR line endings converted to LF** (`tr '\r' '\n'`),
   which is what a modern editor or `grep -n` will show after conversion. The
   original files in `GliderPRO/Sources/` use bare CR and appear as one line to

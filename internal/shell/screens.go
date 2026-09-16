@@ -208,11 +208,12 @@ func (s *Shell) drawBackdrop(scr *render.Surface) {
 // drawOwnTitle is the first-run screen: what somebody sees who has built the
 // program and not yet extracted the artwork.
 //
-// It is deliberately not an error and deliberately not empty. The assets are not
-// redistributable with the source (see README's licence section), so a fresh clone
-// legitimately has none, and the useful thing to do about that is to come up
-// looking like a game that is missing its artwork and say which command produces it
-// -- not to exit before drawing anything (docs/IMPROVEMENTS.md 2.6).
+// It is deliberately not an error and deliberately not empty. The 1994 data is
+// vendored under GliderPRO/, but the decoded art is generated and gitignored (1,899
+// files, 46 MB), so a fresh clone legitimately has none until `make assets` has run.
+// The useful thing to do about that is to come up looking like a game that is
+// missing its artwork and say which command produces it -- not to exit before
+// drawing anything (docs/IMPROVEMENTS.md 2.6).
 func (s *Shell) drawOwnTitle(scr *render.Surface) {
 	scr.Fill(render.SetRect(0, 0, screenWide, splashTall), render.Black8)
 
@@ -527,8 +528,8 @@ func (s *Shell) aboutLines() []aboutLine {
 		{"John Calhoun / Casady & Greene, 1994", render.LtGray8, 1},
 		{},
 		{"source released under the GPL, version 2", render.LtGray8, 1},
-		{"the original artwork and sounds are not ours to give away:", render.LtGray8, 1},
-		{"`make assets` extracts them from your own copy", render.LtGray8, 1},
+		{"the 1994 art and sounds ship with the source, undecoded:", render.LtGray8, 1},
+		{"`make assets` turns them into the files this reads", render.LtGray8, 1},
 		{},
 		{"player one:  " + controlsLine(p.Player1), cream, 1},
 		{"player two:  " + controlsLine(p.Player2), cream, 1},

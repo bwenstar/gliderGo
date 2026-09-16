@@ -65,16 +65,26 @@ gliderGo is standard library only, which `internal/module` asserts offline:
 
 ```bash
 sudo apt-get install -y build-essential pkg-config libx11-dev python3   # other distros: docs/DEV_ENVIRONMENT.md §2
-make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
+git clone <this repository> glidergo && cd glidergo
 make assets                       # extract the 1994 art/sound/houses/movies (~70 s)
-make check                        # again: now the houses, audio and pixel corpus run too
+make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
 make run                          # window at the original's 640x480
 ```
 
-`make check` passes on a fresh clone with no extracted assets and no display: the
-asset-dependent steps skip with a message, and the closing summary names everything it could
-*not* verify, so a green run never overclaims more than it checked. `make doctor` reports what
-your machine has and what it is missing.
+That is everything. There is nothing else to fetch and nothing to put anywhere by hand: the
+1994 game is vendored in this repository under `GliderPRO/`, and `make assets` decodes the art,
+the sounds, the 22 houses and the movies straight out of it — 38 committed files in, 1,899
+files out. You do not need a copy of Glider PRO, a Macintosh, or a network.
+
+`make check` also passes *before* `make assets`, on a clone with nothing extracted and no
+display: the asset-dependent steps skip with a message, and the closing summary names everything
+it could *not* verify, so a green run never overclaims more than it checked. It is second above
+only because checking the pixels is more use than checking that they were skipped.
+`make doctor` reports what your machine has and what it is missing.
+
+`libx11-dev` is the one hard requirement rather than a nicety: `vet` and `test` compile the X11
+backend whenever cgo is on, so without its pkg-config metadata `make check` fails with an error
+from pkg-config. `make headless` is the build that needs neither it nor a display.
 
 If you have no Go, or no internet:
 
@@ -92,6 +102,7 @@ The airgapped host this port is developed on uses the middle one; see
 The rest of the Makefile:
 
 ```bash
+make run ARGS='-version'          # the build, its backend, and whether the assets are there
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 make houses                       # round-trip every original house through the codec
 make audio                        # replay 600 frames to /tmp/glidergo-audio.wav
@@ -100,10 +111,10 @@ make cross                        # compile every target a release would ship
 make help                         # every target, with a line each
 ```
 
-Run these from this directory — the parent directory above has no Makefile, so `make check`
-there fails with `No rule to make target 'check'`. `make check` needs neither a display nor
-a network; `make run` and `make bench` need an X display, and `make check` runs the
-on-screen bench only when `DISPLAY` is set.
+Run these from the repository root: every default path in the Makefile and in the game's own
+flags is relative to it. `make check` needs neither a display nor a network; `make run` and
+`make bench` need an X display, and `make check` runs the on-screen bench only when `DISPLAY`
+is set and there is a house to fly in.
 
 Reading the 1994 level data:
 
@@ -166,7 +177,7 @@ does not yet finish: the glider dies in the start room 573 records in, and that 
 sharpest fidelity target the project has ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.18).
 
 The build needs no network access at run time and no third-party Go modules —
-see [why](docs/DEV_ENVIRONMENT.md#4-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
+see [why](docs/DEV_ENVIRONMENT.md#4-the-constraint-that-produced-this-architecture-no-obtainable-go-game-engine).
 `internal/module` turns that into a test: it parses `go.mod` and every import in the tree, so
 an import hidden behind a build tag this host never compiles is still caught.
 
@@ -320,7 +331,7 @@ again — the room, the score, the gliders you have left, the bands and batterie
 the mode the glider was in, and every switch you had thrown in every room of the house.
 
 ```bash
-bin/glidergo -house Titanic.house -resume     # straight into a saved game, no title screen
+bin/glidergo -house Titanic -resume           # straight into a saved game, no title screen
 bin/glidergo -resume                          # Slumberland's, like every other -house default
 make run ARGS='-saves /tmp/saves'             # keep them here instead
 make run ARGS='-saves none'                   # play and save nothing
@@ -355,6 +366,8 @@ would have refused every game its own writer produced.
 | `docs/ORIGINAL_GAME.md` | Consolidated source of truth for how the original behaves. **Read this first.** |
 | `docs/analysis/` | 29 per-subsystem, byte-level specs reverse-documented from the C (130k lines). The detailed authority. |
 | `docs/PLAN.md` | The staged implementation plan and the decisions behind it. |
+| `docs/IMPROVEMENTS.md` | Everything a public release needs that fidelity does not, numbered, each with the reason it is not done yet. |
+| `CHANGELOG.md` | One section per stage, each naming the commit that closed it. |
 | `docs/DEV_ENVIRONMENT.md` | How to build here, what this airgapped network can reach, and the measured performance baseline. |
 | `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
 | `internal/house/` | The house model and its two codecs: the 1994 binary format (byte-exact both ways) and a line-oriented text format meant to be written by hand and read in a diff. |
@@ -381,12 +394,20 @@ would have refused every game its own writer produced.
 tr '\r' '\n' < "GliderPRO/Sources/Player.c" > /tmp/Player.c
 ```
 
-`GliderPRO/Glider PRO.r` is the exception and uses LF. The upstream git history is preserved
-at `GliderPRO/upstream.git` (`git --git-dir=GliderPRO/upstream.git log`).
+`GliderPRO/Glider PRO.r` is the exception and uses LF.
+
+The vendored tree is the upstream files, not the upstream history: `GliderPRO/` is a plain
+directory, byte-identical to
+[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro) at the commit it was taken
+from, and no clone of gliderGo carries the original's commits. If you want them, clone upstream
+yourself (`git clone --bare https://github.com/softdorothy/glider_pro GliderPRO/upstream.git` —
+that path is gitignored precisely so a local mirror can live there without becoming a
+submodule). Nothing in the build reads it; only `docs/analysis/` cites it.
 
 ## Licence
 
-**GPLv2** — see [LICENSE](LICENSE).
+**GPLv2** — see [LICENSE](LICENSE). Copyright © 2026 the gliderGo authors, for the port;
+the original game is copyright John Calhoun.
 
 `GliderPRO/README.md` states the grant exactly: *"The source for Glider PRO is released
 under the GNU General Public License 2 as published by the Free Software Foundation."*
@@ -398,9 +419,19 @@ Original game by **John Calhoun**, published by Casady & Greene. Upstream source
 [softdorothy/glider_pro](https://github.com/softdorothy/glider_pro).
 
 **The assets are not the source, and the distinction matters for a release.** Upstream's
-grant covers the source. The 22 shipped houses are credited to five other authors —
-Jonathan Chin, Ward Hartenstein, Steve Sullivan, Shawn Brenneman and Kim Money — and two
-PICT resources derive from illustrations by John R. Neill (*Ozma of Oz*) and Winsor McCay
-(*Little Nemo*). So gliderGo distributes **no original art**: `assets/extracted/` is
-gitignored and is regenerated locally from your own copy of the game. See
-[docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2 for what that means for a public build.
+grant, quoted above, is about the source. The 22 shipped houses are credited to five other
+authors — Jonathan Chin, Ward Hartenstein, Steve Sullivan, Shawn Brenneman and Kim Money — and
+two PICT resources derive from illustrations by John R. Neill (*Ozma of Oz*) and Winsor McCay
+(*Little Nemo*).
+
+**And this repository does redistribute all of it**, because `GliderPRO/` is vendored whole:
+`Glider PRO.r` is the entire 15 MB resource fork, every sprite and sound included, and
+`GliderPRO/Houses/` holds all 22 houses and 15 movies. That is deliberate — it is upstream's
+own layout, and it is the reason `make assets` works on a fresh clone with no network and no
+copy of the game. `assets/extracted/` is gitignored because it is *derived* data, not because
+the art is absent; a `git archive` of this repository is about 52 MB of 1994 assets.
+
+Whether that redistribution is licensed is the open question, and it is the one thing between
+this port and a public release: see [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2, which
+lays out the choice — keep vendoring on upstream's precedent, or strip those paths from release
+archives and fetch them separately — and says plainly that it has not been made yet.

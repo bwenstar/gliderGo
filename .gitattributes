@@ -1,0 +1,39 @@
+# Newline policy: none. Every file in this repository checks out byte for byte as it was
+# committed, on every platform.
+#
+# This is not a style preference, it is a correctness requirement. `GliderPRO/` holds 1994
+# Macintosh files that git's heuristics get wrong in both directions:
+#
+#   * `Glider PRO.r` is 15 MB of derez'ed resource fork with LF endings (199,843 of them) and
+#     8-bit bytes throughout. With `text=auto` a Windows checkout would rewrite every LF to
+#     CRLF, which changes the offsets `tools/extract_all.py` reads, changes the sha256s recorded
+#     in `assets/extracted/art/manifest.json`, and so silently breaks `make assets-check` and
+#     the fidelity corpus on exactly one platform.
+#   * `Sources/*.c` and `Headers/*.h` are CR-only classic Mac text (see docs/DEV_ENVIRONMENT.md
+#     §7). Nothing should "fix" them: they are the reference the port is transcribed from, and
+#     they are vendored read-only.
+#   * The 22 `.binhex` houses and 15 `.mov` movies are encoded data that happens to contain
+#     newline bytes.
+#
+# The port's own files are covered by the same rule for the plain reason that gliderGo is
+# developed and tested with LF and the fidelity tests hash bytes.
+* -text
+
+# Never diff, never merge, never guess at these. `binary` is `-text -diff`, restated per class
+# so the intent survives someone relaxing the blanket rule above.
+GliderPRO/Glider?PRO.r        binary
+GliderPRO/Houses/*.binhex     binary
+GliderPRO/Houses/*.mov        binary
+*.png                         binary
+*.wav                         binary
+*.house                       binary
+
+# GliderPRO/ is 1994 C by another author, vendored as reference and never compiled here.
+# Without this, a forge's language statistics describe the original rather than the port, and
+# its diffs are dominated by files no change to gliderGo will ever touch.
+GliderPRO/** linguist-vendored
+
+# The fidelity corpus is generated: reference PNGs and hash tables written by
+# `go test ./internal/fidelity -update`. Reviewing them line by line is not useful; a moved
+# hash is the signal, and the image is looked at with an image viewer.
+internal/fidelity/testdata/** linguist-generated

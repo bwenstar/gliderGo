@@ -12,34 +12,39 @@ This is the file to read first if you are a new session picking this project up.
 
 gliderGo is developed on an airgapped host whose only software source is an internal
 package mirror, and it is meant to end up on GitHub where contributors have the open
-internet. Both paths are supported and neither is the "real" one. §4 documents the airgapped
-network in detail because that is the one you cannot look up.
+internet. Both paths are supported and neither is the "real" one. §4 says what that airgapped
+network could and could not supply, which is the fact that shaped the whole port.
 
 ### If you have Go 1.23+ and an internet connection
 
 Nothing to bootstrap. `make` finds a `go` on your PATH by itself.
 
 ```bash
-git clone <the repo> && cd gliderGo
-sudo apt-get install -y build-essential pkg-config libx11-dev   # or see §2 for your distro
-make check                          # fmt, vet, tests, build, cross-compile, smoke  (~15 s)
+git clone <this repository> glidergo && cd glidergo
+sudo apt-get install -y build-essential pkg-config libx11-dev python3   # or §2 for your distro
 make assets                         # extract the 1994 data (~70 s, gitignored output)
-make check                          # again: now the houses, audio and pixel corpus run too
+make check                          # fmt, vet, tests, build, cross-compile, smoke  (~15 s)
 make run                            # play it
 ```
 
-`make check` passes on a clone with **no** extracted assets and **no** display — verified. The
-asset-dependent steps skip with a message and the closing summary lists what it could not
+Nothing else is needed and nothing else is fetched: the 1994 game is vendored under
+`GliderPRO/`, and `make assets` decodes the art, sounds, 22 houses and movies out of it — 38
+committed files in, 1,899 out. No copy of Glider PRO, no Macintosh, no network.
+
+`make check` also passes on a clone with **no** extracted assets and **no** display — verified.
+The asset-dependent steps skip with a message and the closing summary lists what it could not
 verify, so a green run never overclaims. `make doctor` reports what your machine has and is
-missing.
+missing. `libx11-dev` is the one requirement that is not optional: `vet` and `test` compile the
+X11 backend whenever cgo is on, so without its pkg-config metadata `make check` fails with an
+error from pkg-config. `make headless` is the build that needs neither it nor a display.
 
 ### If you have no Go, or no internet
 
 ```bash
 ./scripts/bootstrap-dev-env.sh      # picks a dependency source and says which; installs Go
 . scripts/env.sh                    # PATH/GOROOT/GOPROXY=off/GOTOOLCHAIN=local
-make check
 make assets
+make check
 ```
 
 The script resolves dependencies from one of three sources and prints the one it chose:
@@ -51,8 +56,10 @@ The script resolves dependencies from one of three sources and prints the one it
 | `public` | `go.dev/dl`, sha256-verified | `archive.ubuntu.com` | a contributor with no Go |
 
 `auto` (the default) tries them in that order: `system` first because it costs nothing,
-`internal` before `public` because a host that can see the mirror usually cannot see anything
-else. The toolchain source and the C-library source are resolved **separately** — on the
+`internal` before `public` because a host that can see an internal mirror usually cannot see
+anything else. `internal` is skipped unless `GLIDERGO_MIRROR_HOST` names a mirror — there
+is no built-in hostname, so nobody else's `make doctor` probes a network they have never heard
+of. The toolchain source and the C-library source are resolved **separately** — on the
 airgapped host `auto` picks `system` for Go (it is already installed) while the `.deb` archive
 still has to be the package mirror.
 
@@ -62,8 +69,9 @@ reports the environment; `--sysroot` unpacks the optional C libraries into
 `.toolchain/sysroot` without root. `GLIDERGO_GO_TARBALL=/path/to/go1.23.x.linux-amd64.tar.gz`
 skips the network entirely, which is how you carry a toolchain across an airgap by hand.
 
-Credentials for the internal source come from `MIRROR_USER` / `MIRROR_PASS` or
-`~/.netrc`. **They are intentionally never written into this repository.**
+Credentials for the internal source, if it wants any, come from `MIRROR_USER` /
+`MIRROR_PASS` or `~/.netrc`. **No credential and no internal hostname is written into this
+repository.**
 
 ---
 
@@ -79,8 +87,8 @@ Everything it does need is a host tool:
 | What | Floor | Needed for | Without it |
 |---|---|---|---|
 | **Go** | 1.23 (`go.mod`) | everything | nothing builds |
-| **gcc** + **pkg-config** | any | cgo, i.e. the x11 backend | see below |
-| **libX11 headers** (`x11.pc`) | 1.8 | the x11 backend — the only one that opens a window | `make build` **silently produces the null backend**; `make check` now says so |
+| **gcc** + **pkg-config** | any | cgo, i.e. the x11 backend | as the next row: nothing that opens a window builds |
+| **libX11 headers** (`x11.pc`) | 1.8 | the x11 backend — the only one that opens a window | `make build`, `vet` and `test` **fail**, with pkg-config's own error. There is no silent fallback: the null backend is `make headless`, or `-tags nullbackend`, asked for by name |
 | **python3** | 3.6 (f-strings) | `make assets` | no art, sound, houses or movies; every asset-dependent step skips |
 | **git** | any | the version string only | the binary reports `version=dev` |
 | **make** | any | convenience | use `go build ./cmd/glidergo` directly |
@@ -116,19 +124,28 @@ xvfb-run -a -s '-screen 0 640x480x24' make bench
 
 ## 3. Toolchain: what is installed and how
 
+This section describes **one host** — the airgapped machine the port was written on — and is
+here as a worked example rather than as instructions. Anything Go 1.23 or newer works; the
+supported ways to get one are `scripts/bootstrap-dev-env.sh` (§1) or your distribution's own
+package, and `make` finds a `go` on `PATH` without either.
+
 ### Go
 
 ```
 go version go1.23.12 linux/amd64      GOROOT=$HOME/.local/opt/go
 ```
 
-Obtained with (no root, ~250 MB tar):
+Obtained without root, and without a Go download being reachable, by taking the toolchain out
+of a container image from an internal registry mirror (~250 MB tar):
 
 ```bash
-podman pull mirror.internal.example.com/registry-1.docker.io/library/golang:1.23-bookworm
+podman pull "$GLIDERGO_MIRROR_HOST/registry-1.docker.io/library/golang:1.23-bookworm"
 podman run --rm -v /tmp:/out:z <image> sh -c 'tar -C /usr/local -cf /out/go-toolchain.tar go'
 tar -C ~/.local/opt -xf /tmp/go-toolchain.tar
 ```
+
+On a machine with the open internet, `./scripts/bootstrap-dev-env.sh --source public` does the
+equivalent from `go.dev` and verifies the tarball's sha256 against the release index.
 
 `GOTOOLCHAIN=local` is mandatory in `scripts/env.sh`: without it, a `go` directive in
 `go.mod` newer than 1.23.12 makes the toolchain try to *download* a newer one, which
@@ -167,38 +184,36 @@ building and running a real X11 program (below).
 
 ---
 
-## 4. The package mirror: exactly what this network can and cannot reach
+## 4. The constraint that produced this architecture: no obtainable Go game engine
 
-Base URL `https://mirror.internal.example.com/repo` — 49 repositories.
-Credentials: supply via `MIRROR_USER` / `MIRROR_PASS` env vars or `~/.netrc`.
-**They are intentionally not written down in this repo.**
+gliderGo was written on an airgapped host whose only software source is an internal
+package mirror. The details of that network are its owner's business and are not written
+down here — set `GLIDERGO_MIRROR_HOST` and, if it wants them, `MIRROR_USER` /
+`MIRROR_PASS` or a `~/.netrc` entry, and `scripts/bootstrap-dev-env.sh` will use it;
+leave the variable unset and the internal source is skipped entirely. **No credential and no
+internal hostname is committed to this repository.** What matters here is only what such a
+mirror could and could not supply, because that is what shaped the port.
 
-### Works ✅
+Reachable, and used: the mirrored Ubuntu archive (so C dev libraries could be fetched
+rootless as `.deb`s and unpacked into a sysroot) and a Docker Hub mirror (so the official
+`golang` image could supply a toolchain). Between them that is a Go compiler and `libX11`.
 
-| What | Endpoint | Proven by |
-|---|---|---|
-| Ubuntu noble archive (main/restricted/universe/multiverse, all arches) | `/archive.ubuntu.com-ubuntu/…` | fetched `dists/noble/Release` + 15 MB `universe/binary-amd64/Packages.xz`, downloaded and extracted a real `.deb` |
-| Docker Hub mirror | `/registry-1.docker.io/library/golang:1.23-bookworm` (podman pull) | pulled the golang image |
-| PyPI | `/api/pypi/pypi.org/simple/…` | HTTP 200 |
-| npm | `/api/npm/registry.npmjs.org/…` | HTTP 200 |
-| crates.io | `/api/cargo/index.crates.io/…` | HTTP 200 |
-| RHEL 9 yum, Fedora, Oracle yum, Maven, NuGet, Conan, HuggingFace | see repo list | not needed here |
+Not reachable, and this is the load-bearing half:
 
-### Does **not** work ❌
-
-| What | Evidence |
+| What | Consequence |
 |---|---|
-| **Go module proxy** — there is no `proxy.golang.org` / package-mirror Go repo at all | `/api/go/...` → 404; no repo of `packageType: Go` in the 49-repo listing |
-| **Arbitrary GitHub** — the `github.com` generic remote serves only an allowlist | `madler/zlib` tag tarball → **200**, but `hajimehoshi/ebiten` → **404**, `golang/go` → **404**. Cached orgs are: HandBrake, SonarSource, anchore, anomalyco, aquasecurity, aspect-build, astral-sh, bazel-contrib, bazelbuild, electron, facebook, gabime, git-for-windows, google, jgm, k3s-io, leethomason, madler, neovim, oras-project, protocolbuffers, sigstore, stedolan |
-| GitLab.com generic remote | `gitlab-org/gitlab` archive → 404 |
+| **No Go module proxy of any kind** — no `proxy.golang.org`, no Go-typed repository | `GOPROXY=off` is the repo default, and `internal/module` asserts as a *test* that nothing outside the standard library is imported |
+| **Only an allowlisted subset of GitHub**, by organisation | Nothing could be fetched by module path even when the module existed |
 
-**Therefore: no Ebitengine, no go-sdl2, no raylib-go, no ebitengine/oto, no
-golang.org/x/mobile.** Ubuntu does package ~1920 `golang-github-*-dev` source
-libraries and `golang-golang-x-{image,sync,sys,text,…}-dev`, which are reachable — but
-none of the game/windowing/audio libraries are among them (checked: ebiten, go-sdl2,
-go-gl/glfw, oto, purego → all absent).
+**Therefore: no Ebitengine, no go-sdl2, no raylib-go, no oto, no `golang.org/x/mobile`.**
+Ubuntu does package ~1,920 `golang-github-*-dev` source libraries and
+`golang-golang-x-{image,sync,sys,text,…}-dev`, all reachable through the mirror — but none of
+the game, windowing or audio libraries are among them (checked: ebiten, go-sdl2, go-gl/glfw,
+oto, purego; all absent).
 
-This single fact drives the whole architecture in §5.
+That single fact drives the whole architecture in §5, and it is worth saying that it has
+turned out to be a feature rather than a wound: gliderGo has no dependencies, no lockfile, no
+supply chain and no `go.sum`, and `git clone && make check` needs nothing from any network.
 
 ---
 

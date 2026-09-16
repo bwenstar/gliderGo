@@ -1203,26 +1203,21 @@ metric, and the judgement that the original's `'gliS'` side-car is unreachable, 
 `IsFileReadOnly` is `return false` with its real body commented out (`HouseIO.c:659-664`), so
 `houseIsReadOnly` is never true and neither `WriteScoresToDisk` nor `ReadScoresFromDisk` can run.
 
-One open item that is a decision, not a discovery: **gliderGo is its own git repo inside the
-parent repository**, as instructed, so the parent repository's CI, Pages and release machinery cannot see it —
-`git ls-files gliderGo` is empty, gliderGo appears in none of `release.sh`, its CI config, the
-root `README.md`, `public-root/index.html` or `wiki/home.md`, and `public/index.html` and
-`CHANGELOG.md` do not exist, against the 11-point checklist in the parent repository's `CLAUDE.md`. Either
-is defensible; nothing downstream can be released until it is chosen.
+One item this audit raised as an open decision has since been **settled: gliderGo is a
+standalone repository.** It is the root of its own checkout, it has one `Makefile` and one CI
+workflow (`.github/workflows/ci.yml`), and it is answerable to no enclosing project's release
+machinery. Two paragraphs here used to weigh folding it into the private repository it was
+developed inside; that question is closed, and at the end of Stage 1 the whole tree was audited
+for references to that repository and cleared of them.
 
-The public build path added between 1.9 and 1.10 does not settle that, but it does change the
-cost of each answer, so the shape is worth recording. gliderGo can now be built three ways —
-from a Go already on `PATH`, from the internal package mirror, or from `go.dev` — chosen by
-`scripts/bootstrap-dev-env.sh` and reported by `make doctor`, and it carries a
-`.github/workflows/ci.yml` of its own. That is a **standalone** repository's CI, not a parent repository
-subproject's: it assumes gliderGo is the root of its checkout, and the parent repository's pipeline
-would need its own separate job either way, because gliderGo's build wants a `libx11-dev` and a
-python3 that no other subproject here needs. So the two are not alternatives any more — the
-GitHub path exists and works on its own terms, and folding gliderGo into the parent repository would be
-*additive* (a `public/index.html`, a `CHANGELOG.md`, entries in `release.sh` and
-its CI config) rather than a fork in the road. Both CI systems on one tree is a real cost in
-duplication, and it is the honest price of a project that has to live on an airgapped forge and
-a public GitHub at once. Still the user's call, still at the end of Stage 1.
+What survives from those paragraphs is the part that was about gliderGo rather than about its
+neighbours: the port can be built three ways — from a Go already on `PATH`, from an internal
+package mirror, or from `go.dev` — chosen by `scripts/bootstrap-dev-env.sh` and reported by
+`make doctor`. Its CI assumes it is the root of its checkout, and its build wants a `libx11-dev`
+and a `python3` that nothing else here needs. A fresh clone is self-sufficient: `make assets`
+reads 38 committed files under `GliderPRO/` and writes 1,899, and `make check` is green before
+and after. See docs/IMPROVEMENTS.md 5.6 for the audit that established that, and what it left
+open.
 
 `Map.c` was checked and is **editor-only**, so it belongs to Stage 5 and not Stage 1:
 `OpenMapWindow` has one caller, `OpenCloseEditWindows` (`Menu.c:792-799`), gated on
@@ -1330,7 +1325,7 @@ is a one-line change with a visible blast radius.
 ## 7. Resuming this project cold
 
 ```bash
-cd gliderGo
+cd <your clone of gliderGo>
 ./scripts/bootstrap-dev-env.sh && . scripts/env.sh && make check
 make assets                  # assets/extracted/ is gitignored; regenerate it (57 s)
 make houses                  # 1.2's evidence: 22 houses through both codecs, unchanged
