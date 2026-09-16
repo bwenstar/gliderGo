@@ -1,0 +1,16 @@
+house	file	codec	depth	width	height	frames	timescale	frame_dur	fps	has_moov
+Art Museum	Art_Museum.idx8	raw 	8	64	49	9	-	-	-	no
+CD Demo House	CD_Demo_House.idx8	rle 	8	64	49	32	-	-	-	no
+Castle o' the Air	Castle_o_the_Air.idx8	raw 	8	64	49	7	-	-	-	no
+Davis Station	Davis_Station.idx8	raw 	8	64	49	11	-	-	-	no
+Demo House	Demo_House.idx8	rle 	36	82	62	41	600	121	4.9587	yes
+Grand Prix	Grand_Prix.idx8	smc 	8	64	49	21	-	-	-	no
+ImagineHouse PRO II	ImagineHouse_PRO_II.idx8	rle 	8	64	49	10	-	-	-	no
+Land of Illusion	Land_of_Illusion.idx8	rle 	8	64	49	28	-	-	-	no
+Leviathan	Leviathan.idx8	rle 	8	64	49	21	-	-	-	no
+Nemo's Market	Nemos_Market.idx8	rle 	8	64	49	24	-	-	-	no
+Rainbow's End	Rainbows_End.idx8	rle 	8	64	49	25	-	-	-	no
+Slumberland	Slumberland.idx8	raw 	8	64	49	12	-	-	-	no
+SpacePods	SpacePods.idx8	rle 	8	64	49	40	-	-	-	no
+Teddy World	Teddy_World.idx8	rle 	8	64	50	45	-	-	-	no
+Titanic	Titanic.idx8	rle 	8	64	49	11	-	-	-	no

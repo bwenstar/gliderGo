@@ -37,7 +37,7 @@ Note for anyone tempted to relicense later: upstream's grant is GPLv2 **only**. 
 no "or later" clause, so gliderGo cannot be moved to GPLv3 and cannot take GPLv3-only
 dependencies.
 
-### 1.2 The art, the sounds and the 22 houses are on a different footing from the code — **decision needed, before any public release**
+### 1.2 The art, the sounds and the 22 houses are on a different footing from the code — **settled by the project owner: ship them. Route (a), decided 2026-09-16**
 
 `GliderPRO/README.md` says, exactly: *"The **source** for Glider PRO is released under the
 GNU General Public License 2."* It says source. It does not say assets. And the same file
@@ -69,10 +69,23 @@ unknown is the one kind this project cannot re-licence by asking. It is two room
 objects, so losing it would cost nothing — but that is a decision for the same conversation as
 the rest of this item.
 
-The upstream repository does distribute the houses, so re-vendoring them under
-`GliderPRO/` is no worse than what the copyright holder already does. Shipping a
-**gliderGo release binary with the extracted art baked in** is a different act: a new
-distribution of that art, in a new form, by someone who is not the rights holder.
+The upstream repository does distribute the houses, so re-vendoring them under `GliderPRO/` is
+no worse than what the copyright holder already does. Shipping the **decoded** art is a
+further step: a new distribution of that art, in a new form, by someone who is not the rights
+holder.
+
+**That step has been taken deliberately.** On 2026-09-16 the project owner directed that
+gliderGo work with no reference to the original game's source and that the assets be included,
+which is route (a) below plus its natural conclusion: `assets/extracted/` is committed (15.5 MB,
+1,877 files), so a clone plays with no extraction step, no python3 and no copy of Glider PRO.
+The reasoning is upstream's own precedent — the copyright holder distributes the same bytes in
+the same repository, in encoded form — and the practical fact that a game whose first
+instruction is "now go and decode the assets" is not a game somebody can play.
+
+What that decision does *not* do is answer the licence question, and it makes route (c) worth
+more rather than less: an explicit grant from John Calhoun would move gliderGo from "no worse
+than upstream" to "unambiguously licensed", and it is the only route that does. It is also the
+one thing here that cannot be done from this machine.
 
 **This item used to claim the architecture was already right by accident. It was wrong, and
 the correction matters more than the original claim did.** What it said was that `.gitignore`
@@ -90,33 +103,37 @@ release tarball built from it. The first half is true and irrelevant; the second
 this repository already redistributes the art, and so does any archive, zip or GitHub release
 tarball made from a clone, unless something is done to exclude it.
 
-That is not a leak to be quietly plugged: it is exactly why `make assets` works offline from a
-bare clone, and therefore why a stranger can clone this repository and play without owning
-Glider PRO (see 5.6). But it means this decision is live *now*, not at release time, and the
-route that was previously written down as the obvious one is more work than it looked.
+That is not a leak to be quietly plugged: it is exactly why a stranger can clone this
+repository and play without owning Glider PRO (see 5.6). But it means this decision was live
+*now* rather than at release time.
 
-**Needed from the user — one of:**
+**The three routes, with the chosen one marked:**
 
-- **(a) Keep vendoring.** Upstream distributes the same resource fork and the same houses, so
-  re-vendoring them is no worse than what the copyright holder already does; release archives
-  carry the assets and one download works. This is the honest description of what the
-  repository already is, and it is what I would do.
-- **(b) Code only.** Add `.gitattributes` `export-ignore` for `GliderPRO/Glider PRO.r` and
-  `GliderPRO/Houses/` so `git archive` and every GitHub release tarball drop them, and write
-  the fetch step that `make assets` would then need — from upstream, or from the player's own
-  copy of the game, the way a ScummVM or DOSBox front-end does. Note that this is *not* the
-  status quo plus a gitignore line, which is what this item used to imply: the fetch step has
-  to exist and needs somewhere to fetch from that is not this repository.
-- **(c) Either of those, plus contacting John Calhoun** for an explicit asset grant. That is
-  the only route to a single-download release of the original content that is unambiguously
-  licensed rather than merely no worse than upstream.
+- **(a) Keep vendoring — CHOSEN, and extended to the decoded assets.** Upstream distributes the
+  same resource fork and the same houses, so re-vendoring them is no worse than what the
+  copyright holder already does; release archives carry the assets and one download works. This
+  is the honest description of what the repository is.
+- **(b) Code only — rejected.** Add `.gitattributes` `export-ignore` for
+  `GliderPRO/Glider PRO.r`, `GliderPRO/Houses/` and `assets/extracted/` so `git archive` and
+  every release tarball drop them, then write the fetch step `make assets` would need — from
+  upstream, or from the player's own copy of the game, the way a ScummVM or DOSBox front-end
+  does. Rejected because it makes the first-run experience a scavenger hunt for a 31-year-old
+  Macintosh game, and because the fetch step has to exist and needs somewhere to fetch *from*
+  that is not this repository.
+- **(c) Contact John Calhoun for an explicit asset grant — still open, and now the only
+  outstanding part of this item.** It is the one route to content that is unambiguously
+  licensed rather than merely no worse than upstream. Route (a) does not depend on it, and it
+  would retire this item outright.
 
-Whichever way it goes, one consequence stands, because it changes the priority of a later
+One consequence stands whatever happens with (c), because it changes the priority of a later
 stage: **Stage 2's new houses are the only content gliderGo can ship without asking anyone.**
-They stop being a nice extra and become the default content of the public build, with the
-original 22 houses available to anyone who owns the game or accepts route (a). Stage 2 should
-be planned as original work on that basis — not as imitations of the shipped houses, which
-would inherit the same authorship question.
+They stop being a nice extra and become the content the project owns outright. Stage 2 should be
+planned as original work on that basis — not as imitations of the shipped houses, which would
+inherit the same authorship question.
+
+If (c) is ever answered with a no, the fallback is (b) applied to release archives only, which
+is a `.gitattributes` change and a fetch script rather than a redesign — worth knowing, so that
+route (a) is a reversible decision rather than a one-way door.
 
 ### 1.3 No `CHANGELOG.md` and none of the conventional repository files — **changelog DONE, end of Stage 1; the rest planned**
 
@@ -2443,10 +2460,16 @@ anything reading it sees half-written files. This is not theoretical — a `go t
 concurrently with a `make assets` failed decoding a golden PNG with "unexpected EOF", which took
 a while to recognise as a build-system problem rather than a renderer one.
 
-Three consequences, and only the first is currently handled:
+Four consequences, and only the first is currently handled:
 
-- **CI.** `.github/workflows/ci.yml` runs `make assets` as its own step, before anything that
-  reads the tree, and a comment there says why. That is a workaround in the caller, not a fix.
+- **CI.** `.github/workflows/ci.yml` runs `make assets-check` as its own job, isolated from
+  anything that reads the tree, and a comment there says why. That is a workaround in the caller,
+  not a fix.
+- **The tree is committed now (1.2), so a half-written extraction dirties the working copy** and
+  the damage shows up as a `git diff` over binary files. That is at least visible, and
+  `git checkout -- assets/extracted` undoes it, which is a better recovery than the old one
+  (re-extract and hope). It also raises the stakes on the temp-and-rename fix below: a
+  cancelled `make assets` now edits tracked files.
 - **A cancelled extraction leaves a tree that looks complete.** `make check`'s guards test for
   contents (`[ -s art/manifest.json ]`, `ls houses/*.house`), which catches an *empty* tree but
   not a half-written one. The manifest is written last, which helps by accident rather than by
@@ -2467,13 +2490,18 @@ development tree and wrong for anything installed — a `/usr/bin/glidergo` run 
 directory finds nothing, and the first-run screen it draws instead (`first-run.png`, which
 `make headless` renders precisely so nobody has to guess) is at least honest about it.
 
-The decision is not technical, it is a layout: does a release ship the extracted assets, and if
-so where do they go — `$XDG_DATA_HOME/glidergo` alongside the scores, `/usr/share/glidergo`, or
-inside the binary with `embed`? Each answer interacts with §1.2, which is still open: if
-gliderGo may not redistribute the 1994 art, then an installed copy has to run the extractor
-against the player's own copy of the game, and that turns a packaging question into a
-first-run-experience question. §1.2 is the user's call and this follows it, so it is deliberately
-not being pre-empted here.
+The decision is not technical, it is a layout: **where** do the assets go — `/usr/share/glidergo`,
+`$XDG_DATA_HOME/glidergo` alongside the scores, or inside the binary with `embed`? §1.2 used to
+block this and no longer does: the assets ship, so an installed copy carries them rather than
+extracting from the player's own copy of the game.
+
+`embed` deserves a note because it is now the tempting answer and it is not free: 15.5 MB welded
+into every binary, six cross-built targets, and `go:embed` cannot reach outside its own package
+tree, so `assets/extracted/` would have to move or be mirrored. A search path — the executable's
+directory, then `/usr/share/glidergo`, then `$XDG_DATA_HOME/glidergo`, then the current
+directory — is a dozen lines and keeps one 3 MB binary. That is the recommendation when
+packaging happens; it is written down here rather than implemented because it wants the
+release-pipeline decisions in 5.4 alongside it.
 
 ### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **planned, end of Stage 1 at the earliest**
 
@@ -2521,21 +2549,22 @@ scratch directory and driven from the README, with nothing pre-warmed.
 What the audit established, as facts rather than intentions:
 
 - **A clone contains everything.** `git clone` → `apt-get install build-essential pkg-config
-  libx11-dev python3` → `make assets` → `make check` → `make run` is the whole sequence. Nothing
-  is fetched, because there is nothing to fetch: `internal/module` asserts stdlib-only, so there
-  is no `go.sum`, no `vendor/` and no proxy to be unreachable.
-- **The original game is not needed, because it is already here.** `make assets` reads exactly
-  **38 committed files, all under `GliderPRO/`**: `Glider PRO.r` (15,475,666 bytes, the derez'ed
-  resource fork carrying every PICT, `'snd '`, `STR#` and dialog), 22 `.binhex` houses and 15
-  `.mov` movies. It writes **1,899 files, 46 MB** into the gitignored `assets/extracted/` in
-  about 70 s, and `make assets-check` re-derives them to prove the output is a function of the
-  input. No copy of Glider PRO, no Macintosh, no network, no serial number.
-- **`make check` passes twice over: on the pre-warmed tree and on a clone with no extracted
-  assets and no `DISPLAY`.** The asset-dependent steps skip by name and `check-caveats` closes by
-  listing what it could not verify, so a green run on an empty tree never reads as a green run on
-  a full one.
-- **A clone is 96 MB** — 64 MB of working tree, 32 MB of history — which is the vendored 1994
-  data, not the port. 1.2 owns whether that stays.
+  libx11-dev` → `make run` is the whole sequence, since the decoded assets are committed (1.2).
+  Nothing is fetched, because there is nothing to fetch: `internal/module` asserts stdlib-only,
+  so there is no `go.sum`, no `vendor/` and no proxy to be unreachable.
+- **The original game is not needed.** It never was, because `GliderPRO/` is vendored: `make
+  assets` reads exactly **38 committed files** from it — `Glider PRO.r` (15,475,666 bytes, the
+  derez'ed resource fork carrying every PICT, `'snd '`, `STR#` and dialog), 22 `.binhex` houses
+  and 15 `.mov` movies — and writes 1,899 files in about 70 s. Since 1.2 that output is committed
+  too (all but the 22 `.rsrc` intermediates, 24 MB of the 39.5: 1,877 files, 15.5 MB), so playing needs neither the
+  extractor nor python3. `make assets-check` re-extracts and compares every file, which is what
+  keeps the committed copy honest.
+- **`make check` passes twice over: on a full clone, and on one with the assets removed and no
+  `DISPLAY`.** The asset-dependent steps skip by name and `check-caveats` closes by listing what
+  it could not verify, so a green run on an empty tree never reads as a green run on a full one.
+- **Size.** The port itself is about 11 MB of source, docs and tests. Everything else is 1994
+  content: `GliderPRO/` 50.7 MB encoded, `assets/extracted/` 15.5 MB decoded from it. 1.2 records
+  why both are here.
 
 Four things the audit found, all fixed in the same commit as this entry:
 
@@ -2554,6 +2583,12 @@ Left open, and deliberately: the README's claims about Windows and macOS remain 
 anyone (5.5), the public dependency path remains untested from here (5.1), and where an
 *installed* copy looks for its assets is still repo-relative (5.3). The audit's subject was a
 developer's clone, which is the only thing gliderGo currently ships.
+
+**Follow-on, same stage.** The audit's answer to "will the original source be needed for the
+assets?" was *no, because it is vendored* — which is true and was not the point. The project
+owner's answer was to remove the question: commit the decoded assets, so the first command after
+`git clone` is `make run`. That is 1.2's route (a) and it retires the extraction step from the
+quick start entirely.
 
 ### 5.7 The four files a public repository is expected to have, and the two templates — **planned, when the repository is actually public**
 
@@ -2721,6 +2756,12 @@ alone for a stated reason rather than missed.
 | `.gitattributes`: `* -text`, so a Windows checkout cannot rewrite `Glider PRO.r`'s 199,843 LFs and silently change the extractor's input hashes | 1.10a | this stage |
 | `glidergo -version` prints the build, the compiled-in backend, the Go that built it, the platform, and whether each asset tree is there | 1.10a | this stage |
 | 5.7 and 5.8 written: the conventional repository files as a dated decision, and seven audit findings deliberately left alone with the reason each | 1.10a | this stage |
+| 1.2 (route (a), the decision) `assets/extracted/` committed — 1,877 files, 15.5 MB — so a clone plays with no extraction step, no python3 and no copy of Glider PRO | 1.10b | this stage |
+| The 24 MB of `houses/*.rsrc` left out, because they are the one thing in the extracted tree that nothing reads at run time: an intermediate `extract_house_art.py` turns into `houseart/` | 1.10b | this stage |
+| `make assets-check` upgraded from a manifest comparison to a full recursive diff, after proving the extractor byte-for-byte reproducible over all 1,899 files | 1.10b | this stage |
+| `.gitattributes` marks the tree `linguist-generated` and `binary`, with the three manifests exempted, so a diff of authored code is not drowned in 1,877 generated files | 1.10b | this stage |
+| CI refuses a checkout whose assets are missing instead of extracting them, and a separate `assets` job holds the committed tree to `make assets-check` | 1.10b | this stage |
+| The About box, the credits, the README and the no-assets screen all say the data ships here — the fourth rewrite of that sentence, and the first one that is true of a clone | 1.10b | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

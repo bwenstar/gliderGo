@@ -1,0 +1,2983 @@
+{
+ "backgrounds": {
+  "2000": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2000.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2001": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2001.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2002": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2002.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2003": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2003.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2004": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2004.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2005": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2005.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2006": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2006.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2007": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2007.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2008": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2008.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2009": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2009.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2010": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2010.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2011": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2011.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2012": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2012.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2013": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2013.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2014": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2014.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2015": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2015.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2016": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2016.png",
+   "size": [
+    512,
+    322
+   ]
+  },
+  "2017": {
+   "alpha": "none (srcCopy)",
+   "file": "bg/2017.png",
+   "size": [
+    512,
+    322
+   ]
+  }
+ },
+ "buckets": {
+  "bg": [
+   2000,
+   2001,
+   2002,
+   2003,
+   2004,
+   2005,
+   2006,
+   2007,
+   2008,
+   2009,
+   2010,
+   2011,
+   2012,
+   2013,
+   2014,
+   2015,
+   2016,
+   2017
+  ],
+  "misc": [
+   3957
+  ],
+  "obj_art": [
+   3958,
+   3959,
+   3960,
+   3961,
+   3962,
+   3964,
+   3965,
+   3966,
+   3967,
+   3968,
+   3969,
+   3970,
+   3971,
+   3972,
+   3973,
+   3975,
+   3977,
+   3978,
+   3979,
+   3980,
+   3981,
+   3982,
+   3983,
+   3984,
+   3985,
+   3986,
+   3987,
+   3988,
+   3989,
+   3990,
+   3991,
+   3992,
+   3993,
+   3994,
+   3995,
+   3996,
+   3997,
+   10000
+  ],
+  "obj_mask": [
+   3903,
+   3904,
+   3912,
+   3913,
+   3914,
+   3915,
+   3921,
+   3927
+  ],
+  "sheet_art": [
+   4000,
+   4001,
+   4002,
+   4003,
+   4004,
+   4005,
+   4008,
+   4011,
+   4012,
+   4013,
+   4014,
+   4015,
+   4016,
+   4018
+  ],
+  "sheet_mask": [
+   5000,
+   5001,
+   5002,
+   5004,
+   5005,
+   5008,
+   5011,
+   5012,
+   5013,
+   5014,
+   5015,
+   5016,
+   5018
+  ],
+  "strip_art": [
+   1019,
+   1996,
+   1997,
+   1999,
+   3963,
+   3974,
+   3976,
+   3998,
+   3999,
+   4006,
+   4007,
+   4009,
+   4010,
+   4017
+  ],
+  "strip_mask": [
+   1020,
+   4998,
+   4999,
+   5006,
+   5007,
+   5009,
+   5010,
+   5017
+  ],
+  "ui": [
+   150,
+   151,
+   153,
+   1000,
+   1001,
+   1002,
+   1003,
+   1004,
+   1005,
+   1006,
+   1007,
+   1008,
+   1009,
+   1010,
+   1011,
+   1012,
+   1013,
+   1014,
+   1015,
+   1016,
+   1017,
+   1018,
+   1021,
+   1022,
+   1023,
+   1202,
+   1211,
+   1216,
+   1217,
+   1988,
+   1989,
+   1990,
+   1991,
+   1992,
+   1993,
+   1994,
+   1995,
+   1998
+  ]
+ },
+ "misc": {
+  "3957": {
+   "alpha": "none",
+   "file": "misc/3957_manhole_thru_floor.png",
+   "size": [
+    123,
+    44
+   ]
+  }
+ },
+ "objects": {
+  "01_kFloorVent": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/01_kFloorVent.png",
+   "from": "sheet:blower",
+   "h": 11,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    48,
+    11
+   ],
+   "w": 48,
+   "what": 1
+  },
+  "02_kCeilingVent": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/02_kCeilingVent.png",
+   "from": "sheet:blower",
+   "h": 11,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    11,
+    48,
+    22
+   ],
+   "w": 48,
+   "what": 2
+  },
+  "03_kFloorBlower": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/03_kFloorBlower.png",
+   "from": "sheet:blower",
+   "h": 15,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    22,
+    48,
+    37
+   ],
+   "w": 48,
+   "what": 3
+  },
+  "04_kCeilingBlower": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/04_kCeilingBlower.png",
+   "from": "sheet:blower",
+   "h": 15,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    37,
+    48,
+    52
+   ],
+   "w": 48,
+   "what": 4
+  },
+  "05_kSewerGrate": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/05_kSewerGrate.png",
+   "from": "sheet:blower",
+   "h": 17,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    52,
+    48,
+    69
+   ],
+   "w": 48,
+   "what": 5
+  },
+  "06_kLeftFan": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/06_kLeftFan.png",
+   "from": "sheet:blower",
+   "h": 55,
+   "kind": "sheet",
+   "note": "tikiFlame[] overlays x40-48",
+   "srcRect": [
+    0,
+    69,
+    40,
+    124
+   ],
+   "w": 40,
+   "what": 6
+  },
+  "07_kRightFan": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/07_kRightFan.png",
+   "from": "sheet:blower",
+   "h": 55,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    124,
+    40,
+    179
+   ],
+   "w": 40,
+   "what": 7
+  },
+  "08_kTaper": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/08_kTaper.png",
+   "from": "sheet:blower",
+   "h": 59,
+   "kind": "sheet",
+   "note": "+ flame[0..4] 16x15 stride 15 @(32,179)",
+   "srcRect": [
+    0,
+    209,
+    20,
+    268
+   ],
+   "w": 20,
+   "what": 8
+  },
+  "09_kCandle": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/09_kCandle.png",
+   "from": "sheet:blower",
+   "h": 30,
+   "kind": "sheet",
+   "note": "+ flame[0..4] 16x15 stride 15 @(32,179)",
+   "srcRect": [
+    0,
+    179,
+    32,
+    209
+   ],
+   "w": 32,
+   "what": 9
+  },
+  "0A_kStubby": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/0A_kStubby.png",
+   "from": "sheet:blower",
+   "h": 36,
+   "kind": "sheet",
+   "note": "+ flame[0..4] 16x15 stride 15 @(32,179)",
+   "srcRect": [
+    0,
+    268,
+    20,
+    304
+   ],
+   "w": 20,
+   "what": 10
+  },
+  "0B_kTiki": {
+   "draw": "DrawTiki",
+   "file": "object/0B_kTiki.png",
+   "from": "sheet:blower",
+   "h": 28,
+   "kind": "sheet",
+   "note": "+ tikiFlame[0..4] 8x10 stride 10 @(40,69); pole drawn procedurally",
+   "srcRect": [
+    21,
+    268,
+    48,
+    296
+   ],
+   "w": 27,
+   "what": 11
+  },
+  "0C_kBBQ": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/0C_kBBQ.png",
+   "from": "pict:3988",
+   "h": 33,
+   "kind": "key",
+   "note": "+ coals[0..3] 32x9 stride 9 @(0,304) from blower sheet",
+   "srcRect": [
+    0,
+    0,
+    64,
+    33
+   ],
+   "total_px": 2112,
+   "transparent_px": 982,
+   "w": 64,
+   "what": 12
+  },
+  "0D_kInvisBlower": {
+   "draw": "-",
+   "h": 24,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    24,
+    24
+   ],
+   "w": 24,
+   "what": 13
+  },
+  "0E_kGrecoVent": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/0E_kGrecoVent.png",
+   "from": "sheet:blower",
+   "h": 18,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    340,
+    48,
+    358
+   ],
+   "w": 48,
+   "what": 14
+  },
+  "0F_kSewerBlower": {
+   "draw": "DrawSimpleBlowers",
+   "file": "object/0F_kSewerBlower.png",
+   "from": "sheet:blower",
+   "h": 12,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    390,
+    32,
+    402
+   ],
+   "w": 32,
+   "what": 15
+  },
+  "10_kLiftArea": {
+   "draw": "-",
+   "h": 32,
+   "kind": "none",
+   "note": "size overridden by data.a.distance/tall",
+   "srcRect": [
+    0,
+    0,
+    64,
+    32
+   ],
+   "w": 64,
+   "what": 16
+  },
+  "11_kTable": {
+   "draw": "DrawTable",
+   "from": "sheet:furniture (named sub-rects; graphics-assets 6.6)",
+   "h": 8,
+   "kind": "tmpl",
+   "note": "art = tableSrc 64x22 @(0,0); rect is kTableThick=8 thick",
+   "srcRect": [
+    0,
+    0,
+    64,
+    8
+   ],
+   "w": 64,
+   "what": 17
+  },
+  "12_kShelf": {
+   "draw": "DrawShelf",
+   "from": "sheet:furniture (named sub-rects; graphics-assets 6.6)",
+   "h": 6,
+   "kind": "tmpl",
+   "note": "art = shelfSrc 16x21 @(0,22); rect is kShelfThick=6 thick",
+   "srcRect": [
+    0,
+    0,
+    64,
+    6
+   ],
+   "w": 64,
+   "what": 18
+  },
+  "13_kCabinet": {
+   "draw": "DrawCabinet",
+   "from": "sheet:furniture (named sub-rects; graphics-assets 6.6)",
+   "h": 64,
+   "kind": "tmpl",
+   "note": "art = hingeSrc 4x16 @(16,22), handleSrc 4x21 @(20,22)",
+   "srcRect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "w": 64,
+   "what": 19
+  },
+  "14_kFilingCabinet": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/14_kFilingCabinet.png",
+   "from": "pict:3995",
+   "h": 107,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    74,
+    107
+   ],
+   "w": 74,
+   "what": 20
+  },
+  "15_kWasteBasket": {
+   "draw": "DrawSimpleFurniture",
+   "file": "object/15_kWasteBasket.png",
+   "from": "sheet:furniture",
+   "h": 61,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    43,
+    64,
+    104
+   ],
+   "w": 64,
+   "what": 21
+  },
+  "16_kMilkCrate": {
+   "draw": "DrawSimpleFurniture",
+   "file": "object/16_kMilkCrate.png",
+   "from": "sheet:furniture",
+   "h": 58,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    104,
+    64,
+    162
+   ],
+   "w": 64,
+   "what": 22
+  },
+  "17_kCounter": {
+   "draw": "DrawCounter",
+   "h": 64,
+   "kind": "proc",
+   "note": "no PICT pixels at all",
+   "srcRect": [
+    0,
+    0,
+    128,
+    64
+   ],
+   "w": 128,
+   "what": 23
+  },
+  "18_kDresser": {
+   "draw": "DrawDresser",
+   "from": "sheet:furniture (named sub-rects; graphics-assets 6.6)",
+   "h": 64,
+   "kind": "tmpl",
+   "note": "art = knobSrc 8x8 @(24,22) srcCopy, leftFootSrc 16x16 @(32,22), rightFootSrc 16x16 @(48,22)",
+   "srcRect": [
+    0,
+    0,
+    128,
+    64
+   ],
+   "w": 128,
+   "what": 24
+  },
+  "19_kDeckTable": {
+   "draw": "DrawDeckTable",
+   "from": "sheet:furniture (named sub-rects; graphics-assets 6.6)",
+   "h": 8,
+   "kind": "tmpl",
+   "note": "art = deckSrc 64x21 @(0,162)",
+   "srcRect": [
+    0,
+    0,
+    64,
+    8
+   ],
+   "w": 64,
+   "what": 25
+  },
+  "1A_kStool": {
+   "draw": "DrawStool",
+   "file": "object/1A_kStool.png",
+   "from": "sheet:furniture",
+   "h": 38,
+   "kind": "sheet",
+   "note": "+ procedural legs to kStoolBase 304",
+   "srcRect": [
+    0,
+    183,
+    48,
+    221
+   ],
+   "w": 48,
+   "what": 26
+  },
+  "1B_kTrunk": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/1B_kTrunk.png",
+   "from": "pict:3987",
+   "h": 80,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    144,
+    80
+   ],
+   "total_px": 11520,
+   "transparent_px": 834,
+   "w": 144,
+   "what": 27
+  },
+  "1C_kInvisObstacle": {
+   "draw": "-",
+   "h": 64,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "w": 64,
+   "what": 28
+  },
+  "1D_kManhole": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/1D_kManhole.png",
+   "from": "pict:3967",
+   "h": 22,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    123,
+    22
+   ],
+   "total_px": 2706,
+   "transparent_px": 260,
+   "w": 123,
+   "what": 29
+  },
+  "1E_kBooks": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/1E_kBooks.png",
+   "from": "pict:3964",
+   "h": 51,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    64,
+    51
+   ],
+   "total_px": 3264,
+   "transparent_px": 330,
+   "w": 64,
+   "what": 30
+  },
+  "1F_kInvisBounce": {
+   "draw": "-",
+   "h": 64,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "w": 64,
+   "what": 31
+  },
+  "21_kRedClock": {
+   "draw": "DrawRedClock",
+   "file": "object/21_kRedClock.png",
+   "from": "sheet:bonus",
+   "h": 17,
+   "kind": "sheet",
+   "note": "+ digits[0..10] 4x6 stride 6 @(28,0)",
+   "srcRect": [
+    0,
+    0,
+    28,
+    17
+   ],
+   "w": 28,
+   "what": 33
+  },
+  "22_kBlueClock": {
+   "draw": "DrawBlueClock",
+   "file": "object/22_kBlueClock.png",
+   "from": "sheet:bonus",
+   "h": 25,
+   "kind": "sheet",
+   "note": "+ ColorLine hands",
+   "srcRect": [
+    0,
+    17,
+    28,
+    42
+   ],
+   "w": 28,
+   "what": 34
+  },
+  "23_kYellowClock": {
+   "draw": "DrawYellowClock",
+   "file": "object/23_kYellowClock.png",
+   "from": "sheet:bonus",
+   "h": 28,
+   "kind": "sheet",
+   "note": "+ ColorLine hands",
+   "srcRect": [
+    0,
+    42,
+    28,
+    70
+   ],
+   "w": 28,
+   "what": 35
+  },
+  "24_kCuckoo": {
+   "draw": "DrawCuckoo",
+   "file": "object/24_kCuckoo.png",
+   "from": "sheet:bonus",
+   "h": 80,
+   "kind": "sheet",
+   "note": "+ pendulumSrc[0..2] 32x28 stride 28 @(56,186)",
+   "srcRect": [
+    0,
+    148,
+    40,
+    228
+   ],
+   "w": 40,
+   "what": 36
+  },
+  "25_kPaper": {
+   "draw": "DrawSimplePrizes",
+   "file": "object/25_kPaper.png",
+   "from": "sheet:bonus",
+   "h": 21,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    127,
+    48,
+    148
+   ],
+   "w": 48,
+   "what": 37
+  },
+  "26_kBattery": {
+   "draw": "DrawSimplePrizes",
+   "file": "object/26_kBattery.png",
+   "from": "sheet:bonus",
+   "h": 25,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    32,
+    0,
+    48,
+    25
+   ],
+   "w": 16,
+   "what": 38
+  },
+  "27_kBands": {
+   "draw": "DrawSimplePrizes",
+   "file": "object/27_kBands.png",
+   "from": "sheet:bonus",
+   "h": 23,
+   "kind": "sheet",
+   "note": "bandRects[0..2] 16x6 stride 6 in bandsSrcMap 4007/5007 are the in-flight bands",
+   "srcRect": [
+    20,
+    70,
+    48,
+    93
+   ],
+   "w": 28,
+   "what": 39
+  },
+  "28_kGreaseRt": {
+   "draw": "DrawGreaseRt",
+   "file": "object/28_kGreaseRt.png",
+   "from": "sheet:bonus",
+   "h": 27,
+   "kind": "sheet",
+   "note": "frames greaseSrcRt[0..3] 32x27 @(0,243),(0,270),(0,297),(32,297)",
+   "srcRect": [
+    0,
+    243,
+    32,
+    270
+   ],
+   "w": 32,
+   "what": 40
+  },
+  "29_kGreaseLf": {
+   "draw": "DrawGreaseLf",
+   "file": "object/29_kGreaseLf.png",
+   "from": "sheet:bonus",
+   "h": 27,
+   "kind": "sheet",
+   "note": "frames greaseSrcLf[0..3] 32x27 @(0,324),(32,324),(0,351),(32,351)",
+   "srcRect": [
+    0,
+    324,
+    32,
+    351
+   ],
+   "w": 32,
+   "what": 41
+  },
+  "2A_kFoil": {
+   "draw": "DrawFoil",
+   "file": "object/2A_kFoil.png",
+   "from": "sheet:bonus",
+   "h": 15,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    228,
+    55,
+    243
+   ],
+   "w": 55,
+   "what": 42
+  },
+  "2B_kInvisBonus": {
+   "draw": "-",
+   "h": 24,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    24,
+    24
+   ],
+   "w": 24,
+   "what": 43
+  },
+  "2C_kStar": {
+   "draw": "DrawSimplePrizes",
+   "file": "object/2C_kStar.png",
+   "from": "sheet:bonus",
+   "h": 31,
+   "kind": "sheet",
+   "note": "starSrc[0..5] 32x31 stride 31 @(48,0)",
+   "srcRect": [
+    48,
+    0,
+    80,
+    31
+   ],
+   "w": 32,
+   "what": 44
+  },
+  "2D_kSparkle": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/2D_kSparkle.png",
+   "from": "sheet:bonus",
+   "h": 19,
+   "kind": "sheet",
+   "note": "sparkleSrc[0..4] 20x19; frames 2,3,4 @(0,70),(0,89),(0,108); [0]=[4], [1]=[3]",
+   "srcRect": [
+    0,
+    70,
+    20,
+    89
+   ],
+   "w": 20,
+   "what": 45
+  },
+  "2E_kHelium": {
+   "draw": "DrawSimplePrizes",
+   "file": "object/2E_kHelium.png",
+   "from": "sheet:bonus",
+   "h": 16,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    32,
+    270,
+    88,
+    286
+   ],
+   "w": 56,
+   "what": 46
+  },
+  "2F_kSlider": {
+   "draw": "-",
+   "h": 16,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    64,
+    16
+   ],
+   "w": 64,
+   "what": 47
+  },
+  "31_kUpStairs": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/31_kUpStairs.png",
+   "from": "pict:3997",
+   "h": 267,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    160,
+    267
+   ],
+   "total_px": 42720,
+   "transparent_px": 808,
+   "w": 160,
+   "what": 49
+  },
+  "32_kDownStairs": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/32_kDownStairs.png",
+   "from": "pict:3996",
+   "h": 267,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    160,
+    267
+   ],
+   "w": 160,
+   "what": 50
+  },
+  "33_kMailboxLf": {
+   "alpha": "mask 3904",
+   "draw": "DrawMailboxLeft",
+   "file": "object/33_kMailboxLf.png",
+   "from": "pict:3986",
+   "h": 80,
+   "kind": "pair",
+   "mask_pict": 3904,
+   "note": "anchored to kMailboxBase 296",
+   "opaque_px": 3747,
+   "srcRect": [
+    0,
+    0,
+    94,
+    80
+   ],
+   "total_px": 7520,
+   "w": 94,
+   "what": 51
+  },
+  "34_kMailboxRt": {
+   "alpha": "mask 3903",
+   "draw": "DrawMailboxRight",
+   "file": "object/34_kMailboxRt.png",
+   "from": "pict:3985",
+   "h": 80,
+   "kind": "pair",
+   "mask_pict": 3903,
+   "note": "anchored to kMailboxBase 296",
+   "opaque_px": 3727,
+   "srcRect": [
+    0,
+    0,
+    94,
+    80
+   ],
+   "total_px": 7520,
+   "w": 94,
+   "what": 52
+  },
+  "35_kFloorTrans": {
+   "draw": "DrawSimpleTransport",
+   "file": "object/35_kFloorTrans.png",
+   "from": "sheet:trans",
+   "h": 15,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    1,
+    56,
+    16
+   ],
+   "w": 56,
+   "what": 53
+  },
+  "36_kCeilingTrans": {
+   "draw": "DrawSimpleTransport",
+   "file": "object/36_kCeilingTrans.png",
+   "from": "sheet:trans",
+   "h": 15,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    16,
+    56,
+    31
+   ],
+   "w": 56,
+   "what": 54
+  },
+  "37_kDoorInLf": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/37_kDoorInLf.png",
+   "from": "pict:3984",
+   "h": 322,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    144,
+    322
+   ],
+   "total_px": 46368,
+   "transparent_px": 7967,
+   "w": 144,
+   "what": 55
+  },
+  "38_kDoorInRt": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/38_kDoorInRt.png",
+   "from": "pict:3983",
+   "h": 322,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    144,
+    322
+   ],
+   "total_px": 46368,
+   "transparent_px": 7967,
+   "w": 144,
+   "what": 56
+  },
+  "39_kDoorExRt": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/39_kDoorExRt.png",
+   "from": "pict:3982",
+   "h": 322,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    16,
+    322
+   ],
+   "w": 16,
+   "what": 57
+  },
+  "3A_kDoorExLf": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/3A_kDoorExLf.png",
+   "from": "pict:3981",
+   "h": 322,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    16,
+    322
+   ],
+   "w": 16,
+   "what": 58
+  },
+  "3B_kWindowInLf": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/3B_kWindowInLf.png",
+   "from": "pict:3980",
+   "h": 170,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    20,
+    170
+   ],
+   "total_px": 3400,
+   "transparent_px": 432,
+   "w": 20,
+   "what": 59
+  },
+  "3C_kWindowInRt": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/3C_kWindowInRt.png",
+   "from": "pict:3979",
+   "h": 170,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    20,
+    170
+   ],
+   "total_px": 3400,
+   "transparent_px": 432,
+   "w": 20,
+   "what": 60
+  },
+  "3D_kWindowExRt": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/3D_kWindowExRt.png",
+   "from": "pict:3977",
+   "h": 170,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    16,
+    170
+   ],
+   "w": 16,
+   "what": 61
+  },
+  "3E_kWindowExLf": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/3E_kWindowExLf.png",
+   "from": "pict:3978",
+   "h": 170,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    16,
+    170
+   ],
+   "w": 16,
+   "what": 62
+  },
+  "3F_kInvisTrans": {
+   "draw": "-",
+   "h": 32,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    64,
+    32
+   ],
+   "w": 64,
+   "what": 63
+  },
+  "40_kDeluxeTrans": {
+   "draw": "-",
+   "h": 64,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "w": 64,
+   "what": 64
+  },
+  "41_kLightSwitch": {
+   "draw": "DrawLightSwitch",
+   "from": "sheet:switch (named sub-rects; graphics-assets 6.6)",
+   "h": 24,
+   "kind": "tmpl",
+   "note": "art = lightSwitchSrc[0] 15x24 @(0,0) on / [1] @(16,0) off",
+   "srcRect": [
+    0,
+    0,
+    15,
+    24
+   ],
+   "w": 15,
+   "what": 65
+  },
+  "42_kMachineSwitch": {
+   "draw": "DrawMachineSwitch",
+   "from": "sheet:switch (named sub-rects; graphics-assets 6.6)",
+   "h": 24,
+   "kind": "tmpl",
+   "note": "art = machineSwitchSrc[0] 16x24 @(0,24) / [1] @(16,24); rect y-offset 48 disagrees",
+   "srcRect": [
+    0,
+    48,
+    16,
+    72
+   ],
+   "w": 16,
+   "what": 66
+  },
+  "43_kThermostat": {
+   "draw": "DrawThermostat",
+   "from": "sheet:switch (named sub-rects; graphics-assets 6.6)",
+   "h": 24,
+   "kind": "tmpl",
+   "note": "art = thermostatSrc[0] 15x24 @(0,48) / [1] @(16,48)",
+   "srcRect": [
+    0,
+    48,
+    15,
+    72
+   ],
+   "w": 15,
+   "what": 67
+  },
+  "44_kPowerSwitch": {
+   "draw": "DrawPowerSwitch",
+   "from": "sheet:switch (named sub-rects; graphics-assets 6.6)",
+   "h": 8,
+   "kind": "tmpl",
+   "note": "art = powerSrc[0] 8x8 @(0,72) / [1] @(8,72)",
+   "srcRect": [
+    0,
+    72,
+    8,
+    80
+   ],
+   "w": 8,
+   "what": 68
+  },
+  "45_kKnifeSwitch": {
+   "draw": "DrawKnifeSwitch",
+   "from": "sheet:switch (named sub-rects; graphics-assets 6.6)",
+   "h": 24,
+   "kind": "tmpl",
+   "note": "art = knifeSwitchSrc[0] 16x24 @(0,80) / [1] @(16,80)",
+   "srcRect": [
+    0,
+    80,
+    16,
+    104
+   ],
+   "w": 16,
+   "what": 69
+  },
+  "46_kInvisSwitch": {
+   "draw": "-",
+   "h": 12,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    12,
+    12
+   ],
+   "w": 12,
+   "what": 70
+  },
+  "47_kTrigger": {
+   "draw": "-",
+   "h": 12,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    12,
+    12
+   ],
+   "w": 12,
+   "what": 71
+  },
+  "48_kLgTrigger": {
+   "draw": "-",
+   "h": 48,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    48,
+    48
+   ],
+   "w": 48,
+   "what": 72
+  },
+  "49_kSoundTrigger": {
+   "draw": "-",
+   "h": 32,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "w": 32,
+   "what": 73
+  },
+  "51_kCeilingLight": {
+   "draw": "DrawSimpleLight",
+   "file": "object/51_kCeilingLight.png",
+   "from": "sheet:light",
+   "h": 20,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    64,
+    20
+   ],
+   "w": 64,
+   "what": 81
+  },
+  "52_kLightBulb": {
+   "draw": "DrawSimpleLight",
+   "file": "object/52_kLightBulb.png",
+   "from": "sheet:light",
+   "h": 28,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    20,
+    16,
+    48
+   ],
+   "w": 16,
+   "what": 82
+  },
+  "53_kTableLamp": {
+   "draw": "DrawSimpleLight",
+   "file": "object/53_kTableLamp.png",
+   "from": "sheet:light",
+   "h": 70,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    16,
+    20,
+    64,
+    90
+   ],
+   "w": 48,
+   "what": 83
+  },
+  "54_kHipLamp": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/54_kHipLamp.png",
+   "from": "pict:3994",
+   "h": 276,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    72,
+    276
+   ],
+   "total_px": 19872,
+   "transparent_px": 17254,
+   "w": 72,
+   "what": 84
+  },
+  "55_kDecoLamp": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/55_kDecoLamp.png",
+   "from": "pict:3993",
+   "h": 212,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    64,
+    212
+   ],
+   "total_px": 13568,
+   "transparent_px": 11425,
+   "w": 64,
+   "what": 85
+  },
+  "56_kFlourescent": {
+   "draw": "DrawFlourescent",
+   "from": "sheet:light (named sub-rects; graphics-assets 6.6)",
+   "h": 12,
+   "kind": "tmpl",
+   "note": "art = flourescentSrc1 16x12 @(0,78) off / flourescentSrc2 @(0,90) on, tiled",
+   "srcRect": [
+    0,
+    0,
+    64,
+    12
+   ],
+   "w": 64,
+   "what": 86
+  },
+  "57_kTrackLight": {
+   "draw": "DrawTrackLight",
+   "from": "sheet:light (named sub-rects; graphics-assets 6.6)",
+   "h": 24,
+   "kind": "tmpl",
+   "note": "art = trackLightSrc[0..2] 24x24 stride 24 in x @(0,102); kTrackLightSpacing 64",
+   "srcRect": [
+    0,
+    0,
+    64,
+    24
+   ],
+   "w": 64,
+   "what": 87
+  },
+  "58_kInvisLight": {
+   "draw": "-",
+   "h": 16,
+   "kind": "none",
+   "note": "hit/size template only",
+   "srcRect": [
+    0,
+    0,
+    16,
+    16
+   ],
+   "w": 16,
+   "what": 88
+  },
+  "61_kShredder": {
+   "draw": "DrawSimpleAppliance",
+   "file": "object/61_kShredder.png",
+   "from": "sheet:appliance",
+   "h": 22,
+   "kind": "sheet",
+   "note": "shredSrcMap 4010/5010 40x35 holds the shredded-paper animation",
+   "srcRect": [
+    0,
+    0,
+    73,
+    22
+   ],
+   "w": 73,
+   "what": 97
+  },
+  "62_kToaster": {
+   "draw": "DrawSimpleAppliance",
+   "file": "object/62_kToaster.png",
+   "from": "sheet:appliance",
+   "h": 27,
+   "kind": "sheet",
+   "note": "toastSrcMap 4009/5009 32x174 holds breadSrc[0..5] 32x29 stride 29",
+   "srcRect": [
+    0,
+    22,
+    48,
+    49
+   ],
+   "w": 48,
+   "what": 98
+  },
+  "63_kMacPlus": {
+   "draw": "DrawMacPlus",
+   "file": "object/63_kMacPlus.png",
+   "from": "sheet:appliance",
+   "h": 58,
+   "kind": "sheet",
+   "note": "+ plusScreen1 32x22 @(48,127) off / plusScreen2 @(48,149) on, srcCopy at +10,+7",
+   "srcRect": [
+    0,
+    49,
+    48,
+    107
+   ],
+   "w": 48,
+   "what": 99
+  },
+  "64_kGuitar": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/64_kGuitar.png",
+   "from": "pict:3991",
+   "h": 172,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    64,
+    172
+   ],
+   "total_px": 11008,
+   "transparent_px": 6347,
+   "w": 64,
+   "what": 100
+  },
+  "65_kTV": {
+   "alpha": "mask 3912",
+   "draw": "DrawTV",
+   "file": "object/65_kTV.png",
+   "from": "pict:3992",
+   "h": 77,
+   "kind": "pair",
+   "mask_pict": 3912,
+   "note": "+ tvScreen1 64x49 @(0,171) off / tvScreen2 @(0,220) on, from applianceSrcMap",
+   "opaque_px": 6926,
+   "srcRect": [
+    0,
+    0,
+    92,
+    77
+   ],
+   "total_px": 7084,
+   "w": 92,
+   "what": 101
+  },
+  "66_kCoffee": {
+   "draw": "DrawCoffee",
+   "file": "object/66_kCoffee.png",
+   "from": "sheet:appliance",
+   "h": 64,
+   "kind": "sheet",
+   "note": "+ coffeeLight1 8x4 @(72,171) off / coffeeLight2 @(72,175) on, srcCopy at +32,+57",
+   "srcRect": [
+    0,
+    107,
+    43,
+    171
+   ],
+   "w": 43,
+   "what": 102
+  },
+  "67_kOutlet": {
+   "draw": "DrawOutlet",
+   "file": "object/67_kOutlet.png",
+   "from": "sheet:appliance",
+   "h": 24,
+   "kind": "sheet",
+   "note": "outletSrc[0..3] 16x24 stride 24 @(64,22) is the spark animation",
+   "srcRect": [
+    64,
+    22,
+    80,
+    46
+   ],
+   "w": 16,
+   "what": 103
+  },
+  "68_kVCR": {
+   "alpha": "mask 3913",
+   "draw": "DrawVCR",
+   "file": "object/68_kVCR.png",
+   "from": "pict:3990",
+   "h": 22,
+   "kind": "pair",
+   "mask_pict": 3913,
+   "note": "+ vcrTime1 16x4 @(64,179) / vcrTime2 @(64,183) from applianceSrcMap",
+   "opaque_px": 1895,
+   "srcRect": [
+    0,
+    0,
+    96,
+    22
+   ],
+   "total_px": 2112,
+   "w": 96,
+   "what": 104
+  },
+  "69_kStereo": {
+   "alpha": "mask 3914",
+   "draw": "DrawStereo",
+   "file": "object/69_kStereo.png",
+   "from": "pict:3989",
+   "h": 53,
+   "kind": "pair",
+   "mask_pict": 3914,
+   "note": "+ stereoLight1 4x1 @(68,171) / stereoLight2 @(68,172)",
+   "opaque_px": 6348,
+   "srcRect": [
+    0,
+    0,
+    128,
+    53
+   ],
+   "total_px": 6784,
+   "w": 128,
+   "what": 105
+  },
+  "6A_kMicrowave": {
+   "alpha": "mask 3915",
+   "draw": "DrawMicrowave",
+   "file": "object/6A_kMicrowave.png",
+   "from": "pict:3971",
+   "h": 59,
+   "kind": "pair",
+   "mask_pict": 3915,
+   "note": "+ microOff 16x35 @(64,187) / microOn @(64,222)",
+   "opaque_px": 5198,
+   "srcRect": [
+    0,
+    0,
+    92,
+    59
+   ],
+   "total_px": 5428,
+   "w": 92,
+   "what": 106
+  },
+  "6B_kCinderBlock": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/6B_kCinderBlock.png",
+   "from": "pict:3960",
+   "h": 62,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    40,
+    62
+   ],
+   "total_px": 2480,
+   "transparent_px": 583,
+   "w": 40,
+   "what": 107
+  },
+  "6C_kFlowerBox": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/6C_kFlowerBox.png",
+   "from": "pict:3959",
+   "h": 32,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    80,
+    32
+   ],
+   "total_px": 2560,
+   "transparent_px": 330,
+   "w": 80,
+   "what": 108
+  },
+  "6D_kCDs": {
+   "draw": "DrawSimpleAppliance",
+   "file": "object/6D_kCDs.png",
+   "from": "sheet:appliance",
+   "h": 30,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    48,
+    22,
+    64,
+    52
+   ],
+   "w": 16,
+   "what": 109
+  },
+  "6E_kCustomPict": {
+   "alpha": "colour key index 0",
+   "draw": "DrawCustPictSansWhite",
+   "file": "object/6E_kCustomPict.png",
+   "from": "pict:10000",
+   "h": 34,
+   "kind": "key",
+   "note": "default art PICT 10000 is exactly 72x34",
+   "placeholder": true,
+   "runtime_source": "data.g.height",
+   "srcRect": [
+    0,
+    0,
+    72,
+    34
+   ],
+   "total_px": 2448,
+   "transparent_px": 104,
+   "w": 72,
+   "what": 110
+  },
+  "71_kBalloon": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/71_kBalloon.png",
+   "from": "sheet:balloon",
+   "h": 30,
+   "kind": "sheet",
+   "note": "balloonSrc[0..7] 24x30 stride 30",
+   "srcRect": [
+    0,
+    0,
+    24,
+    30
+   ],
+   "w": 24,
+   "what": 113
+  },
+  "72_kCopterLf": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/72_kCopterLf.png",
+   "from": "sheet:copter",
+   "h": 30,
+   "kind": "sheet",
+   "note": "copterSrc[0..9] 32x30 stride 30",
+   "srcRect": [
+    0,
+    0,
+    32,
+    30
+   ],
+   "w": 32,
+   "what": 114
+  },
+  "73_kCopterRt": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/73_kCopterRt.png",
+   "from": "sheet:copter",
+   "h": 30,
+   "kind": "sheet",
+   "note": "copterSrc[0..9] 32x30 stride 30",
+   "srcRect": [
+    0,
+    0,
+    32,
+    30
+   ],
+   "w": 32,
+   "what": 115
+  },
+  "74_kDartLf": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/74_kDartLf.png",
+   "from": "sheet:dart",
+   "h": 19,
+   "kind": "sheet",
+   "note": "dartSrc[0..3] 64x19 stride 19",
+   "srcRect": [
+    0,
+    0,
+    64,
+    19
+   ],
+   "w": 64,
+   "what": 116
+  },
+  "75_kDartRt": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/75_kDartRt.png",
+   "from": "sheet:dart",
+   "h": 19,
+   "kind": "sheet",
+   "note": "dartSrc[0..3] 64x19 stride 19",
+   "srcRect": [
+    0,
+    0,
+    64,
+    19
+   ],
+   "w": 64,
+   "what": 117
+  },
+  "76_kBall": {
+   "draw": "(AddDynamicObject)",
+   "file": "object/76_kBall.png",
+   "from": "sheet:ball",
+   "h": 32,
+   "kind": "sheet",
+   "note": "ballSrc[0..1] 32x32 stride 32",
+   "srcRect": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "w": 32,
+   "what": 118
+  },
+  "77_kDrip": {
+   "draw": "DrawDrip",
+   "file": "object/77_kDrip.png",
+   "from": "sheet:drip",
+   "h": 12,
+   "kind": "sheet",
+   "note": "static draw uses dripSrc[3] @(0,36), NOT srcRects[kDrip]; dripSrc[0..5] 16x12 stride 12",
+   "srcRect": [
+    0,
+    0,
+    16,
+    12
+   ],
+   "w": 16,
+   "what": 119
+  },
+  "78_kFish": {
+   "draw": "DrawFish",
+   "file": "object/78_kFish.png",
+   "from": "sheet:enemy",
+   "h": 33,
+   "kind": "sheet",
+   "note": "static draw reads enemySrcMap 4016/5016; the 8-frame fishSrcMap 4017/5017 16x16 stride 16 is animation-only",
+   "srcRect": [
+    0,
+    0,
+    36,
+    33
+   ],
+   "w": 36,
+   "what": 120
+  },
+  "79_kCobweb": {
+   "alpha": "mask 3927",
+   "draw": "DrawPictWithMaskObject",
+   "file": "object/79_kCobweb.png",
+   "from": "pict:3958",
+   "h": 45,
+   "kind": "pair",
+   "mask_pict": 3927,
+   "note": "",
+   "opaque_px": 539,
+   "srcRect": [
+    0,
+    0,
+    54,
+    45
+   ],
+   "total_px": 2430,
+   "w": 54,
+   "what": 121
+  },
+  "81_kOzma": {
+   "alpha": "none",
+   "draw": "DrawPictObject",
+   "file": "object/81_kOzma.png",
+   "from": "pict:3975",
+   "h": 92,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    102,
+    92
+   ],
+   "w": 102,
+   "what": 129
+  },
+  "82_kMirror": {
+   "draw": "DrawMirror",
+   "h": 64,
+   "kind": "proc",
+   "note": "four ColorFrameRect insets, no PICT",
+   "srcRect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "w": 64,
+   "what": 130
+  },
+  "83_kMousehole": {
+   "draw": "DrawSimpleClutter",
+   "file": "object/83_kMousehole.png",
+   "from": "sheet:clutter",
+   "h": 11,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    10,
+    11
+   ],
+   "w": 10,
+   "what": 131
+  },
+  "84_kFireplace": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/84_kFireplace.png",
+   "from": "pict:3973",
+   "h": 142,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    180,
+    142
+   ],
+   "total_px": 25560,
+   "transparent_px": 1112,
+   "w": 180,
+   "what": 132
+  },
+  "85_kFlower": {
+   "frames": [
+    [
+     0,
+     23,
+     10,
+     51
+    ],
+    [
+     10,
+     16,
+     34,
+     51
+    ],
+    [
+     34,
+     16,
+     68,
+     51
+    ],
+    [
+     68,
+     14,
+     95,
+     37
+    ],
+    [
+     68,
+     37,
+     95,
+     51
+    ],
+    [
+     95,
+     0,
+     127,
+     51
+    ]
+   ],
+   "from": "sheet:clutter",
+   "kind": "frames",
+   "note": "srcRects[kFlower] is never assigned; size comes from flowerSrc[data.i.pict] (graphics-assets 6.5)",
+   "srcRect": null,
+   "what": 133
+  },
+  "86_kWallWindow": {
+   "draw": "DrawWallWindow",
+   "h": 80,
+   "kind": "proc",
+   "note": "kWindowSillThick 7, no PICT",
+   "srcRect": [
+    0,
+    0,
+    64,
+    80
+   ],
+   "w": 64,
+   "what": 134
+  },
+  "87_kBear": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/87_kBear.png",
+   "from": "pict:3972",
+   "h": 58,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    56,
+    58
+   ],
+   "total_px": 3248,
+   "transparent_px": 1154,
+   "w": 56,
+   "what": 135
+  },
+  "88_kCalendar": {
+   "alpha": "none",
+   "draw": "DrawCalendar",
+   "file": "object/88_kCalendar.png",
+   "from": "pict:3970",
+   "h": 92,
+   "kind": "opaq",
+   "note": "+ month name from STR# 1005 at +((64-w)/2), +55",
+   "srcRect": [
+    0,
+    0,
+    63,
+    92
+   ],
+   "w": 63,
+   "what": 136
+  },
+  "89_kVase1": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/89_kVase1.png",
+   "from": "pict:3969",
+   "h": 45,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    36,
+    45
+   ],
+   "total_px": 1620,
+   "transparent_px": 282,
+   "w": 36,
+   "what": 137
+  },
+  "8A_kVase2": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/8A_kVase2.png",
+   "from": "pict:3968",
+   "h": 57,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    35,
+    57
+   ],
+   "total_px": 1995,
+   "transparent_px": 1068,
+   "w": 35,
+   "what": 138
+  },
+  "8B_kBulletin": {
+   "alpha": "none",
+   "draw": "DrawBulletin",
+   "file": "object/8B_kBulletin.png",
+   "from": "pict:3966",
+   "h": 58,
+   "kind": "opaq",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    80,
+    58
+   ],
+   "w": 80,
+   "what": 139
+  },
+  "8C_kCloud": {
+   "alpha": "mask 3921",
+   "draw": "DrawPictWithMaskObject",
+   "file": "object/8C_kCloud.png",
+   "from": "pict:3965",
+   "h": 30,
+   "kind": "pair",
+   "mask_pict": 3921,
+   "note": "",
+   "opaque_px": 2388,
+   "srcRect": [
+    0,
+    0,
+    128,
+    30
+   ],
+   "total_px": 3840,
+   "w": 128,
+   "what": 140
+  },
+  "8D_kFaucet": {
+   "draw": "DrawSimpleClutter",
+   "file": "object/8D_kFaucet.png",
+   "from": "sheet:clutter",
+   "h": 18,
+   "kind": "sheet",
+   "note": "",
+   "srcRect": [
+    0,
+    51,
+    56,
+    69
+   ],
+   "w": 56,
+   "what": 141
+  },
+  "8E_kRug": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/8E_kRug.png",
+   "from": "pict:3962",
+   "h": 18,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    144,
+    18
+   ],
+   "total_px": 2592,
+   "transparent_px": 312,
+   "w": 144,
+   "what": 142
+  },
+  "8F_kChimes": {
+   "alpha": "colour key index 0",
+   "draw": "DrawPictSansWhiteObject",
+   "file": "object/8F_kChimes.png",
+   "from": "pict:3961",
+   "h": 74,
+   "kind": "key",
+   "note": "",
+   "srcRect": [
+    0,
+    0,
+    28,
+    74
+   ],
+   "total_px": 2072,
+   "transparent_px": 763,
+   "w": 28,
+   "what": 143
+  }
+ },
+ "sheets": {
+  "appliance": {
+   "alpha": "mask 5005",
+   "art_pict": 4005,
+   "art_size": [
+    80,
+    269
+   ],
+   "gworld": "applianceSrcMap",
+   "gworld_size": "80x269",
+   "mask_pict": 5005,
+   "opaque_px": 15783,
+   "total_px": 21520
+  },
+  "ball": {
+   "alpha": "mask 5014",
+   "art_pict": 4014,
+   "art_size": [
+    32,
+    64
+   ],
+   "gworld": "ballSrcMap",
+   "gworld_size": "32x64",
+   "mask_pict": 5014,
+   "opaque_px": 1524,
+   "total_px": 2048
+  },
+  "balloon": {
+   "alpha": "mask 5011",
+   "art_pict": 4011,
+   "art_size": [
+    24,
+    240
+   ],
+   "gworld": "balloonSrcMap",
+   "gworld_size": "24x240",
+   "mask_pict": 5011,
+   "opaque_px": 3811,
+   "total_px": 5760
+  },
+  "blower": {
+   "alpha": "mask 5000",
+   "art_pict": 4000,
+   "art_size": [
+    48,
+    402
+   ],
+   "gworld": "blowerSrcMap",
+   "gworld_size": "48x402",
+   "mask_pict": 5000,
+   "opaque_px": 9471,
+   "total_px": 19296
+  },
+  "bonus": {
+   "alpha": "mask 5002",
+   "art_pict": 4002,
+   "art_size": [
+    88,
+    378
+   ],
+   "gworld": "bonusSrcMap",
+   "gworld_size": "88x378",
+   "mask_pict": 5002,
+   "opaque_px": 12599,
+   "total_px": 33264
+  },
+  "clutter": {
+   "alpha": "mask 5018",
+   "art_pict": 4018,
+   "art_size": [
+    128,
+    69
+   ],
+   "gworld": "clutterSrcMap",
+   "gworld_size": "128x69",
+   "mask_pict": 5018,
+   "opaque_px": 5043,
+   "total_px": 8832
+  },
+  "copter": {
+   "alpha": "mask 5012",
+   "art_pict": 4012,
+   "art_size": [
+    32,
+    300
+   ],
+   "gworld": "copterSrcMap",
+   "gworld_size": "32x300",
+   "mask_pict": 5012,
+   "opaque_px": 1739,
+   "total_px": 9600
+  },
+  "dart": {
+   "alpha": "mask 5013",
+   "art_pict": 4013,
+   "art_size": [
+    64,
+    76
+   ],
+   "gworld": "dartSrcMap",
+   "gworld_size": "64x76",
+   "mask_pict": 5013,
+   "opaque_px": 2433,
+   "total_px": 4864
+  },
+  "drip": {
+   "alpha": "mask 5015",
+   "art_pict": 4015,
+   "art_size": [
+    16,
+    72
+   ],
+   "gworld": "dripSrcMap",
+   "gworld_size": "16x72",
+   "mask_pict": 5015,
+   "opaque_px": 340,
+   "total_px": 1152
+  },
+  "enemy": {
+   "alpha": "mask 5016",
+   "art_pict": 4016,
+   "art_size": [
+    36,
+    33
+   ],
+   "gworld": "enemySrcMap",
+   "gworld_size": "36x33",
+   "mask_pict": 5016,
+   "opaque_px": 1010,
+   "total_px": 1188
+  },
+  "furniture": {
+   "alpha": "mask 5001",
+   "art_pict": 4001,
+   "art_size": [
+    64,
+    221
+   ],
+   "gworld": "furnitureSrcMap",
+   "gworld_size": "64x278",
+   "mask_pict": 5001,
+   "opaque_px": 8904,
+   "total_px": 14144
+  },
+  "light": {
+   "alpha": "mask 5004",
+   "art_pict": 4004,
+   "art_size": [
+    72,
+    126
+   ],
+   "gworld": "lightSrcMap",
+   "gworld_size": "72x126",
+   "mask_pict": 5004,
+   "opaque_px": 4785,
+   "total_px": 9072
+  },
+  "switch": {
+   "alpha": "opaque (no mask resource exists)",
+   "art_pict": 4003,
+   "art_size": [
+    32,
+    104
+   ],
+   "gworld": "switchSrcMap",
+   "gworld_size": "32x104",
+   "mask_pict": null,
+   "opaque_px": 3328,
+   "total_px": 3328
+  },
+  "trans": {
+   "alpha": "mask 5008",
+   "art_pict": 4008,
+   "art_size": [
+    56,
+    32
+   ],
+   "gworld": "transSrcMap",
+   "gworld_size": "56x32",
+   "mask_pict": 5008,
+   "opaque_px": 1530,
+   "total_px": 1792
+  }
+ },
+ "stats": {
+  "bg": 18,
+  "frames": 1,
+  "key": 21,
+  "misc": 1,
+  "none": 13,
+  "opaq": 9,
+  "pair": 8,
+  "proc": 3,
+  "sheet": 50,
+  "strip": 14,
+  "tmpl": 12,
+  "ui": 38
+ },
+ "strips": {
+  "angel": {
+   "alpha": "mask 1020",
+   "art_pict": 1019,
+   "file": "strip/angel.png",
+   "gworld": "angelSrcMap",
+   "mask_pict": 1020,
+   "opaque_px": 2213,
+   "size": [
+    96,
+    44
+   ],
+   "total_px": 4224
+  },
+  "badge": {
+   "alpha": "opaque (no mask resource)",
+   "art_pict": 1996,
+   "file": "strip/badge.png",
+   "gworld": "badgeSrcMap",
+   "mask_pict": null,
+   "opaque_px": 2112,
+   "size": [
+    32,
+    66
+   ],
+   "total_px": 2112
+  },
+  "bands": {
+   "alpha": "mask 5007",
+   "art_pict": 4007,
+   "file": "strip/bands.png",
+   "gworld": "bandsSrcMap",
+   "mask_pict": 5007,
+   "opaque_px": 161,
+   "size": [
+    16,
+    18
+   ],
+   "total_px": 288
+  },
+  "board": {
+   "alpha": "opaque (no mask resource)",
+   "art_pict": 1997,
+   "file": "strip/board.png",
+   "gworld": "boardSrcMap",
+   "mask_pict": null,
+   "opaque_px": 30720,
+   "size": [
+    1536,
+    20
+   ],
+   "total_px": 30720
+  },
+  "fish": {
+   "alpha": "mask 5017",
+   "art_pict": 4017,
+   "file": "strip/fish.png",
+   "gworld": "fishSrcMap",
+   "mask_pict": 5017,
+   "opaque_px": 1559,
+   "size": [
+    16,
+    128
+   ],
+   "total_px": 2048
+  },
+  "glider": {
+   "alpha": "mask 4999",
+   "art_pict": 3999,
+   "file": "strip/glider.png",
+   "gworld": "glidSrcMap",
+   "mask_pict": 4999,
+   "opaque_px": 13150,
+   "size": [
+    48,
+    668
+   ],
+   "total_px": 32064
+  },
+  "glider2": {
+   "alpha": "mask 4999",
+   "art_pict": 3974,
+   "file": "strip/glider2.png",
+   "gworld": "glid2SrcMap",
+   "mask_pict": 4999,
+   "opaque_px": 13150,
+   "size": [
+    48,
+    668
+   ],
+   "total_px": 32064
+  },
+  "gliderFoil": {
+   "alpha": "mask 4999",
+   "art_pict": 3976,
+   "file": "strip/gliderFoil.png",
+   "gworld": "glidSrcMap",
+   "mask_pict": 4999,
+   "opaque_px": 13150,
+   "size": [
+    48,
+    668
+   ],
+   "total_px": 32064
+  },
+  "gliderFoil2": {
+   "alpha": "mask 4999",
+   "art_pict": 3963,
+   "file": "strip/gliderFoil2.png",
+   "gworld": "glid2SrcMap",
+   "mask_pict": 4999,
+   "opaque_px": 13150,
+   "size": [
+    48,
+    668
+   ],
+   "total_px": 32064
+  },
+  "points": {
+   "alpha": "mask 5006",
+   "art_pict": 4006,
+   "file": "strip/points.png",
+   "gworld": "pointsSrcMap",
+   "mask_pict": 5006,
+   "opaque_px": 1374,
+   "size": [
+    24,
+    120
+   ],
+   "total_px": 2880
+  },
+  "shadow": {
+   "alpha": "mask 4998",
+   "art_pict": 3998,
+   "file": "strip/shadow.png",
+   "gworld": "shadowSrcMap",
+   "mask_pict": 4998,
+   "opaque_px": 550,
+   "size": [
+    48,
+    18
+   ],
+   "total_px": 864
+  },
+  "shred": {
+   "alpha": "mask 5010",
+   "art_pict": 4010,
+   "file": "strip/shred.png",
+   "gworld": "shredSrcMap",
+   "mask_pict": 5010,
+   "opaque_px": 850,
+   "size": [
+    40,
+    35
+   ],
+   "total_px": 1400
+  },
+  "supp": {
+   "alpha": "opaque (no mask resource)",
+   "art_pict": 1999,
+   "file": "strip/supp.png",
+   "gworld": "suppSrcMap",
+   "mask_pict": null,
+   "opaque_px": 22528,
+   "size": [
+    512,
+    44
+   ],
+   "total_px": 22528
+  },
+  "toast": {
+   "alpha": "mask 5009",
+   "art_pict": 4009,
+   "file": "strip/toast.png",
+   "gworld": "toastSrcMap",
+   "mask_pict": 5009,
+   "opaque_px": 3370,
+   "size": [
+    32,
+    174
+   ],
+   "total_px": 5568
+  }
+ },
+ "ui": {
+  "1000": {
+   "alpha": "none",
+   "file": "ui/1000.png",
+   "size": [
+    640,
+    460
+   ]
+  },
+  "1001": {
+   "alpha": "none",
+   "file": "ui/1001.png",
+   "size": [
+    431,
+    32
+   ]
+  },
+  "1002": {
+   "alpha": "none",
+   "file": "ui/1002.png",
+   "size": [
+    257,
+    32
+   ]
+  },
+  "1003": {
+   "alpha": "none",
+   "file": "ui/1003.png",
+   "size": [
+    32,
+    32
+   ]
+  },
+  "1004": {
+   "alpha": "none",
+   "file": "ui/1004.png",
+   "size": [
+    32,
+    32
+   ]
+  },
+  "1005": {
+   "alpha": "none",
+   "file": "ui/1005.png",
+   "size": [
+    313,
+    32
+   ]
+  },
+  "1006": {
+   "alpha": "none",
+   "file": "ui/1006.png",
+   "size": [
+    333,
+    32
+   ]
+  },
+  "1007": {
+   "alpha": "none",
+   "file": "ui/1007.png",
+   "size": [
+    385,
+    32
+   ]
+  },
+  "1008": {
+   "alpha": "none",
+   "file": "ui/1008.png",
+   "size": [
+    316,
+    32
+   ]
+  },
+  "1009": {
+   "alpha": "none",
+   "file": "ui/1009.png",
+   "size": [
+    76,
+    28
+   ]
+  },
+  "1010": {
+   "alpha": "none",
+   "file": "ui/1010.png",
+   "size": [
+    32,
+    380
+   ]
+  },
+  "1011": {
+   "alpha": "none",
+   "file": "ui/1011.png",
+   "size": [
+    360,
+    216
+   ]
+  },
+  "1012": {
+   "alpha": "none",
+   "file": "ui/1012.png",
+   "size": [
+    316,
+    32
+   ]
+  },
+  "1013": {
+   "alpha": "none",
+   "file": "ui/1013.png",
+   "size": [
+    289,
+    32
+   ]
+  },
+  "1014": {
+   "alpha": "none",
+   "file": "ui/1014.png",
+   "size": [
+    316,
+    32
+   ]
+  },
+  "1015": {
+   "alpha": "none",
+   "file": "ui/1015.png",
+   "size": [
+    214,
+    54
+   ]
+  },
+  "1016": {
+   "alpha": "none",
+   "file": "ui/1016.png",
+   "size": [
+    214,
+    54
+   ]
+  },
+  "1017": {
+   "alpha": "none",
+   "file": "ui/1017.png",
+   "size": [
+    256,
+    64
+   ]
+  },
+  "1018": {
+   "alpha": "none",
+   "file": "ui/1018.png",
+   "size": [
+    256,
+    64
+   ]
+  },
+  "1021": {
+   "alpha": "none",
+   "file": "ui/1021.png",
+   "size": [
+    640,
+    460
+   ]
+  },
+  "1022": {
+   "alpha": "none",
+   "file": "ui/1022.png",
+   "size": [
+    279,
+    32
+   ]
+  },
+  "1023": {
+   "alpha": "none",
+   "file": "ui/1023.png",
+   "size": [
+    280,
+    32
+   ]
+  },
+  "1202": {
+   "alpha": "none",
+   "file": "ui/1202.png",
+   "size": [
+    128,
+    80
+   ]
+  },
+  "1211": {
+   "alpha": "none",
+   "file": "ui/1211.png",
+   "size": [
+    128,
+    80
+   ]
+  },
+  "1216": {
+   "alpha": "none",
+   "file": "ui/1216.png",
+   "size": [
+    128,
+    80
+   ]
+  },
+  "1217": {
+   "alpha": "none",
+   "file": "ui/1217.png",
+   "size": [
+    128,
+    80
+   ]
+  },
+  "150": {
+   "alpha": "none",
+   "file": "ui/150.png",
+   "size": [
+    63,
+    63
+   ]
+  },
+  "151": {
+   "alpha": "none",
+   "file": "ui/151.png",
+   "size": [
+    63,
+    63
+   ]
+  },
+  "153": {
+   "alpha": "none",
+   "file": "ui/153.png",
+   "size": [
+    372,
+    100
+   ]
+  },
+  "1988": {
+   "alpha": "none",
+   "file": "ui/1988.png",
+   "size": [
+    25,
+    256
+   ]
+  },
+  "1989": {
+   "alpha": "none",
+   "file": "ui/1989.png",
+   "size": [
+    32,
+    448
+   ]
+  },
+  "1990": {
+   "alpha": "none",
+   "file": "ui/1990.png",
+   "size": [
+    32,
+    448
+   ]
+  },
+  "1991": {
+   "alpha": "none",
+   "file": "ui/1991.png",
+   "size": [
+    330,
+    30
+   ]
+  },
+  "1992": {
+   "alpha": "none",
+   "file": "ui/1992.png",
+   "size": [
+    330,
+    30
+   ]
+  },
+  "1993": {
+   "alpha": "none",
+   "file": "ui/1993.png",
+   "size": [
+    330,
+    190
+   ]
+  },
+  "1994": {
+   "alpha": "none",
+   "file": "ui/1994.png",
+   "size": [
+    332,
+    30
+   ]
+  },
+  "1995": {
+   "alpha": "none",
+   "file": "ui/1995.png",
+   "size": [
+    640,
+    460
+   ]
+  },
+  "1998": {
+   "alpha": "none",
+   "file": "ui/1998.png",
+   "size": [
+    332,
+    30
+   ]
+  }
+ }
+}

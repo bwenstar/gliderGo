@@ -133,8 +133,9 @@ type options struct {
 // are the ones that decide whether a report is even about the same program: which
 // backend was compiled in (the null one draws nothing and is chosen silently by any
 // build without cgo, or off Linux), which Go built it, which OS and architecture, and
-// whether `make assets` has ever run -- a missing asset tree explains a large class
-// of "it starts and there is nothing there" reports on its own.
+// whether the asset trees are where the flags say. That last one is committed, so
+// "missing" means it was deleted or the flag is wrong -- either way it explains a
+// large class of "it starts and there is nothing there" reports on its own.
 //
 // It deliberately does not open a window, load a sound bank or read the preferences,
 // so it answers on a machine where the game itself cannot start.
@@ -155,7 +156,7 @@ func printVersion(o *options) {
 		{"sound", filepath.Join(o.sounds, "manifest.tsv")},
 		{"houses", o.houses},
 	} {
-		state := "missing -- run `make assets`"
+		state := "missing -- `make assets` rebuilds it"
 		if _, err := os.Stat(t.path); err == nil {
 			state = "found"
 		}

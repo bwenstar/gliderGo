@@ -36,5 +36,5 @@ Winsor McCay | the About box (PICT 153), from a "Little Nemo in Slumberland" str
 
 [this port]
 gliderGo | a Go port of the GPL v2 source, 2026
-It ships none of the art, the sounds or the houses above: `make assets` extracts those
-from your own copy of the game, and they stay on your own machine.
+It ships all of the art, the sounds and the houses above, decoded from the released
+source by `make assets` and committed beside it. None of that work is ours.

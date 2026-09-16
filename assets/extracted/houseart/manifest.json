@@ -1,0 +1,10399 @@
+{
+ "bnds_total": 70,
+ "houses": [
+  {
+   "bnds": [],
+   "house": "Art Museum",
+   "picts": [
+    {
+     "bytes": 230,
+     "file": "Art Museum/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 9282,
+     "file": "Art Museum/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 48214,
+     "file": "Art Museum/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 125338,
+     "file": "Art Museum/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 125482,
+     "file": "Art Museum/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 125010,
+     "file": "Art Museum/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 123724,
+     "file": "Art Museum/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 123800,
+     "file": "Art Museum/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 105432,
+     "file": "Art Museum/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 126688,
+     "file": "Art Museum/pict/3006.png",
+     "id": 3006,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 137034,
+     "file": "Art Museum/pict/3007.png",
+     "id": 3007,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 124586,
+     "file": "Art Museum/pict/3008.png",
+     "id": 3008,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 145258,
+     "file": "Art Museum/pict/3009.png",
+     "id": 3009,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 123676,
+     "file": "Art Museum/pict/3010.png",
+     "id": 3010,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 126702,
+     "file": "Art Museum/pict/3011.png",
+     "id": 3011,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 124826,
+     "file": "Art Museum/pict/3012.png",
+     "id": 3012,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 130940,
+     "file": "Art Museum/pict/3013.png",
+     "id": 3013,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 137580,
+     "file": "Art Museum/pict/3014.png",
+     "id": 3014,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 125132,
+     "file": "Art Museum/pict/3015.png",
+     "id": 3015,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 125608,
+     "file": "Art Museum/pict/3016.png",
+     "id": 3016,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 82470,
+     "file": "Art Museum/pict/3017.png",
+     "id": 3017,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 106348,
+     "file": "Art Museum/pict/3018.png",
+     "id": 3018,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 171204,
+     "file": "Art Museum/pict/3019.png",
+     "id": 3019,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 170724,
+     "file": "Art Museum/pict/3020.png",
+     "id": 3020,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 164300,
+     "file": "Art Museum/pict/3021.png",
+     "id": 3021,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 161292,
+     "file": "Art Museum/pict/3022.png",
+     "id": 3022,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 165256,
+     "file": "Art Museum/pict/3023.png",
+     "id": 3023,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 164386,
+     "file": "Art Museum/pict/3024.png",
+     "id": 3024,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 164914,
+     "file": "Art Museum/pict/3025.png",
+     "id": 3025,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 160600,
+     "file": "Art Museum/pict/3026.png",
+     "id": 3026,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 167500,
+     "file": "Art Museum/pict/3027.png",
+     "id": 3027,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 163472,
+     "file": "Art Museum/pict/3028.png",
+     "id": 3028,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 118984,
+     "file": "Art Museum/pict/3029.png",
+     "id": 3029,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 128910,
+     "file": "Art Museum/pict/3030.png",
+     "id": 3030,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 105642,
+     "file": "Art Museum/pict/3031.png",
+     "id": 3031,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 106066,
+     "file": "Art Museum/pict/3032.png",
+     "id": 3032,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 118480,
+     "file": "Art Museum/pict/3033.png",
+     "id": 3033,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 109462,
+     "file": "Art Museum/pict/3034.png",
+     "id": 3034,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 124622,
+     "file": "Art Museum/pict/3035.png",
+     "id": 3035,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 111804,
+     "file": "Art Museum/pict/3036.png",
+     "id": 3036,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 118966,
+     "file": "Art Museum/pict/3037.png",
+     "id": 3037,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 94588,
+     "file": "Art Museum/pict/3038.png",
+     "id": 3038,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 138826,
+     "file": "Art Museum/pict/3039.png",
+     "id": 3039,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 125206,
+     "file": "Art Museum/pict/3040.png",
+     "id": 3040,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 171134,
+     "file": "Art Museum/pict/3041.png",
+     "id": 3041,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 104722,
+     "file": "Art Museum/pict/3042.png",
+     "id": 3042,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 123644,
+     "file": "Art Museum/pict/3043.png",
+     "id": 3043,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 124020,
+     "file": "Art Museum/pict/3044.png",
+     "id": 3044,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 170452,
+     "file": "Art Museum/pict/3045.png",
+     "id": 3045,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 169488,
+     "file": "Art Museum/pict/3046.png",
+     "id": 3046,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 105200,
+     "file": "Art Museum/pict/3047.png",
+     "id": 3047,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 104898,
+     "file": "Art Museum/pict/3048.png",
+     "id": 3048,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 92568,
+     "file": "Art Museum/pict/3049.png",
+     "id": 3049,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 75224,
+     "file": "Art Museum/pict/3050.png",
+     "id": 3050,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 42768,
+     "file": "Art Museum/pict/3051.png",
+     "id": 3051,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 104156,
+     "file": "Art Museum/pict/3052.png",
+     "id": 3052,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 63078,
+     "file": "Art Museum/pict/3053.png",
+     "id": 3053,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2884,
+     "file": "Art Museum/pict/10076.png",
+     "id": 10076,
+     "role": "custom_pict",
+     "size": [
+      39,
+      29
+     ]
+    },
+    {
+     "bytes": 4774,
+     "file": "Art Museum/pict/10077.png",
+     "id": 10077,
+     "role": "custom_pict",
+     "size": [
+      39,
+      144
+     ]
+    },
+    {
+     "bytes": 2794,
+     "file": "Art Museum/pict/10078.png",
+     "id": 10078,
+     "role": "custom_pict",
+     "size": [
+      141,
+      20
+     ]
+    },
+    {
+     "bytes": 17292,
+     "file": "Art Museum/pict/10079.png",
+     "id": 10079,
+     "role": "custom_pict",
+     "size": [
+      59,
+      300
+     ]
+    },
+    {
+     "bytes": 17290,
+     "file": "Art Museum/pict/10080.png",
+     "id": 10080,
+     "role": "custom_pict",
+     "size": [
+      59,
+      300
+     ]
+    },
+    {
+     "bytes": 9814,
+     "file": "Art Museum/pict/10081.png",
+     "id": 10081,
+     "role": "custom_pict",
+     "size": [
+      99,
+      259
+     ]
+    },
+    {
+     "bytes": 2854,
+     "file": "Art Museum/pict/10082.png",
+     "id": 10082,
+     "role": "custom_pict",
+     "size": [
+      27,
+      34
+     ]
+    },
+    {
+     "bytes": 5084,
+     "file": "Art Museum/pict/10083.png",
+     "id": 10083,
+     "role": "custom_pict",
+     "size": [
+      60,
+      147
+     ]
+    },
+    {
+     "bytes": 7826,
+     "file": "Art Museum/pict/10084.png",
+     "id": 10084,
+     "role": "custom_pict",
+     "size": [
+      80,
+      180
+     ]
+    },
+    {
+     "bytes": 2648,
+     "file": "Art Museum/pict/10085.png",
+     "id": 10085,
+     "role": "custom_pict",
+     "size": [
+      21,
+      31
+     ]
+    },
+    {
+     "bytes": 3376,
+     "file": "Art Museum/pict/10086.png",
+     "id": 10086,
+     "role": "custom_pict",
+     "size": [
+      41,
+      44
+     ]
+    },
+    {
+     "bytes": 5254,
+     "file": "Art Museum/pict/10087.png",
+     "id": 10087,
+     "role": "custom_pict",
+     "size": [
+      452,
+      35
+     ]
+    },
+    {
+     "bytes": 51074,
+     "file": "Art Museum/pict/10088.png",
+     "id": 10088,
+     "role": "custom_pict",
+     "size": [
+      163,
+      300
+     ]
+    },
+    {
+     "bytes": 26570,
+     "file": "Art Museum/pict/10089.png",
+     "id": 10089,
+     "role": "custom_pict",
+     "size": [
+      162,
+      151
+     ]
+    },
+    {
+     "bytes": 3904,
+     "file": "Art Museum/pict/10090.png",
+     "id": 10090,
+     "role": "custom_pict",
+     "size": [
+      51,
+      50
+     ]
+    },
+    {
+     "bytes": 3920,
+     "file": "Art Museum/pict/10091.png",
+     "id": 10091,
+     "role": "custom_pict",
+     "size": [
+      51,
+      50
+     ]
+    },
+    {
+     "bytes": 10490,
+     "file": "Art Museum/pict/10092.png",
+     "id": 10092,
+     "role": "custom_pict",
+     "size": [
+      192,
+      56
+     ]
+    },
+    {
+     "bytes": 8170,
+     "file": "Art Museum/pict/10093.png",
+     "id": 10093,
+     "role": "custom_pict",
+     "size": [
+      97,
+      97
+     ]
+    },
+    {
+     "bytes": 8710,
+     "file": "Art Museum/pict/10094.png",
+     "id": 10094,
+     "role": "custom_pict",
+     "size": [
+      97,
+      97
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "CD Demo House",
+   "picts": [
+    {
+     "bytes": 42532,
+     "file": "CD Demo House/pict/3009.png",
+     "id": 3009,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 130114,
+     "file": "CD Demo House/pict/3011.png",
+     "id": 3011,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 69026,
+     "file": "CD Demo House/pict/3100.png",
+     "id": 3100,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 40842,
+     "file": "CD Demo House/pict/3102.png",
+     "id": 3102,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 45584,
+     "file": "CD Demo House/pict/3103.png",
+     "id": 3103,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34598,
+     "file": "CD Demo House/pict/3104.png",
+     "id": 3104,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34524,
+     "file": "CD Demo House/pict/3211.png",
+     "id": 3211,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 26046,
+     "file": "CD Demo House/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 17766,
+     "file": "CD Demo House/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 15058,
+     "file": "CD Demo House/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8410,
+     "file": "CD Demo House/pict/3307.png",
+     "id": 3307,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 86422,
+     "file": "CD Demo House/pict/3308.png",
+     "id": 3308,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 5936,
+     "file": "CD Demo House/pict/3314.png",
+     "id": 3314,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 797,
+     "file": "CD Demo House/pict/3904.png",
+     "id": 3904,
+     "role": "background",
+     "size": [
+      94,
+      80
+     ]
+    },
+    {
+     "bytes": 3794,
+     "file": "CD Demo House/pict/3986.png",
+     "id": 3986,
+     "role": "background",
+     "size": [
+      94,
+      80
+     ]
+    },
+    {
+     "bytes": 2390,
+     "file": "CD Demo House/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      39,
+      9
+     ]
+    },
+    {
+     "bytes": 2608,
+     "file": "CD Demo House/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      58,
+      16
+     ]
+    },
+    {
+     "bytes": 2708,
+     "file": "CD Demo House/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      26,
+      26
+     ]
+    },
+    {
+     "bytes": 3870,
+     "file": "CD Demo House/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      27,
+      80
+     ]
+    },
+    {
+     "bytes": 6184,
+     "file": "CD Demo House/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      83,
+      83
+     ]
+    },
+    {
+     "bytes": 6464,
+     "file": "CD Demo House/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      285,
+      67
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "CD Demo House/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 2580,
+     "file": "CD Demo House/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      90,
+      77
+     ]
+    },
+    {
+     "bytes": 2340,
+     "file": "CD Demo House/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      53,
+      16
+     ]
+    },
+    {
+     "bytes": 2430,
+     "file": "CD Demo House/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      40,
+      35
+     ]
+    },
+    {
+     "bytes": 5906,
+     "file": "CD Demo House/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      64,
+      128
+     ]
+    },
+    {
+     "bytes": 5260,
+     "file": "CD Demo House/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      45,
+      128
+     ]
+    },
+    {
+     "bytes": 9632,
+     "file": "CD Demo House/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      113,
+      166
+     ]
+    },
+    {
+     "bytes": 26768,
+     "file": "CD Demo House/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      399,
+      98
+     ]
+    },
+    {
+     "bytes": 34630,
+     "file": "CD Demo House/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      512,
+      98
+     ]
+    },
+    {
+     "bytes": 9674,
+     "file": "CD Demo House/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      371,
+      57
+     ]
+    },
+    {
+     "bytes": 13056,
+     "file": "CD Demo House/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      141,
+      124
+     ]
+    },
+    {
+     "bytes": 11878,
+     "file": "CD Demo House/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      152,
+      124
+     ]
+    },
+    {
+     "bytes": 4230,
+     "file": "CD Demo House/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      64,
+      49
+     ]
+    },
+    {
+     "bytes": 2632,
+     "file": "CD Demo House/pict/10021.png",
+     "id": 10021,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2856,
+     "file": "CD Demo House/pict/10022.png",
+     "id": 10022,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2686,
+     "file": "CD Demo House/pict/10023.png",
+     "id": 10023,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2532,
+     "file": "CD Demo House/pict/10024.png",
+     "id": 10024,
+     "role": "custom_pict",
+     "size": [
+      46,
+      11
+     ]
+    },
+    {
+     "bytes": 7092,
+     "file": "CD Demo House/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      160,
+      267
+     ]
+    },
+    {
+     "bytes": 6004,
+     "file": "CD Demo House/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      160,
+      267
+     ]
+    },
+    {
+     "bytes": 2564,
+     "file": "CD Demo House/pict/10027.png",
+     "id": 10027,
+     "role": "custom_pict",
+     "size": [
+      29,
+      46
+     ]
+    },
+    {
+     "bytes": 2614,
+     "file": "CD Demo House/pict/10028.png",
+     "id": 10028,
+     "role": "custom_pict",
+     "size": [
+      29,
+      45
+     ]
+    },
+    {
+     "bytes": 6426,
+     "file": "CD Demo House/pict/10029.png",
+     "id": 10029,
+     "role": "custom_pict",
+     "size": [
+      93,
+      73
+     ]
+    },
+    {
+     "bytes": 2464,
+     "file": "CD Demo House/pict/10030.png",
+     "id": 10030,
+     "role": "custom_pict",
+     "size": [
+      34,
+      14
+     ]
+    },
+    {
+     "bytes": 2520,
+     "file": "CD Demo House/pict/10031.png",
+     "id": 10031,
+     "role": "custom_pict",
+     "size": [
+      14,
+      31
+     ]
+    },
+    {
+     "bytes": 22870,
+     "file": "CD Demo House/pict/10050.png",
+     "id": 10050,
+     "role": "custom_pict",
+     "size": [
+      81,
+      322
+     ]
+    },
+    {
+     "bytes": 22856,
+     "file": "CD Demo House/pict/10051.png",
+     "id": 10051,
+     "role": "custom_pict",
+     "size": [
+      81,
+      322
+     ]
+    },
+    {
+     "bytes": 132950,
+     "file": "CD Demo House/pict/10053.png",
+     "id": 10053,
+     "role": "custom_pict",
+     "size": [
+      512,
+      276
+     ]
+    },
+    {
+     "bytes": 7158,
+     "file": "CD Demo House/pict/10054.png",
+     "id": 10054,
+     "role": "custom_pict",
+     "size": [
+      11,
+      276
+     ]
+    },
+    {
+     "bytes": 6622,
+     "file": "CD Demo House/pict/10055.png",
+     "id": 10055,
+     "role": "custom_pict",
+     "size": [
+      10,
+      276
+     ]
+    },
+    {
+     "bytes": 3400,
+     "file": "CD Demo House/pict/10056.png",
+     "id": 10056,
+     "role": "custom_pict",
+     "size": [
+      96,
+      21
+     ]
+    },
+    {
+     "bytes": 16002,
+     "file": "CD Demo House/pict/10057.png",
+     "id": 10057,
+     "role": "custom_pict",
+     "size": [
+      342,
+      51
+     ]
+    },
+    {
+     "bytes": 72034,
+     "file": "CD Demo House/pict/10058.png",
+     "id": 10058,
+     "role": "custom_pict",
+     "size": [
+      342,
+      211
+     ]
+    },
+    {
+     "bytes": 3116,
+     "file": "CD Demo House/pict/10059.png",
+     "id": 10059,
+     "role": "custom_pict",
+     "size": [
+      73,
+      24
+     ]
+    },
+    {
+     "bytes": 24990,
+     "file": "CD Demo House/pict/10060.png",
+     "id": 10060,
+     "role": "custom_pict",
+     "size": [
+      192,
+      265
+     ]
+    },
+    {
+     "bytes": 2786,
+     "file": "CD Demo House/pict/10061.png",
+     "id": 10061,
+     "role": "custom_pict",
+     "size": [
+      51,
+      24
+     ]
+    },
+    {
+     "bytes": 7750,
+     "file": "CD Demo House/pict/10062.png",
+     "id": 10062,
+     "role": "custom_pict",
+     "size": [
+      512,
+      28
+     ]
+    },
+    {
+     "bytes": 10070,
+     "file": "CD Demo House/pict/10063.png",
+     "id": 10063,
+     "role": "custom_pict",
+     "size": [
+      512,
+      29
+     ]
+    },
+    {
+     "bytes": 8672,
+     "file": "CD Demo House/pict/10064.png",
+     "id": 10064,
+     "role": "custom_pict",
+     "size": [
+      23,
+      322
+     ]
+    },
+    {
+     "bytes": 9480,
+     "file": "CD Demo House/pict/10065.png",
+     "id": 10065,
+     "role": "custom_pict",
+     "size": [
+      23,
+      322
+     ]
+    },
+    {
+     "bytes": 9350,
+     "file": "CD Demo House/pict/10066.png",
+     "id": 10066,
+     "role": "custom_pict",
+     "size": [
+      23,
+      322
+     ]
+    },
+    {
+     "bytes": 9340,
+     "file": "CD Demo House/pict/10067.png",
+     "id": 10067,
+     "role": "custom_pict",
+     "size": [
+      23,
+      322
+     ]
+    },
+    {
+     "bytes": 2884,
+     "file": "CD Demo House/pict/10076.png",
+     "id": 10076,
+     "role": "custom_pict",
+     "size": [
+      39,
+      29
+     ]
+    },
+    {
+     "bytes": 4774,
+     "file": "CD Demo House/pict/10077.png",
+     "id": 10077,
+     "role": "custom_pict",
+     "size": [
+      39,
+      144
+     ]
+    },
+    {
+     "bytes": 2794,
+     "file": "CD Demo House/pict/10078.png",
+     "id": 10078,
+     "role": "custom_pict",
+     "size": [
+      141,
+      20
+     ]
+    },
+    {
+     "bytes": 17292,
+     "file": "CD Demo House/pict/10079.png",
+     "id": 10079,
+     "role": "custom_pict",
+     "size": [
+      59,
+      300
+     ]
+    },
+    {
+     "bytes": 17290,
+     "file": "CD Demo House/pict/10080.png",
+     "id": 10080,
+     "role": "custom_pict",
+     "size": [
+      59,
+      300
+     ]
+    },
+    {
+     "bytes": 9814,
+     "file": "CD Demo House/pict/10081.png",
+     "id": 10081,
+     "role": "custom_pict",
+     "size": [
+      99,
+      259
+     ]
+    },
+    {
+     "bytes": 2854,
+     "file": "CD Demo House/pict/10082.png",
+     "id": 10082,
+     "role": "custom_pict",
+     "size": [
+      27,
+      34
+     ]
+    },
+    {
+     "bytes": 5084,
+     "file": "CD Demo House/pict/10083.png",
+     "id": 10083,
+     "role": "custom_pict",
+     "size": [
+      60,
+      147
+     ]
+    },
+    {
+     "bytes": 2750,
+     "file": "CD Demo House/pict/10084.png",
+     "id": 10084,
+     "role": "custom_pict",
+     "size": [
+      16,
+      43
+     ]
+    },
+    {
+     "bytes": 8084,
+     "file": "CD Demo House/pict/10085.png",
+     "id": 10085,
+     "role": "custom_pict",
+     "size": [
+      16,
+      322
+     ]
+    },
+    {
+     "bytes": 7746,
+     "file": "CD Demo House/pict/10086.png",
+     "id": 10086,
+     "role": "custom_pict",
+     "size": [
+      22,
+      322
+     ]
+    },
+    {
+     "bytes": 4974,
+     "file": "CD Demo House/pict/10087.png",
+     "id": 10087,
+     "role": "custom_pict",
+     "size": [
+      167,
+      113
+     ]
+    },
+    {
+     "bytes": 6006,
+     "file": "CD Demo House/pict/10088.png",
+     "id": 10088,
+     "role": "custom_pict",
+     "size": [
+      167,
+      153
+     ]
+    },
+    {
+     "bytes": 5398,
+     "file": "CD Demo House/pict/10089.png",
+     "id": 10089,
+     "role": "custom_pict",
+     "size": [
+      38,
+      153
+     ]
+    },
+    {
+     "bytes": 4508,
+     "file": "CD Demo House/pict/10090.png",
+     "id": 10090,
+     "role": "custom_pict",
+     "size": [
+      43,
+      113
+     ]
+    },
+    {
+     "bytes": 2294,
+     "file": "CD Demo House/pict/10091.png",
+     "id": 10091,
+     "role": "custom_pict",
+     "size": [
+      15,
+      33
+     ]
+    },
+    {
+     "bytes": 2698,
+     "file": "CD Demo House/pict/10100.png",
+     "id": 10100,
+     "role": "custom_pict",
+     "size": [
+      43,
+      20
+     ]
+    },
+    {
+     "bytes": 2656,
+     "file": "CD Demo House/pict/10101.png",
+     "id": 10101,
+     "role": "custom_pict",
+     "size": [
+      41,
+      20
+     ]
+    },
+    {
+     "bytes": 2512,
+     "file": "CD Demo House/pict/10102.png",
+     "id": 10102,
+     "role": "custom_pict",
+     "size": [
+      59,
+      13
+     ]
+    },
+    {
+     "bytes": 2612,
+     "file": "CD Demo House/pict/10103.png",
+     "id": 10103,
+     "role": "custom_pict",
+     "size": [
+      42,
+      20
+     ]
+    },
+    {
+     "bytes": 2418,
+     "file": "CD Demo House/pict/10104.png",
+     "id": 10104,
+     "role": "custom_pict",
+     "size": [
+      40,
+      11
+     ]
+    },
+    {
+     "bytes": 2588,
+     "file": "CD Demo House/pict/10105.png",
+     "id": 10105,
+     "role": "custom_pict",
+     "size": [
+      45,
+      20
+     ]
+    },
+    {
+     "bytes": 2500,
+     "file": "CD Demo House/pict/10107.png",
+     "id": 10107,
+     "role": "custom_pict",
+     "size": [
+      55,
+      11
+     ]
+    },
+    {
+     "bytes": 2606,
+     "file": "CD Demo House/pict/10108.png",
+     "id": 10108,
+     "role": "custom_pict",
+     "size": [
+      31,
+      18
+     ]
+    },
+    {
+     "bytes": 2510,
+     "file": "CD Demo House/pict/10109.png",
+     "id": 10109,
+     "role": "custom_pict",
+     "size": [
+      54,
+      9
+     ]
+    },
+    {
+     "bytes": 2710,
+     "file": "CD Demo House/pict/10110.png",
+     "id": 10110,
+     "role": "custom_pict",
+     "size": [
+      28,
+      27
+     ]
+    },
+    {
+     "bytes": 2214,
+     "file": "CD Demo House/pict/11003.png",
+     "id": 11003,
+     "role": "custom_pict",
+     "size": [
+      3,
+      3
+     ]
+    },
+    {
+     "bytes": 2222,
+     "file": "CD Demo House/pict/11004.png",
+     "id": 11004,
+     "role": "custom_pict",
+     "size": [
+      3,
+      3
+     ]
+    },
+    {
+     "bytes": 2258,
+     "file": "CD Demo House/pict/11005.png",
+     "id": 11005,
+     "role": "custom_pict",
+     "size": [
+      5,
+      7
+     ]
+    },
+    {
+     "bytes": 2320,
+     "file": "CD Demo House/pict/11006.png",
+     "id": 11006,
+     "role": "custom_pict",
+     "size": [
+      60,
+      9
+     ]
+    },
+    {
+     "bytes": 2734,
+     "file": "CD Demo House/pict/11007.png",
+     "id": 11007,
+     "role": "custom_pict",
+     "size": [
+      21,
+      46
+     ]
+    },
+    {
+     "bytes": 2806,
+     "file": "CD Demo House/pict/11008.png",
+     "id": 11008,
+     "role": "custom_pict",
+     "size": [
+      21,
+      46
+     ]
+    },
+    {
+     "bytes": 3448,
+     "file": "CD Demo House/pict/11009.png",
+     "id": 11009,
+     "role": "custom_pict",
+     "size": [
+      64,
+      46
+     ]
+    },
+    {
+     "bytes": 3024,
+     "file": "CD Demo House/pict/11010.png",
+     "id": 11010,
+     "role": "custom_pict",
+     "size": [
+      64,
+      46
+     ]
+    },
+    {
+     "bytes": 2690,
+     "file": "CD Demo House/pict/11011.png",
+     "id": 11011,
+     "role": "custom_pict",
+     "size": [
+      64,
+      7
+     ]
+    },
+    {
+     "bytes": 9028,
+     "file": "CD Demo House/pict/11012.png",
+     "id": 11012,
+     "role": "custom_pict",
+     "size": [
+      40,
+      322
+     ]
+    },
+    {
+     "bytes": 8508,
+     "file": "CD Demo House/pict/11013.png",
+     "id": 11013,
+     "role": "custom_pict",
+     "size": [
+      40,
+      322
+     ]
+    },
+    {
+     "bytes": 3360,
+     "file": "CD Demo House/pict/11014.png",
+     "id": 11014,
+     "role": "custom_pict",
+     "size": [
+      64,
+      46
+     ]
+    },
+    {
+     "bytes": 4090,
+     "file": "CD Demo House/pict/11015.png",
+     "id": 11015,
+     "role": "custom_pict",
+     "size": [
+      128,
+      47
+     ]
+    },
+    {
+     "bytes": 3204,
+     "file": "CD Demo House/pict/11016.png",
+     "id": 11016,
+     "role": "custom_pict",
+     "size": [
+      64,
+      31
+     ]
+    },
+    {
+     "bytes": 4028,
+     "file": "CD Demo House/pict/11017.png",
+     "id": 11017,
+     "role": "custom_pict",
+     "size": [
+      128,
+      31
+     ]
+    },
+    {
+     "bytes": 11134,
+     "file": "CD Demo House/pict/11018.png",
+     "id": 11018,
+     "role": "custom_pict",
+     "size": [
+      147,
+      138
+     ]
+    },
+    {
+     "bytes": 6038,
+     "file": "CD Demo House/pict/11019.png",
+     "id": 11019,
+     "role": "custom_pict",
+     "size": [
+      108,
+      63
+     ]
+    },
+    {
+     "bytes": 4808,
+     "file": "CD Demo House/pict/11021.png",
+     "id": 11021,
+     "role": "custom_pict",
+     "size": [
+      100,
+      36
+     ]
+    },
+    {
+     "bytes": 35398,
+     "file": "CD Demo House/pict/11022.png",
+     "id": 11022,
+     "role": "custom_pict",
+     "size": [
+      144,
+      322
+     ]
+    },
+    {
+     "bytes": 3794,
+     "file": "CD Demo House/pict/11023.png",
+     "id": 11023,
+     "role": "custom_pict",
+     "size": [
+      100,
+      20
+     ]
+    },
+    {
+     "bytes": 5878,
+     "file": "CD Demo House/pict/11024.png",
+     "id": 11024,
+     "role": "custom_pict",
+     "size": [
+      72,
+      58
+     ]
+    },
+    {
+     "bytes": 3782,
+     "file": "CD Demo House/pict/11025.png",
+     "id": 11025,
+     "role": "custom_pict",
+     "size": [
+      61,
+      61
+     ]
+    },
+    {
+     "bytes": 4504,
+     "file": "CD Demo House/pict/11026.png",
+     "id": 11026,
+     "role": "custom_pict",
+     "size": [
+      53,
+      94
+     ]
+    },
+    {
+     "bytes": 2658,
+     "file": "CD Demo House/pict/11027.png",
+     "id": 11027,
+     "role": "custom_pict",
+     "size": [
+      21,
+      20
+     ]
+    },
+    {
+     "bytes": 3186,
+     "file": "CD Demo House/pict/11028.png",
+     "id": 11028,
+     "role": "custom_pict",
+     "size": [
+      51,
+      22
+     ]
+    },
+    {
+     "bytes": 4386,
+     "file": "CD Demo House/pict/11029.png",
+     "id": 11029,
+     "role": "custom_pict",
+     "size": [
+      95,
+      37
+     ]
+    },
+    {
+     "bytes": 4390,
+     "file": "CD Demo House/pict/11030.png",
+     "id": 11030,
+     "role": "custom_pict",
+     "size": [
+      108,
+      33
+     ]
+    },
+    {
+     "bytes": 2922,
+     "file": "CD Demo House/pict/11031.png",
+     "id": 11031,
+     "role": "custom_pict",
+     "size": [
+      28,
+      24
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "California or Bust!",
+   "picts": [
+    {
+     "bytes": 39128,
+     "file": "California or Bust!/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2598,
+     "file": "California or Bust!/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      31,
+      30
+     ]
+    },
+    {
+     "bytes": 10018,
+     "file": "California or Bust!/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      368,
+      69
+     ]
+    },
+    {
+     "bytes": 3872,
+     "file": "California or Bust!/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      368,
+      47
+     ]
+    },
+    {
+     "bytes": 6268,
+     "file": "California or Bust!/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      368,
+      46
+     ]
+    },
+    {
+     "bytes": 11336,
+     "file": "California or Bust!/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      144,
+      98
+     ]
+    },
+    {
+     "bytes": 11950,
+     "file": "California or Bust!/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      144,
+      99
+     ]
+    },
+    {
+     "bytes": 11352,
+     "file": "California or Bust!/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      144,
+      98
+     ]
+    },
+    {
+     "bytes": 11954,
+     "file": "California or Bust!/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      144,
+      98
+     ]
+    },
+    {
+     "bytes": 22224,
+     "file": "California or Bust!/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      295,
+      125
+     ]
+    },
+    {
+     "bytes": 4398,
+     "file": "California or Bust!/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      142,
+      68
+     ]
+    },
+    {
+     "bytes": 5804,
+     "file": "California or Bust!/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      108,
+      63
+     ]
+    },
+    {
+     "bytes": 2678,
+     "file": "California or Bust!/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      29,
+      23
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "California or Bust!/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 2608,
+     "file": "California or Bust!/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      58,
+      16
+     ]
+    },
+    {
+     "bytes": 4224,
+     "file": "California or Bust!/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      68,
+      78
+     ]
+    },
+    {
+     "bytes": 3138,
+     "file": "California or Bust!/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      70,
+      31
+     ]
+    },
+    {
+     "bytes": 2638,
+     "file": "California or Bust!/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      60,
+      25
+     ]
+    },
+    {
+     "bytes": 5408,
+     "file": "California or Bust!/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      11,
+      185
+     ]
+    },
+    {
+     "bytes": 10638,
+     "file": "California or Bust!/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      209,
+      197
+     ]
+    },
+    {
+     "bytes": 3392,
+     "file": "California or Bust!/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      78,
+      79
+     ]
+    },
+    {
+     "bytes": 4822,
+     "file": "California or Bust!/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      126,
+      64
+     ]
+    },
+    {
+     "bytes": 4500,
+     "file": "California or Bust!/pict/10021.png",
+     "id": 10021,
+     "role": "custom_pict",
+     "size": [
+      105,
+      77
+     ]
+    },
+    {
+     "bytes": 3044,
+     "file": "California or Bust!/pict/10022.png",
+     "id": 10022,
+     "role": "custom_pict",
+     "size": [
+      52,
+      52
+     ]
+    },
+    {
+     "bytes": 12554,
+     "file": "California or Bust!/pict/10023.png",
+     "id": 10023,
+     "role": "custom_pict",
+     "size": [
+      165,
+      209
+     ]
+    },
+    {
+     "bytes": 2816,
+     "file": "California or Bust!/pict/10024.png",
+     "id": 10024,
+     "role": "custom_pict",
+     "size": [
+      32,
+      32
+     ]
+    },
+    {
+     "bytes": 4084,
+     "file": "California or Bust!/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      116,
+      57
+     ]
+    },
+    {
+     "bytes": 2302,
+     "file": "California or Bust!/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      30,
+      6
+     ]
+    },
+    {
+     "bytes": 5222,
+     "file": "California or Bust!/pict/10027.png",
+     "id": 10027,
+     "role": "custom_pict",
+     "size": [
+      216,
+      108
+     ]
+    },
+    {
+     "bytes": 2820,
+     "file": "California or Bust!/pict/10028.png",
+     "id": 10028,
+     "role": "custom_pict",
+     "size": [
+      40,
+      57
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3000,
+     "rect": [
+      256,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      257,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3002,
+     "rect": [
+      256,
+      256,
+      0,
+      -24146
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3003,
+     "rect": [
+      257,
+      257,
+      0,
+      27854
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3300,
+     "rect": [
+      257,
+      256,
+      0,
+      14266
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      257,
+      257,
+      0,
+      -17364
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3302,
+     "rect": [
+      257,
+      256,
+      0,
+      256
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3303,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3304,
+     "rect": [
+      256,
+      256,
+      0,
+      -19532
+     ]
+    }
+   ],
+   "house": "Castle o' the Air",
+   "picts": [
+    {
+     "bytes": 36796,
+     "file": "Castle o' the Air/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 21104,
+     "file": "Castle o' the Air/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 33614,
+     "file": "Castle o' the Air/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 41390,
+     "file": "Castle o' the Air/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 14266,
+     "file": "Castle o' the Air/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 24124,
+     "file": "Castle o' the Air/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 48172,
+     "file": "Castle o' the Air/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 27854,
+     "file": "Castle o' the Air/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 46004,
+     "file": "Castle o' the Air/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 3494,
+     "file": "Castle o' the Air/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      94,
+      80
+     ]
+    },
+    {
+     "bytes": 3862,
+     "file": "Castle o' the Air/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      94,
+      80
+     ]
+    },
+    {
+     "bytes": 2626,
+     "file": "Castle o' the Air/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      4,
+      110
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Davis Station",
+   "picts": [
+    {
+     "bytes": 165,
+     "file": "Davis Station/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 11764,
+     "file": "Davis Station/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 64486,
+     "file": "Davis Station/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 38842,
+     "file": "Davis Station/pict/3207.png",
+     "id": 3207,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 45176,
+     "file": "Davis Station/pict/3208.png",
+     "id": 3208,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 57846,
+     "file": "Davis Station/pict/3209.png",
+     "id": 3209,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 55416,
+     "file": "Davis Station/pict/3210.png",
+     "id": 3210,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34524,
+     "file": "Davis Station/pict/3211.png",
+     "id": 3211,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 32282,
+     "file": "Davis Station/pict/3212.png",
+     "id": 3212,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 53466,
+     "file": "Davis Station/pict/3213.png",
+     "id": 3213,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 47522,
+     "file": "Davis Station/pict/3214.png",
+     "id": 3214,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 50356,
+     "file": "Davis Station/pict/3215.png",
+     "id": 3215,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 108196,
+     "file": "Davis Station/pict/3216.png",
+     "id": 3216,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 69340,
+     "file": "Davis Station/pict/3217.png",
+     "id": 3217,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 84488,
+     "file": "Davis Station/pict/3218.png",
+     "id": 3218,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 74970,
+     "file": "Davis Station/pict/3219.png",
+     "id": 3219,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 75018,
+     "file": "Davis Station/pict/3220.png",
+     "id": 3220,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 83350,
+     "file": "Davis Station/pict/3221.png",
+     "id": 3221,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 56226,
+     "file": "Davis Station/pict/3222.png",
+     "id": 3222,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 40676,
+     "file": "Davis Station/pict/3223.png",
+     "id": 3223,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 86516,
+     "file": "Davis Station/pict/3224.png",
+     "id": 3224,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 73196,
+     "file": "Davis Station/pict/3225.png",
+     "id": 3225,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 57854,
+     "file": "Davis Station/pict/3226.png",
+     "id": 3226,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 58672,
+     "file": "Davis Station/pict/3227.png",
+     "id": 3227,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 41004,
+     "file": "Davis Station/pict/3228.png",
+     "id": 3228,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 52168,
+     "file": "Davis Station/pict/3229.png",
+     "id": 3229,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 52374,
+     "file": "Davis Station/pict/3230.png",
+     "id": 3230,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 15866,
+     "file": "Davis Station/pict/3231.png",
+     "id": 3231,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 20600,
+     "file": "Davis Station/pict/3232.png",
+     "id": 3232,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 26012,
+     "file": "Davis Station/pict/3233.png",
+     "id": 3233,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 16636,
+     "file": "Davis Station/pict/3234.png",
+     "id": 3234,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13654,
+     "file": "Davis Station/pict/3235.png",
+     "id": 3235,
+     "role": "background",
+     "size": [
+      512,
+      323
+     ]
+    },
+    {
+     "bytes": 45874,
+     "file": "Davis Station/pict/3236.png",
+     "id": 3236,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2390,
+     "file": "Davis Station/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      39,
+      9
+     ]
+    },
+    {
+     "bytes": 2608,
+     "file": "Davis Station/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      58,
+      16
+     ]
+    },
+    {
+     "bytes": 2708,
+     "file": "Davis Station/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      26,
+      26
+     ]
+    },
+    {
+     "bytes": 3870,
+     "file": "Davis Station/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      27,
+      80
+     ]
+    },
+    {
+     "bytes": 6184,
+     "file": "Davis Station/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      83,
+      83
+     ]
+    },
+    {
+     "bytes": 6464,
+     "file": "Davis Station/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      285,
+      67
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "Davis Station/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 3262,
+     "file": "Davis Station/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      61,
+      108
+     ]
+    },
+    {
+     "bytes": 2898,
+     "file": "Davis Station/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      24,
+      47
+     ]
+    },
+    {
+     "bytes": 2960,
+     "file": "Davis Station/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      49,
+      45
+     ]
+    },
+    {
+     "bytes": 2340,
+     "file": "Davis Station/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      53,
+      16
+     ]
+    },
+    {
+     "bytes": 5130,
+     "file": "Davis Station/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      95,
+      97
+     ]
+    },
+    {
+     "bytes": 3138,
+     "file": "Davis Station/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      70,
+      31
+     ]
+    },
+    {
+     "bytes": 4224,
+     "file": "Davis Station/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      68,
+      78
+     ]
+    },
+    {
+     "bytes": 22420,
+     "file": "Davis Station/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      140,
+      186
+     ]
+    },
+    {
+     "bytes": 5306,
+     "file": "Davis Station/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      84,
+      118
+     ]
+    },
+    {
+     "bytes": 9534,
+     "file": "Davis Station/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      124,
+      228
+     ]
+    },
+    {
+     "bytes": 3004,
+     "file": "Davis Station/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      39,
+      60
+     ]
+    },
+    {
+     "bytes": 2666,
+     "file": "Davis Station/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      19,
+      27
+     ]
+    },
+    {
+     "bytes": 4316,
+     "file": "Davis Station/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      90,
+      77
+     ]
+    },
+    {
+     "bytes": 3174,
+     "file": "Davis Station/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      7,
+      116
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3000,
+     "rect": [
+      0,
+      256,
+      0,
+      -15404
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      256,
+      256,
+      0,
+      14718
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3002,
+     "rect": [
+      256,
+      256,
+      0,
+      20872
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3003,
+     "rect": [
+      256,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3004,
+     "rect": [
+      256,
+      0,
+      1,
+      8496
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3005,
+     "rect": [
+      0,
+      0,
+      1,
+      -30640
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3300,
+     "rect": [
+      1,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      1,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3302,
+     "rect": [
+      257,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3303,
+     "rect": [
+      257,
+      256,
+      0,
+      -19306
+     ]
+    }
+   ],
+   "house": "Demo House",
+   "picts": [
+    {
+     "bytes": 26392,
+     "file": "Demo House/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 50132,
+     "file": "Demo House/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 14718,
+     "file": "Demo House/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 100432,
+     "file": "Demo House/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 20872,
+     "file": "Demo House/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 74032,
+     "file": "Demo House/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 15884,
+     "file": "Demo House/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 40676,
+     "file": "Demo House/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 48342,
+     "file": "Demo House/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 46230,
+     "file": "Demo House/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2898,
+     "file": "Demo House/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      24,
+      47
+     ]
+    },
+    {
+     "bytes": 5130,
+     "file": "Demo House/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      95,
+      97
+     ]
+    },
+    {
+     "bytes": 3138,
+     "file": "Demo House/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      70,
+      31
+     ]
+    },
+    {
+     "bytes": 22420,
+     "file": "Demo House/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      140,
+      186
+     ]
+    },
+    {
+     "bytes": 3004,
+     "file": "Demo House/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      39,
+      60
+     ]
+    },
+    {
+     "bytes": 2666,
+     "file": "Demo House/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      19,
+      27
+     ]
+    },
+    {
+     "bytes": 3186,
+     "file": "Demo House/pict/10036.png",
+     "id": 10036,
+     "role": "custom_pict",
+     "size": [
+      51,
+      22
+     ]
+    },
+    {
+     "bytes": 3116,
+     "file": "Demo House/pict/10049.png",
+     "id": 10049,
+     "role": "custom_pict",
+     "size": [
+      42,
+      29
+     ]
+    },
+    {
+     "bytes": 2770,
+     "file": "Demo House/pict/10065.png",
+     "id": 10065,
+     "role": "custom_pict",
+     "size": [
+      36,
+      23
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Empty House",
+   "picts": [],
+   "types": [
+    "ICN#",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Fun House",
+   "picts": [
+    {
+     "bytes": 209,
+     "file": "Fun House/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 8142,
+     "file": "Fun House/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 36614,
+     "file": "Fun House/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 75130,
+     "file": "Fun House/pict/2014.png",
+     "id": 2014,
+     "role": "app_override",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 23746,
+     "file": "Fun House/pict/2015.png",
+     "id": 2015,
+     "role": "app_override",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 30086,
+     "file": "Fun House/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 96904,
+     "file": "Fun House/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 99480,
+     "file": "Fun House/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 39610,
+     "file": "Fun House/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 81288,
+     "file": "Fun House/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 32764,
+     "file": "Fun House/pict/3352.png",
+     "id": 3352,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 33150,
+     "file": "Fun House/pict/3353.png",
+     "id": 3353,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8642,
+     "file": "Fun House/pict/3976.png",
+     "id": 3976,
+     "role": "background",
+     "size": [
+      48,
+      668
+     ]
+    },
+    {
+     "bytes": 2690,
+     "file": "Fun House/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      29,
+      29
+     ]
+    },
+    {
+     "bytes": 2824,
+     "file": "Fun House/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      29,
+      29
+     ]
+    },
+    {
+     "bytes": 10482,
+     "file": "Fun House/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      160,
+      267
+     ]
+    },
+    {
+     "bytes": 38044,
+     "file": "Fun House/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 5986,
+     "file": "Fun House/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      160,
+      267
+     ]
+    },
+    {
+     "bytes": 8038,
+     "file": "Fun House/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      129,
+      96
+     ]
+    },
+    {
+     "bytes": 2816,
+     "file": "Fun House/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      64,
+      33
+     ]
+    },
+    {
+     "bytes": 2828,
+     "file": "Fun House/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      64,
+      33
+     ]
+    },
+    {
+     "bytes": 4104,
+     "file": "Fun House/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      64,
+      33
+     ]
+    },
+    {
+     "bytes": 2852,
+     "file": "Fun House/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      46,
+      26
+     ]
+    },
+    {
+     "bytes": 2892,
+     "file": "Fun House/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      27,
+      30
+     ]
+    },
+    {
+     "bytes": 8074,
+     "file": "Fun House/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      110,
+      81
+     ]
+    },
+    {
+     "bytes": 1700,
+     "file": "Fun House/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      62,
+      76
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Grand Prix",
+   "picts": [
+    {
+     "bytes": 2758,
+     "file": "Grand Prix/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 3286,
+     "file": "Grand Prix/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 10368,
+     "file": "Grand Prix/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 82742,
+     "file": "Grand Prix/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 30774,
+     "file": "Grand Prix/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 22836,
+     "file": "Grand Prix/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 29890,
+     "file": "Grand Prix/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 71340,
+     "file": "Grand Prix/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 64650,
+     "file": "Grand Prix/pict/3006.png",
+     "id": 3006,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 90770,
+     "file": "Grand Prix/pict/3007.png",
+     "id": 3007,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 51036,
+     "file": "Grand Prix/pict/3008.png",
+     "id": 3008,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 78210,
+     "file": "Grand Prix/pict/3009.png",
+     "id": 3009,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 16996,
+     "file": "Grand Prix/pict/3010.png",
+     "id": 3010,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8322,
+     "file": "Grand Prix/pict/3011.png",
+     "id": 3011,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8116,
+     "file": "Grand Prix/pict/3012.png",
+     "id": 3012,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 12448,
+     "file": "Grand Prix/pict/3013.png",
+     "id": 3013,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8312,
+     "file": "Grand Prix/pict/3014.png",
+     "id": 3014,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8500,
+     "file": "Grand Prix/pict/3015.png",
+     "id": 3015,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 9848,
+     "file": "Grand Prix/pict/3016.png",
+     "id": 3016,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34252,
+     "file": "Grand Prix/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 36026,
+     "file": "Grand Prix/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 17612,
+     "file": "Grand Prix/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 30758,
+     "file": "Grand Prix/pict/3305.png",
+     "id": 3305,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 30478,
+     "file": "Grand Prix/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 20062,
+     "file": "Grand Prix/pict/3307.png",
+     "id": 3307,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 20532,
+     "file": "Grand Prix/pict/3308.png",
+     "id": 3308,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13416,
+     "file": "Grand Prix/pict/3309.png",
+     "id": 3309,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13868,
+     "file": "Grand Prix/pict/3310.png",
+     "id": 3310,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 19820,
+     "file": "Grand Prix/pict/3311.png",
+     "id": 3311,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 18194,
+     "file": "Grand Prix/pict/3312.png",
+     "id": 3312,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 3212,
+     "file": "Grand Prix/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      79,
+      79
+     ]
+    },
+    {
+     "bytes": 3404,
+     "file": "Grand Prix/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      58,
+      59
+     ]
+    },
+    {
+     "bytes": 3702,
+     "file": "Grand Prix/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      91,
+      91
+     ]
+    },
+    {
+     "bytes": 3666,
+     "file": "Grand Prix/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      54,
+      68
+     ]
+    },
+    {
+     "bytes": 3448,
+     "file": "Grand Prix/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      56,
+      68
+     ]
+    },
+    {
+     "bytes": 3218,
+     "file": "Grand Prix/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      59,
+      55
+     ]
+    },
+    {
+     "bytes": 3660,
+     "file": "Grand Prix/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      59,
+      60
+     ]
+    },
+    {
+     "bytes": 3402,
+     "file": "Grand Prix/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      109,
+      87
+     ]
+    },
+    {
+     "bytes": 3122,
+     "file": "Grand Prix/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      58,
+      58
+     ]
+    },
+    {
+     "bytes": 2638,
+     "file": "Grand Prix/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      60,
+      25
+     ]
+    },
+    {
+     "bytes": 15942,
+     "file": "Grand Prix/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      286,
+      136
+     ]
+    },
+    {
+     "bytes": 11766,
+     "file": "Grand Prix/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      268,
+      223
+     ]
+    },
+    {
+     "bytes": 16100,
+     "file": "Grand Prix/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      268,
+      223
+     ]
+    },
+    {
+     "bytes": 3738,
+     "file": "Grand Prix/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      82,
+      39
+     ]
+    },
+    {
+     "bytes": 3968,
+     "file": "Grand Prix/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      118,
+      67
+     ]
+    },
+    {
+     "bytes": 4714,
+     "file": "Grand Prix/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      117,
+      117
+     ]
+    },
+    {
+     "bytes": 5014,
+     "file": "Grand Prix/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      117,
+      117
+     ]
+    },
+    {
+     "bytes": 4304,
+     "file": "Grand Prix/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      85,
+      118
+     ]
+    },
+    {
+     "bytes": 4366,
+     "file": "Grand Prix/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      85,
+      118
+     ]
+    },
+    {
+     "bytes": 9718,
+     "file": "Grand Prix/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      175,
+      251
+     ]
+    },
+    {
+     "bytes": 6310,
+     "file": "Grand Prix/pict/10100.png",
+     "id": 10100,
+     "role": "custom_pict",
+     "size": [
+      272,
+      37
+     ]
+    },
+    {
+     "bytes": 2448,
+     "file": "Grand Prix/pict/10101.png",
+     "id": 10101,
+     "role": "custom_pict",
+     "size": [
+      28,
+      11
+     ]
+    },
+    {
+     "bytes": 2348,
+     "file": "Grand Prix/pict/10102.png",
+     "id": 10102,
+     "role": "custom_pict",
+     "size": [
+      19,
+      9
+     ]
+    },
+    {
+     "bytes": 2548,
+     "file": "Grand Prix/pict/10103.png",
+     "id": 10103,
+     "role": "custom_pict",
+     "size": [
+      41,
+      11
+     ]
+    },
+    {
+     "bytes": 6120,
+     "file": "Grand Prix/pict/10104.png",
+     "id": 10104,
+     "role": "custom_pict",
+     "size": [
+      208,
+      39
+     ]
+    },
+    {
+     "bytes": 2470,
+     "file": "Grand Prix/pict/10105.png",
+     "id": 10105,
+     "role": "custom_pict",
+     "size": [
+      36,
+      9
+     ]
+    },
+    {
+     "bytes": 2448,
+     "file": "Grand Prix/pict/10106.png",
+     "id": 10106,
+     "role": "custom_pict",
+     "size": [
+      36,
+      9
+     ]
+    },
+    {
+     "bytes": 2464,
+     "file": "Grand Prix/pict/10107.png",
+     "id": 10107,
+     "role": "custom_pict",
+     "size": [
+      36,
+      9
+     ]
+    },
+    {
+     "bytes": 4564,
+     "file": "Grand Prix/pict/10108.png",
+     "id": 10108,
+     "role": "custom_pict",
+     "size": [
+      185,
+      25
+     ]
+    },
+    {
+     "bytes": 3048,
+     "file": "Grand Prix/pict/10109.png",
+     "id": 10109,
+     "role": "custom_pict",
+     "size": [
+      64,
+      25
+     ]
+    },
+    {
+     "bytes": 3228,
+     "file": "Grand Prix/pict/10110.png",
+     "id": 10110,
+     "role": "custom_pict",
+     "size": [
+      60,
+      37
+     ]
+    },
+    {
+     "bytes": 3000,
+     "file": "Grand Prix/pict/10111.png",
+     "id": 10111,
+     "role": "custom_pict",
+     "size": [
+      39,
+      39
+     ]
+    },
+    {
+     "bytes": 4720,
+     "file": "Grand Prix/pict/10112.png",
+     "id": 10112,
+     "role": "custom_pict",
+     "size": [
+      234,
+      25
+     ]
+    },
+    {
+     "bytes": 2664,
+     "file": "Grand Prix/pict/10113.png",
+     "id": 10113,
+     "role": "custom_pict",
+     "size": [
+      37,
+      23
+     ]
+    },
+    {
+     "bytes": 3016,
+     "file": "Grand Prix/pict/10114.png",
+     "id": 10114,
+     "role": "custom_pict",
+     "size": [
+      58,
+      23
+     ]
+    },
+    {
+     "bytes": 3038,
+     "file": "Grand Prix/pict/10115.png",
+     "id": 10115,
+     "role": "custom_pict",
+     "size": [
+      43,
+      39
+     ]
+    },
+    {
+     "bytes": 4086,
+     "file": "Grand Prix/pict/10116.png",
+     "id": 10116,
+     "role": "custom_pict",
+     "size": [
+      209,
+      25
+     ]
+    },
+    {
+     "bytes": 2972,
+     "file": "Grand Prix/pict/10117.png",
+     "id": 10117,
+     "role": "custom_pict",
+     "size": [
+      56,
+      23
+     ]
+    },
+    {
+     "bytes": 3076,
+     "file": "Grand Prix/pict/10118.png",
+     "id": 10118,
+     "role": "custom_pict",
+     "size": [
+      46,
+      37
+     ]
+    },
+    {
+     "bytes": 3086,
+     "file": "Grand Prix/pict/10119.png",
+     "id": 10119,
+     "role": "custom_pict",
+     "size": [
+      40,
+      37
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd ",
+    "vers"
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3000,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      256,
+      0,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3002,
+     "rect": [
+      0,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3003,
+     "rect": [
+      256,
+      0,
+      0,
+      24776
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3004,
+     "rect": [
+      1,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3005,
+     "rect": [
+      1,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3006,
+     "rect": [
+      0,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3007,
+     "rect": [
+      256,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3008,
+     "rect": [
+      257,
+      257,
+      1,
+      1066
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3300,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      1,
+      0,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3302,
+     "rect": [
+      0,
+      257,
+      0,
+      15392
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3303,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3304,
+     "rect": [
+      257,
+      256,
+      0,
+      23366
+     ]
+    }
+   ],
+   "house": "ImagineHouse PRO II",
+   "picts": [
+    {
+     "bytes": 2446,
+     "file": "ImagineHouse PRO II/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 3842,
+     "file": "ImagineHouse PRO II/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 12914,
+     "file": "ImagineHouse PRO II/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 15392,
+     "file": "ImagineHouse PRO II/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 71016,
+     "file": "ImagineHouse PRO II/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 24776,
+     "file": "ImagineHouse PRO II/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 23086,
+     "file": "ImagineHouse PRO II/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 18012,
+     "file": "ImagineHouse PRO II/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 21610,
+     "file": "ImagineHouse PRO II/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 21526,
+     "file": "ImagineHouse PRO II/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 66602,
+     "file": "ImagineHouse PRO II/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 23366,
+     "file": "ImagineHouse PRO II/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 21506,
+     "file": "ImagineHouse PRO II/pict/3305.png",
+     "id": 3305,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 15866,
+     "file": "ImagineHouse PRO II/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 22178,
+     "file": "ImagineHouse PRO II/pict/3307.png",
+     "id": 3307,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 19072,
+     "file": "ImagineHouse PRO II/pict/3308.png",
+     "id": 3308,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 19072,
+     "file": "ImagineHouse PRO II/pict/3309.png",
+     "id": 3309,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 5426,
+     "file": "ImagineHouse PRO II/pict/3310.png",
+     "id": 3310,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 50754,
+     "file": "ImagineHouse PRO II/pict/3311.png",
+     "id": 3311,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2534,
+     "file": "ImagineHouse PRO II/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      31,
+      16
+     ]
+    },
+    {
+     "bytes": 2518,
+     "file": "ImagineHouse PRO II/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      31,
+      16
+     ]
+    },
+    {
+     "bytes": 2438,
+     "file": "ImagineHouse PRO II/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      41,
+      21
+     ]
+    },
+    {
+     "bytes": 2470,
+     "file": "ImagineHouse PRO II/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      41,
+      21
+     ]
+    },
+    {
+     "bytes": 11204,
+     "file": "ImagineHouse PRO II/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      90,
+      297
+     ]
+    },
+    {
+     "bytes": 11222,
+     "file": "ImagineHouse PRO II/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      90,
+      297
+     ]
+    },
+    {
+     "bytes": 10578,
+     "file": "ImagineHouse PRO II/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      23,
+      322
+     ]
+    },
+    {
+     "bytes": 8392,
+     "file": "ImagineHouse PRO II/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      85,
+      234
+     ]
+    },
+    {
+     "bytes": 8352,
+     "file": "ImagineHouse PRO II/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      86,
+      234
+     ]
+    },
+    {
+     "bytes": 2340,
+     "file": "ImagineHouse PRO II/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      53,
+      16
+     ]
+    },
+    {
+     "bytes": 2708,
+     "file": "ImagineHouse PRO II/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      26,
+      26
+     ]
+    },
+    {
+     "bytes": 2608,
+     "file": "ImagineHouse PRO II/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      58,
+      16
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "ImagineHouse PRO II/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 4224,
+     "file": "ImagineHouse PRO II/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      68,
+      78
+     ]
+    },
+    {
+     "bytes": 3062,
+     "file": "ImagineHouse PRO II/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      133,
+      11
+     ]
+    },
+    {
+     "bytes": 9534,
+     "file": "ImagineHouse PRO II/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      124,
+      228
+     ]
+    },
+    {
+     "bytes": 3004,
+     "file": "ImagineHouse PRO II/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      39,
+      60
+     ]
+    },
+    {
+     "bytes": 3794,
+     "file": "ImagineHouse PRO II/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      36,
+      68
+     ]
+    },
+    {
+     "bytes": 3116,
+     "file": "ImagineHouse PRO II/pict/10049.png",
+     "id": 10049,
+     "role": "custom_pict",
+     "size": [
+      42,
+      29
+     ]
+    },
+    {
+     "bytes": 2770,
+     "file": "ImagineHouse PRO II/pict/10065.png",
+     "id": 10065,
+     "role": "custom_pict",
+     "size": [
+      36,
+      23
+     ]
+    },
+    {
+     "bytes": 2614,
+     "file": "ImagineHouse PRO II/pict/10066.png",
+     "id": 10066,
+     "role": "custom_pict",
+     "size": [
+      21,
+      23
+     ]
+    },
+    {
+     "bytes": 7382,
+     "file": "ImagineHouse PRO II/pict/10100.png",
+     "id": 10100,
+     "role": "custom_pict",
+     "size": [
+      282,
+      222
+     ]
+    },
+    {
+     "bytes": 8728,
+     "file": "ImagineHouse PRO II/pict/10101.png",
+     "id": 10101,
+     "role": "custom_pict",
+     "size": [
+      276,
+      322
+     ]
+    },
+    {
+     "bytes": 8728,
+     "file": "ImagineHouse PRO II/pict/10102.png",
+     "id": 10102,
+     "role": "custom_pict",
+     "size": [
+      276,
+      322
+     ]
+    },
+    {
+     "bytes": 4160,
+     "file": "ImagineHouse PRO II/pict/10103.png",
+     "id": 10103,
+     "role": "custom_pict",
+     "size": [
+      195,
+      96
+     ]
+    },
+    {
+     "bytes": 4056,
+     "file": "ImagineHouse PRO II/pict/10104.png",
+     "id": 10104,
+     "role": "custom_pict",
+     "size": [
+      195,
+      95
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd ",
+    "vers"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "In The Mirror",
+   "picts": [
+    {
+     "bytes": 2446,
+     "file": "In The Mirror/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 7824,
+     "file": "In The Mirror/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 29310,
+     "file": "In The Mirror/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 33150,
+     "file": "In The Mirror/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 17108,
+     "file": "In The Mirror/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2708,
+     "file": "In The Mirror/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      26,
+      26
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "In The Mirror/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 2898,
+     "file": "In The Mirror/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      24,
+      47
+     ]
+    },
+    {
+     "bytes": 2666,
+     "file": "In The Mirror/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      19,
+      27
+     ]
+    },
+    {
+     "bytes": 3782,
+     "file": "In The Mirror/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      61,
+      61
+     ]
+    },
+    {
+     "bytes": 3794,
+     "file": "In The Mirror/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      36,
+      68
+     ]
+    },
+    {
+     "bytes": 2710,
+     "file": "In The Mirror/pict/10034.png",
+     "id": 10034,
+     "role": "custom_pict",
+     "size": [
+      25,
+      23
+     ]
+    },
+    {
+     "bytes": 3186,
+     "file": "In The Mirror/pict/10036.png",
+     "id": 10036,
+     "role": "custom_pict",
+     "size": [
+      51,
+      22
+     ]
+    },
+    {
+     "bytes": 2678,
+     "file": "In The Mirror/pict/10038.png",
+     "id": 10038,
+     "role": "custom_pict",
+     "size": [
+      29,
+      23
+     ]
+    },
+    {
+     "bytes": 4576,
+     "file": "In The Mirror/pict/10074.png",
+     "id": 10074,
+     "role": "custom_pict",
+     "size": [
+      45,
+      150
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd ",
+    "vers"
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      256,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3002,
+     "rect": [
+      257,
+      257,
+      1,
+      11498
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3003,
+     "rect": [
+      256,
+      256,
+      0,
+      -23188
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3302,
+     "rect": [
+      256,
+      256,
+      0,
+      4
+     ]
+    }
+   ],
+   "house": "Land of Illusion",
+   "picts": [
+    {
+     "bytes": 10146,
+     "file": "Land of Illusion/pict/1017.png",
+     "id": 1017,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 10086,
+     "file": "Land of Illusion/pict/1018.png",
+     "id": 1018,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 2508,
+     "file": "Land of Illusion/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 3340,
+     "file": "Land of Illusion/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 22004,
+     "file": "Land of Illusion/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 77034,
+     "file": "Land of Illusion/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 32972,
+     "file": "Land of Illusion/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 108994,
+     "file": "Land of Illusion/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 20474,
+     "file": "Land of Illusion/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 42348,
+     "file": "Land of Illusion/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 24182,
+     "file": "Land of Illusion/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 21842,
+     "file": "Land of Illusion/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2460,
+     "file": "Land of Illusion/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      23,
+      34
+     ]
+    },
+    {
+     "bytes": 2596,
+     "file": "Land of Illusion/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      30,
+      30
+     ]
+    },
+    {
+     "bytes": 2722,
+     "file": "Land of Illusion/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      39,
+      40
+     ]
+    },
+    {
+     "bytes": 2372,
+     "file": "Land of Illusion/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      49,
+      59
+     ]
+    },
+    {
+     "bytes": 2528,
+     "file": "Land of Illusion/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      27,
+      26
+     ]
+    },
+    {
+     "bytes": 2578,
+     "file": "Land of Illusion/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      28,
+      23
+     ]
+    },
+    {
+     "bytes": 3070,
+     "file": "Land of Illusion/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      200,
+      175
+     ]
+    },
+    {
+     "bytes": 4414,
+     "file": "Land of Illusion/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      58,
+      62
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8"
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3000,
+     "rect": [
+      1,
+      0,
+      0,
+      40
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      256,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3300,
+     "rect": [
+      257,
+      257,
+      0,
+      15064
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      257,
+      257,
+      0,
+      24564
+     ]
+    }
+   ],
+   "house": "Leviathan",
+   "picts": [
+    {
+     "bytes": 2446,
+     "file": "Leviathan/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 4810,
+     "file": "Leviathan/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 40602,
+     "file": "Leviathan/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 30328,
+     "file": "Leviathan/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 71904,
+     "file": "Leviathan/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 12754,
+     "file": "Leviathan/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 36348,
+     "file": "Leviathan/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 35592,
+     "file": "Leviathan/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 14808,
+     "file": "Leviathan/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 15064,
+     "file": "Leviathan/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 37710,
+     "file": "Leviathan/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 24564,
+     "file": "Leviathan/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13338,
+     "file": "Leviathan/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 129302,
+     "file": "Leviathan/pict/3305.png",
+     "id": 3305,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 98588,
+     "file": "Leviathan/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 25494,
+     "file": "Leviathan/pict/3307.png",
+     "id": 3307,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 150684,
+     "file": "Leviathan/pict/3308.png",
+     "id": 3308,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 31632,
+     "file": "Leviathan/pict/3309.png",
+     "id": 3309,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 36238,
+     "file": "Leviathan/pict/3311.png",
+     "id": 3311,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 28578,
+     "file": "Leviathan/pict/3312.png",
+     "id": 3312,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 11902,
+     "file": "Leviathan/pict/3314.png",
+     "id": 3314,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 33106,
+     "file": "Leviathan/pict/3315.png",
+     "id": 3315,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 39936,
+     "file": "Leviathan/pict/3316.png",
+     "id": 3316,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 30480,
+     "file": "Leviathan/pict/3317.png",
+     "id": 3317,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 48718,
+     "file": "Leviathan/pict/3318.png",
+     "id": 3318,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 49316,
+     "file": "Leviathan/pict/3319.png",
+     "id": 3319,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2608,
+     "file": "Leviathan/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      58,
+      16
+     ]
+    },
+    {
+     "bytes": 2708,
+     "file": "Leviathan/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      26,
+      26
+     ]
+    },
+    {
+     "bytes": 3870,
+     "file": "Leviathan/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      27,
+      80
+     ]
+    },
+    {
+     "bytes": 6184,
+     "file": "Leviathan/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      83,
+      83
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "Leviathan/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 2960,
+     "file": "Leviathan/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      49,
+      45
+     ]
+    },
+    {
+     "bytes": 2340,
+     "file": "Leviathan/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      53,
+      16
+     ]
+    },
+    {
+     "bytes": 5130,
+     "file": "Leviathan/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      95,
+      97
+     ]
+    },
+    {
+     "bytes": 3138,
+     "file": "Leviathan/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      70,
+      31
+     ]
+    },
+    {
+     "bytes": 2662,
+     "file": "Leviathan/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      24,
+      30
+     ]
+    },
+    {
+     "bytes": 3782,
+     "file": "Leviathan/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      61,
+      61
+     ]
+    },
+    {
+     "bytes": 2922,
+     "file": "Leviathan/pict/10031.png",
+     "id": 10031,
+     "role": "custom_pict",
+     "size": [
+      28,
+      24
+     ]
+    },
+    {
+     "bytes": 2482,
+     "file": "Leviathan/pict/10032.png",
+     "id": 10032,
+     "role": "custom_pict",
+     "size": [
+      10,
+      20
+     ]
+    },
+    {
+     "bytes": 2514,
+     "file": "Leviathan/pict/10033.png",
+     "id": 10033,
+     "role": "custom_pict",
+     "size": [
+      27,
+      15
+     ]
+    },
+    {
+     "bytes": 3186,
+     "file": "Leviathan/pict/10036.png",
+     "id": 10036,
+     "role": "custom_pict",
+     "size": [
+      51,
+      22
+     ]
+    },
+    {
+     "bytes": 2770,
+     "file": "Leviathan/pict/10065.png",
+     "id": 10065,
+     "role": "custom_pict",
+     "size": [
+      36,
+      23
+     ]
+    },
+    {
+     "bytes": 2614,
+     "file": "Leviathan/pict/10066.png",
+     "id": 10066,
+     "role": "custom_pict",
+     "size": [
+      21,
+      23
+     ]
+    },
+    {
+     "bytes": 2354,
+     "file": "Leviathan/pict/10079.png",
+     "id": 10079,
+     "role": "custom_pict",
+     "size": [
+      53,
+      16
+     ]
+    },
+    {
+     "bytes": 2810,
+     "file": "Leviathan/pict/10080.png",
+     "id": 10080,
+     "role": "custom_pict",
+     "size": [
+      24,
+      37
+     ]
+    },
+    {
+     "bytes": 2784,
+     "file": "Leviathan/pict/10081.png",
+     "id": 10081,
+     "role": "custom_pict",
+     "size": [
+      21,
+      36
+     ]
+    },
+    {
+     "bytes": 2794,
+     "file": "Leviathan/pict/10082.png",
+     "id": 10082,
+     "role": "custom_pict",
+     "size": [
+      23,
+      33
+     ]
+    },
+    {
+     "bytes": 2766,
+     "file": "Leviathan/pict/10083.png",
+     "id": 10083,
+     "role": "custom_pict",
+     "size": [
+      20,
+      45
+     ]
+    },
+    {
+     "bytes": 2750,
+     "file": "Leviathan/pict/10084.png",
+     "id": 10084,
+     "role": "custom_pict",
+     "size": [
+      16,
+      43
+     ]
+    },
+    {
+     "bytes": 2604,
+     "file": "Leviathan/pict/10085.png",
+     "id": 10085,
+     "role": "custom_pict",
+     "size": [
+      21,
+      25
+     ]
+    },
+    {
+     "bytes": 2724,
+     "file": "Leviathan/pict/10086.png",
+     "id": 10086,
+     "role": "custom_pict",
+     "size": [
+      13,
+      43
+     ]
+    },
+    {
+     "bytes": 2810,
+     "file": "Leviathan/pict/10087.png",
+     "id": 10087,
+     "role": "custom_pict",
+     "size": [
+      24,
+      37
+     ]
+    },
+    {
+     "bytes": 2460,
+     "file": "Leviathan/pict/10088.png",
+     "id": 10088,
+     "role": "custom_pict",
+     "size": [
+      23,
+      34
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd ",
+    "vers"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Metropolis",
+   "picts": [
+    {
+     "bytes": 2446,
+     "file": "Metropolis/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 4724,
+     "file": "Metropolis/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 13238,
+     "file": "Metropolis/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 23982,
+     "file": "Metropolis/pict/1999.png",
+     "id": 1999,
+     "role": "app_override",
+     "size": [
+      512,
+      44
+     ]
+    },
+    {
+     "bytes": 56794,
+     "file": "Metropolis/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 29356,
+     "file": "Metropolis/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 66732,
+     "file": "Metropolis/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 46028,
+     "file": "Metropolis/pict/3007.png",
+     "id": 3007,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 52328,
+     "file": "Metropolis/pict/3008.png",
+     "id": 3008,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 14332,
+     "file": "Metropolis/pict/3009.png",
+     "id": 3009,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 44934,
+     "file": "Metropolis/pict/3010.png",
+     "id": 3010,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34606,
+     "file": "Metropolis/pict/3011.png",
+     "id": 3011,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 69066,
+     "file": "Metropolis/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 72536,
+     "file": "Metropolis/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 69002,
+     "file": "Metropolis/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 25170,
+     "file": "Metropolis/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 38374,
+     "file": "Metropolis/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 20618,
+     "file": "Metropolis/pict/3305.png",
+     "id": 3305,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 25984,
+     "file": "Metropolis/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2694,
+     "file": "Metropolis/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      50,
+      23
+     ]
+    },
+    {
+     "bytes": 22070,
+     "file": "Metropolis/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      192,
+      265
+     ]
+    },
+    {
+     "bytes": 22070,
+     "file": "Metropolis/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      192,
+      265
+     ]
+    },
+    {
+     "bytes": 2532,
+     "file": "Metropolis/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      46,
+      11
+     ]
+    },
+    {
+     "bytes": 2532,
+     "file": "Metropolis/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      46,
+      11
+     ]
+    },
+    {
+     "bytes": 2964,
+     "file": "Metropolis/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      118,
+      11
+     ]
+    },
+    {
+     "bytes": 28382,
+     "file": "Metropolis/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      279,
+      130
+     ]
+    },
+    {
+     "bytes": 50820,
+     "file": "Metropolis/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      279,
+      221
+     ]
+    },
+    {
+     "bytes": 7092,
+     "file": "Metropolis/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      160,
+      267
+     ]
+    },
+    {
+     "bytes": 6004,
+     "file": "Metropolis/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      160,
+      267
+     ]
+    },
+    {
+     "bytes": 34754,
+     "file": "Metropolis/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      214,
+      267
+     ]
+    },
+    {
+     "bytes": 2564,
+     "file": "Metropolis/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      29,
+      46
+     ]
+    },
+    {
+     "bytes": 2614,
+     "file": "Metropolis/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      29,
+      45
+     ]
+    },
+    {
+     "bytes": 3138,
+     "file": "Metropolis/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      70,
+      31
+     ]
+    },
+    {
+     "bytes": 2554,
+     "file": "Metropolis/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      31,
+      45
+     ]
+    },
+    {
+     "bytes": 2610,
+     "file": "Metropolis/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      29,
+      46
+     ]
+    },
+    {
+     "bytes": 4214,
+     "file": "Metropolis/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      58,
+      59
+     ]
+    },
+    {
+     "bytes": 4224,
+     "file": "Metropolis/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      68,
+      78
+     ]
+    },
+    {
+     "bytes": 22420,
+     "file": "Metropolis/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      140,
+      186
+     ]
+    },
+    {
+     "bytes": 6990,
+     "file": "Metropolis/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      58,
+      143
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "vers"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Nemo's Market",
+   "picts": [
+    {
+     "bytes": 6506,
+     "file": "Nemo's Market/pict/1017.png",
+     "id": 1017,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 6510,
+     "file": "Nemo's Market/pict/1018.png",
+     "id": 1018,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 2808,
+     "file": "Nemo's Market/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 3258,
+     "file": "Nemo's Market/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 15996,
+     "file": "Nemo's Market/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 40842,
+     "file": "Nemo's Market/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 35616,
+     "file": "Nemo's Market/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 40882,
+     "file": "Nemo's Market/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 38326,
+     "file": "Nemo's Market/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 5720,
+     "file": "Nemo's Market/pict/3981.png",
+     "id": 3981,
+     "role": "background",
+     "size": [
+      16,
+      322
+     ]
+    },
+    {
+     "bytes": 5726,
+     "file": "Nemo's Market/pict/3982.png",
+     "id": 3982,
+     "role": "background",
+     "size": [
+      16,
+      322
+     ]
+    },
+    {
+     "bytes": 38588,
+     "file": "Nemo's Market/pict/3983.png",
+     "id": 3983,
+     "role": "background",
+     "size": [
+      144,
+      322
+     ]
+    },
+    {
+     "bytes": 35398,
+     "file": "Nemo's Market/pict/3984.png",
+     "id": 3984,
+     "role": "background",
+     "size": [
+      144,
+      322
+     ]
+    },
+    {
+     "bytes": 3794,
+     "file": "Nemo's Market/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      100,
+      20
+     ]
+    },
+    {
+     "bytes": 5878,
+     "file": "Nemo's Market/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      72,
+      58
+     ]
+    },
+    {
+     "bytes": 3782,
+     "file": "Nemo's Market/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      61,
+      61
+     ]
+    },
+    {
+     "bytes": 3794,
+     "file": "Nemo's Market/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      36,
+      68
+     ]
+    },
+    {
+     "bytes": 6038,
+     "file": "Nemo's Market/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      108,
+      63
+     ]
+    },
+    {
+     "bytes": 5804,
+     "file": "Nemo's Market/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      108,
+      63
+     ]
+    },
+    {
+     "bytes": 11132,
+     "file": "Nemo's Market/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      147,
+      138
+     ]
+    },
+    {
+     "bytes": 11100,
+     "file": "Nemo's Market/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      147,
+      138
+     ]
+    },
+    {
+     "bytes": 2922,
+     "file": "Nemo's Market/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      28,
+      24
+     ]
+    },
+    {
+     "bytes": 2482,
+     "file": "Nemo's Market/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      10,
+      20
+     ]
+    },
+    {
+     "bytes": 4504,
+     "file": "Nemo's Market/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      53,
+      94
+     ]
+    },
+    {
+     "bytes": 2514,
+     "file": "Nemo's Market/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      27,
+      15
+     ]
+    },
+    {
+     "bytes": 2658,
+     "file": "Nemo's Market/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      21,
+      20
+     ]
+    },
+    {
+     "bytes": 4808,
+     "file": "Nemo's Market/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      100,
+      36
+     ]
+    },
+    {
+     "bytes": 3186,
+     "file": "Nemo's Market/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      51,
+      22
+     ]
+    },
+    {
+     "bytes": 4390,
+     "file": "Nemo's Market/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      108,
+      33
+     ]
+    },
+    {
+     "bytes": 2678,
+     "file": "Nemo's Market/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      29,
+      23
+     ]
+    },
+    {
+     "bytes": 4386,
+     "file": "Nemo's Market/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      95,
+      37
+     ]
+    },
+    {
+     "bytes": 3590,
+     "file": "Nemo's Market/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      81,
+      25
+     ]
+    },
+    {
+     "bytes": 3798,
+     "file": "Nemo's Market/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      58,
+      45
+     ]
+    },
+    {
+     "bytes": 7706,
+     "file": "Nemo's Market/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      200,
+      71
+     ]
+    },
+    {
+     "bytes": 4306,
+     "file": "Nemo's Market/pict/10021.png",
+     "id": 10021,
+     "role": "custom_pict",
+     "size": [
+      67,
+      48
+     ]
+    },
+    {
+     "bytes": 3388,
+     "file": "Nemo's Market/pict/10022.png",
+     "id": 10022,
+     "role": "custom_pict",
+     "size": [
+      65,
+      21
+     ]
+    },
+    {
+     "bytes": 3830,
+     "file": "Nemo's Market/pict/10023.png",
+     "id": 10023,
+     "role": "custom_pict",
+     "size": [
+      44,
+      43
+     ]
+    },
+    {
+     "bytes": 4108,
+     "file": "Nemo's Market/pict/10024.png",
+     "id": 10024,
+     "role": "custom_pict",
+     "size": [
+      56,
+      43
+     ]
+    },
+    {
+     "bytes": 4084,
+     "file": "Nemo's Market/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      61,
+      45
+     ]
+    },
+    {
+     "bytes": 3112,
+     "file": "Nemo's Market/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      49,
+      21
+     ]
+    },
+    {
+     "bytes": 2922,
+     "file": "Nemo's Market/pict/10027.png",
+     "id": 10027,
+     "role": "custom_pict",
+     "size": [
+      57,
+      24
+     ]
+    },
+    {
+     "bytes": 2232,
+     "file": "Nemo's Market/pict/10028.png",
+     "id": 10028,
+     "role": "custom_pict",
+     "size": [
+      16,
+      4
+     ]
+    },
+    {
+     "bytes": 3116,
+     "file": "Nemo's Market/pict/10029.png",
+     "id": 10029,
+     "role": "custom_pict",
+     "size": [
+      42,
+      29
+     ]
+    },
+    {
+     "bytes": 2454,
+     "file": "Nemo's Market/pict/10030.png",
+     "id": 10030,
+     "role": "custom_pict",
+     "size": [
+      48,
+      10
+     ]
+    },
+    {
+     "bytes": 5120,
+     "file": "Nemo's Market/pict/10031.png",
+     "id": 10031,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 5074,
+     "file": "Nemo's Market/pict/10032.png",
+     "id": 10032,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 4962,
+     "file": "Nemo's Market/pict/10033.png",
+     "id": 10033,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 4956,
+     "file": "Nemo's Market/pict/10034.png",
+     "id": 10034,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 5270,
+     "file": "Nemo's Market/pict/10035.png",
+     "id": 10035,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 6348,
+     "file": "Nemo's Market/pict/10036.png",
+     "id": 10036,
+     "role": "custom_pict",
+     "size": [
+      150,
+      66
+     ]
+    },
+    {
+     "bytes": 6340,
+     "file": "Nemo's Market/pict/10037.png",
+     "id": 10037,
+     "role": "custom_pict",
+     "size": [
+      150,
+      66
+     ]
+    },
+    {
+     "bytes": 5618,
+     "file": "Nemo's Market/pict/10038.png",
+     "id": 10038,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 7032,
+     "file": "Nemo's Market/pict/10039.png",
+     "id": 10039,
+     "role": "custom_pict",
+     "size": [
+      156,
+      154
+     ]
+    },
+    {
+     "bytes": 7256,
+     "file": "Nemo's Market/pict/10040.png",
+     "id": 10040,
+     "role": "custom_pict",
+     "size": [
+      157,
+      154
+     ]
+    },
+    {
+     "bytes": 2464,
+     "file": "Nemo's Market/pict/10041.png",
+     "id": 10041,
+     "role": "custom_pict",
+     "size": [
+      23,
+      13
+     ]
+    },
+    {
+     "bytes": 2650,
+     "file": "Nemo's Market/pict/10042.png",
+     "id": 10042,
+     "role": "custom_pict",
+     "size": [
+      25,
+      20
+     ]
+    },
+    {
+     "bytes": 2418,
+     "file": "Nemo's Market/pict/10043.png",
+     "id": 10043,
+     "role": "custom_pict",
+     "size": [
+      16,
+      16
+     ]
+    },
+    {
+     "bytes": 2410,
+     "file": "Nemo's Market/pict/10044.png",
+     "id": 10044,
+     "role": "custom_pict",
+     "size": [
+      16,
+      15
+     ]
+    },
+    {
+     "bytes": 2474,
+     "file": "Nemo's Market/pict/10045.png",
+     "id": 10045,
+     "role": "custom_pict",
+     "size": [
+      23,
+      13
+     ]
+    },
+    {
+     "bytes": 2650,
+     "file": "Nemo's Market/pict/10046.png",
+     "id": 10046,
+     "role": "custom_pict",
+     "size": [
+      25,
+      20
+     ]
+    },
+    {
+     "bytes": 2416,
+     "file": "Nemo's Market/pict/10047.png",
+     "id": 10047,
+     "role": "custom_pict",
+     "size": [
+      16,
+      16
+     ]
+    },
+    {
+     "bytes": 2770,
+     "file": "Nemo's Market/pict/10048.png",
+     "id": 10048,
+     "role": "custom_pict",
+     "size": [
+      36,
+      23
+     ]
+    },
+    {
+     "bytes": 2614,
+     "file": "Nemo's Market/pict/10049.png",
+     "id": 10049,
+     "role": "custom_pict",
+     "size": [
+      21,
+      23
+     ]
+    },
+    {
+     "bytes": 6790,
+     "file": "Nemo's Market/pict/10050.png",
+     "id": 10050,
+     "role": "custom_pict",
+     "size": [
+      115,
+      272
+     ]
+    },
+    {
+     "bytes": 5468,
+     "file": "Nemo's Market/pict/10051.png",
+     "id": 10051,
+     "role": "custom_pict",
+     "size": [
+      61,
+      106
+     ]
+    },
+    {
+     "bytes": 5528,
+     "file": "Nemo's Market/pict/10052.png",
+     "id": 10052,
+     "role": "custom_pict",
+     "size": [
+      62,
+      106
+     ]
+    },
+    {
+     "bytes": 4332,
+     "file": "Nemo's Market/pict/10053.png",
+     "id": 10053,
+     "role": "custom_pict",
+     "size": [
+      4,
+      258
+     ]
+    },
+    {
+     "bytes": 6450,
+     "file": "Nemo's Market/pict/10054.png",
+     "id": 10054,
+     "role": "custom_pict",
+     "size": [
+      73,
+      123
+     ]
+    },
+    {
+     "bytes": 6434,
+     "file": "Nemo's Market/pict/10055.png",
+     "id": 10055,
+     "role": "custom_pict",
+     "size": [
+      73,
+      123
+     ]
+    },
+    {
+     "bytes": 5174,
+     "file": "Nemo's Market/pict/10056.png",
+     "id": 10056,
+     "role": "custom_pict",
+     "size": [
+      55,
+      96
+     ]
+    },
+    {
+     "bytes": 5152,
+     "file": "Nemo's Market/pict/10057.png",
+     "id": 10057,
+     "role": "custom_pict",
+     "size": [
+      55,
+      96
+     ]
+    },
+    {
+     "bytes": 2562,
+     "file": "Nemo's Market/pict/10058.png",
+     "id": 10058,
+     "role": "custom_pict",
+     "size": [
+      119,
+      3
+     ]
+    },
+    {
+     "bytes": 20376,
+     "file": "Nemo's Market/pict/10059.png",
+     "id": 10059,
+     "role": "custom_pict",
+     "size": [
+      153,
+      174
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      257,
+      257,
+      0,
+      256
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      257,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3302,
+     "rect": [
+      257,
+      0,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3303,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3304,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3305,
+     "rect": [
+      257,
+      257,
+      0,
+      -6420
+     ]
+    }
+   ],
+   "house": "Rainbow's End",
+   "picts": [
+    {
+     "bytes": 6880,
+     "file": "Rainbow's End/pict/1017.png",
+     "id": 1017,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 6832,
+     "file": "Rainbow's End/pict/1018.png",
+     "id": 1018,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 2502,
+     "file": "Rainbow's End/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 4740,
+     "file": "Rainbow's End/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 23140,
+     "file": "Rainbow's End/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 41702,
+     "file": "Rainbow's End/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 45922,
+     "file": "Rainbow's End/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 39602,
+     "file": "Rainbow's End/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 33124,
+     "file": "Rainbow's End/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 59116,
+     "file": "Rainbow's End/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 4888,
+     "file": "Rainbow's End/pict/3964.png",
+     "id": 3964,
+     "role": "background",
+     "size": [
+      62,
+      51
+     ]
+    },
+    {
+     "bytes": 7574,
+     "file": "Rainbow's End/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      148,
+      102
+     ]
+    },
+    {
+     "bytes": 3024,
+     "file": "Rainbow's End/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      49,
+      34
+     ]
+    },
+    {
+     "bytes": 2544,
+     "file": "Rainbow's End/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      53,
+      6
+     ]
+    },
+    {
+     "bytes": 2676,
+     "file": "Rainbow's End/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      8,
+      63
+     ]
+    },
+    {
+     "bytes": 2302,
+     "file": "Rainbow's End/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      30,
+      6
+     ]
+    },
+    {
+     "bytes": 2544,
+     "file": "Rainbow's End/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      53,
+      6
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Sampler",
+   "picts": [],
+   "types": []
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3000,
+     "rect": [
+      256,
+      256,
+      0,
+      -24190
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      0,
+      0,
+      0,
+      -12028
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3002,
+     "rect": [
+      0,
+      0,
+      0,
+      -30950
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3003,
+     "rect": [
+      256,
+      0,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3004,
+     "rect": [
+      256,
+      0,
+      0,
+      -7826
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3005,
+     "rect": [
+      256,
+      0,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3006,
+     "rect": [
+      257,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3007,
+     "rect": [
+      257,
+      256,
+      0,
+      -26516
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3008,
+     "rect": [
+      256,
+      0,
+      0,
+      256
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3009,
+     "rect": [
+      256,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3010,
+     "rect": [
+      256,
+      256,
+      0,
+      -7260
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3300,
+     "rect": [
+      257,
+      0,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3301,
+     "rect": [
+      1,
+      1,
+      0,
+      32488
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3302,
+     "rect": [
+      0,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3303,
+     "rect": [
+      256,
+      1,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3304,
+     "rect": [
+      257,
+      256,
+      0,
+      -8566
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3305,
+     "rect": [
+      257,
+      256,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3306,
+     "rect": [
+      257,
+      256,
+      0,
+      -4014
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3307,
+     "rect": [
+      257,
+      257,
+      0,
+      4
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3308,
+     "rect": [
+      257,
+      257,
+      1,
+      22338
+     ]
+    }
+   ],
+   "house": "Slumberland",
+   "picts": [
+    {
+     "bytes": 27264,
+     "file": "Slumberland/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 41346,
+     "file": "Slumberland/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 41210,
+     "file": "Slumberland/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34586,
+     "file": "Slumberland/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 53508,
+     "file": "Slumberland/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 57710,
+     "file": "Slumberland/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 51026,
+     "file": "Slumberland/pict/3006.png",
+     "id": 3006,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 50748,
+     "file": "Slumberland/pict/3007.png",
+     "id": 3007,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 54258,
+     "file": "Slumberland/pict/3008.png",
+     "id": 3008,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 45744,
+     "file": "Slumberland/pict/3009.png",
+     "id": 3009,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 80288,
+     "file": "Slumberland/pict/3010.png",
+     "id": 3010,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 39020,
+     "file": "Slumberland/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 32488,
+     "file": "Slumberland/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 58276,
+     "file": "Slumberland/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 58884,
+     "file": "Slumberland/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 56970,
+     "file": "Slumberland/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 55598,
+     "file": "Slumberland/pict/3305.png",
+     "id": 3305,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 49386,
+     "file": "Slumberland/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 87874,
+     "file": "Slumberland/pict/3307.png",
+     "id": 3307,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 61522,
+     "file": "Slumberland/pict/3308.png",
+     "id": 3308,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "SpacePods",
+   "picts": [
+    {
+     "bytes": 7552,
+     "file": "SpacePods/pict/1018.png",
+     "id": 1018,
+     "role": "app_override",
+     "size": [
+      256,
+      64
+     ]
+    },
+    {
+     "bytes": 2514,
+     "file": "SpacePods/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 6610,
+     "file": "SpacePods/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 24860,
+     "file": "SpacePods/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 44994,
+     "file": "SpacePods/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 39568,
+     "file": "SpacePods/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 41004,
+     "file": "SpacePods/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 51758,
+     "file": "SpacePods/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 49426,
+     "file": "SpacePods/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 33112,
+     "file": "SpacePods/pict/3006.png",
+     "id": 3006,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 48366,
+     "file": "SpacePods/pict/3007.png",
+     "id": 3007,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 50782,
+     "file": "SpacePods/pict/3008.png",
+     "id": 3008,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 34598,
+     "file": "SpacePods/pict/3009.png",
+     "id": 3009,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 61104,
+     "file": "SpacePods/pict/3010.png",
+     "id": 3010,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2214,
+     "file": "SpacePods/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      3,
+      3
+     ]
+    },
+    {
+     "bytes": 2222,
+     "file": "SpacePods/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      3,
+      3
+     ]
+    },
+    {
+     "bytes": 2258,
+     "file": "SpacePods/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      5,
+      7
+     ]
+    },
+    {
+     "bytes": 2598,
+     "file": "SpacePods/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      31,
+      30
+     ]
+    },
+    {
+     "bytes": 2520,
+     "file": "SpacePods/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      14,
+      31
+     ]
+    },
+    {
+     "bytes": 2240,
+     "file": "SpacePods/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      28,
+      13
+     ]
+    },
+    {
+     "bytes": 2232,
+     "file": "SpacePods/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      16,
+      4
+     ]
+    },
+    {
+     "bytes": 2662,
+     "file": "SpacePods/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      24,
+      30
+     ]
+    },
+    {
+     "bytes": 2330,
+     "file": "SpacePods/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      1,
+      27
+     ]
+    },
+    {
+     "bytes": 2514,
+     "file": "SpacePods/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      1,
+      64
+     ]
+    },
+    {
+     "bytes": 6426,
+     "file": "SpacePods/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      93,
+      73
+     ]
+    },
+    {
+     "bytes": 2464,
+     "file": "SpacePods/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      34,
+      14
+     ]
+    },
+    {
+     "bytes": 3956,
+     "file": "SpacePods/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      49,
+      59
+     ]
+    },
+    {
+     "bytes": 2232,
+     "file": "SpacePods/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      82,
+      4
+     ]
+    },
+    {
+     "bytes": 2224,
+     "file": "SpacePods/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      39,
+      4
+     ]
+    },
+    {
+     "bytes": 2296,
+     "file": "SpacePods/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      28,
+      5
+     ]
+    },
+    {
+     "bytes": 3202,
+     "file": "SpacePods/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      24,
+      111
+     ]
+    },
+    {
+     "bytes": 2566,
+     "file": "SpacePods/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      46,
+      30
+     ]
+    },
+    {
+     "bytes": 2366,
+     "file": "SpacePods/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      46,
+      30
+     ]
+    },
+    {
+     "bytes": 2422,
+     "file": "SpacePods/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      46,
+      14
+     ]
+    },
+    {
+     "bytes": 2538,
+     "file": "SpacePods/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      110,
+      14
+     ]
+    },
+    {
+     "bytes": 2844,
+     "file": "SpacePods/pict/10021.png",
+     "id": 10021,
+     "role": "custom_pict",
+     "size": [
+      128,
+      35
+     ]
+    },
+    {
+     "bytes": 5120,
+     "file": "SpacePods/pict/10022.png",
+     "id": 10022,
+     "role": "custom_pict",
+     "size": [
+      25,
+      257
+     ]
+    },
+    {
+     "bytes": 5036,
+     "file": "SpacePods/pict/10023.png",
+     "id": 10023,
+     "role": "custom_pict",
+     "size": [
+      26,
+      257
+     ]
+    },
+    {
+     "bytes": 5372,
+     "file": "SpacePods/pict/10024.png",
+     "id": 10024,
+     "role": "custom_pict",
+     "size": [
+      64,
+      322
+     ]
+    },
+    {
+     "bytes": 5320,
+     "file": "SpacePods/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      64,
+      322
+     ]
+    },
+    {
+     "bytes": 5494,
+     "file": "SpacePods/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      64,
+      322
+     ]
+    },
+    {
+     "bytes": 7024,
+     "file": "SpacePods/pict/10027.png",
+     "id": 10027,
+     "role": "custom_pict",
+     "size": [
+      24,
+      322
+     ]
+    },
+    {
+     "bytes": 2536,
+     "file": "SpacePods/pict/10028.png",
+     "id": 10028,
+     "role": "custom_pict",
+     "size": [
+      16,
+      34
+     ]
+    },
+    {
+     "bytes": 2464,
+     "file": "SpacePods/pict/10029.png",
+     "id": 10029,
+     "role": "custom_pict",
+     "size": [
+      23,
+      14
+     ]
+    },
+    {
+     "bytes": 3646,
+     "file": "SpacePods/pict/10030.png",
+     "id": 10030,
+     "role": "custom_pict",
+     "size": [
+      24,
+      111
+     ]
+    },
+    {
+     "bytes": 5458,
+     "file": "SpacePods/pict/10031.png",
+     "id": 10031,
+     "role": "custom_pict",
+     "size": [
+      4,
+      251
+     ]
+    },
+    {
+     "bytes": 4158,
+     "file": "SpacePods/pict/10032.png",
+     "id": 10032,
+     "role": "custom_pict",
+     "size": [
+      4,
+      151
+     ]
+    },
+    {
+     "bytes": 2532,
+     "file": "SpacePods/pict/10033.png",
+     "id": 10033,
+     "role": "custom_pict",
+     "size": [
+      4,
+      26
+     ]
+    },
+    {
+     "bytes": 4176,
+     "file": "SpacePods/pict/10034.png",
+     "id": 10034,
+     "role": "custom_pict",
+     "size": [
+      90,
+      77
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd "
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Teddy World",
+   "picts": [
+    {
+     "bytes": 11392,
+     "file": "Teddy World/pict/1015.png",
+     "id": 1015,
+     "role": "app_override",
+     "size": [
+      214,
+      54
+     ]
+    },
+    {
+     "bytes": 11308,
+     "file": "Teddy World/pict/1016.png",
+     "id": 1016,
+     "role": "app_override",
+     "size": [
+      214,
+      54
+     ]
+    },
+    {
+     "bytes": 263,
+     "file": "Teddy World/pict/1991.png",
+     "id": 1991,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 23380,
+     "file": "Teddy World/pict/1992.png",
+     "id": 1992,
+     "role": "app_override",
+     "size": [
+      330,
+      30
+     ]
+    },
+    {
+     "bytes": 144306,
+     "file": "Teddy World/pict/1993.png",
+     "id": 1993,
+     "role": "app_override",
+     "size": [
+      330,
+      190
+     ]
+    },
+    {
+     "bytes": 56728,
+     "file": "Teddy World/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 30054,
+     "file": "Teddy World/pict/3001.png",
+     "id": 3001,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 86996,
+     "file": "Teddy World/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 102984,
+     "file": "Teddy World/pict/3003.png",
+     "id": 3003,
+     "off_palette_colours": 209,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 72818,
+     "file": "Teddy World/pict/3004.png",
+     "id": 3004,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 61854,
+     "file": "Teddy World/pict/3005.png",
+     "id": 3005,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 19476,
+     "file": "Teddy World/pict/3006.png",
+     "id": 3006,
+     "off_palette_colours": 165,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 94874,
+     "file": "Teddy World/pict/3007.png",
+     "id": 3007,
+     "off_palette_colours": 235,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 167060,
+     "file": "Teddy World/pict/3008.png",
+     "id": 3008,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 93606,
+     "file": "Teddy World/pict/3009.png",
+     "id": 3009,
+     "off_palette_colours": 253,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 120284,
+     "file": "Teddy World/pict/3010.png",
+     "id": 3010,
+     "off_palette_colours": 254,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 118140,
+     "file": "Teddy World/pict/3011.png",
+     "id": 3011,
+     "off_palette_colours": 249,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 125718,
+     "file": "Teddy World/pict/3012.png",
+     "id": 3012,
+     "off_palette_colours": 254,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 221822,
+     "file": "Teddy World/pict/3013.png",
+     "id": 3013,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 44712,
+     "file": "Teddy World/pict/3014.png",
+     "id": 3014,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8748,
+     "file": "Teddy World/pict/3015.png",
+     "id": 3015,
+     "off_palette_colours": 35,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 102938,
+     "file": "Teddy World/pict/3016.png",
+     "id": 3016,
+     "off_palette_colours": 221,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 112854,
+     "file": "Teddy World/pict/3017.png",
+     "id": 3017,
+     "off_palette_colours": 189,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 51902,
+     "file": "Teddy World/pict/3018.png",
+     "id": 3018,
+     "off_palette_colours": 88,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 59634,
+     "file": "Teddy World/pict/3019.png",
+     "id": 3019,
+     "off_palette_colours": 201,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 46628,
+     "file": "Teddy World/pict/3020.png",
+     "id": 3020,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 40760,
+     "file": "Teddy World/pict/3021.png",
+     "id": 3021,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 17574,
+     "file": "Teddy World/pict/3022.png",
+     "id": 3022,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 80868,
+     "file": "Teddy World/pict/3023.png",
+     "id": 3023,
+     "off_palette_colours": 240,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 43660,
+     "file": "Teddy World/pict/3024.png",
+     "id": 3024,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 44966,
+     "file": "Teddy World/pict/3025.png",
+     "id": 3025,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 88938,
+     "file": "Teddy World/pict/3026.png",
+     "id": 3026,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 88430,
+     "file": "Teddy World/pict/3027.png",
+     "id": 3027,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 11440,
+     "file": "Teddy World/pict/3028.png",
+     "id": 3028,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 12748,
+     "file": "Teddy World/pict/3975.png",
+     "id": 3975,
+     "role": "background",
+     "size": [
+      102,
+      92
+     ]
+    },
+    {
+     "bytes": 2450,
+     "file": "Teddy World/pict/8253.png",
+     "id": 8253,
+     "off_palette_colours": 31,
+     "role": "background",
+     "size": [
+      112,
+      56
+     ]
+    },
+    {
+     "bytes": 2610,
+     "file": "Teddy World/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 7178,
+     "file": "Teddy World/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      432,
+      108
+     ]
+    },
+    {
+     "bytes": 8348,
+     "file": "Teddy World/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      102,
+      92
+     ]
+    },
+    {
+     "bytes": 1378,
+     "file": "Teddy World/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      40,
+      40
+     ]
+    },
+    {
+     "bytes": 2744,
+     "file": "Teddy World/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      40,
+      40
+     ]
+    },
+    {
+     "bytes": 3644,
+     "file": "Teddy World/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      80,
+      60
+     ]
+    },
+    {
+     "bytes": 3808,
+     "file": "Teddy World/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      80,
+      60
+     ]
+    },
+    {
+     "bytes": 3632,
+     "file": "Teddy World/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      80,
+      60
+     ]
+    },
+    {
+     "bytes": 5222,
+     "file": "Teddy World/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      216,
+      108
+     ]
+    },
+    {
+     "bytes": 5692,
+     "file": "Teddy World/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      512,
+      119
+     ]
+    },
+    {
+     "bytes": 9236,
+     "file": "Teddy World/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      72,
+      230
+     ]
+    },
+    {
+     "bytes": 36888,
+     "file": "Teddy World/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      180,
+      216
+     ]
+    },
+    {
+     "bytes": 10230,
+     "file": "Teddy World/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      72,
+      180
+     ]
+    },
+    {
+     "bytes": 11126,
+     "file": "Teddy World/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      72,
+      180
+     ]
+    },
+    {
+     "bytes": 6686,
+     "file": "Teddy World/pict/10014.png",
+     "id": 10014,
+     "role": "custom_pict",
+     "size": [
+      180,
+      72
+     ]
+    },
+    {
+     "bytes": 7988,
+     "file": "Teddy World/pict/10015.png",
+     "id": 10015,
+     "role": "custom_pict",
+     "size": [
+      180,
+      216
+     ]
+    },
+    {
+     "bytes": 4516,
+     "file": "Teddy World/pict/10016.png",
+     "id": 10016,
+     "role": "custom_pict",
+     "size": [
+      72,
+      54
+     ]
+    },
+    {
+     "bytes": 4044,
+     "file": "Teddy World/pict/10017.png",
+     "id": 10017,
+     "role": "custom_pict",
+     "size": [
+      54,
+      94
+     ]
+    },
+    {
+     "bytes": 9764,
+     "file": "Teddy World/pict/10018.png",
+     "id": 10018,
+     "role": "custom_pict",
+     "size": [
+      29,
+      322
+     ]
+    },
+    {
+     "bytes": 17516,
+     "file": "Teddy World/pict/10019.png",
+     "id": 10019,
+     "role": "custom_pict",
+     "size": [
+      33,
+      322
+     ]
+    },
+    {
+     "bytes": 4274,
+     "file": "Teddy World/pict/10020.png",
+     "id": 10020,
+     "role": "custom_pict",
+     "size": [
+      72,
+      144
+     ]
+    },
+    {
+     "bytes": 3968,
+     "file": "Teddy World/pict/10021.png",
+     "id": 10021,
+     "role": "custom_pict",
+     "size": [
+      54,
+      94
+     ]
+    },
+    {
+     "bytes": 1224,
+     "file": "Teddy World/pict/10022.png",
+     "id": 10022,
+     "role": "custom_pict",
+     "size": [
+      56,
+      62
+     ]
+    },
+    {
+     "bytes": 2942,
+     "file": "Teddy World/pict/10023.png",
+     "id": 10023,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2632,
+     "file": "Teddy World/pict/10024.png",
+     "id": 10024,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2602,
+     "file": "Teddy World/pict/10025.png",
+     "id": 10025,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2686,
+     "file": "Teddy World/pict/10026.png",
+     "id": 10026,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2666,
+     "file": "Teddy World/pict/10027.png",
+     "id": 10027,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2856,
+     "file": "Teddy World/pict/10028.png",
+     "id": 10028,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 2676,
+     "file": "Teddy World/pict/10029.png",
+     "id": 10029,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    },
+    {
+     "bytes": 30350,
+     "file": "Teddy World/pict/10030.png",
+     "id": 10030,
+     "role": "custom_pict",
+     "size": [
+      511,
+      285
+     ]
+    },
+    {
+     "bytes": 65192,
+     "file": "Teddy World/pict/10031.png",
+     "id": 10031,
+     "off_palette_colours": 215,
+     "role": "custom_pict",
+     "size": [
+      512,
+      200
+     ]
+    },
+    {
+     "bytes": 7102,
+     "file": "Teddy World/pict/10032.png",
+     "id": 10032,
+     "role": "custom_pict",
+     "size": [
+      144,
+      180
+     ]
+    },
+    {
+     "bytes": 4336,
+     "file": "Teddy World/pict/10033.png",
+     "id": 10033,
+     "role": "custom_pict",
+     "size": [
+      104,
+      57
+     ]
+    },
+    {
+     "bytes": 16464,
+     "file": "Teddy World/pict/10034.png",
+     "id": 10034,
+     "role": "custom_pict",
+     "size": [
+      245,
+      171
+     ]
+    },
+    {
+     "bytes": 18506,
+     "file": "Teddy World/pict/10035.png",
+     "id": 10035,
+     "role": "custom_pict",
+     "size": [
+      329,
+      291
+     ]
+    },
+    {
+     "bytes": 90198,
+     "file": "Teddy World/pict/10036.png",
+     "id": 10036,
+     "off_palette_colours": 254,
+     "role": "custom_pict",
+     "size": [
+      348,
+      322
+     ]
+    },
+    {
+     "bytes": 6962,
+     "file": "Teddy World/pict/10037.png",
+     "id": 10037,
+     "off_palette_colours": 254,
+     "role": "custom_pict",
+     "size": [
+      77,
+      71
+     ]
+    },
+    {
+     "bytes": 1896,
+     "file": "Teddy World/pict/10038.png",
+     "id": 10038,
+     "off_palette_colours": 23,
+     "role": "custom_pict",
+     "size": [
+      20,
+      96
+     ]
+    },
+    {
+     "bytes": 1802,
+     "file": "Teddy World/pict/10039.png",
+     "id": 10039,
+     "off_palette_colours": 23,
+     "role": "custom_pict",
+     "size": [
+      20,
+      95
+     ]
+    },
+    {
+     "bytes": 3250,
+     "file": "Teddy World/pict/10040.png",
+     "id": 10040,
+     "role": "custom_pict",
+     "size": [
+      20,
+      322
+     ]
+    },
+    {
+     "bytes": 3250,
+     "file": "Teddy World/pict/10041.png",
+     "id": 10041,
+     "role": "custom_pict",
+     "size": [
+      20,
+      322
+     ]
+    },
+    {
+     "bytes": 3240,
+     "file": "Teddy World/pict/10042.png",
+     "id": 10042,
+     "role": "custom_pict",
+     "size": [
+      72,
+      72
+     ]
+    },
+    {
+     "bytes": 4094,
+     "file": "Teddy World/pict/10043.png",
+     "id": 10043,
+     "role": "custom_pict",
+     "size": [
+      72,
+      72
+     ]
+    },
+    {
+     "bytes": 3912,
+     "file": "Teddy World/pict/10044.png",
+     "id": 10044,
+     "role": "custom_pict",
+     "size": [
+      72,
+      72
+     ]
+    },
+    {
+     "bytes": 3502,
+     "file": "Teddy World/pict/10045.png",
+     "id": 10045,
+     "role": "custom_pict",
+     "size": [
+      72,
+      72
+     ]
+    },
+    {
+     "bytes": 852,
+     "file": "Teddy World/pict/10046.png",
+     "id": 10046,
+     "off_palette_colours": 17,
+     "role": "custom_pict",
+     "size": [
+      20,
+      26
+     ]
+    },
+    {
+     "bytes": 852,
+     "file": "Teddy World/pict/10047.png",
+     "id": 10047,
+     "off_palette_colours": 17,
+     "role": "custom_pict",
+     "size": [
+      20,
+      26
+     ]
+    },
+    {
+     "bytes": 7372,
+     "file": "Teddy World/pict/10048.png",
+     "id": 10048,
+     "off_palette_colours": 17,
+     "role": "custom_pict",
+     "size": [
+      20,
+      322
+     ]
+    },
+    {
+     "bytes": 7436,
+     "file": "Teddy World/pict/10049.png",
+     "id": 10049,
+     "off_palette_colours": 26,
+     "role": "custom_pict",
+     "size": [
+      20,
+      322
+     ]
+    },
+    {
+     "bytes": 5568,
+     "file": "Teddy World/pict/10050.png",
+     "id": 10050,
+     "role": "custom_pict",
+     "size": [
+      512,
+      119
+     ]
+    },
+    {
+     "bytes": 8116,
+     "file": "Teddy World/pict/10051.png",
+     "id": 10051,
+     "role": "custom_pict",
+     "size": [
+      512,
+      32
+     ]
+    },
+    {
+     "bytes": 9074,
+     "file": "Teddy World/pict/10052.png",
+     "id": 10052,
+     "role": "custom_pict",
+     "size": [
+      512,
+      32
+     ]
+    },
+    {
+     "bytes": 26844,
+     "file": "Teddy World/pict/10053.png",
+     "id": 10053,
+     "role": "custom_pict",
+     "size": [
+      512,
+      69
+     ]
+    },
+    {
+     "bytes": 14360,
+     "file": "Teddy World/pict/10054.png",
+     "id": 10054,
+     "role": "custom_pict",
+     "size": [
+      512,
+      69
+     ]
+    },
+    {
+     "bytes": 3742,
+     "file": "Teddy World/pict/10055.png",
+     "id": 10055,
+     "role": "custom_pict",
+     "size": [
+      80,
+      60
+     ]
+    },
+    {
+     "bytes": 9244,
+     "file": "Teddy World/pict/10056.png",
+     "id": 10056,
+     "role": "custom_pict",
+     "size": [
+      100,
+      200
+     ]
+    },
+    {
+     "bytes": 2638,
+     "file": "Teddy World/pict/10057.png",
+     "id": 10057,
+     "role": "custom_pict",
+     "size": [
+      98,
+      17
+     ]
+    },
+    {
+     "bytes": 3762,
+     "file": "Teddy World/pict/10058.png",
+     "id": 10058,
+     "role": "custom_pict",
+     "size": [
+      71,
+      63
+     ]
+    },
+    {
+     "bytes": 3758,
+     "file": "Teddy World/pict/10059.png",
+     "id": 10059,
+     "role": "custom_pict",
+     "size": [
+      125,
+      30
+     ]
+    },
+    {
+     "bytes": 14008,
+     "file": "Teddy World/pict/10060.png",
+     "id": 10060,
+     "role": "custom_pict",
+     "size": [
+      200,
+      200
+     ]
+    },
+    {
+     "bytes": 12146,
+     "file": "Teddy World/pict/10061.png",
+     "id": 10061,
+     "role": "custom_pict",
+     "size": [
+      150,
+      200
+     ]
+    },
+    {
+     "bytes": 2490,
+     "file": "Teddy World/pict/10062.png",
+     "id": 10062,
+     "role": "custom_pict",
+     "size": [
+      65,
+      34
+     ]
+    },
+    {
+     "bytes": 6680,
+     "file": "Teddy World/pict/10063.png",
+     "id": 10063,
+     "role": "custom_pict",
+     "size": [
+      211,
+      106
+     ]
+    },
+    {
+     "bytes": 6716,
+     "file": "Teddy World/pict/10065.png",
+     "id": 10065,
+     "role": "custom_pict",
+     "size": [
+      211,
+      106
+     ]
+    },
+    {
+     "bytes": 6704,
+     "file": "Teddy World/pict/10066.png",
+     "id": 10066,
+     "role": "custom_pict",
+     "size": [
+      211,
+      106
+     ]
+    },
+    {
+     "bytes": 8818,
+     "file": "Teddy World/pict/10067.png",
+     "id": 10067,
+     "role": "custom_pict",
+     "size": [
+      115,
+      137
+     ]
+    },
+    {
+     "bytes": 4380,
+     "file": "Teddy World/pict/10068.png",
+     "id": 10068,
+     "role": "custom_pict",
+     "size": [
+      88,
+      75
+     ]
+    },
+    {
+     "bytes": 6658,
+     "file": "Teddy World/pict/10069.png",
+     "id": 10069,
+     "role": "custom_pict",
+     "size": [
+      175,
+      137
+     ]
+    },
+    {
+     "bytes": 4916,
+     "file": "Teddy World/pict/10070.png",
+     "id": 10070,
+     "role": "custom_pict",
+     "size": [
+      100,
+      140
+     ]
+    },
+    {
+     "bytes": 4420,
+     "file": "Teddy World/pict/10071.png",
+     "id": 10071,
+     "role": "custom_pict",
+     "size": [
+      100,
+      140
+     ]
+    },
+    {
+     "bytes": 3686,
+     "file": "Teddy World/pict/10072.png",
+     "id": 10072,
+     "role": "custom_pict",
+     "size": [
+      81,
+      85
+     ]
+    },
+    {
+     "bytes": 3776,
+     "file": "Teddy World/pict/10073.png",
+     "id": 10073,
+     "role": "custom_pict",
+     "size": [
+      81,
+      85
+     ]
+    },
+    {
+     "bytes": 3624,
+     "file": "Teddy World/pict/10074.png",
+     "id": 10074,
+     "role": "custom_pict",
+     "size": [
+      81,
+      85
+     ]
+    },
+    {
+     "bytes": 3028,
+     "file": "Teddy World/pict/10075.png",
+     "id": 10075,
+     "role": "custom_pict",
+     "size": [
+      79,
+      119
+     ]
+    },
+    {
+     "bytes": 810,
+     "file": "Teddy World/pict/10076.png",
+     "id": 10076,
+     "role": "custom_pict",
+     "size": [
+      24,
+      26
+     ]
+    },
+    {
+     "bytes": 3074,
+     "file": "Teddy World/pict/10077.png",
+     "id": 10077,
+     "role": "custom_pict",
+     "size": [
+      79,
+      119
+     ]
+    },
+    {
+     "bytes": 2474,
+     "file": "Teddy World/pict/10078.png",
+     "id": 10078,
+     "role": "custom_pict",
+     "size": [
+      24,
+      26
+     ]
+    },
+    {
+     "bytes": 2474,
+     "file": "Teddy World/pict/10079.png",
+     "id": 10079,
+     "role": "custom_pict",
+     "size": [
+      24,
+      26
+     ]
+    },
+    {
+     "bytes": 4044,
+     "file": "Teddy World/pict/10081.png",
+     "id": 10081,
+     "role": "custom_pict",
+     "size": [
+      87,
+      121
+     ]
+    },
+    {
+     "bytes": 4046,
+     "file": "Teddy World/pict/10082.png",
+     "id": 10082,
+     "role": "custom_pict",
+     "size": [
+      87,
+      121
+     ]
+    },
+    {
+     "bytes": 2964,
+     "file": "Teddy World/pict/10083.png",
+     "id": 10083,
+     "role": "custom_pict",
+     "size": [
+      46,
+      22
+     ]
+    },
+    {
+     "bytes": 4302,
+     "file": "Teddy World/pict/10084.png",
+     "id": 10084,
+     "role": "custom_pict",
+     "size": [
+      64,
+      322
+     ]
+    },
+    {
+     "bytes": 3066,
+     "file": "Teddy World/pict/10085.png",
+     "id": 10085,
+     "role": "custom_pict",
+     "size": [
+      56,
+      58
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "vers"
+   ]
+  },
+  {
+   "bnds": [
+    {
+     "bytes": 4,
+     "id": 3000,
+     "rect": [
+      0,
+      0,
+      0,
+      256
+     ]
+    },
+    {
+     "bytes": 4,
+     "id": 3001,
+     "rect": [
+      0,
+      0,
+      0,
+      4
+     ]
+    }
+   ],
+   "house": "The Asylum Pro",
+   "picts": [
+    {
+     "bytes": 29874,
+     "file": "The Asylum Pro/pict/3000.png",
+     "id": 3000,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 106358,
+     "file": "The Asylum Pro/pict/3001.png",
+     "id": 3001,
+     "off_palette_colours": 112,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 128660,
+     "file": "The Asylum Pro/pict/3002.png",
+     "id": 3002,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 127326,
+     "file": "The Asylum Pro/pict/3003.png",
+     "id": 3003,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 2706,
+     "file": "The Asylum Pro/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      31,
+      35
+     ]
+    },
+    {
+     "bytes": 2514,
+     "file": "The Asylum Pro/pict/10033.png",
+     "id": 10033,
+     "role": "custom_pict",
+     "size": [
+      27,
+      15
+     ]
+    },
+    {
+     "bytes": 5120,
+     "file": "The Asylum Pro/pict/10050.png",
+     "id": 10050,
+     "role": "custom_pict",
+     "size": [
+      63,
+      58
+     ]
+    },
+    {
+     "bytes": 6450,
+     "file": "The Asylum Pro/pict/10069.png",
+     "id": 10069,
+     "role": "custom_pict",
+     "size": [
+      73,
+      123
+     ]
+    },
+    {
+     "bytes": 6434,
+     "file": "The Asylum Pro/pict/10070.png",
+     "id": 10070,
+     "role": "custom_pict",
+     "size": [
+      73,
+      123
+     ]
+    },
+    {
+     "bytes": 4576,
+     "file": "The Asylum Pro/pict/10074.png",
+     "id": 10074,
+     "role": "custom_pict",
+     "size": [
+      45,
+      150
+     ]
+    },
+    {
+     "bytes": 3536,
+     "file": "The Asylum Pro/pict/10075.png",
+     "id": 10075,
+     "role": "custom_pict",
+     "size": [
+      21,
+      98
+     ]
+    },
+    {
+     "bytes": 2558,
+     "file": "The Asylum Pro/pict/12345.png",
+     "id": 12345,
+     "role": "custom_pict",
+     "size": [
+      31,
+      22
+     ]
+    },
+    {
+     "bytes": 18214,
+     "file": "The Asylum Pro/pict/12347.png",
+     "id": 12347,
+     "role": "custom_pict",
+     "size": [
+      166,
+      204
+     ]
+    },
+    {
+     "bytes": 7016,
+     "file": "The Asylum Pro/pict/12348.png",
+     "id": 12348,
+     "role": "custom_pict",
+     "size": [
+      92,
+      77
+     ]
+    },
+    {
+     "bytes": 18716,
+     "file": "The Asylum Pro/pict/12349.png",
+     "id": 12349,
+     "role": "custom_pict",
+     "size": [
+      187,
+      225
+     ]
+    },
+    {
+     "bytes": 10990,
+     "file": "The Asylum Pro/pict/12350.png",
+     "id": 12350,
+     "role": "custom_pict",
+     "size": [
+      102,
+      92
+     ]
+    },
+    {
+     "bytes": 9832,
+     "file": "The Asylum Pro/pict/12351.png",
+     "id": 12351,
+     "role": "custom_pict",
+     "size": [
+      102,
+      92
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "bnds",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8"
+   ]
+  },
+  {
+   "bnds": [],
+   "house": "Titanic",
+   "picts": [
+    {
+     "bytes": 28980,
+     "file": "Titanic/pict/3300.png",
+     "id": 3300,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 26046,
+     "file": "Titanic/pict/3301.png",
+     "id": 3301,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 17766,
+     "file": "Titanic/pict/3302.png",
+     "id": 3302,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 22894,
+     "file": "Titanic/pict/3303.png",
+     "id": 3303,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 22586,
+     "file": "Titanic/pict/3304.png",
+     "id": 3304,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8410,
+     "file": "Titanic/pict/3305.png",
+     "id": 3305,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 15058,
+     "file": "Titanic/pict/3306.png",
+     "id": 3306,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8410,
+     "file": "Titanic/pict/3307.png",
+     "id": 3307,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 86422,
+     "file": "Titanic/pict/3308.png",
+     "id": 3308,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 27378,
+     "file": "Titanic/pict/3309.png",
+     "id": 3309,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 21796,
+     "file": "Titanic/pict/3310.png",
+     "id": 3310,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 16538,
+     "file": "Titanic/pict/3311.png",
+     "id": 3311,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 48668,
+     "file": "Titanic/pict/3312.png",
+     "id": 3312,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 5936,
+     "file": "Titanic/pict/3314.png",
+     "id": 3314,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 23492,
+     "file": "Titanic/pict/3315.png",
+     "id": 3315,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 22576,
+     "file": "Titanic/pict/3316.png",
+     "id": 3316,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8390,
+     "file": "Titanic/pict/3317.png",
+     "id": 3317,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 8344,
+     "file": "Titanic/pict/3318.png",
+     "id": 3318,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 14456,
+     "file": "Titanic/pict/3319.png",
+     "id": 3319,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 14312,
+     "file": "Titanic/pict/3320.png",
+     "id": 3320,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13530,
+     "file": "Titanic/pict/3321.png",
+     "id": 3321,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13054,
+     "file": "Titanic/pict/3322.png",
+     "id": 3322,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 13308,
+     "file": "Titanic/pict/3323.png",
+     "id": 3323,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 18788,
+     "file": "Titanic/pict/3324.png",
+     "id": 3324,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 28106,
+     "file": "Titanic/pict/3325.png",
+     "id": 3325,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 17862,
+     "file": "Titanic/pict/3326.png",
+     "id": 3326,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 26882,
+     "file": "Titanic/pict/3327.png",
+     "id": 3327,
+     "role": "background",
+     "size": [
+      512,
+      322
+     ]
+    },
+    {
+     "bytes": 4576,
+     "file": "Titanic/pict/10000.png",
+     "id": 10000,
+     "role": "custom_pict",
+     "size": [
+      45,
+      150
+     ]
+    },
+    {
+     "bytes": 3536,
+     "file": "Titanic/pict/10001.png",
+     "id": 10001,
+     "role": "custom_pict",
+     "size": [
+      21,
+      98
+     ]
+    },
+    {
+     "bytes": 2628,
+     "file": "Titanic/pict/10002.png",
+     "id": 10002,
+     "role": "custom_pict",
+     "size": [
+      101,
+      77
+     ]
+    },
+    {
+     "bytes": 2472,
+     "file": "Titanic/pict/10003.png",
+     "id": 10003,
+     "role": "custom_pict",
+     "size": [
+      30,
+      16
+     ]
+    },
+    {
+     "bytes": 2476,
+     "file": "Titanic/pict/10004.png",
+     "id": 10004,
+     "role": "custom_pict",
+     "size": [
+      30,
+      16
+     ]
+    },
+    {
+     "bytes": 3252,
+     "file": "Titanic/pict/10005.png",
+     "id": 10005,
+     "role": "custom_pict",
+     "size": [
+      24,
+      68
+     ]
+    },
+    {
+     "bytes": 3086,
+     "file": "Titanic/pict/10006.png",
+     "id": 10006,
+     "role": "custom_pict",
+     "size": [
+      23,
+      84
+     ]
+    },
+    {
+     "bytes": 2546,
+     "file": "Titanic/pict/10007.png",
+     "id": 10007,
+     "role": "custom_pict",
+     "size": [
+      34,
+      24
+     ]
+    },
+    {
+     "bytes": 2428,
+     "file": "Titanic/pict/10008.png",
+     "id": 10008,
+     "role": "custom_pict",
+     "size": [
+      27,
+      16
+     ]
+    },
+    {
+     "bytes": 2334,
+     "file": "Titanic/pict/10009.png",
+     "id": 10009,
+     "role": "custom_pict",
+     "size": [
+      21,
+      12
+     ]
+    },
+    {
+     "bytes": 11062,
+     "file": "Titanic/pict/10010.png",
+     "id": 10010,
+     "role": "custom_pict",
+     "size": [
+      131,
+      77
+     ]
+    },
+    {
+     "bytes": 4300,
+     "file": "Titanic/pict/10011.png",
+     "id": 10011,
+     "role": "custom_pict",
+     "size": [
+      108,
+      108
+     ]
+    },
+    {
+     "bytes": 2354,
+     "file": "Titanic/pict/10012.png",
+     "id": 10012,
+     "role": "custom_pict",
+     "size": [
+      220,
+      15
+     ]
+    },
+    {
+     "bytes": 2384,
+     "file": "Titanic/pict/10013.png",
+     "id": 10013,
+     "role": "custom_pict",
+     "size": [
+      221,
+      15
+     ]
+    },
+    {
+     "bytes": 2464,
+     "file": "Titanic/pict/10058.png",
+     "id": 10058,
+     "role": "custom_pict",
+     "size": [
+      23,
+      13
+     ]
+    },
+    {
+     "bytes": 2650,
+     "file": "Titanic/pict/10059.png",
+     "id": 10059,
+     "role": "custom_pict",
+     "size": [
+      25,
+      20
+     ]
+    },
+    {
+     "bytes": 2418,
+     "file": "Titanic/pict/10060.png",
+     "id": 10060,
+     "role": "custom_pict",
+     "size": [
+      16,
+      16
+     ]
+    },
+    {
+     "bytes": 2410,
+     "file": "Titanic/pict/10061.png",
+     "id": 10061,
+     "role": "custom_pict",
+     "size": [
+      16,
+      15
+     ]
+    },
+    {
+     "bytes": 2474,
+     "file": "Titanic/pict/10062.png",
+     "id": 10062,
+     "role": "custom_pict",
+     "size": [
+      23,
+      13
+     ]
+    },
+    {
+     "bytes": 2650,
+     "file": "Titanic/pict/10063.png",
+     "id": 10063,
+     "role": "custom_pict",
+     "size": [
+      25,
+      20
+     ]
+    },
+    {
+     "bytes": 2416,
+     "file": "Titanic/pict/10064.png",
+     "id": 10064,
+     "role": "custom_pict",
+     "size": [
+      16,
+      16
+     ]
+    }
+   ],
+   "types": [
+    "ICN#",
+    "PICT",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "snd ",
+    "vers"
+   ]
+  }
+ ],
+ "note": "RGB PNGs; the transfer mode is chosen by the caller, see the module docstring",
+ "off_palette": [
+  {
+   "colours": 209,
+   "house": "Teddy World",
+   "id": 3003
+  },
+  {
+   "colours": 165,
+   "house": "Teddy World",
+   "id": 3006
+  },
+  {
+   "colours": 235,
+   "house": "Teddy World",
+   "id": 3007
+  },
+  {
+   "colours": 253,
+   "house": "Teddy World",
+   "id": 3009
+  },
+  {
+   "colours": 254,
+   "house": "Teddy World",
+   "id": 3010
+  },
+  {
+   "colours": 249,
+   "house": "Teddy World",
+   "id": 3011
+  },
+  {
+   "colours": 254,
+   "house": "Teddy World",
+   "id": 3012
+  },
+  {
+   "colours": 35,
+   "house": "Teddy World",
+   "id": 3015
+  },
+  {
+   "colours": 221,
+   "house": "Teddy World",
+   "id": 3016
+  },
+  {
+   "colours": 189,
+   "house": "Teddy World",
+   "id": 3017
+  },
+  {
+   "colours": 88,
+   "house": "Teddy World",
+   "id": 3018
+  },
+  {
+   "colours": 201,
+   "house": "Teddy World",
+   "id": 3019
+  },
+  {
+   "colours": 240,
+   "house": "Teddy World",
+   "id": 3023
+  },
+  {
+   "colours": 31,
+   "house": "Teddy World",
+   "id": 8253
+  },
+  {
+   "colours": 215,
+   "house": "Teddy World",
+   "id": 10031
+  },
+  {
+   "colours": 254,
+   "house": "Teddy World",
+   "id": 10036
+  },
+  {
+   "colours": 254,
+   "house": "Teddy World",
+   "id": 10037
+  },
+  {
+   "colours": 23,
+   "house": "Teddy World",
+   "id": 10038
+  },
+  {
+   "colours": 23,
+   "house": "Teddy World",
+   "id": 10039
+  },
+  {
+   "colours": 17,
+   "house": "Teddy World",
+   "id": 10046
+  },
+  {
+   "colours": 17,
+   "house": "Teddy World",
+   "id": 10047
+  },
+  {
+   "colours": 17,
+   "house": "Teddy World",
+   "id": 10048
+  },
+  {
+   "colours": 26,
+   "house": "Teddy World",
+   "id": 10049
+  },
+  {
+   "colours": 112,
+   "house": "The Asylum Pro",
+   "id": 3001
+  }
+ ],
+ "pict_total": 919,
+ "unknown_types": {}
+}

@@ -1629,9 +1629,11 @@ python3 tools/extract_all.py            # or: make assets
 ```
 
 → `assets/extracted/{res,art,sound,houses,movie}/` + `manifest.json`, **908 files, 36 MB, 16 s**.
-The tree is gitignored: it is derived data and this script is the derivation. Two runs over the
-same `GliderPRO/` produce byte-identical output (no wall-clock in the manifest), so
-`make assets-check` re-extracts to a temp directory and diffs the manifests to prove it.
+(1.3 added `houseart/`; the tree is now 1,899 files and about 70 s.) It is derived data and this
+script is the derivation, but it is *committed* anyway, so that a clone can play without running
+it — see docs/IMPROVEMENTS.md 1.2. Two runs over the same `GliderPRO/` produce byte-identical
+output, verified: no wall-clock anywhere in the manifest, and `make assets-check` re-extracts to
+a temp directory and compares every file against the committed tree.
 
 | Script | Size | What it does |
 |---|---:|---|

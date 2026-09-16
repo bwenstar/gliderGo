@@ -294,9 +294,9 @@ func (a *app) openAudio() error {
 	}
 	bank, err := audio.LoadBank(o.sounds)
 	if err != nil {
-		// The usual cause is a checkout with no assets: assets/extracted is
-		// gitignored, being reproducible from GliderPRO/, so `make assets` is the
-		// fix. The game is fully playable without it.
+		// assets/extracted/sound is committed, so the usual cause is a bad -sounds
+		// path or a `make clean-assets`; `make assets` puts the tree back. The game
+		// is fully playable without it.
 		fmt.Fprintf(os.Stderr, "glidergo: no sound: %v\n", err)
 		return nil
 	}

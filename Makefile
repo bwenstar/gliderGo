@@ -1,8 +1,9 @@
 # gliderGo -- a Go port of Glider PRO (1994, John Calhoun / Casady & Greene).
 #
-# If you have Go 1.23 or newer, `make check` works on a fresh clone with no setup:
-# GO below finds a toolchain on PATH by itself. `scripts/bootstrap-dev-env.sh` is
-# only needed when you have no Go, or no internet -- see docs/DEV_ENVIRONMENT.md.
+# If you have Go 1.23 or newer, `make run` works on a fresh clone with no setup: the
+# assets are committed, and GO below finds a toolchain on PATH by itself.
+# `scripts/bootstrap-dev-env.sh` is only needed when you have no Go, or no internet --
+# see docs/DEV_ENVIRONMENT.md.
 
 # A toolchain this repo's bootstrap installed, else whatever `go` is on PATH.
 # Override with `make GO=/path/to/go` to build against a specific one.
@@ -13,6 +14,10 @@ ASSETS  := assets/extracted
 
 # The asset-tree tests every target below shares, so that they cannot drift apart.
 #
+# assets/extracted/ is committed, so in a clone all three of these are true and nothing below
+# skips. They are still here because the tree is output and can legitimately be absent: after
+# `make clean-assets`, in a `git archive` that excluded it, or in a half-restored CI cache.
+#
 # Each one tests for *contents*, not for a directory. `[ -d $(ASSETS)/houses ]` was the old
 # test and it says yes to an empty directory -- which is what a half-restored CI cache leaves
 # behind. The glob then expands to the literal string `*.house`, and the step fails with
@@ -21,7 +26,7 @@ ASSETS  := assets/extracted
 HAVE_HOUSES := ls $(ASSETS)/houses/*.house >/dev/null 2>&1
 HAVE_SOUND  := [ -s $(ASSETS)/sound/manifest.tsv ]
 HAVE_ART    := [ -s $(ASSETS)/art/manifest.json ]
-NO_ASSETS   := echo "   run \`make assets\` to extract them (about a minute)"
+NO_ASSETS   := echo "   they are committed, so this means they were removed: \`make assets\` puts them back (about a minute)"
 
 # Where the scratch PNGs and WAVs go. Overridable because these paths are fixed, not
 # temporary: two CI jobs sharing one self-hosted runner would write to the same files and
@@ -333,16 +338,27 @@ check-caveats:
 		echo "         everything above ran, but note the gaps -- this was not a full check"; \
 	fi
 
-## assets: extract the 1994 art, sound, houses and movies into assets/extracted/
+## assets: re-extract assets/extracted/ from GliderPRO/ (committed already; this regenerates)
+#
+# Nobody needs to run this to play: the tree it writes is in the repository. It is here for
+# three cases -- changing the extractor, restoring the tree after `make clean-assets`, and
+# regenerating the houses/*.rsrc intermediates, which are the one part not committed.
 assets:
 	python3 tools/extract_all.py
 
-## assets-check: re-extract to a temp tree and prove the pipeline is deterministic
+## assets-check: prove the committed asset tree is exactly what the extractor produces
+#
+# The strong version of what used to be a manifest diff. It re-extracts to a temp tree and
+# compares every file, which is the check that matters now that the output is committed: it
+# catches a hand-edited asset, a partial commit, and a checkout that mangled a byte (see
+# .gitattributes on why that was a real risk on Windows).
+#
+# houses/*.rsrc is excluded because it is deliberately not committed -- see .gitignore.
 assets-check:
-	@rm -rf /tmp/glidergo-assets-check
-	@python3 tools/extract_all.py --out /tmp/glidergo-assets-check >/dev/null 2>&1
-	@diff $(ASSETS)/manifest.json /tmp/glidergo-assets-check/manifest.json \
-		&& echo "assets: reproducible -- manifests identical"
+	@rm -rf $(OUT)/glidergo-assets-check
+	@python3 tools/extract_all.py --out $(OUT)/glidergo-assets-check >/dev/null 2>&1
+	@diff -r -x '*.rsrc' $(ASSETS) $(OUT)/glidergo-assets-check \
+		&& echo "assets: the committed tree is byte-for-byte what tools/extract_all.py produces"
 
 ## doctor: report what this machine has, what it is missing, and which networks it can see
 #
@@ -359,7 +375,10 @@ tools:
 clean:
 	rm -rf $(BIN)
 
-## clean-assets: remove extracted assets; `make assets` regenerates them
+## clean-assets: remove assets/extracted/; `make assets` regenerates it
+#
+# This deletes committed files, so `git status` will have plenty to say afterwards.
+# `git checkout -- assets/extracted` restores them without re-running the extractor.
 clean-assets:
 	rm -rf $(ASSETS)
 

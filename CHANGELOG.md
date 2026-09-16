@@ -15,6 +15,21 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The game's data is committed (2026-09-16)
+
+- `assets/extracted/` is now in the repository: 1,877 files, 15.5 MB — the 1994 art, the sounds
+  and music decoded to PCM, and all 22 houses. `make run` plays from a clone with no extraction
+  step, no python3, and no copy of Glider PRO. This is route (a) of `docs/IMPROVEMENTS.md` 1.2,
+  settled by the project owner; the GPLv2 source the content was decoded from stays vendored under
+  `GliderPRO/` as the reference the documentation cites and the extractor reads.
+- The one thing still not committed is `houses/*.rsrc`: 22 per-house resource forks, 24 MB of the
+  39.5 the extractor writes, which `tools/extract_house_art.py` decodes into the `houseart/` PNGs
+  and which nothing reads at run time. `make assets-check` now diffs the whole committed tree
+  against a fresh extraction rather than comparing manifests, excluding those; the extractor is
+  byte-for-byte reproducible, which is what makes that comparison exact.
+- CI refuses a checkout whose assets are missing instead of extracting them, and a new `assets`
+  job runs `make assets-check` so the committed tree cannot drift from its source.
+
 ### Stage 1.10 — saved games (`9c08d5b`, 2026-09-16)
 
 - Reading and writing the original's saved-game format, reconstructed from four code paths that
@@ -56,8 +71,10 @@ versioning yet, because nothing has been versioned.
   both endings, the credits, and music on the title screen.
 - **High scores**, which the original did keep (per house, in the house file itself) — both entry
   dialogs included.
-- A fresh clone with no extracted assets comes up on the port's own title screen and names the
-  command that produces them, instead of failing (`docs/IMPROVEMENTS.md` 2.6).
+- A clone whose assets are missing comes up on the port's own title screen and names the command
+  that puts them back, instead of failing (`docs/IMPROVEMENTS.md` 2.6). Assets ship in the
+  repository now, so that path is the one you reach by deleting them rather than the one a clone
+  starts in.
 - Deviation: the scoreboard sits where the port puts it, not where 1994 put it, and the reason is
   recorded (2.9).
 
@@ -100,9 +117,9 @@ rubber bands and grease (`408c8bf`), and the animated locale — flames, stars, 
 ### Stage 1.1 — the asset pipeline (`3520b93`)
 
 - `make assets` (`tools/extract_all.py`): 38 committed files under `GliderPRO/` in, 1,899 files
-  and 46 MB out, in about 70 s. The output is gitignored and `make assets-check` proves it is a
-  function of its input. No copy of the game, no Macintosh and no network is needed
-  (`docs/IMPROVEMENTS.md` 5.6).
+  and 46 MB out, in about 70 s. No Macintosh, no copy of the retail game and no network
+  (`docs/IMPROVEMENTS.md` 5.6). The output was gitignored at this point; it is committed now, see
+  *The game's data is committed* above.
 
 ### Stage 0 — the source of truth (`3ed2c74`, `b472ca4`, `b988c2f`)
 
@@ -119,8 +136,9 @@ rubber bands and grease (`408c8bf`), and the animated locale — flames, stars, 
 The full list lives in `docs/IMPROVEMENTS.md`. The four that would matter most to someone reading
 this file first:
 
-- **The licence footing of the 1994 art, sounds and 22 houses is an open decision** (1.2). The
-  code is GPLv2; the vendored content is a separate question and it is not settled.
+- **The 1994 art, sounds and houses ship under the GPLv2 the source release carries** (1.2), which
+  is a defensible reading of that release and not a cleared one — nobody has asked John Calhoun.
+  Shipping the content is decided; confirming it is not.
 - No release pipeline: no tags, no packaged builds, no installer (5.4).
 - Only Linux/X11 can draw. Windows is Stage 4, macOS Stage 6; everything else compiles and runs
   headless (5.5).

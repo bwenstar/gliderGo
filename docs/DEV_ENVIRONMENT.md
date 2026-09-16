@@ -21,29 +21,31 @@ Nothing to bootstrap. `make` finds a `go` on your PATH by itself.
 
 ```bash
 git clone <this repository> glidergo && cd glidergo
-sudo apt-get install -y build-essential pkg-config libx11-dev python3   # or §2 for your distro
-make assets                         # extract the 1994 data (~70 s, gitignored output)
+sudo apt-get install -y build-essential pkg-config libx11-dev   # or §2 for your distro
 make check                          # fmt, vet, tests, build, cross-compile, smoke  (~15 s)
 make run                            # play it
 ```
 
-Nothing else is needed and nothing else is fetched: the 1994 game is vendored under
-`GliderPRO/`, and `make assets` decodes the art, sounds, 22 houses and movies out of it — 38
-committed files in, 1,899 out. No copy of Glider PRO, no Macintosh, no network.
+Nothing else is needed and nothing else is fetched. The game's data is committed:
+`assets/extracted/` holds the 1994 art, sounds, music, 22 houses and movies, already decoded,
+so there is no extraction step before playing and no copy of Glider PRO to find.
+`tools/extract_all.py` produced that tree from the vendored `GliderPRO/` and `make assets`
+re-runs it (~70 s, needs python3); `make assets-check` re-extracts to a temp tree and proves
+the committed copy is byte-for-byte identical.
 
-`make check` also passes on a clone with **no** extracted assets and **no** display — verified.
-The asset-dependent steps skip with a message and the closing summary lists what it could not
-verify, so a green run never overclaims. `make doctor` reports what your machine has and is
-missing. `libx11-dev` is the one requirement that is not optional: `vet` and `test` compile the
-X11 backend whenever cgo is on, so without its pkg-config metadata `make check` fails with an
-error from pkg-config. `make headless` is the build that needs neither it nor a display.
+`make check` also passes on a tree with the assets **removed** and with **no** display —
+verified. The asset-dependent steps skip with a message and the closing summary lists what it
+could not verify, so a green run never overclaims. `make doctor` reports what your machine has
+and is missing. `libx11-dev` is the one requirement that is not optional: `vet` and `test`
+compile the X11 backend whenever cgo is on, so without its pkg-config metadata `make check`
+fails with an error from pkg-config. `make headless` is the build that needs neither it nor a
+display.
 
 ### If you have no Go, or no internet
 
 ```bash
 ./scripts/bootstrap-dev-env.sh      # picks a dependency source and says which; installs Go
 . scripts/env.sh                    # PATH/GOROOT/GOPROXY=off/GOTOOLCHAIN=local
-make assets
 make check
 ```
 
@@ -89,7 +91,7 @@ Everything it does need is a host tool:
 | **Go** | 1.23 (`go.mod`) | everything | nothing builds |
 | **gcc** + **pkg-config** | any | cgo, i.e. the x11 backend | as the next row: nothing that opens a window builds |
 | **libX11 headers** (`x11.pc`) | 1.8 | the x11 backend — the only one that opens a window | `make build`, `vet` and `test` **fail**, with pkg-config's own error. There is no silent fallback: the null backend is `make headless`, or `-tags nullbackend`, asked for by name |
-| **python3** | 3.6 (f-strings) | `make assets` | no art, sound, houses or movies; every asset-dependent step skips |
+| **python3** | 3.6 (f-strings) | `make assets` / `assets-check` only | nothing — the assets those produce are committed. Needed to change the extractor or verify the tree |
 | **git** | any | the version string only | the binary reports `version=dev` |
 | **make** | any | convenience | use `go build ./cmd/glidergo` directly |
 | `libXext` headers | — | *nothing* — MIT-SHM is deliberately unused | nothing |
@@ -101,11 +103,11 @@ Per distro, the required set:
 
 ```bash
 # Debian / Ubuntu
-sudo apt-get install -y build-essential pkg-config libx11-dev python3
+sudo apt-get install -y build-essential pkg-config libx11-dev   # + python3 to re-extract
 # Fedora / RHEL
-sudo dnf install -y gcc pkgconf-pkg-config libX11-devel python3
+sudo dnf install -y gcc pkgconf-pkg-config libX11-devel
 # Arch
-sudo pacman -S --needed base-devel pkgconf libx11 python
+sudo pacman -S --needed base-devel pkgconf libx11
 # macOS -- builds and tests, but has no backend yet, so it cannot draw
 xcode-select --install
 ```
@@ -294,7 +296,7 @@ gliderGo/
 │   └── platform/           # 640x480 framebuffer, x11 (cgo) and null backends
 ├── tools/                  # asset-extraction and probe scripts (python3)
 │   └── extract_all.py      #   the driver: `make assets` -> assets/extracted/
-├── assets/extracted/       # gitignored: 1,899 generated files, 46 MB, rebuilt in ~70 s
+├── assets/extracted/       # committed game data: 1,877 files, 15.5 MB, rebuilt in ~70 s
 ├── scripts/                # bootstrap-dev-env.sh, env.sh (generated, gitignored)
 ├── .github/workflows/      # public CI -- see the caveat at the top of ci.yml
 └── .toolchain/             # gitignored: sysroot + deb cache

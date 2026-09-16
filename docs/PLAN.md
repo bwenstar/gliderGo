@@ -1214,10 +1214,11 @@ What survives from those paragraphs is the part that was about gliderGo rather t
 neighbours: the port can be built three ways — from a Go already on `PATH`, from an internal
 package mirror, or from `go.dev` — chosen by `scripts/bootstrap-dev-env.sh` and reported by
 `make doctor`. Its CI assumes it is the root of its checkout, and its build wants a `libx11-dev`
-and a `python3` that nothing else here needs. A fresh clone is self-sufficient: `make assets`
-reads 38 committed files under `GliderPRO/` and writes 1,899, and `make check` is green before
-and after. See docs/IMPROVEMENTS.md 5.6 for the audit that established that, and what it left
-open.
+and a `python3` for the asset pipeline only. A clone is self-sufficient in the strong sense:
+`assets/extracted/` is committed (docs/IMPROVEMENTS.md 1.2), so `make run` plays with no
+extraction step, and `make assets` re-derives the tree from 38 committed files under
+`GliderPRO/` when the pipeline itself changes. See docs/IMPROVEMENTS.md 5.6 for the audit behind
+that, and what it left open.
 
 `Map.c` was checked and is **editor-only**, so it belongs to Stage 5 and not Stage 1:
 `OpenMapWindow` has one caller, `OpenCloseEditWindows` (`Menu.c:792-799`), gated on
@@ -1327,7 +1328,7 @@ is a one-line change with a visible blast radius.
 ```bash
 cd <your clone of gliderGo>
 ./scripts/bootstrap-dev-env.sh && . scripts/env.sh && make check
-make assets                  # assets/extracted/ is gitignored; regenerate it (57 s)
+make assets                  # only to rebuild assets/extracted/; it is committed (57 s)
 make houses                  # 1.2's evidence: 22 houses through both codecs, unchanged
 git log --oneline            # every stage is a commit with a detailed message
 sed -n '1,60p' docs/PLAN.md  # you are here

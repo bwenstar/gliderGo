@@ -1,0 +1,703 @@
+{
+ "buckets": {
+  "art": {
+   "backgrounds": 18,
+   "dir": "art",
+   "files": 180,
+   "misc": 1,
+   "objects": 117,
+   "pict_buckets": {
+    "bg": 18,
+    "misc": 1,
+    "obj_art": 38,
+    "obj_mask": 8,
+    "sheet_art": 14,
+    "sheet_mask": 13,
+    "strip_art": 14,
+    "strip_mask": 8,
+    "ui": 38
+   },
+   "pict_total": 152,
+   "png": 179,
+   "sheets": 14,
+   "strips": 14,
+   "tree_sha256": "caece79bf453916ee60f0d9b05fb9aade6c89581ac60d7b28368fe4127daeb5e",
+   "ui": 38
+  },
+  "houseart": {
+   "bnds_total": 70,
+   "dir": "houseart",
+   "files": 990,
+   "houses": 22,
+   "off_palette": [
+    {
+     "colours": 209,
+     "house": "Teddy World",
+     "id": 3003
+    },
+    {
+     "colours": 165,
+     "house": "Teddy World",
+     "id": 3006
+    },
+    {
+     "colours": 235,
+     "house": "Teddy World",
+     "id": 3007
+    },
+    {
+     "colours": 253,
+     "house": "Teddy World",
+     "id": 3009
+    },
+    {
+     "colours": 254,
+     "house": "Teddy World",
+     "id": 3010
+    },
+    {
+     "colours": 249,
+     "house": "Teddy World",
+     "id": 3011
+    },
+    {
+     "colours": 254,
+     "house": "Teddy World",
+     "id": 3012
+    },
+    {
+     "colours": 35,
+     "house": "Teddy World",
+     "id": 3015
+    },
+    {
+     "colours": 221,
+     "house": "Teddy World",
+     "id": 3016
+    },
+    {
+     "colours": 189,
+     "house": "Teddy World",
+     "id": 3017
+    },
+    {
+     "colours": 88,
+     "house": "Teddy World",
+     "id": 3018
+    },
+    {
+     "colours": 201,
+     "house": "Teddy World",
+     "id": 3019
+    },
+    {
+     "colours": 240,
+     "house": "Teddy World",
+     "id": 3023
+    },
+    {
+     "colours": 31,
+     "house": "Teddy World",
+     "id": 8253
+    },
+    {
+     "colours": 215,
+     "house": "Teddy World",
+     "id": 10031
+    },
+    {
+     "colours": 254,
+     "house": "Teddy World",
+     "id": 10036
+    },
+    {
+     "colours": 254,
+     "house": "Teddy World",
+     "id": 10037
+    },
+    {
+     "colours": 23,
+     "house": "Teddy World",
+     "id": 10038
+    },
+    {
+     "colours": 23,
+     "house": "Teddy World",
+     "id": 10039
+    },
+    {
+     "colours": 17,
+     "house": "Teddy World",
+     "id": 10046
+    },
+    {
+     "colours": 17,
+     "house": "Teddy World",
+     "id": 10047
+    },
+    {
+     "colours": 17,
+     "house": "Teddy World",
+     "id": 10048
+    },
+    {
+     "colours": 26,
+     "house": "Teddy World",
+     "id": 10049
+    },
+    {
+     "colours": 112,
+     "house": "The Asylum Pro",
+     "id": 3001
+    }
+   ],
+   "pict_total": 919,
+   "tree_sha256": "a56db94ef9a31c41cd38342fcad4cf698b188bab53d400b6e1f653d14203c519",
+   "unknown_types": {}
+  },
+  "houses": {
+   "detail": [
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 38798,
+     "file": "houses/Art Museum.house",
+     "first_room": 91,
+     "house": "Art Museum",
+     "rooms": 109,
+     "rsrc_bytes": 7476159,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "Sample Rooms from Art Museum,\rSpacePods, Metropolis, Leviathan,\rNemo's Market, Land of Illusion, Davis\rStation, Titanic, and Teddy World.\r",
+     "creator": "ozm5",
+     "data_bytes": 72554,
+     "file": "houses/CD Demo House.house",
+     "first_room": 70,
+     "house": "CD Demo House",
+     "rooms": 206,
+     "rsrc_bytes": 1612342,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "What will it take to move all John's\rstuff?  A U-haul?  A pick-up truck? \rNope . . . it'll have to be the one and\ronly \"Glider Express\"\r\r                  All Aboard!",
+     "creator": "ozm5",
+     "data_bytes": 6434,
+     "file": "houses/California or Bust!.house",
+     "first_room": 14,
+     "house": "California or Bust!",
+     "rooms": 16,
+     "rsrc_bytes": 259542,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "Knowest That Thou Hast Entered\rThe Haunted Castle o' the Air\r\r(by john calhoun)",
+     "creator": "ozm5",
+     "data_bytes": 30446,
+     "file": "houses/Castle o' the Air.house",
+     "first_room": 33,
+     "house": "Castle o' the Air",
+     "rooms": 85,
+     "rsrc_bytes": 306364,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 23486,
+     "file": "houses/Davis Station.house",
+     "first_room": 4,
+     "house": "Davis Station",
+     "rooms": 65,
+     "rsrc_bytes": 1871320,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "Welcome to the Demo House!\rThis is a small beginner house that\racts as a sort of tutorial.\r(house by Kim Money)",
+     "creator": "ozm5",
+     "data_bytes": 16526,
+     "file": "houses/Demo House.house",
+     "first_room": 0,
+     "house": "Demo House",
+     "rooms": 45,
+     "rsrc_bytes": 491757,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "This is an empty house.  You can fly\rthrough it but there are no obstacles\ror prizes.  Make a copy of this house\rand feel free to fill it up.",
+     "creator": "ozm5",
+     "data_bytes": 13046,
+     "file": "houses/Empty House.house",
+     "first_room": 0,
+     "house": "Empty House",
+     "rooms": 35,
+     "rsrc_bytes": 2670,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 15830,
+     "file": "houses/Fun House.house",
+     "first_room": 29,
+     "house": "Fun House",
+     "rooms": 43,
+     "rsrc_bytes": 662443,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 61766,
+     "file": "houses/Grand Prix.house",
+     "first_room": 127,
+     "house": "Grand Prix",
+     "rooms": 175,
+     "rsrc_bytes": 1347764,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 97958,
+     "file": "houses/ImagineHouse PRO II.house",
+     "first_room": 1,
+     "house": "ImagineHouse PRO II",
+     "rooms": 279,
+     "rsrc_bytes": 677770,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 34622,
+     "file": "houses/In The Mirror.house",
+     "first_room": 6,
+     "house": "In The Mirror",
+     "rooms": 97,
+     "rsrc_bytes": 151870,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 106310,
+     "file": "houses/Land of Illusion.house",
+     "first_room": 43,
+     "house": "Land of Illusion",
+     "rooms": 303,
+     "rsrc_bytes": 401793,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 165122,
+     "file": "houses/Leviathan.house",
+     "first_room": 39,
+     "house": "Leviathan",
+     "rooms": 472,
+     "rsrc_bytes": 1901282,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 45062,
+     "file": "houses/Metropolis.house",
+     "first_room": 8,
+     "house": "Metropolis",
+     "rooms": 127,
+     "rsrc_bytes": 946907,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 44018,
+     "file": "houses/Nemo's Market.house",
+     "first_room": 0,
+     "house": "Nemo's Market",
+     "rooms": 124,
+     "rsrc_bytes": 590602,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 78470,
+     "file": "houses/Rainbow's End.house",
+     "first_room": 30,
+     "house": "Rainbow's End",
+     "rooms": 223,
+     "rsrc_bytes": 316065,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "Welcome to Omid's Happy Home.",
+     "creator": "ozm5",
+     "data_bytes": 1564,
+     "file": "houses/Sampler.house",
+     "first_room": 1,
+     "house": "Sampler",
+     "rooms": 2,
+     "rsrc_bytes": 286,
+     "tail_bytes": 2,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "Welcome to Slumberland!\r\rHouse by john calhoun, Paul Finn, \rWard Hartenstein & Steve Sullivan.",
+     "creator": "ozm5",
+     "data_bytes": 134150,
+     "file": "houses/Slumberland.house",
+     "first_room": 126,
+     "house": "Slumberland",
+     "rooms": 383,
+     "rsrc_bytes": 1041112,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 140762,
+     "file": "houses/SpacePods.house",
+     "first_room": 259,
+     "house": "SpacePods",
+     "rooms": 402,
+     "rsrc_bytes": 636844,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "",
+     "creator": "ozm5",
+     "data_bytes": 185654,
+     "file": "houses/Teddy World.house",
+     "first_room": 0,
+     "house": "Teddy World",
+     "rooms": 531,
+     "rsrc_bytes": 3107348,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "Welcome To The Asylum Pro!\r\rIf you want hints, have a comment, \rflame, or anything else, send e-mail\rto: acmesteve@aol.com\rThanks, I hope you enjoy this house.",
+     "creator": "ozm5",
+     "data_bytes": 49586,
+     "file": "houses/The Asylum Pro.house",
+     "first_room": 20,
+     "house": "The Asylum Pro",
+     "rooms": 140,
+     "rsrc_bytes": 494107,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    },
+    {
+     "banner": "The Titanic is about to leave on\rher maiden voyage!  Welcome aboard!\rWhat?  You want off?  Find the front of\rthe ship.\r\rHouse by john calhoun & Paul Finn",
+     "creator": "ozm5",
+     "data_bytes": 73250,
+     "file": "houses/Titanic.house",
+     "first_room": 92,
+     "house": "Titanic",
+     "rooms": 208,
+     "rsrc_bytes": 845727,
+     "tail_bytes": 0,
+     "type": "gliH",
+     "version": "0x0200"
+    }
+   ],
+   "dir": "houses",
+   "files": 44,
+   "houses": 22,
+   "rooms": 4070,
+   "tree_sha256": "5ff91a1fb868f71cd6c7ebbcd7eba32b8562335d55f75f619ab70527b23454c2",
+   "with_tail_slack": [
+    "Sampler"
+   ]
+  },
+  "movie": {
+   "dir": "movie",
+   "files": 16,
+   "movies": 15,
+   "tree_sha256": "f79736c54c6578d24d2d894ea4c8903bf4fb99c559d5d76cf2fec68f242a8b2f"
+  },
+  "res": {
+   "dir": "res",
+   "files": 538,
+   "resources": 538,
+   "tree_sha256": "768081e6d9d50e1f44ff7f4f9f5f59c294c215f485b6269f4b6f5e95f2ea468d",
+   "type_names": [
+    "ALRT",
+    "BNDL",
+    "CDEF",
+    "CNTL",
+    "CURS",
+    "DITL",
+    "DLGX",
+    "DLOG",
+    "FREF",
+    "ICN#",
+    "ICON",
+    "MENU",
+    "PAT#",
+    "PICT",
+    "STR#",
+    "WDEF",
+    "WIND",
+    "acur",
+    "cctb",
+    "cicn",
+    "clut",
+    "crsr",
+    "dctb",
+    "demo",
+    "icl4",
+    "icl8",
+    "ics#",
+    "ics4",
+    "ics8",
+    "ictb",
+    "mctb",
+    "ozm5",
+    "snd_",
+    "vers",
+    "wctb"
+   ],
+   "types": 35
+  },
+  "sound": {
+   "app_pcm": 70,
+   "app_rate_hz": 22254.5455,
+   "dir": "sound",
+   "files": 130,
+   "house_pcm": 58,
+   "skipped": [
+    {
+     "house": "CD Demo House",
+     "id": "3007",
+     "name": "Door Chime",
+     "reason": "SKIPPED: MACE compressionID=4 not implemented"
+    },
+    {
+     "house": "Demo House",
+     "id": "3011",
+     "name": "Meow",
+     "reason": "SKIPPED: MACE compressionID=4 not implemented"
+    },
+    {
+     "house": "Nemo's Market",
+     "id": "3004",
+     "name": "Cat Meow",
+     "reason": "SKIPPED: MACE compressionID=4 not implemented"
+    },
+    {
+     "house": "Nemo's Market",
+     "id": "3003",
+     "name": "Cash Register",
+     "reason": "SKIPPED: MACE compressionID=4 not implemented"
+    },
+    {
+     "house": "Nemo's Market",
+     "id": "3001",
+     "name": "Door Chime",
+     "reason": "SKIPPED: MACE compressionID=4 not implemented"
+    }
+   ],
+   "tree_sha256": "14dc7b0721513eb32831b9ab5d96b1474ecbb496f9b858a837b4b4834a57a24e"
+  }
+ },
+ "inputs": {
+  "GliderPRO/Glider PRO.r": {
+   "bytes": 15475666,
+   "sha256": "564bcdddf70385d1deb407715add15f27197e9ed60919b8da4f060e33b387e3d"
+  },
+  "GliderPRO/Houses/Art Museum.binhex": {
+   "bytes": 10056249,
+   "sha256": "17f4992686ec9b6b343ea20c403208dc7e28db1b39b0f969bb28e3babc9f9650"
+  },
+  "GliderPRO/Houses/Art Museum.mov": {
+   "bytes": 28232,
+   "sha256": "b794a584a414fddaf0199e27cc65af2ed17c0e1a2c65429998d9a42ef4a1033d"
+  },
+  "GliderPRO/Houses/CD Demo House.binhex": {
+   "bytes": 2205334,
+   "sha256": "fd890058ab100d23a9383195d9f553eeb1147e4ccaeee6d9ce8489a8521548a7"
+  },
+  "GliderPRO/Houses/CD Demo House.mov": {
+   "bytes": 33042,
+   "sha256": "f121db249daceec5b87872ec3cbf2f98b212d0b2df36862ccb7e786236741271"
+  },
+  "GliderPRO/Houses/California or Bust!.binhex": {
+   "bytes": 344163,
+   "sha256": "f373181c264404e75d092f5ee4761119c740e800280b0b435e3911345b4a4e60"
+  },
+  "GliderPRO/Houses/Castle o' the Air.binhex": {
+   "bytes": 437515,
+   "sha256": "88f9d3e2eaaf44a8a253f6950ab7601cde2896ad4aa34da67eb3346029d5a529"
+  },
+  "GliderPRO/Houses/Castle o' the Air.mov": {
+   "bytes": 21960,
+   "sha256": "cbf63dffc6208eeebf59fd82d8471d9b758284b9f80343a6493235c9d4f019d9"
+  },
+  "GliderPRO/Houses/Davis Station.binhex": {
+   "bytes": 2499538,
+   "sha256": "ab1ca6e78c5113df30dd1df142b880fa8dc04867181eaeb7119c682ce8e6c101"
+  },
+  "GliderPRO/Houses/Davis Station.mov": {
+   "bytes": 34504,
+   "sha256": "d6ed0aff385fcf02000580d79c1dae39c856a9fcee2d492fd2da9dac815428ab"
+  },
+  "GliderPRO/Houses/Demo House.binhex": {
+   "bytes": 664651,
+   "sha256": "dc2eeec46d4b30481fe52732cfcccf53144111b2ccf5319ff8de8b204218258d"
+  },
+  "GliderPRO/Houses/Demo House.mov": {
+   "bytes": 119789,
+   "sha256": "13f762e0ae685575d50f7724ee71c51611eab676dad4a55a8a6b4c87c38344ef"
+  },
+  "GliderPRO/Houses/Empty House.binhex": {
+   "bytes": 19343,
+   "sha256": "2622e7506baa6b391bd742891d28ff613b614ba73936dbc7b6688a0bb22c9b29"
+  },
+  "GliderPRO/Houses/Fun House.binhex": {
+   "bytes": 895562,
+   "sha256": "806b1da84bc350e87f5f7ea33adadd0518fe603a3ed72e24a3220f9441e0bca0"
+  },
+  "GliderPRO/Houses/Grand Prix.binhex": {
+   "bytes": 1882081,
+   "sha256": "a6f5a729b2b6c4dce2c5c6c43db8e668a27baa7f583b422b98f81f7158268357"
+  },
+  "GliderPRO/Houses/Grand Prix.mov": {
+   "bytes": 26407,
+   "sha256": "9e10710484f5d5ed49b6a5aead3047e50818708b064f6becb79ccc0a5d2ec1ba"
+  },
+  "GliderPRO/Houses/ImagineHouse PRO II.binhex": {
+   "bytes": 1029380,
+   "sha256": "abd99115148d6e79586909486f21e38ac8584f6dac3285e031610dc6381b99c3"
+  },
+  "GliderPRO/Houses/ImagineHouse PRO II.mov": {
+   "bytes": 30707,
+   "sha256": "8964a74dab45b1a98a5cee048e110f9ee7f18c0a7cea495edcad6c9c7a793283"
+  },
+  "GliderPRO/Houses/In The Mirror.binhex": {
+   "bytes": 243295,
+   "sha256": "865fb1d4901aa2763c6f720de49d5f86a989c7c2392dc288a56ad473a745b816"
+  },
+  "GliderPRO/Houses/Land of Illusion.binhex": {
+   "bytes": 659819,
+   "sha256": "5dade9c474e3c91e5182e816f359822126bf5f35ce2d2b12760af2546dd250ff"
+  },
+  "GliderPRO/Houses/Land of Illusion.mov": {
+   "bytes": 16016,
+   "sha256": "cd096b1b77e088eea1a92d22b2b9612367e1e71ac6439cf23b61c6b647cc858a"
+  },
+  "GliderPRO/Houses/Leviathan.binhex": {
+   "bytes": 2733762,
+   "sha256": "41204ac755ac62704d18bc51513ab243fb06501c63c504d1c044eaaa3e503116"
+  },
+  "GliderPRO/Houses/Leviathan.mov": {
+   "bytes": 65920,
+   "sha256": "8b0c06d307f23e39c1ec2376e69834c39d415ca3fbec6f199a4bf34394ec42f8"
+  },
+  "GliderPRO/Houses/Metropolis.binhex": {
+   "bytes": 1324749,
+   "sha256": "cd7fa7aea7d943ea64cee07950cc819bbb881d7b9b0f73e2d2efa93b17370c50"
+  },
+  "GliderPRO/Houses/Nemo's Market.binhex": {
+   "bytes": 815640,
+   "sha256": "e79b2e4b2a1d09057aa5aa2abe6e530b005a8841960b4b407d7f562f2a451a04"
+  },
+  "GliderPRO/Houses/Nemo's Market.mov": {
+   "bytes": 28541,
+   "sha256": "ad3b04f51ef75ce478553438ea191174fdff35479bd96097f84042050f2ce24b"
+  },
+  "GliderPRO/Houses/Rainbow's End.binhex": {
+   "bytes": 513683,
+   "sha256": "af7c9d8c5712405b1aa5f1692db83ae5121f5ecbb6b5fdc4691a522607d98648"
+  },
+  "GliderPRO/Houses/Rainbow's End.mov": {
+   "bytes": 7021,
+   "sha256": "c0de97820657a9d9dfc9c6e3198afa6d5238a7fd1cd47eee13d3f9141b003f40"
+  },
+  "GliderPRO/Houses/Sampler.binhex": {
+   "bytes": 2169,
+   "sha256": "45fe29d53b63dec4d1ff5cda9c6eb0112ec3479791e0e6d52b7245878f629fa8"
+  },
+  "GliderPRO/Houses/Slumberland.binhex": {
+   "bytes": 1552921,
+   "sha256": "5ce42a62b2dcda5503daf1d9860be4b8b71667eff0c58408d76997d17fcae8dc"
+  },
+  "GliderPRO/Houses/Slumberland.mov": {
+   "bytes": 37640,
+   "sha256": "3c6fa61c8b3a0a676409a120ac45e83d588313a5e6df39ef1cef1490feec0146"
+  },
+  "GliderPRO/Houses/SpacePods.binhex": {
+   "bytes": 1005729,
+   "sha256": "cc3efccd3e1d6aea7e06dbf6cfccba3bc8c97b736559f70177448119b2e8281a"
+  },
+  "GliderPRO/Houses/SpacePods.mov": {
+   "bytes": 51291,
+   "sha256": "6e7225ed0cf3f503b3e2fd34e7416a130d5efdb0e26545c3d9f01671a737e3af"
+  },
+  "GliderPRO/Houses/Teddy World.binhex": {
+   "bytes": 4434970,
+   "sha256": "a2fa7b391902b96878c0d53945b4046c20bfb6aeaa2344847861d1b601c0dedf"
+  },
+  "GliderPRO/Houses/Teddy World.mov": {
+   "bytes": 28587,
+   "sha256": "16552df84f497f9fb4d8d859aa2bd922cca02c0c7219fea91cf4949fa1bd4ffa"
+  },
+  "GliderPRO/Houses/The Asylum Pro.binhex": {
+   "bytes": 727114,
+   "sha256": "4bc3f2ab2bd8557669eab82dd6777e613816107c9682e171096d1533c89333c6"
+  },
+  "GliderPRO/Houses/Titanic.binhex": {
+   "bytes": 1196597,
+   "sha256": "d61adb9c7869ed59a5950c261d7c39081820ad2a1f95acfc9f31f2e0b0fb0aae"
+  },
+  "GliderPRO/Houses/Titanic.mov": {
+   "bytes": 6534,
+   "sha256": "5fbc6ca840b229cd5cd013fb8ef5df01ece6e3809b27b83e2de95745d56a0ad7"
+  }
+ },
+ "produced_by": "tools/extract_all.py",
+ "source": "GliderPRO/ (vendored read-only, GPLv2)"
+}

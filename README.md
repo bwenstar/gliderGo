@@ -48,8 +48,9 @@ a very large house, and try to get further than you did last time.
 >
 > Also done, between 1.9 and 1.10: **the public build path** — the port was developed against one
 > airgapped software mirror, and it now builds from a system Go, that mirror, or `go.dev`, with the
-> airgapped path unchanged. A fresh clone with nothing but Go 1.23 and `libx11-dev` reaches a green
-> `make check`, on a machine with no assets extracted and no display.
+> airgapped path unchanged. A clone with nothing but Go 1.23 and `libx11-dev` reaches a green
+> `make check`, and **the game's data is committed**, so `make run` plays without an extraction
+> step or a copy of the original.
 >
 > Stage 1 is done. Next: **Stage 2**, new houses — a house editor's worth of authored levels,
 > selectable alongside the originals. See [docs/PLAN.md](docs/PLAN.md), and
@@ -64,23 +65,20 @@ If you have Go 1.23 or newer, there is nothing to bootstrap and nothing to downl
 gliderGo is standard library only, which `internal/module` asserts offline:
 
 ```bash
-sudo apt-get install -y build-essential pkg-config libx11-dev python3   # other distros: docs/DEV_ENVIRONMENT.md §2
+sudo apt-get install -y build-essential pkg-config libx11-dev   # other distros: docs/DEV_ENVIRONMENT.md §2
 git clone <this repository> glidergo && cd glidergo
-make assets                       # extract the 1994 art/sound/houses/movies (~70 s)
-make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
 make run                          # window at the original's 640x480
+make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
 ```
 
-That is everything. There is nothing else to fetch and nothing to put anywhere by hand: the
-1994 game is vendored in this repository under `GliderPRO/`, and `make assets` decodes the art,
-the sounds, the 22 houses and the movies straight out of it — 38 committed files in, 1,899
-files out. You do not need a copy of Glider PRO, a Macintosh, or a network.
+Two commands and one system package. **The 1994 art, sounds, music and all 22 houses are in
+this repository** — decoded, in `assets/extracted/`, ready to load. There is no extraction
+step, no asset download, no data file to find: you do not need a copy of Glider PRO, a
+Macintosh, a network, or even python3 to play.
 
-`make check` also passes *before* `make assets`, on a clone with nothing extracted and no
-display: the asset-dependent steps skip with a message, and the closing summary names everything
-it could *not* verify, so a green run never overclaims more than it checked. It is second above
-only because checking the pixels is more use than checking that they were skipped.
-`make doctor` reports what your machine has and what it is missing.
+`make assets` re-derives that tree from `GliderPRO/` in about 70 s and `make assets-check`
+proves the committed copy is byte-for-byte what the extractor produces. Both are for working on
+the pipeline; playing needs neither. `make doctor` reports what your machine has and is missing.
 
 `libx11-dev` is the one hard requirement rather than a nicety: `vet` and `test` compile the X11
 backend whenever cgo is on, so without its pkg-config metadata `make check` fails with an error
@@ -133,7 +131,6 @@ authored and how houses are diffed in git.
 Looking at the 1994 pixels:
 
 ```bash
-make assets                                                 # needed once, for the art (~70 s)
 bin/glidertool render -scale 2 -o /tmp/room.png "assets/extracted/houses/Demo House.house"
 bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
 ```
@@ -376,7 +373,7 @@ would have refused every game its own writer produced.
 | `internal/demo/` | The attract-mode input stream: six-byte `{frame, key, padding}` records, a playback cursor, and a recorder. The 1994 resource is 1,117 keystrokes of somebody flying "Demo House", and replaying it through the port's own physics is the strictest determinism test here — a script can name one with `demo`. |
 | `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG), `replay` (headless run from a script), `demo info` / `dump` / `check` and the `types` reference table. |
 | `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
-| `assets/extracted/` | **Generated, gitignored.** 1,899 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in ~70 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
+| `assets/extracted/` | **The game's data, committed.** The 1994 art, sounds, music, 22 houses and movies, decoded and ready to load, so a clone plays without an extraction step. It is still *output*: `make assets` regenerates it from `GliderPRO/` in ~70 s and `make assets-check` proves the committed copy is byte-for-byte identical. |
 
 ## Planned scope
 
@@ -427,10 +424,9 @@ two PICT resources derive from illustrations by John R. Neill (*Ozma of Oz*) and
 **And this repository does redistribute all of it**, because `GliderPRO/` is vendored whole:
 `Glider PRO.r` is the entire 15 MB resource fork, every sprite and sound included, and
 `GliderPRO/Houses/` holds all 22 houses and 15 movies. That is deliberate — it is upstream's
-own layout, and it is the reason `make assets` works on a fresh clone with no network and no
-copy of the game. `assets/extracted/` is gitignored because it is *derived* data, not because
-the art is absent; `GliderPRO/` is 50.7 MB of the repository's 62 MB, and a `git archive` of
-it carries every byte.
+own layout, and it is why a clone plays with no network and no copy of the game. Since the
+decoded assets are committed too, the repository carries the 1994 content twice: `GliderPRO/`
+is 50.7 MB of encoded originals and `assets/extracted/` is 15.5 MB decoded from them.
 
 Whether that redistribution is licensed is the open question, and it is the one thing between
 this port and a public release: see [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2, which

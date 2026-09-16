@@ -69,27 +69,14 @@ jobs:
       - name: Report the environment
         run: make doctor
 
-      # The extracted assets are ~1 minute of python3 and are reproducible from the committed
-      # GliderPRO/ tree, so they are cached on a hash of their inputs rather than committed.
-      # tools/ is in the key because a change to the extractor changes the output.
-      - name: Cache extracted assets
-        id: assets-cache
-        uses: actions/cache@v4
-        with:
-          path: assets/extracted
-          key: assets-${{ hashFiles('GliderPRO/**', 'tools/**') }}
-
-      # Never in parallel with anything that reads them: tools/extract_all.py writes
-      # assets/extracted/ in place with no temp-and-rename, so a concurrent `go test` sees
-      # half-written PNGs and fails with "unexpected EOF" on a golden. That is an observed
-      # failure, not a theoretical one -- see docs/IMPROVEMENTS.md.
-      - name: Extract assets
-        if: steps.assets-cache.outputs.cache-hit != 'true'
-        run: make assets
-
-      # A restored-but-empty cache would be worse than a cold one, because the Makefile's
-      # guards would skip the asset-dependent steps and the job would still pass. Fail instead.
-      - name: Refuse a half-restored asset cache
+      # No extraction step and no cache: assets/extracted/ is committed (see
+      # docs/IMPROVEMENTS.md 1.2), so the checkout above already has the art, the sounds and the
+      # 22 houses. What used to be a cache-and-extract dance is now the `assets` job below,
+      # which verifies the committed tree instead of rebuilding it here.
+      #
+      # This step exists because a checkout that silently lost the assets would still pass:
+      # make's guards would skip the asset-dependent steps and `check` would go green. Refuse.
+      - name: Refuse a checkout that is missing its assets
         run: |
           test -s assets/extracted/art/manifest.json
           test -s assets/extracted/sound/manifest.tsv
@@ -114,6 +101,24 @@ jobs:
           name: shell-screens
           path: ${{ runner.temp }}/glidergo-shell
           if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # The committed assets are output, and this is what stops them drifting from their source:
+  # re-extract from GliderPRO/ and compare every file. A failure means either the extractor
+  # changed without the tree being regenerated, or somebody hand-edited an asset.
+  #
+  # Its own job because tools/extract_all.py writes assets/extracted/ in place with no
+  # temp-and-rename, so it must not run beside anything that reads the tree -- a concurrent
+  # `go test` once failed decoding a half-written golden PNG (docs/IMPROVEMENTS.md 5.2). Here
+  # it writes to a temp tree via OUT, which sidesteps that, but the isolation is kept anyway
+  # until 5.2 is actually fixed.
+  # ---------------------------------------------------------------------------
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify the committed assets are what the extractor produces
+        run: make assets-check OUT="$RUNNER_TEMP"
 
   # ---------------------------------------------------------------------------
   # Every target a release would ship. Compiles only -- see `make cross`'s comment for why a
@@ -159,14 +164,16 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
 
-      # The extractor is stdlib-only python3 but has only ever been run on Linux, so a
-      # platform-specific path or newline bug here is plausible and is not this job's subject.
-      # If it fails the suite still runs: every asset-dependent test skips rather than fails
-      # (that is a deliberate property -- a fresh clone must be able to run its own tests), so
-      # the job still proves what it is for. A failure here is a real finding for
-      # docs/IMPROVEMENTS.md, which is why it is not hidden.
-      - name: Extract assets (best effort)
-        continue-on-error: true
-        run: python3 tools/extract_all.py
-
+      # The assets are committed, so this job's `go test` runs the asset-dependent tests on
+      # Windows and macOS without an extraction step -- which is a stronger check than it used
+      # to be: it reads 1994 binary data through a real filesystem on both platforms.
+      #
+      # The extractor itself is stdlib-only python3 that has only ever run on Linux, so it is
+      # run here too, best-effort: a platform-specific path or newline bug in it is plausible
+      # and is a real finding for docs/IMPROVEMENTS.md rather than a reason to hide the step.
+      # It writes to a temp tree so it cannot dirty the checked-out assets.
       - run: go test ./...
+
+      - name: Extract assets to a temp tree (best effort)
+        continue-on-error: true
+        run: python3 tools/extract_all.py --out "${{ runner.temp }}/assets"

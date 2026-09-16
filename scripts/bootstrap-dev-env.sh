@@ -668,7 +668,7 @@ check_env() {
   [[ -n "${DISPLAY:-}" ]] && probe "X display" "$DISPLAY" || probe "X display" "unset (headless: null backend, or Xvfb)"
   [[ -e /dev/snd ]] && probe "audio device" "present" || probe "audio device" "absent (null audio sink)"
   probe "original source" "$([[ -d "$REPO_ROOT/GliderPRO/Sources" ]] && echo present || echo MISSING)"
-  probe "extracted assets" "$([[ -d "$REPO_ROOT/assets/extracted/art" ]] && echo present || echo "absent (run: make assets)")"
+  probe "extracted assets" "$([[ -d "$REPO_ROOT/assets/extracted/art" ]] && echo "present (committed)" || echo "MISSING -- committed, so restore with: git checkout -- assets/extracted")"
   probe "scripts/env.sh" "$([[ -f "$REPO_ROOT/scripts/env.sh" ]] && echo present || echo "absent (optional: make finds go on PATH)")"
 
   # Which networks this machine can see. Reported rather than acted on: --check
@@ -740,5 +740,5 @@ cat <<'EOF'
 Next:
   . scripts/env.sh          # put the toolchain on PATH (optional: make finds go itself)
   make check                # build + smoke-test the platform layer
-  make assets               # extract the 1994 art, sound, houses and movies
+  make run                  # play it -- the 1994 assets are already in the repository
 EOF

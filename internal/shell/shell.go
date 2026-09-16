@@ -250,8 +250,8 @@ type Shell struct {
 // New checks the host over and returns a shell sitting on the splash screen.
 //
 // lib may be empty. A shell with no houses is not a broken shell: it comes up, says
-// what is missing on the status line, and refuses to start a game -- which is what
-// somebody who has cloned the repository and not run `make assets` should meet,
+// what is missing on the status line, and refuses to start a game. A clone ships the
+// 22 houses, so this is what a bad -houses path or a `make clean-assets` should meet,
 // rather than an error on a terminal they may not be looking at.
 func New(h Host, lib *Library) (*Shell, error) {
 	switch {

@@ -198,7 +198,7 @@ func Load(path string) (Stream, error) {
 //
 // root is the assets/extracted directory. A missing file is returned as it comes from the
 // filesystem, so a caller can test it with os.IsNotExist and carry on without a demo -- which
-// is what a fresh clone with no `make assets` has, and what the shell's attract mode has to
+// is what a tree with the assets removed has, and what the shell's attract mode has to
 // survive.
 func LoadShipped(root string) (Stream, error) {
 	return Load(filepath.Join(root, ShippedPath))

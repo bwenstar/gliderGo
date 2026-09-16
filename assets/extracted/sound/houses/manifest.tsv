@@ -1,0 +1,64 @@
+file	house	id	name	frames	rate_hz	loop_start	loop_end	base_freq	encode	status
+Art_Museum_3000.pcm	Art Museum	3000	A-hem!	13531	22254.5455	13529	13530	60	0x00	ok
+Art_Museum_3003.pcm	Art Museum	3003	Shhhh!	11061	22254.5455	11059	11060	60	0x00	ok
+Art_Museum_3042.pcm	Art Museum	3042	Camera (auto advance)	10784	22254.5455	10782	10783	60	0x00	ok
+Art_Museum_3001.pcm	Art Museum	3001	Elevator	37504	22254.5455	37502	37503	60	0x00	ok
+Art_Museum_3002.pcm	Art Museum	3002	Security	49664	22254.5455	49662	49663	60	0x00	ok
+Art_Museum_3004.pcm	Art Museum	3004	Tired	48900	22254.5455	48898	48899	60	0x00	ok
+Art_Museum_3043.pcm	Art Museum	3043	What?	52841	22254.5455	52839	52840	60	0x00	ok
+Art_Museum_3044.pcm	Art Museum	3044	Warning (naval)	50886	22254.5455	50884	50885	72	0x00	ok
+Art_Museum_3045.pcm	Art Museum	3045	Piece of Paper	47641	22254.5455	47639	47640	60	0x00	ok
+Art_Museum_3046.pcm	Art Museum	3046	Nothin to See Here	44038	22254.5455	44036	44037	60	0x00	ok
+CD_Demo_House_3000.pcm	CD Demo House	3000	Rattlesnake	36352	22254.5455	36350	36351	60	0x00	ok
+CD_Demo_House_3001.pcm	CD Demo House	3001	Hawk	38112	22254.5455	38110	38111	60	0x00	ok
+CD_Demo_House_3002.pcm	CD Demo House	3002	Bell 1	24448	22254.5455	24446	24447	60	0x00	ok
+CD_Demo_House_3003.pcm	CD Demo House	3003	Clang Clang Clang	18423	22254.5455	18421	18422	72	0x00	ok
+CD_Demo_House_3004.pcm	CD Demo House	3004	Blackbird	4256	22254.5454	4254	4255	72	0x00	ok
+CD_Demo_House_3005.pcm	CD Demo House	3005	A-hem!	13531	22254.5455	13529	13530	60	0x00	ok
+CD_Demo_House_3006.pcm	CD Demo House	3006	Elevator	37504	22254.5455	37502	37503	60	0x00	ok
+CD_Demo_House_3042.pcm	CD Demo House	3042	Camera (auto advance)	10784	22254.5455	10782	10783	60	0x00	ok
+-	CD Demo House	3007	Door Chime	3370	22254.5455	3368	3369	60	0xFE	SKIPPED: MACE compressionID=4 not implemented
+CD_Demo_House_3008.pcm	CD Demo House	3008	Fly Buzz	13991	7418.1818	13989	13990	72	0x00	ok
+California_or_Bust__3003.pcm	California or Bust!	3003	Clang Clang Clang	18423	22254.5455	18421	18422	72	0x00	ok
+California_or_Bust__3001.pcm	California or Bust!	3001	Glypha Bird	7936	22254.5455	3966	3967	60	0x00	ok
+California_or_Bust__3002.pcm	California or Bust!	3002	Glider 4.0 Bonus	9300	22254.5455	0	4650	60	0x00	ok
+Davis_Station_3002.pcm	Davis Station	3002	Bell 1	24448	22254.5455	24446	24447	60	0x00	ok
+Davis_Station_3003.pcm	Davis Station	3003	Clang Clang Clang	18423	22254.5455	18421	18422	72	0x00	ok
+Davis_Station_3001.pcm	Davis Station	3001	Hawk	38112	22254.5455	38110	38111	60	0x00	ok
+Davis_Station_3000.pcm	Davis Station	3000	Rattlesnake	36352	22254.5455	36350	36351	60	0x00	ok
+Davis_Station_3004.pcm	Davis Station	3004	Blackbird	4256	22254.5454	4254	4255	72	0x00	ok
+-	Demo House	3011	Meow	2303	22254.5455	2301	2302	60	0xFE	SKIPPED: MACE compressionID=4 not implemented
+Grand_Prix_3000.pcm	Grand Prix	3000	V8 startup	198239	22255.0000	198279	198280	60	0x00	ok
+Grand_Prix_3001.pcm	Grand Prix	3001	Goodbye!	83773	22050.0000	83771	83772	60	0x00	ok
+Grand_Prix_3002.pcm	Grand Prix	3002	Ahooga	14592	22254.5455	14590	14591	60	0x00	ok
+ImagineHouse_PRO_II_3001.pcm	ImagineHouse PRO II	3001	Sawing Steel	63449	22254.5455	0	0	0	0x00	ok
+ImagineHouse_PRO_II_3003.pcm	ImagineHouse PRO II	3003	Touchdown	15488	22254.5455	15486	15487	60	0x00	ok
+In_The_Mirror_3001.pcm	In The Mirror	3001	Krusty Laugh	11664	11127.2727	0	0	60	0x00	ok
+In_The_Mirror_3002.pcm	In The Mirror	3002	Glass breaking	13516	11127.2727	13514	13515	60	0x00	ok
+Leviathan_3000.pcm	Leviathan	3000	Yeah!	17920	22254.5455	17918	17919	60	0x00	ok
+Leviathan_3001.pcm	Leviathan	3001	Flush!	195794	22254.5455	195792	195793	60	0x00	ok
+Leviathan_3003.pcm	Leviathan	3003	Hey Lucy, I'm home	53248	22254.5455	53246	53247	60	0x00	ok
+Leviathan_3004.pcm	Leviathan	3004	Zzzt!	14848	22254.5455	14846	14847	60	0x00	ok
+Leviathan_3005.pcm	Leviathan	3005	Photon Torpedoes	27714	22254.5455	27712	27713	60	0x00	ok
+Leviathan_3006.pcm	Leviathan	3006	Transporter	124416	22254.5455	124414	124415	60	0x00	ok
+Leviathan_3007.pcm	Leviathan	3007	Applause	37668	11127.2727	37666	37667	60	0x00	ok
+Leviathan_3008.pcm	Leviathan	3008	Exit, Stage Right	38298	11127.2727	38296	38297	60	0x00	ok
+Leviathan_3009.pcm	Leviathan	3009	Ho ho ho...	19968	22254.5455	19966	19967	60	0x00	ok
+Leviathan_3010.pcm	Leviathan	3010	Ricochet	1418	5563.6364	1416	1417	60	0x00	ok
+Leviathan_3011.pcm	Leviathan	3011	Jet Take-off	159578	22254.5455	159576	159577	60	0x00	ok
+Leviathan_3012.pcm	Leviathan	3012	Now Availible on video cassette	68608	22254.5455	0	0	60	0x00	ok
+-	Nemo's Market	3004	Cat Meow	2303	22254.5455	2301	2302	60	0xFE	SKIPPED: MACE compressionID=4 not implemented
+Nemo_s_Market_3005.pcm	Nemo's Market	3005	Bird Chirp	1446	7418.1818	1444	1445	60	0x00	ok
+-	Nemo's Market	3003	Cash Register	4266	22254.5455	4264	4265	60	0xFE	SKIPPED: MACE compressionID=4 not implemented
+-	Nemo's Market	3001	Door Chime	3370	22254.5455	3368	3369	60	0xFE	SKIPPED: MACE compressionID=4 not implemented
+Nemo_s_Market_3002.pcm	Nemo's Market	3002	Fly Buzz	13991	7418.1818	13989	13990	72	0x00	ok
+Rainbow_s_End_3000.pcm	Rainbow's End	3000	Curly Woob-Woob	23531	11127.5000	23529	23530	60	0x00	ok
+SpacePods_3000.pcm	SpacePods	3000	Squawk	6490	22254.5455	6488	6489	60	0x00	ok
+SpacePods_3002.pcm	SpacePods	3002	Organ	6716	9779.0000	6758	6759	60	0x00	ok
+SpacePods_3001.pcm	SpacePods	3001	Bubbles	5374	11127.2727	0	0	60	0x00	ok
+Titanic_3000.pcm	Titanic	3000	Splash	36603	22254.5455	36601	36602	60	0x00	ok
+Titanic_3006.pcm	Titanic	3006	Bubbles	5374	11127.2727	0	0	60	0x00	ok
+Titanic_3032.pcm	Titanic	3032	Flourish	16147	22254.5455	16145	16146	60	0x00	ok
+Titanic_3037.pcm	Titanic	3037	Horn (fog)	68496	22254.5455	68494	68495	60	0x00	ok
+Titanic_3058.pcm	Titanic	3058	Metal Clang	22976	22254.5455	22974	22975	60	0x00	ok
+Titanic_3061.pcm	Titanic	3061	Whistle (boat)	44768	22254.5455	44766	44767	60	0x00	ok

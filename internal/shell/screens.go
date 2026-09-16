@@ -205,15 +205,13 @@ func (s *Shell) drawBackdrop(scr *render.Surface) {
 	s.drawHouseLabel(scr)
 }
 
-// drawOwnTitle is the first-run screen: what somebody sees who has built the
-// program and not yet extracted the artwork.
+// drawOwnTitle is the screen for a build that cannot find its artwork.
 //
-// It is deliberately not an error and deliberately not empty. The 1994 data is
-// vendored under GliderPRO/, but the decoded art is generated and gitignored (1,899
-// files, 46 MB), so a fresh clone legitimately has none until `make assets` has run.
-// The useful thing to do about that is to come up looking like a game that is
-// missing its artwork and say which command produces it -- not to exit before
-// drawing anything (docs/IMPROVEMENTS.md 2.6).
+// A clone ships assets/extracted/, so this is no longer what a first run looks
+// like. It is what `make clean-assets`, a bad -art path or an incomplete download
+// looks like, and it is still worth drawing: a game that comes up looking like a
+// game and names the command that fixes it beats one that exits before drawing
+// anything (docs/IMPROVEMENTS.md 2.6).
 func (s *Shell) drawOwnTitle(scr *render.Surface) {
 	scr.Fill(render.SetRect(0, 0, screenWide, splashTall), render.Black8)
 
@@ -234,8 +232,8 @@ func (s *Shell) drawOwnTitle(scr *render.Surface) {
 	centerIn(scr, 0, col, 168, "John Calhoun, 1994", render.LtGray8, 1)
 
 	centerIn(scr, 0, col, 240, "no artwork found", label, 2)
-	centerIn(scr, 0, col, 266, "run `make assets` to extract", cream, 1)
-	centerIn(scr, 0, col, 278, "it from the original", cream, 1)
+	centerIn(scr, 0, col, 266, "it ships in assets/extracted;", cream, 1)
+	centerIn(scr, 0, col, 278, "`make assets` rebuilds it", cream, 1)
 }
 
 // drawHouseLabel writes the selected house's name where DrawOnSplash writes it.
@@ -528,8 +526,8 @@ func (s *Shell) aboutLines() []aboutLine {
 		{"John Calhoun / Casady & Greene, 1994", render.LtGray8, 1},
 		{},
 		{"source released under the GPL, version 2", render.LtGray8, 1},
-		{"the 1994 art and sounds ship with the source, undecoded:", render.LtGray8, 1},
-		{"`make assets` turns them into the files this reads", render.LtGray8, 1},
+		{"the 1994 art, sounds and 22 houses ship with it;", render.LtGray8, 1},
+		{"nothing to install, nothing to download", render.LtGray8, 1},
 		{},
 		{"player one:  " + controlsLine(p.Player1), cream, 1},
 		{"player two:  " + controlsLine(p.Player2), cream, 1},

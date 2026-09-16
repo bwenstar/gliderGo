@@ -37,3 +37,14 @@ GliderPRO/** linguist-vendored
 # `go test ./internal/fidelity -update`. Reviewing them line by line is not useful; a moved
 # hash is the signal, and the image is looked at with an image viewer.
 internal/fidelity/testdata/** linguist-generated
+
+# assets/extracted/ is committed so the game plays from a clone, but it is output:
+# tools/extract_all.py produces every byte of it from GliderPRO/, and `make assets-check`
+# proves it. Marked generated so it stays out of language statistics and out of diffs.
+assets/extracted/**   linguist-generated
+assets/extracted/**   binary
+# The manifests are the exception worth reading in a diff: sha256 per extracted file, and the
+# sound table. `diff` re-enables the textual diff that `binary` above turns off.
+assets/extracted/manifest.json         diff
+assets/extracted/art/manifest.json     diff
+assets/extracted/sound/manifest.tsv    diff
