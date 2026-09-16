@@ -2555,10 +2555,10 @@ What the audit established, as facts rather than intentions:
 - **The original game is not needed.** It never was, because `GliderPRO/` is vendored: `make
   assets` reads exactly **38 committed files** from it — `Glider PRO.r` (15,475,666 bytes, the
   derez'ed resource fork carrying every PICT, `'snd '`, `STR#` and dialog), 22 `.binhex` houses
-  and 15 `.mov` movies — and writes 1,899 files in about 70 s. Since 1.2 that output is committed
-  too (all but the 22 `.rsrc` intermediates, 24 MB of the 39.5: 1,877 files, 15.5 MB), so playing needs neither the
-  extractor nor python3. `make assets-check` re-extracts and compares every file, which is what
-  keeps the committed copy honest.
+  and 15 `.mov` movies — and writes 1,899 files in about 70 s. Since 1.2 was settled that output
+  is committed too — all but the 22 `.rsrc` intermediates, which are 24 MB of the 39.5: 1,877
+  files, 15.5 MB — so playing needs neither the extractor nor python3. `make assets-check`
+  re-extracts and compares every file it commits, which is what keeps the committed copy honest.
 - **`make check` passes twice over: on a full clone, and on one with the assets removed and no
   `DISPLAY`.** The asset-dependent steps skip by name and `check-caveats` closes by listing what
   it could not verify, so a green run on an empty tree never reads as a green run on a full one.

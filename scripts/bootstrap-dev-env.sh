@@ -661,13 +661,15 @@ check_env() {
   probe "go.mod requirement" "$floor"
 
   command -v gcc >/dev/null && probe "cgo C compiler" "$(gcc -dumpversion) ($MULTIARCH)" || { probe "cgo C compiler" "MISSING"; ok=1; }
-  command -v python3 >/dev/null && probe "python3 (asset extraction)" "$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])')" || { probe "python3 (asset extraction)" "MISSING"; ok=1; }
+  # python3 and GliderPRO/ are what `make assets` needs. The assets are committed, so a
+  # machine with neither can still build, test and play; both rows are advisory.
+  command -v python3 >/dev/null && probe "python3 (make assets)" "$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])')" || probe "python3 (make assets)" "absent (optional: only re-extraction needs it)"
   if pkg-config --exists x11 2>/dev/null; then probe "libX11 dev (x11.pc)" "$(pkg-config --modversion x11)"; else probe "libX11 dev (x11.pc)" "MISSING -- x11 backend will not build"; ok=1; fi
   pkg-config --exists xext 2>/dev/null && probe "libXext dev (MIT-SHM)" "$(pkg-config --modversion xext)" || probe "libXext dev (MIT-SHM)" "absent (optional)"
   pkg-config --exists sdl2 2>/dev/null && probe "SDL2 dev" "$(pkg-config --modversion sdl2)" || probe "SDL2 dev" "absent (optional)"
   [[ -n "${DISPLAY:-}" ]] && probe "X display" "$DISPLAY" || probe "X display" "unset (headless: null backend, or Xvfb)"
   [[ -e /dev/snd ]] && probe "audio device" "present" || probe "audio device" "absent (null audio sink)"
-  probe "original source" "$([[ -d "$REPO_ROOT/GliderPRO/Sources" ]] && echo present || echo MISSING)"
+  probe "original source" "$([[ -d "$REPO_ROOT/GliderPRO/Sources" ]] && echo "present (the reference)" || echo "absent (optional: only make assets reads it)")"
   probe "extracted assets" "$([[ -d "$REPO_ROOT/assets/extracted/art" ]] && echo "present (committed)" || echo "MISSING -- committed, so restore with: git checkout -- assets/extracted")"
   probe "scripts/env.sh" "$([[ -f "$REPO_ROOT/scripts/env.sh" ]] && echo present || echo "absent (optional: make finds go on PATH)")"
 
