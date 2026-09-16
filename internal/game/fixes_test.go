@@ -1,6 +1,6 @@
 package game
 
-// The three opt-in corrections, tested in the state nothing else tests: on.
+// The three *drawing* corrections, tested in the state nothing else tests: on.
 //
 // Off is the original's behaviour and is already pinned elsewhere, by the tests that were
 // written when each defect was transcribed -- TestTheSpuriousSparkleLandsAtTheCorner for the
@@ -11,6 +11,14 @@ package game
 // The last of those is the one worth having. Both mirror flags are one term added to one
 // expression, and the failure mode of a badly written fix is not "the bug remains" but "a
 // room with no mirror now draws nothing".
+//
+// There is a fourth fix and it is not here. Fixes.Player2GiveUp (2.23) corrects something a
+// player cannot *do* rather than something they see, so it needs two gliders and a keyboard
+// rather than a surface and a mirror: TestTheGiveUpKeyIsTheOnlyWayOutOfTheDeadlock in
+// twoplayer_test.go covers it on, off and against the guards it must not bypass, and
+// player.TestDeleteAbandonsOnlyForPlayerOne covers the identity test it relaxes. Splitting it
+// out rather than growing this file is deliberate -- mirrorWorld is a one-room house with two
+// flat sheets, which is the wrong fixture entirely.
 
 import (
 	"testing"

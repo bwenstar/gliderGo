@@ -193,13 +193,23 @@ func TestSixHundredFramesMatchTheGoldenTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
+	checkGolden(t, res, "duct.trace")
+}
+
+// checkGolden compares a run's trace against a checked-in one, or rewrites it under -update.
+//
+// It is a helper rather than inline code in one test because there is more than one golden
+// now -- the one-player duct run and the two-player race -- and the *reporting* is the part
+// worth sharing. See the comment inside on why the first differing frame is singled out.
+func checkGolden(t *testing.T, res *replay.Result, name string) {
+	t.Helper()
 
 	var got bytes.Buffer
 	if err := res.Trace(&got); err != nil {
 		t.Fatalf("trace: %v", err)
 	}
 
-	golden := filepath.Join("testdata", "duct.trace")
+	golden := filepath.Join("testdata", name)
 	if *update {
 		if err := os.WriteFile(golden, got.Bytes(), 0o666); err != nil {
 			t.Fatalf("write golden: %v", err)
@@ -1331,6 +1341,449 @@ func TestAGameKeyAbortsTheDemo(t *testing.T) {
 	// is handed to the player.
 	if short.GameOver {
 		t.Error("aborting the demo reported game over; the arcade path stops the demo, not the game")
+	}
+}
+
+// Two players on one keyboard.
+//
+// Stage 1.9's determinism half. The unit tests for the handshake live where the code does --
+// player.TestTwoPlayerRaceForTheCeiling, game.TestTheSurvivorIsDraggedThroughTheDoorway and the
+// rest -- and each pins one rule from a world built for it. These pin the *whole* thing running:
+// one house, one keyboard, two gliders, six deaths out of one counter, and a game that ends by
+// itself. See testdata/two.script, which reads the run frame by frame and is the document to
+// start from if one of these fails.
+
+// TestTwoPlayersMatchTheGoldenTrace is the two-player golden, and it also asserts the one thing
+// about the run that no single line of the golden states: that it stopped on its own.
+//
+// The script asks for six hundred frames and the trace is 426 long, because the sixth death
+// flagged the game over and PlayGame's loop noticed. That is why the budget is unreachable on
+// purpose -- a regression that left a two-player game running after both players were out of
+// lives would show up here as a longer trace rather than as a subtly wrong line in the middle of
+// this one.
+func TestTwoPlayersMatchTheGoldenTrace(t *testing.T) {
+	s := script(t, "two.script")
+	if !s.TwoPlayer {
+		t.Fatal("testdata/two.script is not a two-player script; the tail columns this golden " +
+			"exists for are gated on Sample.Two")
+	}
+
+	res, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	checkGolden(t, res, "two.trace")
+
+	if !res.GameOver {
+		t.Errorf("the run ended at frame %d of %d without a game over; two players out of "+
+			"lives must end the game", res.Frames, s.Frames)
+	}
+	if res.Frames >= int64(s.Frames) {
+		t.Errorf("the run used its whole %d-frame budget, so it was cut off rather than "+
+			"finished; the game over is what is being tested", s.Frames)
+	}
+	// -2 and not 0: OffAMortal decrements past zero once per player, and the second time
+	// through is what distinguishes "one player is out" from "the game is over".
+	if res.Mortals != -2 {
+		t.Errorf("the run ended with mortals %d, want -2", res.Mortals)
+	}
+}
+
+// TestTheTwoPlayerTailIsOnlyInTwoPlayerTraces pins the trace format's one conditional, which is a
+// compatibility promise rather than a matter of taste.
+//
+// Sample.line appends nine columns when the run had two gliders and none when it had one. The
+// alternative -- always emit them -- would put seven constant, meaningless columns in every
+// one-player trace in the repository and force every golden on file to be re-blessed to gain
+// them. So the shared prefix has to stay a prefix, byte for byte, and that is what this checks:
+// the field *names* of a two-player line are a one-player line's names followed by exactly the
+// nine that two players add.
+func TestTheTwoPlayerTailIsOnlyInTwoPlayerTraces(t *testing.T) {
+	line := func(twoPlayer bool) (string, []string) {
+		s := localAssets(t, replay.NewScript("CD Demo House", 20))
+		s.Room = 2
+		s.TwoPlayer = twoPlayer
+		res, err := replay.Run(s)
+		if err != nil {
+			t.Fatalf("two=%v: %v", twoPlayer, err)
+		}
+		var buf bytes.Buffer
+		if err := res.Trace(&buf); err != nil {
+			t.Fatalf("trace: %v", err)
+		}
+		for _, ln := range strings.Split(buf.String(), "\n") {
+			if strings.HasPrefix(ln, "f=") {
+				var names []string
+				for _, field := range strings.Fields(ln) {
+					names = append(names, field[:strings.Index(field, "=")])
+				}
+				return ln, names
+			}
+		}
+		t.Fatalf("two=%v: the trace has no sample lines", twoPlayer)
+		return "", nil
+	}
+
+	solo, soloNames := line(false)
+	duo, duoNames := line(true)
+
+	if strings.Contains(solo, "mode2=") {
+		t.Errorf("a one-player sample carries the two-player tail:\n  %s", solo)
+	}
+	if !strings.Contains(duo, "mode2=") {
+		t.Fatalf("a two-player sample has no tail at all, so the comparison below would pass "+
+			"vacuously:\n  %s", duo)
+	}
+	tail := []string{"mode2", "dest2", "esc", "arect", "first", "oneleft", "dead"}
+	if len(duoNames) != len(soloNames)+len(tail) {
+		t.Fatalf("a two-player line has %d fields and a one-player line %d; want exactly %d more"+
+			"\n  solo %v\n  duo  %v", len(duoNames), len(soloNames), len(tail), soloNames, duoNames)
+	}
+	for i, name := range soloNames {
+		if duoNames[i] != name {
+			t.Fatalf("field %d is %q in a one-player line and %q in a two-player one; the shared "+
+				"prefix has to stay a prefix\n  solo %v\n  duo  %v",
+				i, name, duoNames[i], soloNames, duoNames)
+		}
+	}
+	for i, name := range tail {
+		if got := duoNames[len(soloNames)+i]; got != name {
+			t.Errorf("tail field %d is %q, want %q", i, got, name)
+		}
+	}
+
+	// And the promise kept, on disk: the one-player goldens in this directory predate the tail
+	// and must not have gained it. A failure here means somebody regenerated them from a
+	// two-player run, which would make the diff unreadable rather than merely wrong.
+	for _, name := range []string{"duct.trace", "demo.trace"} {
+		body, err := os.ReadFile(filepath.Join("testdata", name))
+		if err != nil {
+			continue // demo.trace is optional; the demo tests report its absence
+		}
+		if bytes.Contains(body, []byte("mode2=")) {
+			t.Errorf("testdata/%s is a one-player golden and carries two-player columns", name)
+		}
+	}
+}
+
+// TestEachPlayersKeysAreReadSeparately is the harness half of "two players on one keyboard": the
+// script has two key columns and they have to arrive at two different gliders.
+//
+// Every assertion in the golden test above would pass on a harness that read only the first
+// column and drove both gliders from it, or that merged the two into one timeline -- the run
+// would still be deterministic, still end in a game over, still match whatever golden it
+// produced. What that harness could not do is tell these four runs apart.
+func TestEachPlayersKeysAreReadSeparately(t *testing.T) {
+	run := func(name string, mutate func([]replay.Hold)) *replay.Result {
+		t.Helper()
+		s := script(t, "two.script")
+		s.Frames = 200 // past the second hold at frame 100 and the divergence it causes
+		if len(s.Input) != 2 {
+			t.Fatalf("testdata/two.script has %d holds, want 2 (frames 0 and 100)", len(s.Input))
+		}
+		mutate(s.Input)
+		res, err := replay.Run(s)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return res
+	}
+
+	base := run("as written", func([]replay.Hold) {})
+	// Player one turns around and player two's column is untouched.
+	movedP1 := run("player one changed", func(h []replay.Hold) {
+		h[0].P1 = player.Keys{Left: true}
+		h[1].P1 = player.Keys{Left: true}
+	})
+	// Player two never takes the hint from the refusal and keeps walking into the closed wall.
+	movedP2 := run("player two changed", func(h []replay.Hold) {
+		h[1].P2 = player.Keys{Left: true}
+	})
+	// The same two timelines, swapped between the players. Not symmetric, because NewGame idles
+	// player two for the first thirty frames and player one is free from frame one -- so a
+	// harness that merged the columns into one would produce the same run here and a faithful
+	// one cannot.
+	swapped := run("swapped", func(h []replay.Hold) {
+		for i := range h {
+			h[i].P1, h[i].P2 = h[i].P2, h[i].P1
+		}
+	})
+
+	for _, c := range []struct {
+		name, why string
+		digest    string
+	}{
+		{"player one changed", "player one's column never reaches player one's glider", movedP1.Digest},
+		{"player two changed", "player two's column never reaches player two's glider", movedP2.Digest},
+		{"swapped", "the two columns are being merged into one timeline", swapped.Digest},
+	} {
+		if c.digest == base.Digest {
+			t.Errorf("%q digests the same as the script as written (%s): %s", c.name, c.why, c.digest)
+		}
+	}
+	if movedP1.Digest == movedP2.Digest {
+		t.Errorf("changing player one's keys and changing player two's produce the same run %s; "+
+			"the keys are reaching one glider, not two", movedP1.Digest)
+	}
+}
+
+// TestTheTwoPlayerTraceSeesTheHandshake reads the golden run as statements about the game rather
+// than as 426 opaque lines.
+//
+// The golden pins every value, which makes it a perfect regression test and a poor explanation:
+// a failure says "line 78 changed" and leaves the reader to work out what line 78 was for. This
+// asserts the *shape* -- two idle freezes of the same documented length, one limbo wait, one
+// refusal at the far wall, one joint crossing, one counter drained by six deaths, one terminal
+// -69 -- so that a change to the handshake fails with a sentence.
+//
+// The frame numbers are found rather than written down, for the reason testdata/demo.script
+// gives: how far a glider gets is a fidelity fact, and an improvement to the physics would move
+// every number here while leaving every rule intact.
+func TestTheTwoPlayerTraceSeesTheHandshake(t *testing.T) {
+	res, err := replay.Run(script(t, "two.script"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(res.Samples) < 400 {
+		t.Fatalf("%d samples; the run is meant to reach a two-player game over around frame 426",
+			len(res.Samples))
+	}
+
+	// The room change, which everything else is placed relative to.
+	change := -1
+	for i := 1; i < len(res.Samples); i++ {
+		if res.Samples[i].Room != res.Samples[i-1].Room {
+			change = i
+			break
+		}
+	}
+	if change < 0 {
+		t.Fatal("the run never changes room, so the mismatched-exit race it exists to show " +
+			"never resolved")
+	}
+
+	// # The two idle freezes
+	//
+	// TagGliderIdle stores its countdown in HVel and HandleIdleGlider decrements it, so the
+	// freeze lasts IdleFrames-1 *sampled* frames: it is armed before the first frame runs, and
+	// the frame that empties the counter has already left the mode by the time Present sees it.
+	// Both freezes are the same length, and that is the point of counting them together --
+	// NewGame's is at the start of the game (Play.c:198-203) and MoveRoomToRoom's is at the
+	// arrival, and one implementation serves both.
+	type block struct{ from, to int }
+	var idle []block
+	for i, sm := range res.Samples {
+		if sm.Mode2 != player.GliderIdle {
+			continue
+		}
+		if n := len(idle); n > 0 && idle[n-1].to == i-1 {
+			idle[n-1].to = i
+			continue
+		}
+		idle = append(idle, block{i, i})
+	}
+	if len(idle) != 2 {
+		t.Errorf("player two was idled %d times, want 2 (the start of the game and the arrival "+
+			"in the next room); blocks %v", len(idle), idle)
+	}
+	for _, b := range idle {
+		if n := b.to - b.from + 1; n != int(player.IdleFrames)-1 {
+			t.Errorf("the freeze at frame %d lasted %d frames, want IdleFrames-1 = %d",
+				res.Samples[b.from].Frame, n, player.IdleFrames-1)
+		}
+	}
+	if len(idle) > 0 && res.Samples[idle[0].from].Frame != 1 {
+		t.Errorf("the first freeze starts on frame %d, want 1: a two-player game begins with "+
+			"both gliders on the same pixel and freezes one of them",
+			res.Samples[idle[0].from].Frame)
+	}
+	if len(idle) > 1 && idle[1].from != change {
+		t.Errorf("the second freeze starts at frame %d and the room changes at frame %d; the "+
+			"arrival freeze is supposed to be the room change",
+			res.Samples[idle[1].from].Frame, res.Samples[change].Frame)
+	}
+	// Frozen means frozen: player two does not move for the whole of the first block. Without
+	// this the length above would pass on a mode label that nothing acted on.
+	for _, b := range idle {
+		for i := b.from + 1; i <= b.to; i++ {
+			if res.Samples[i].Dest2 != res.Samples[b.from].Dest2 {
+				t.Errorf("player two moved from %v to %v during the freeze at frame %d",
+					res.Samples[b.from].Dest2, res.Samples[i].Dest2, res.Samples[i].Frame)
+				break
+			}
+		}
+	}
+
+	// # The limbo wait, and who chose the door
+	limbo := -1
+	for i, sm := range res.Samples {
+		if sm.Mode == player.GliderInLimbo {
+			limbo = i
+			break
+		}
+	}
+	if limbo < 0 {
+		t.Fatal("player one never reached limbo; nobody waited at a doorway and the race below " +
+			"cannot have happened")
+	}
+	first := res.Samples[limbo]
+	if first.Escaped != player.PlayerEscapedRight {
+		t.Errorf("frame %d put player one in limbo with Escaped %d, want PlayerEscapedRight (%d): "+
+			"the glider walked out of the open right wall",
+			first.Frame, first.Escaped, player.PlayerEscapedRight)
+	}
+	if first.First != player.Player1 {
+		t.Errorf("frame %d put player one in limbo and FirstPlayer is player two; the glider that "+
+			"escapes first is the one that chooses", first.Frame)
+	}
+	if limbo >= change {
+		t.Errorf("player one entered limbo at frame %d and the room changed at frame %d; the "+
+			"wait is supposed to come first", first.Frame, res.Samples[change].Frame)
+	}
+
+	// # The refusal
+	//
+	// The acceptance clause: a wall exit refuses a glider whose partner left by a different
+	// route. Player two walks into the *other* open wall while player one is waiting at this
+	// one, and kDontExitSound is the whole of the game's feedback for it.
+	refused := -1
+	for i := limbo; i < change; i++ {
+		if strings.Contains(res.Samples[i].Sounds, "dont-exit") {
+			refused = i
+			break
+		}
+	}
+	if refused < 0 {
+		t.Error("no dont-exit sound between the limbo wait and the room change: player two " +
+			"reached the far wall and was let through, or never reached it")
+	} else {
+		sm := res.Samples[refused]
+		if sm.Mode != player.GliderInLimbo || sm.Escaped != player.PlayerEscapedRight {
+			t.Errorf("frame %d played dont-exit with mode %d and Escaped %d; the refusal is only "+
+				"meaningful while the other glider is still waiting at its own door",
+				sm.Frame, sm.Mode, sm.Escaped)
+		}
+		if sm.Room != first.Room {
+			t.Errorf("frame %d played dont-exit in room %d, having started in room %d",
+				sm.Frame, sm.Room, first.Room)
+		}
+	}
+
+	// # The crossing
+	//
+	// One frame, both gliders, and four things that have to be true at once.
+	cross, before := res.Samples[change], res.Samples[change-1]
+	if before.Mode != player.GliderInLimbo {
+		t.Errorf("the frame before the room change has player one in mode %d, not limbo; the "+
+			"room changed for some other reason than the second glider agreeing", before.Mode)
+	}
+	if cross.Escaped != player.NoOneEscaped {
+		t.Errorf("the room changed with Escaped still %d; the handshake is not cleared, so the "+
+			"next doorway will admit a glider on a stale code", cross.Escaped)
+	}
+	if cross.Mode == player.GliderInLimbo {
+		t.Error("player one is still in limbo after the room changed")
+	}
+	if cross.Mode2 != player.GliderIdle {
+		t.Errorf("player two arrived in mode %d, want GliderIdle: MoveRoomToRoom freezes "+
+			"whoever is not FirstPlayer, and FirstPlayer is player one here", cross.Mode2)
+	}
+	if cross.First != player.Player1 {
+		t.Error("FirstPlayer changed across the room change; the glider that chose the door is " +
+			"the one that is placed rather than frozen")
+	}
+	if d := cross.Renders - before.Renders; d != 2 {
+		t.Errorf("the transition frame advanced RenderFrames by %d, want 2", d)
+	}
+
+	// # One counter, six deaths
+	//
+	// The shared-inventory rule as the whole game shows it: Mortals starts at two players'
+	// worth of one three-life counter and walks down one step at a time, and *both* gliders
+	// take steps out of it. A port that gave each player their own counter would produce a
+	// column that stalled at 1 while somebody still had lives left.
+	want := []int16{4, 3, 2, 1, 0, -1, -2}
+	var got []int16
+	byGlider := map[string]int{}
+	for i, sm := range res.Samples {
+		if i == 0 || sm.Mortals != res.Samples[i-1].Mortals {
+			got = append(got, sm.Mortals)
+		}
+		if i == 0 || sm.Mortals >= res.Samples[i-1].Mortals {
+			continue
+		}
+		// Who paid. OffAMortal runs at the end of a fade-out, so the glider that was dying on
+		// the previous frame is the one the counter came out of.
+		switch {
+		case res.Samples[i-1].Mode == player.GliderFadingOut:
+			byGlider["player one"]++
+		case res.Samples[i-1].Mode2 == player.GliderFadingOut:
+			byGlider["player two"]++
+		default:
+			t.Errorf("mortals dropped to %d on frame %d with neither glider fading out "+
+				"(modes %d and %d)", sm.Mortals, sm.Frame,
+				res.Samples[i-1].Mode, res.Samples[i-1].Mode2)
+		}
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("the mortal counter went %v, want %v: one counter, one step per death", got, want)
+	}
+	for _, who := range []string{"player one", "player two"} {
+		if byGlider[who] == 0 {
+			t.Errorf("every death in the run came out of the other glider; %s never drew on the "+
+				"shared counter, so this run does not show it being shared", who)
+		}
+	}
+	t.Logf("six deaths out of one counter: %v", byGlider)
+
+	// # Dead forever
+	//
+	// PlayerIsDeadForever is the original's own constant and the thing that stops the survivor
+	// waiting at doorways for a player who cannot come. It is written once and never cleared,
+	// which is what the tail of this loop asserts.
+	//
+	// `dead=0` in the trace is not "nobody": player.Player2 *is* false, so the column reads the
+	// same whether player two is the dead one or the game has not come down to one player at
+	// all. That is why it is only read here, inside the OneLeft gate -- see Sample.Dead.
+	out := -1
+	for i, sm := range res.Samples {
+		if sm.OneLeft {
+			out = i
+			break
+		}
+	}
+	if out < 0 {
+		t.Fatal("no frame reported OneLeft; both players kept their lives, and the six deaths " +
+			"above went somewhere else")
+	}
+	last := res.Samples[out]
+	if last.Escaped != player.PlayerIsDeadForever {
+		t.Errorf("frame %d is the first with one player left and Escaped is %d, want "+
+			"PlayerIsDeadForever (%d)", last.Frame, last.Escaped, player.PlayerIsDeadForever)
+	}
+	if last.Dead != player.Player2 {
+		t.Errorf("frame %d says player one is the one out of lives; player two dies first in "+
+			"this script", last.Frame)
+	}
+	if last.Mode2 != player.GliderInLimbo {
+		t.Errorf("player two is in mode %d after spending its last mortal, want GliderInLimbo "+
+			"(%d): OffAMortal parks it in limbo with DontDraw rather than removing it",
+			last.Mode2, player.GliderInLimbo)
+	}
+	if last.Mortals != -1 {
+		t.Errorf("frame %d reports one player left with mortals %d, want -1", last.Frame, last.Mortals)
+	}
+	for _, sm := range res.Samples[out:] {
+		if !sm.OneLeft {
+			t.Errorf("frame %d cleared OneLeft; a player out of lives does not get any back",
+				sm.Frame)
+			break
+		}
+		if sm.Escaped != player.PlayerIsDeadForever {
+			t.Errorf("frame %d cleared Escaped to %d; PlayerIsDeadForever is written once and "+
+				"survives to the next NewGame", sm.Frame, sm.Escaped)
+			break
+		}
 	}
 }
 

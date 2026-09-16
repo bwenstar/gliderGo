@@ -266,6 +266,42 @@ type Sample struct {
 	Guarded int64 // World.Diag.Guarded, cumulative
 	Dropped int64 // dropped work + back rects, cumulative
 
+	// Two says this sample came from a two-player run, and it is what gates the seven
+	// fields below out of a one-player trace.
+	//
+	// The gate is not tidiness. A one-player game never writes any of them -- P2 is
+	// never initialised, the race slots stay at their zero values -- so a one-player
+	// trace would carry seven constant columns, and every existing golden file would
+	// have to be rewritten to gain them. Worse, a reader diffing two traces would have
+	// to know they are meaningless. See line.
+	Two bool
+
+	// Mode2 and Dest2 are player two's glider, the same two quantities the trace
+	// already carries for player one. Without them a two-player golden is blind to
+	// half the game: the idle freeze, the limbo wait and the arrival placement all
+	// happen to *one* glider at a time, and which one is the whole question.
+	Mode2 int16
+	Dest2 player.Rect
+
+	// The five-field handshake, which is the state a two-player trace exists to pin.
+	//
+	// Escaped is World.Escaped: the boundary the waiting player left through, or
+	// NoOneEscaped. ArectEscaped is World.ActiveRectEscaped, the same idea for a
+	// transport -- the hot-spot index, so the second glider has to use the same
+	// *object* and not merely the same kind. First is World.FirstPlayer, who triggered
+	// the pending change and is therefore placed first and not frozen. OneLeft and
+	// Dead are World.OneLeft and World.DeadWhich: whether the game has come down to
+	// one survivor and which of the two it is not.
+	//
+	// Three of the five are ordinary booleans whose *default* is load-bearing --
+	// FirstPlayer is BSS-false, i.e. player 2, before anyone has escaped anything --
+	// which is exactly the kind of fact a golden file is good at holding still.
+	Escaped      int16
+	ArectEscaped int16
+	First        bool
+	OneLeft      bool
+	Dead         bool
+
 	// Sounds is every PlayPrioritySound request made on this frame and what the mixer did
 	// with it, already rendered as the trace's `snd=` field: `-` for a silent frame,
 	// otherwise `name:priority:channel` per request, joined with commas, with `>name`
@@ -307,11 +343,23 @@ func (s Sample) line() string {
 		// as `-`. They are distinguished by the header's `audio` line, not per frame.
 		snd = "-"
 	}
-	return fmt.Sprintf(
+	line := fmt.Sprintf(
 		"f=%d even=%d w2m=%d b2w=%d rend=%d pend=%d clock=%d room=%d mode=%d dest=%d,%d,%d,%d score=%d mortals=%d stars=%d guarded=%d dropped=%d rand=%d snd=%s",
 		s.Frame, b2i(s.Even), s.Work2Main, s.Back2Work, s.Renders, s.Pendulums, s.ClockFrame,
 		s.Room, s.Mode, s.Dest.Top, s.Dest.Left, s.Dest.Bottom, s.Dest.Right,
 		s.Score, s.Mortals, s.Stars, s.Guarded, s.Dropped, s.Rand, snd)
+
+	// The two-player tail, appended rather than interleaved so that the first nineteen
+	// fields of every trace in the repository line up in a terminal whether the run had
+	// one glider or two. `snd=` keeps its place at the end of the shared part for the
+	// same reason: it is the one variable-width field, and a diff of two traces reads
+	// better with the ragged column last among the columns it shares.
+	if s.Two {
+		line += fmt.Sprintf(" mode2=%d dest2=%d,%d,%d,%d esc=%d arect=%d first=%d oneleft=%d dead=%d",
+			s.Mode2, s.Dest2.Top, s.Dest2.Left, s.Dest2.Bottom, s.Dest2.Right,
+			s.Escaped, s.ArectEscaped, b2i(s.First), b2i(s.OneLeft), b2i(s.Dead))
+	}
+	return line
 }
 
 func b2i(b bool) int {
@@ -791,6 +839,15 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 			Dropped:    w.Diag.DroppedWorkRects + w.Diag.DroppedBackRects,
 			Sounds:     soundsThisFrame(),
 			Rand:       w.RandSeed,
+
+			Two:          s.TwoPlayer,
+			Mode2:        w.P2.Mode,
+			Dest2:        w.P2.Dest,
+			Escaped:      w.Escaped,
+			ArectEscaped: w.ActiveRectEscaped,
+			First:        w.FirstPlayer,
+			OneLeft:      w.OneLeft,
+			Dead:         w.DeadWhich,
 		}
 		have = true
 

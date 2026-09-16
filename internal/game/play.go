@@ -721,6 +721,14 @@ func (w *World) GetInput(g *player.Glider) {
 	if w.KeyPoll != nil {
 		k = w.KeyPoll(g)
 	}
+
+	// One assignment rather than a constructor: NewWorld does not take a Fixes, because
+	// the host sets w.Fix after the world exists, so there is no single moment at which
+	// the two could be tied together once. Doing it here costs a bool store per glider per
+	// frame and cannot go stale, which is the trade a settings screen that can be opened
+	// mid-game needs anyway. See game.Fixes.Player2GiveUp.
+	w.In.Player2GiveUp = w.Fix.Player2GiveUp
+
 	w.In.GetInput(g, w, k)
 }
 

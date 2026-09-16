@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"os"
 
+	"glidergo/internal/game"
 	"glidergo/internal/prefs"
 )
 
@@ -145,6 +146,25 @@ func reportPrefsNotes(p *prefs.Prefs) {
 		fmt.Fprintf(os.Stderr, "glidergo: %s\n", n)
 	}
 	p.Notes = nil
+}
+
+// gameFixes copies the opt-in corrections from the player's settings into the game's own
+// struct, because internal/game must not import internal/prefs -- the game has no
+// preferences, it has a caller that had some.
+//
+// A function rather than a struct literal at the one call site so that
+// TestEveryOptInFixIsCopiedToTheGame can reach it. A named-field literal does *not* fail to
+// compile when a field is added to either side; it silently copies three of four, and the
+// setting then does nothing at all, which is the worst way for a preference to be broken.
+// The test compares the two field lists by reflection and is the only thing that actually
+// enforces the mapping.
+func gameFixes(f prefs.Fixes) game.Fixes {
+	return game.Fixes{
+		MirrorFlame:   f.MirrorFlame,
+		MirrorFoil:    f.MirrorFoil,
+		SwitchSparkle: f.SwitchSparkle,
+		Player2GiveUp: f.Player2GiveUp,
+	}
 }
 
 // importPrefs is the -import-prefs one-shot: read a 1994 "Glider Prefs" file, convert it,

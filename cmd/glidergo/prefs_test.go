@@ -11,8 +11,10 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
+	"glidergo/internal/game"
 	"glidergo/internal/prefs"
 )
 
@@ -247,5 +249,63 @@ func TestImportWritesWhereThePrefsWouldGo(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, prefs.Name)); err != nil {
 		t.Errorf("no %s in the configuration directory after an import: %v", prefs.Name, err)
+	}
+}
+
+// TestEveryOptInFixIsCopiedToTheGame is the only thing that makes gameFixes' promise real.
+//
+// prefs.Fixes and game.Fixes are deliberately separate types -- internal/game must not
+// import internal/prefs -- so the mapping between them is a hand-written struct literal,
+// and a named-field literal does not fail to compile when a field is added to either side.
+// It copies what it names and leaves the rest zero, which means the failure mode of adding
+// a fifth fix is a setting a player can turn on that does nothing whatsoever, with no
+// compiler error, no test failure and no log line.
+//
+// So this compares the two field lists by reflection and then checks that every prefs field
+// set true arrives true. It is the reason a new fix cannot be half-wired. Both halves are
+// needed: the name comparison catches a field added to one side only, and the copy check
+// catches a field added to both sides and forgotten here.
+func TestEveryOptInFixIsCopiedToTheGame(t *testing.T) {
+	pt := reflect.TypeOf(prefs.Fixes{})
+	gt := reflect.TypeOf(game.Fixes{})
+
+	names := func(t reflect.Type) []string {
+		var out []string
+		for i := 0; i < t.NumField(); i++ {
+			out = append(out, t.Field(i).Name)
+		}
+		return out
+	}
+	pn, gn := names(pt), names(gt)
+	if !reflect.DeepEqual(pn, gn) {
+		t.Fatalf("prefs.Fixes has %v and game.Fixes has %v; the two must carry the same "+
+			"fixes under the same names, or gameFixes cannot be checked at all", pn, gn)
+	}
+
+	// Every field true. Booleans only, which is what the type is for -- a non-boolean fix
+	// would need this test rewritten, and the fatal below says so rather than skipping it.
+	all := prefs.Fixes{}
+	v := reflect.ValueOf(&all).Elem()
+	for i := 0; i < pt.NumField(); i++ {
+		if v.Field(i).Kind() != reflect.Bool {
+			t.Fatalf("prefs.Fixes.%s is %s, not a bool; this test only knows how to set "+
+				"booleans", pt.Field(i).Name, v.Field(i).Kind())
+		}
+		v.Field(i).SetBool(true)
+	}
+
+	got := reflect.ValueOf(gameFixes(all))
+	for i := 0; i < gt.NumField(); i++ {
+		if !got.Field(i).Bool() {
+			t.Errorf("gameFixes leaves %s false with every preference set: the fix is in "+
+				"both structs and is not copied, so turning it on does nothing",
+				gt.Field(i).Name)
+		}
+	}
+
+	// And the other direction, so that a copy written `true` by mistake is caught too.
+	if zero := gameFixes(prefs.Fixes{}); zero != (game.Fixes{}) {
+		t.Errorf("gameFixes(zero) = %+v, want the zero value: every fix defaults to the "+
+			"original's behaviour", zero)
 	}
 }

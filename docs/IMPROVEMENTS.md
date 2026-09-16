@@ -456,12 +456,28 @@ one press, and neither can wait for an event that never comes — which is the p
 wanted and the spin only approximated. The pause's own wait loop does track a release, but it
 is `held` on a key the player is holding *now*, and it exits on the window closing too.
 
-### 2.16 The two-player idle freeze has no visual tell — **planned, 1.9**
+### 2.16 The two-player idle freeze has no visual tell — **measured in 1.9; the tell itself is deferred to 2.x**
 
 `TagGliderIdle` freezes a glider for 30 frames — a full second — with no indication that
 this is deliberate. Player 2 in particular starts every two-player game idled and hidden
 (`Play.c:198-203`), so the first thing a new player experiences is a second of not
 existing. A fade, a shimmer, or anything at all would do.
+
+**1.9 nailed down what it actually happens to, which was not what this entry assumed.** The
+freeze is not player 2's alone: `ReadyGliderFromTransit` freezes whoever is *not*
+`w.FirstPlayer`, and `FirstPlayer`'s zero value is `Player2` — so before anybody has waited on
+anybody, it is **player 1** who arrives frozen. The countdown is stored in `g.HVel`, reused as a
+counter while the glider cannot move. `game.TestTransitArrivalFreezesWhoeverIsNotFirstPlayer`
+tables both directions, and `game.TestOnePlayerTransitDoesNotFreezeAnybody` pins that a solo
+game never sees it.
+
+**Why the tell is not in 1.9.** Anything drawn during those 30 frames changes pixels in rooms
+that 1.8's fidelity corpus has already hashed, so the visual work has to land together with a
+corpus re-record and a decision about whether the tell is a `fixes` flag (recordable both ways)
+or an unconditional presentation change (corpus moves once, permanently). Both are cheap; neither
+is free, and doing it inside 1.9 would have mixed a rendering change into the stage that pins
+two-player *behaviour*. The behaviour is now pinned, so the tell can be added against tests that
+already say what it must not disturb.
 
 ### 2.17 The frame limiter is a busy-wait, and there is no catch-up — **DONE (the hook), 1.5b; the setting is declared, 1.7b; the catch-up is 1.8**
 
@@ -681,26 +697,53 @@ file that turns it off really does keep the game running in the background, whic
 imported 1994 `doBackground` lands. The mid-frame spin is preserved, and 2.28 is what now draws
 on the screen while it spins.
 
-### 2.22 The two-player handshake has three bugs — **planned, 1.9 (opt-in fixes)**
+### 2.22 The two-player handshake has three bugs — **the deadlock is characterised, 1.9; the two fixes are open**
 
 All three are in the limbo/transit handshake and all three are transcribed faithfully:
 
 - **Mismatched-exit deadlock.** Two players leaving the same room by different exits can
-  each end up waiting for the other, with no key that breaks it.
+  each end up waiting for the other. **Corrected in 1.9:** an earlier draft of this bullet said
+  "with no key that breaks it", which is wrong — `ForceKillGlider` on Delete does break it, at the
+  cost of a mortal, and it is *player 1's key only*, which is what makes the deadlock a real
+  hazard rather than an inconvenience and is exactly what 2.23 now fixes. 1.9 also found the
+  deadlock is wider than this bullet implied: two gliders in two *different transporters in the
+  same room* deadlock as well, because the transit race demands the same physical object
+  (`activeRectEscaped == index`, `Interactions.c:1381-1411`) and refuses the mismatch in total
+  silence. `game.TestTransitRaceNeedsTheSameObjectNotJustTheSameKind` and
+  `game.TestTheGiveUpKeyIsTheOnlyWayOutOfTheDeadlock` pin both halves, including 60 consecutive
+  refused frames to show it never resolves itself.
 - **The `takingTheStairs` leak.** The flag is set on a stair transit and is not always
   cleared, so a later transit in the same game can take the stairs path when it should not.
 - **The shared `StillOver` edge detector.** One piece of state serves both gliders, so
   player 2 standing on a trigger can suppress player 1's edge.
 
 A compatibility flag that defaults to the original's behaviour, with the fixes available,
-is the right shape — the same shape 2.19 and 2.20 want.
+is the right shape — the same shape 2.19 and 2.20 want. 1.9 shipped the *escape hatch* (2.23)
+rather than a flag that makes either exit yield, because the deadlock's own fix has to choose
+which player loses their exit and that is a design decision with no answer in the C; giving
+both players the abandon key costs one mortal and needs no such choice.
 
-### 2.23 Player 2 has no give-up key and no menu access — **planned, 1.9**
+### 2.23 Player 2 has no give-up key — **DONE as an opt-in fix, 1.9 (`fixes.player2_give_up`); the menus are still player 1's**
 
 `Delete` abandons a glider waiting in limbo and it is player 1's key only; the menus are
 player 1's too. So in a two-player game, player 2 cannot rescue a stuck situation, quit,
 pause or change a setting. With the deadlock in 2.22 unfixed that is worse than an
-asymmetry. 1.9 owes player 2 a give-up key at minimum.
+asymmetry — and 1.9 established that Delete is the *only* way out of it, which makes the
+asymmetry the difference between a recoverable game and a dead one.
+
+**Shipped in 1.9 as `fixes.player2_give_up`**, the fourth opt-in fix and the odd one out among
+them: 2.19, 2.20 and 2.39 correct something a player *sees*, this one corrects something a
+player cannot *do*. It lives on `player.Input` rather than as a 47th `player.Env` method
+(`World.GetInput` refreshes it from `w.Fix` each frame, because `NewWorld` does not take a
+`Fixes`), and the host now reports `Delete` for player 2 unconditionally so that the *game*
+decides whether it counts — one decision in one place. `ForceKillGlider`'s existing
+`mode != GliderFadingOut` debounce is what keeps two players holding the key from spending two
+mortals. Off by default like the rest, for 1.8's corpus reason.
+
+**Still open: the menus.** Pause and quit remain player 1's, for a reason rather than an
+oversight — the pause edge detector is a single variable, so a second poll of the same key would
+pause twice — and Command has no equivalent on this host at all. Fixing it properly is
+per-player edge state in the shell, which is 2.x work, not a `fixes` flag.
 
 ### 2.24 Two `CopyRect` helpers read from the screen — **note for whenever presentation becomes GPU-backed**
 
@@ -2034,6 +2077,16 @@ illustrating. 1.8 should carry several short scripts, one per subsystem, instead
 — and the general rule is the one 2.38's survey also taught: a test that follows the game rather
 than asserting about it has to be able to say what it stopped covering.
 
+**1.9 added the second script and the shape the rest should copy.** `testdata/two.script` is a
+two-player race, and its golden is only half of what it carries:
+`TestTheTwoPlayerTraceSeesTheHandshake` reads the same run as *statements* — two idle freezes of
+`IdleFrames-1`, one limbo wait, one refused wall, one joint crossing, six deaths out of one
+counter, one terminal `PlayerIsDeadForever` — and finds every frame number by searching rather
+than writing it down, so a physics improvement moves the numbers and leaves the rules asserted.
+That is the answer to this entry's own complaint: the golden says *what changed* and the
+companion test says *what broke*, and a script whose glider wanders somewhere else fails with a
+sentence instead of a line number. The remaining scripts (one per subsystem) are still owed.
+
 ### 4.4 A comment naming a test that does not exist is worse than no comment — **DONE, 1.5e and 1.6; the linter is 1.8**
 
 `internal/render/srcrects.go` had promised since 1.5c that "`TestStripRectsTileTheirSheet`
@@ -2295,6 +2348,14 @@ is guaranteed to reproduce *itself*, which is what a determinism test needs.
 | Contract item 15 `render.TestTheMaskingStrategyOfEveryObjectType`: the 21/9/2/3 painter census, which no pixel test can see | 1.8c | this stage |
 | Contract item 4 `internal/render/view_test.go`: the audit's one genuinely unheld row — `playOriginV` comes from the *screen*, not the house rect, and nothing had ever said so | 1.8c | this stage |
 | The fidelity contract audited row by row — `ORIGINAL_GAME.md` §19.1, twenty citations and five written exceptions | 1.8c | this stage |
+| 2.23 Player 2 gets the abandon key, as the fourth opt-in fix `fixes.player2_give_up` | 1.9 | this stage |
+| 2.22 (characterised) The mismatched-exit deadlock: Delete *does* break it, transits deadlock on two objects of the same kind, and 60 refused frames prove it never resolves | 1.9 | this stage |
+| 2.16 (measured) The arrival freeze hits whoever is not `FirstPlayer` — which before anybody waits is *player 1*, not player 2 | 1.9 | this stage |
+| The three race strictnesses pinned in `game/twoplayer_test.go`: geography refuses audibly, transits refuse silently and demand the same object, the manhole does not race | 1.9 | this stage |
+| The shared inventory and the shared throttle pinned as one counter each — one thruster in two-player sounds every frame, not every fourth | 1.9 | this stage |
+| `gameFixes` extracted and `TestEveryOptInFixIsCopiedToTheGame` written, because the field-by-field copy's compile-error claim was false | 1.9 | this stage |
+| 4.3 (the second script) `testdata/two.script` — a whole two-player game replayed to a golden trace, plus a companion test that reads the same run as sentences | 1.9 | this stage |
+| The trace grew a nine-column two-player tail that a one-player trace does not carry, so every golden on file stayed byte-identical | 1.9 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

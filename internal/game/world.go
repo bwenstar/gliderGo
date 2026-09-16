@@ -399,7 +399,7 @@ type World struct {
 	// See guards.go.
 	Diag Diagnostics
 
-	// Fix is the three opt-in corrections, all off by default, which is to say the
+	// Fix is the four opt-in corrections, all off by default, which is to say the
 	// original's behaviour. It has no counterpart in the C -- the C is the thing being
 	// corrected. See Fixes, which argues each one and names its site.
 	Fix Fixes

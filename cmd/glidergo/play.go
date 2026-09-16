@@ -347,15 +347,7 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	w.EscPause = a.p.EscPause()
 	w.PauseHint = "no Command key here -- press Q to give up the game"
 
-	// The three opt-in corrections, copied one struct into the other because
-	// internal/game must not import internal/prefs -- the game has no preferences, it has
-	// a caller that had some. Field by field so that adding one to either side is a
-	// compile error here rather than a setting that silently does nothing.
-	w.Fix = game.Fixes{
-		MirrorFlame:   a.p.Fixes.MirrorFlame,
-		MirrorFoil:    a.p.Fixes.MirrorFoil,
-		SwitchSparkle: a.p.Fixes.SwitchSparkle,
-	}
+	w.Fix = gameFixes(a.p.Fixes)
 
 	a.bindAudio(w, name)
 	if a.win != nil {
@@ -533,11 +525,20 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 				Right: a.win.KeyDown(keys2.Right),
 				Batt:  a.win.KeyDown(keys2.Batt),
 				Band:  a.win.KeyDown(keys2.Band),
-				// No Command, no Delete and no Pause. Player two has no give-up key
-				// and no way to reach the menus in the original either, which is one
-				// of the two-player asymmetries docs/IMPROVEMENTS.md 2.23 asks 1.9
-				// to fix. It is also what keeps one press from pausing twice: see
+
+				// Delete is reported for player two too, and the *game* decides
+				// whether it counts: GetInput's `which == kPlayer1` gate is the
+				// original's, and prefs.Fixes.Player2GiveUp is what drops it (1.9,
+				// docs/IMPROVEMENTS.md 2.23). Reporting it unconditionally keeps one
+				// decision in one place -- a host that filtered the key here as well
+				// would make the setting depend on two files agreeing.
+				//
+				// Player two still has no Command and no Pause, and those are not
+				// oversights: there is no Command key on this host at all, and a
+				// second pause poll would pause twice on one press, because
+				// KeyPoll's edge detector is a single variable. See
 				// docs/analysis/input.md 10.3.
+				Delete: a.win.KeyDown(platform.KeyDelete),
 			}
 		}
 

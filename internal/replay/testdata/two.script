@@ -1,0 +1,71 @@
+# The two-player determinism trace for Stage 1.9.
+#
+# One keyboard, two gliders, 426 frames, and it ends because the *game* ends. Every
+# other script here is a one-player run; this is the one that pins the handshake, and
+# the trace it produces carries nine extra columns (mode2, dest2, esc, arect, first,
+# oneleft, dead -- see replay.Sample.Two) that a one-player trace does not have.
+#
+# Room 2 of CD Demo House is "C'mon In And Help Yerself", and it was chosen for its
+# `bounds` field: 0x000b is marker + left + right, so both side walls are open and the
+# ceiling and floor are not. That is what makes a *mismatched* exit possible with two
+# keys and no cleverness -- player one leaves through one wall and player two walks
+# into the other -- which is the one two-player rule with no one-player counterpart.
+# Both gliders start at the house's authored point (v=105 h=223) because they always
+# do: NewGame hands the same WhereDoesGliderBegin rect to both InitGlider calls, so a
+# two-player game begins with one glider exactly on top of the other.
+#
+# # What the run shows, in order
+#
+# It is worth reading before the trace, because every one of these is a line in it and
+# several look like faults if you meet them without warning.
+#
+#	f=1..30    player two is `mode2=22` (GliderIdle) and hidden. NewGame fades it in
+#	           and immediately freezes it for thirty frames (Play.c:198-203) so that
+#	           two gliders do not start flying from the same pixel. There is no visual
+#	           tell for this in the original at all -- docs/IMPROVEMENTS.md 2.16.
+#	f=71       player one walks out of the open right wall and `follow:904` plays. It
+#	           does not leave: `mode=21` is GliderInLimbo, `esc=-2` is
+#	           PlayerEscapedRight, and `first=1` is FirstPlayer becoming player one.
+#	           The room cannot change until the other glider agrees.
+#	f=98       `dont-exit:103` -- player two reaches the *left* wall, and the race
+#	           refuses it, reverses its velocity and asks for the overshoot back. The
+#	           first one out chooses the route for both.
+#	f=100      the keys change: player two turns around and heads for the right wall,
+#	           which is what the refusal is telling the player to do.
+#	f=136..149 the kFloorVent at h=189 lifts it 57 pixels on the way past. That is the
+#	           room's own updraft, not a physics glitch, and it is the only thing in
+#	           the room that gives height back.
+#	f=174      not enough height: player two crosses the floor plane at h=354 and dies.
+#	           Landing is fatal in this game (escape.go's crashIntoGround). `mortals`
+#	           goes 4 -> 3 at the respawn, and 4 is two players' worth of the same
+#	           three-life counter -- see TestTwoPlayerInitGliderDoesNotDoubleTheLives.
+#	f=189      it respawns at the authored point with all its height back, while player
+#	           one is *still* in limbo at the right wall. Nothing times that out.
+#	f=259/260  it reaches the wall and both gliders cross into room 3 in one frame.
+#	           Player one comes out of limbo `mode=0`; player two arrives
+#	           `mode2=22` -- frozen again, because MoveRoomToRoom's tail idles whoever
+#	           is not FirstPlayer, and FirstPlayer is player one from f=71.
+#	f=270..363 both gliders arrive at v=263, a few pixels above room 3's floor, with
+#	           nothing but `right` held. They die in turn: 3 -> 2 -> 1 -> 0.
+#	f=378      `oneleft=1` and `esc=-69`. -69 is PlayerIsDeadForever, the original's
+#	           own joke constant (Externs.h), written by OffAMortal when a player
+#	           spends their last mortal and never cleared -- which is what stops the
+#	           survivor waiting at doorways for a player who cannot come.
+#	f=426      the game-over flutter: forty-seven paper sounds asked for in one frame,
+#	           three granted and the rest cutting each other off, which is the mixer's
+#	           priority rule under the heaviest load the game ever produces.
+#
+# `frames 600` is past the end on purpose, like demo.script's. The run stops at 426
+# because Mortals reached -2 and DoDiedGameOver cleared Playing, so the budget being
+# unreachable is what makes "the game ended by itself" an assertion rather than a
+# coincidence. A change that made the two-player game over stop happening would show
+# up here as a 600-frame trace.
+house CD Demo House
+seed 1
+frames 600
+neighbors 9
+players 2
+clock 1994-09-14T10:09:00Z
+room 2
+at 0 right left
+at 100 right right

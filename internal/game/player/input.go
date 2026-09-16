@@ -103,6 +103,24 @@ type Input struct {
 	// session that recorded it. See the four call sites, and internal/demo's Recorder for
 	// the one-record-per-frame rule the stream needs and the C's recorder did not keep.
 	LogDemoKey func(key DemoKey)
+
+	// Player2GiveUp gives the abandon key to player 2 as well as player 1.
+	//
+	// The original reads one key-map slot and tests `which == kPlayer1`, so the give-up
+	// key -- the only thing that breaks a limbo deadlock -- belongs to player 1 alone,
+	// along with the menus and the pause. docs/IMPROVEMENTS.md 2.23. This is game.Fixes'
+	// fourth opt-in correction rather than a plain behaviour change, and it is false by
+	// default for the same reason the other three are: 1.8's corpus is recorded against
+	// the unflagged path.
+	//
+	// It lives here rather than in game.Fixes alone because the gate it removes is in
+	// GetInput, and player.Env has no business gaining a method for a preference. World
+	// copies it across in World.GetInput.
+	//
+	// Turning it on cannot spend two mortals for one press: with both players holding the
+	// key, the first call fades the straggler out and ForceKillGlider's
+	// `mode != kGliderFadingOut` debounce refuses the second.
+	Player2GiveUp bool
 }
 
 // logDemo is the nil check, so the four call sites read like the C's one-liners.
@@ -225,7 +243,15 @@ func (in *Input) GetInput(g *Glider, e Env, k Keys) {
 	// test, and Player1 is the true value. It is the escape hatch for when one player
 	// has already left the room and the other cannot or will not follow -- it kills
 	// the straggler so the game can continue.
-	if e.OtherPlayerEscaped() != NoOneEscaped && k.Delete && g.Which == Player1 && !e.OnePlayerLeft() {
+	//
+	// It is also the *only* way out of the mismatched-exit deadlock, where both gliders
+	// are waiting in limbo for each other and nothing times out
+	// (game.TestTransitRaceNeedsTheSameObjectNotJustTheSameKind demonstrates the state).
+	// So in the original, a two-player game whose player 2 gets stuck can only be rescued
+	// by reaching across to player 1's keyboard. Player2GiveUp drops the `which` test and
+	// nothing else; see the field.
+	if e.OtherPlayerEscaped() != NoOneEscaped && k.Delete && !e.OnePlayerLeft() &&
+		(g.Which == Player1 || in.Player2GiveUp) {
 		e.ForceKillGlider()
 	}
 

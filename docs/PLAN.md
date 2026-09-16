@@ -282,10 +282,13 @@ box and the four room boundaries. 3,140 lines of code and 1,533 of tests, transc
   triggers on the inner limit (ceiling 8, floor 312) but the escape functions require the outer
   one (−10, 332) before letting the glider through; the gap is what makes walking out of a room
   take several frames. Open *sides* are the exception and have no distance check at all.
-- **Two-player exits are a race, and there are two different strictnesses of it.** The transit
-  handlers let the second arrival through unconditionally; the wall/ceiling/floor checks add a
-  third outcome that *refuses* a glider whose partner left by a different exit, so the first one
-  out chooses the route for both. Both are reproduced separately rather than merged.
+- **Two-player exits are a race, and there are three different strictnesses of it.** The
+  wall/ceiling/floor checks add a third outcome that *refuses* a glider whose partner left by a
+  different exit — audibly, with a bounce — so the first one out chooses the route for both. The
+  transit handlers are **stricter still**, not looser as this bullet said before 1.9 measured
+  them: they require the same physical object, not merely the same kind, and refuse silently
+  (`Interactions.c:1381-1411`). The manhole races nobody. All three are reproduced separately
+  rather than merged; 1.9's `internal/game/twoplayer_test.go` is where they are pinned.
 - *Acceptance met:* **57 assertions pass**, every expected number hand-derived from the C before
   the test was run. The traces from `player-physics.md` §7.3 are pinned frame for frame (free
   fall, hold-and-release, helium, battery steady state), as are the fade lengths, the 60-frame
@@ -707,7 +710,8 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
   - **1.7b Preferences and pause** ✅ *done* — `internal/prefs` (the native config directory, the
     JSON file, `Validate`, the legacy 226-byte `prefsInfo` importer), the settings screen, per-player
     key bindings (`docs/IMPROVEMENTS.md` 2.3), volume, music, scale, `DoPause` as a real pause state
-    with PICT 1015/1016 (2.5, 2.32), and the three opt-in fidelity switches (2.19, 2.20, 2.39).
+    with PICT 1015/1016 (2.5, 2.32), and the first three opt-in fidelity switches (2.19, 2.20,
+    2.39; 1.9 adds a fourth, 2.23).
     `DoCommandKey` stays an empty stub with a paragraph saying why — neither of its two chords
     reaches this port's hosts — and Q takes over as the way out of a paused game. Music-on-the-splash
     became the preference `music_on_title`, which the commit after 1.7d makes audible.
@@ -811,17 +815,23 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
   - **The settings screen offers less than the file holds, on purpose.** Two preferences are in the
     JSON and not on the screen — `pause_when_unfocused` (2.21 argues a released build should always
     pause and not offer the choice, and it *is* honoured) and `keep_real_time` with the
-    three `fixes` (they change what the simulation does; a player has no way to judge them and a
-    developer has the file) — each with a paragraph in `internal/shell/settings.go` saying so. And
+    `fixes` block (four flags as of 1.9; they change what the simulation does, a player has no way
+    to judge them and a developer has the file) — each with a paragraph in
+    `internal/shell/settings.go` saying so. And
     `sound` is absent for a different reason: `Validate` derives it from `volume` both ways, so no file
     and no flag can make the two disagree, and `-volume 0` mutes exactly as the C's
     `isSoundOn = (isVolume != 0)` does.
   - **The fidelity switches are a `game.Fixes` copied field by field from `prefs.Fixes`.**
     `internal/game` does not import `internal/prefs` — the game has no preferences, it has a caller
-    that had some — and the copy is written out field by field so that adding a fix to either side is
-    a compile error here rather than a setting that silently does nothing. All three default **off**,
-    which is to say the original's behaviour, because 1.8's corpus is recorded against the original
-    and a correction that was on by default would be a corpus that measures this port against itself.
+    that had some. 1.9 found that the copy's original justification was wrong: a *named-field*
+    literal does **not** fail to compile when a field is added to either side, it silently copies
+    three of four and the new setting then does nothing at all, with no error and no log line. So
+    the copy is now `gameFixes` in `cmd/glidergo/prefs.go` and
+    `TestEveryOptInFixIsCopiedToTheGame` compares the two field lists by reflection and checks
+    every flag arrives — that test, not the compiler, is what makes the mapping real. All four
+    default **off**, which is to say the original's behaviour, because 1.8's corpus is recorded
+    against the original and a correction that was on by default would be a corpus that measures
+    this port against itself.
 - **1.7b, what it found.** Three, and the first changed the assets API:
   - **A house can override the pause placard, and nineteen of the twenty do not.** Teddy World ships
     its own PICT 1015 and 1016, and on a Mac the open house's resource fork sits *in front of* the
@@ -1043,20 +1053,51 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
   or has an explicit, written exception; a recorded input trace replays to a byte-identical frame
   sequence twice in a row, and across a rebuild.
 
-**1.9 Local two-player** — *added after the plan was audited; see "What this plan was missing" below*
+**1.9 Local two-player** ✅ *done* — *added after the plan was audited; see "What this plan was
+missing" below*
 - Two gliders in **one** room on one keyboard, which is what the original's two-player mode is.
   Most of it is already built: 1.4 ported the `*Two` escape variants, `twoPlayerGame`,
   `onePlayerLeft`, the `otherPlayerEscaped` handshake, `ForceKillGlider` on the Delete key, and the
-  shared signed `batteryTotal`, `foilTotal`, `bandsTotal` and sound throttle. Nothing consumes any
-  of it yet.
+  shared signed `batteryTotal`, `foilTotal`, `bandsTotal` and sound throttle.
 - Needs: a second resolved `Keys` per frame from one poll (1.4's `GetInput` already takes a
   resolved `Keys` per glider for exactly this reason), the second glider's key set in preferences,
-  and the two-player branches of 1.5b's transit handlers exercised for real.
-- *Acceptance:* two gliders play one house from one keyboard; the two race strictnesses are
-  distinguishable in a test — a transit exit admits the second arrival unconditionally, while a
-  wall, ceiling or floor exit **refuses** a glider whose partner left by a different route, so the
-  first one out chooses for both; the shared inventory is provably one counter (one player's
-  battery use is visible to the other); and Delete kills a straggler only when pressed by player 1.
+  and the two-player branches of 1.5b's transit handlers exercised for real. All three are wired:
+  `shell.TwoPlayer` on the main menu (`internal/shell/shell.go:135`, `:488`) reaches
+  `cmd/glidergo/main.go:441` and the second `KeyPoll` at `cmd/glidergo/play.go:327`.
+- **There are three race strictnesses, not two.** The plan said two and had the harder one
+  backwards; `internal/game/twoplayer_test.go` pins what the C actually does:
+  - **Geography** (wall, ceiling, floor, stairs) refuses a second glider whose partner left by a
+    different *route*, and refuses it **audibly** — `kDontExitSound`, the velocity reversed and the
+    overshoot repaid, so the player is told.
+  - **Transits** (transporter, mail, duct) are *stricter*: `Interactions.c:1381-1411` requires
+    `(thisGlider->mode != kGliderInLimbo) && (activeRectEscaped == index)`, so the follower must
+    match the code **and be standing in the same physical object**, and a mismatch is refused in
+    total **silence** — no sound, no bounce, not even a `Pending` write, because the link is
+    resolved as `StartGliderTransporting`'s argument and a refused follower never reaches it. Two
+    gliders in two different transporters in one room therefore deadlock permanently.
+  - **The manhole** races nobody: `Interactions.c:346-350` calls `MoveRoomToRoom` directly even in
+    two-player.
+- **`FirstPlayer`'s zero value is player 2, so before anybody waits it is player 1 who arrives
+  frozen.** `ReadyGliderFromTransit` idles whoever is not `w.FirstPlayer`, storing the countdown in
+  `g.HVel`. IMPROVEMENTS 2.16 assumed the freeze was player 2's; it is not, and that matters for the
+  visual tell it asks for, which is deferred to 2.x because anything drawn in those 30 frames moves
+  1.8's corpus.
+- **A whole two-player game is replayed to a golden.** `internal/replay/testdata/two.script` — one
+  house, one keyboard, two key columns, six deaths out of one counter, and a game that ends by
+  itself at frame 426 of a 600-frame budget. The golden is half of it: a companion test reads the
+  same run as *sentences* (two freezes, one limbo wait, one refused wall, one joint crossing, one
+  terminal `PlayerIsDeadForever`) with every frame number found by searching rather than written
+  down, which is what IMPROVEMENTS 4.3 asked a follow-the-game test to be able to do. The trace's
+  nine two-player columns are appended only when the run had two gliders, so no existing golden
+  moved a byte.
+- *Acceptance met:* two gliders play one house from one keyboard; the three strictnesses above are
+  each distinguishable in a test, including the silent transit refusal repeated 60 frames to show
+  the deadlock is permanent; the shared inventory is provably one counter (one player's battery use
+  is visible to the other, and one thruster in two-player plays the thrust sound every frame rather
+  than every fourth, because the throttle is shared too); whoever is not `FirstPlayer` arrives from
+  a transit frozen for `IdleFrames`; and Delete kills a straggler only when pressed by player 1 —
+  with `fixes.player2_give_up` (IMPROVEMENTS 2.23) as the opt-in way out, since Delete is the *only*
+  exit from the transit deadlock and in the original only one of the two players holds it.
 
 **1.10 Saved games** *(may slip past Stage 1 — it is the least load-bearing item here)*
 - Mid-game save and resume. Half-built already: `internal/house` has parsed `gameType` (offset 820)

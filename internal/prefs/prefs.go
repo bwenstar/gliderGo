@@ -87,12 +87,12 @@ type Binding struct {
 
 // Fixes are the 1994 defects a player may choose to have corrected.
 //
-// All three default to **false**, which is to say the original's behaviour, and that is
+// All four default to **false**, which is to say the original's behaviour, and that is
 // not timidity: stage 1.8's fidelity work compares this port's sparkle tables and dirty
 // rects against the C's, so a build that quietly fixed them could not be checked
 // against the thing it is a port of. They are offered here, one flag each, so a player
 // who wants the game rather than the artefact can have it -- see docs/IMPROVEMENTS.md
-// 2.19, 2.20 and 2.39, each of which is one line of game code behind its flag.
+// 2.19, 2.20, 2.39 and 2.23, each of which is one line of game code behind its flag.
 type Fixes struct {
 	// MirrorFlame clips the reflected glider's back rect to the mirrors, so a candle
 	// flame or a pendulum sharing that rect stops blinking (2.19).
@@ -107,6 +107,12 @@ type Fixes struct {
 	// arm. It fires 145 times across the 22 shipped houses and puts a stray puff of
 	// light in the corner of the play area every time (2.39).
 	SwitchSparkle bool `json:"switch_sparkle"`
+
+	// Player2GiveUp gives the abandon key (Delete) to player 2 as well as player 1, so
+	// that either player can break a two-player deadlock rather than only the one whose
+	// keyboard half it is. The one fix in this struct that is about what a player can
+	// *do* rather than what they can see (2.23).
+	Player2GiveUp bool `json:"player2_give_up"`
 }
 
 // Prefs is the whole of what is saved.

@@ -1,6 +1,6 @@
 package game
 
-// The three opt-in corrections: 1994 defects a player may choose to have fixed.
+// The four opt-in corrections: 1994 defects a player may choose to have fixed.
 //
 // Each is one line of game code, each is off by default, and each is off for the same
 // reason. Stage 1.8 replays the fidelity corpus and compares this port's sparkle table,
@@ -9,15 +9,15 @@ package game
 // better" is not an answer to "does it behave the same". So the transcription stays
 // faithful and the correction is a flag over the top of it.
 //
-// Why offer them at all: two of the three are visible while playing, and a player who has
+// Why offer them at all: three of the four are visible while playing, and a player who has
 // never read Render.c has no way to know they are the original's rather than this port's.
 // A mirror room whose candle flame blinks looks like a broken port. See
-// docs/IMPROVEMENTS.md 2.19, 2.20 and 2.39.
+// docs/IMPROVEMENTS.md 2.19, 2.20, 2.39 and 2.23.
 //
-// The three sites are DrawReflection (render_frame.go) for the first two and
-// switchLinkedObject (switches.go) for the third. Each reads its flag next to the
-// transcribed line and says which flag it is, so the faithful behaviour and the
-// correction are always readable together.
+// The sites are DrawReflection (render_frame.go) for the first two, switchLinkedObject
+// (switches.go) for the third and player.Input.GetInput for the fourth. Each reads its
+// flag next to the transcribed line and says which flag it is, so the faithful behaviour
+// and the correction are always readable together.
 //
 // prefs.Fixes is the same three settings as a player's saved choice, and cmd/glidergo
 // copies one into the other. They are separate types on purpose: this package must not
@@ -52,4 +52,17 @@ type Fixes struct {
 	// across the twenty-two shipped houses. Turning it off also gives the sparkle table's
 	// three slots back to effects that were asked for on purpose.
 	SwitchSparkle bool
+
+	// Player2GiveUp lets player 2 press the abandon key too, rather than only player 1.
+	//
+	// The odd one out in this struct: the other three correct something a player can see
+	// going wrong, and this one corrects something a player cannot do. The give-up key is
+	// the only exit from a two-player deadlock, the original binds it to player 1's
+	// keyboard alone, and in a game whose whole point is that two people are sitting at
+	// one machine that means player 2 has to ask to be rescued. It is opt-in with the rest
+	// because it changes what a recorded input stream does. docs/IMPROVEMENTS.md 2.23.
+	//
+	// The flag reaches its one call site through player.Input, which World.GetInput
+	// refreshes from here every frame; see that field for why it is not an Env method.
+	Player2GiveUp bool
 }

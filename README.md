@@ -34,11 +34,16 @@ a very large house, and try to get further than you did last time.
 > stream verified draw by draw against the documented algorithm, and the twenty-row fidelity
 > contract audited row by row in
 > [docs/ORIGINAL_GAME.md](docs/ORIGINAL_GAME.md) §19.1 — twenty citations and five written
-> exceptions, so "the port is faithful" is a claim you can check rather than take.
+> exceptions, so "the port is faithful" is a claim you can check rather than take — and
+> **1.9** local two-player: two gliders in one room on one keyboard, sharing one inventory,
+> one sound throttle and four mortals, with the original's three different answers to "who
+> leaves the room" pinned in tests (a wall refuses the second glider *audibly*, a
+> transporter refuses it in total silence and only if it is standing in the very same
+> transporter, and the manhole does not race at all).
 >
-> Next: **1.9** local two-player — two gliders in one room on one keyboard, which is what the
-> original's two-player mode was. Most of the machinery landed in 1.4 and nothing consumes it
-> yet. See [docs/PLAN.md](docs/PLAN.md), and
+> Next: **1.10** saved games — mid-game save and resume, against the original's 40-byte
+> `gameType`, so the live save shipped inside Titanic.house can be resumed. See
+> [docs/PLAN.md](docs/PLAN.md), and
 > [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
 > release someone else could play.
 
@@ -168,9 +173,33 @@ something a 1994 Macintosh had and this does not:
 - **`Q` gives up a paused game** and hands the title screen back. The original's Command-Q is
   a chord the window manager owns on every platform this builds for; both pause placards
   still read "or Cmd-Q to Quit the game", so the port prints its own line under them.
-- **`Delete`** abandons a glider waiting in limbo, which is the original's own key for it.
+- **`Delete`** abandons a glider waiting in limbo, which is the original's own key for it. It is
+  player one's key in the original, and that matters more than it looks: see below.
 
 Closing the window ends the program, from anywhere.
+
+### Two players, one keyboard
+
+`2` from the title screen. Both gliders are in the same room and share almost everything — one
+battery charge, one roll of foil, one bundle of rubber bands, one sound throttle, and four
+mortals between them rather than two each. Whichever glider leaves the room first chooses the
+exit; the other has to follow, and the original has three different answers to what happens when
+it cannot:
+
+- Through a **wall, ceiling, floor or the stairs**, a glider whose partner left by a different
+  route is refused *audibly* — a thump, and it is bounced back the way it came.
+- Through a **transporter, mailbox or duct** it is refused in complete silence, and the test is
+  stricter than it looks: the follower must be standing in *the very same* transporter, not
+  merely another one of the same kind. Two gliders in two transporters in one room therefore
+  wait for each other forever, and `Delete` — costing a mortal — is the only way out.
+- Through the **manhole** there is no test at all. Both gliders go.
+
+All of that is the original's behaviour, transcribed rather than designed, and it is what
+`internal/game/twoplayer_test.go` pins. The one thing this port will change on request is the
+last consequence of it: because `Delete` is player one's key, player two cannot break the
+deadlock, so `"player2_give_up": true` in the settings file gives them the key as well. It is
+off by default like every other entry in the `fixes` block
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.23).
 
 ### Settings
 
@@ -188,6 +217,14 @@ lose them. The original's five-pane Options dialog had nineteen more fields that
 Macintosh rather than about the game — screen-depth switching, colour-table fades, the
 editor's window positions — and `internal/prefs/legacy.go` lists every one with the reason it
 was dropped.
+
+A few things are in the file and not on the screen, on purpose. The `fixes` block is four
+switches that each correct a bug in the 1994 code — a mirror that blinks a candle flame out, a
+mirror that draws the wrong player, a sparkle in the corner of the room, and `player2_give_up`
+above. All four default to **off**, which is to say the original's behaviour, because that is
+what the fidelity corpus is recorded against; a player has no way to judge them and anyone who
+wants them has the file. Each one is argued in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md)
+(2.19, 2.20, 2.39 and 2.23).
 
 ```bash
 make run ARGS='-prefs /tmp/test.json'   # use this file instead of the config directory's

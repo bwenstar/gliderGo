@@ -533,26 +533,37 @@ func TestRefusedBandCostsNothing(t *testing.T) {
 // game: when one player has left the room and the other cannot follow, Delete kills
 // the straggler so the game can go on.
 //
-// Only player 1 may press it. The test is `thisGlider->which`, not whose keys these
-// are, so in a two-player game player 2 holding Delete does nothing at all -- the key
-// is only read on player 1's pass through GetInput.
+// Only player 1 may press it, and the reason is `thisGlider->which` rather than whose
+// keyboard the key is on: GetInput runs for both gliders and both passes read the same
+// key, so it is the identity test and nothing else that refuses player 2. That matters
+// because it is the whole of the fix -- Input.Player2GiveUp removes the identity test and
+// leaves every other guard in place (docs/IMPROVEMENTS.md 2.23).
+//
+// The last row is the one worth having: with the flag on, the key still does nothing
+// unless somebody is actually waiting, so the correction cannot turn Delete into a suicide
+// button. TestDeleteNeedsTheOtherPlayerGone is the same assertion for the unflagged path.
 func TestDeleteAbandonsOnlyForPlayerOne(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		which bool
-		want  int
+		name    string
+		which   bool
+		giveUp  bool
+		escaped int16
+		want    int
 	}{
-		{"player 1 may abandon", Player1, 1},
-		{"player 2 may not", Player2, 0},
+		{"player 1 may abandon", Player1, false, PlayerEscapedUp, 1},
+		{"player 2 may not", Player2, false, PlayerEscapedUp, 0},
+		{"player 1 with the fix on", Player1, true, PlayerEscapedUp, 1},
+		{"player 2 with the fix on", Player2, true, PlayerEscapedUp, 1},
+		{"the fix does not bypass the other guards", Player2, true, NoOneEscaped, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			room := newTwoPlayerRoom()
-			room.escaped = PlayerEscapedUp // the other player is already out
+			room.escaped = tc.escaped // PlayerEscapedUp: the other player is already out
 
 			g := newGliderAtRest(100, 50)
 			g.Which = tc.which
 
-			var in Input
+			in := Input{Player2GiveUp: tc.giveUp}
 			in.GetInput(g, room, Keys{Delete: true})
 
 			if room.Kills != tc.want {
