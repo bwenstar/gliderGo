@@ -429,7 +429,8 @@ two PICT resources derive from illustrations by John R. Neill (*Ozma of Oz*) and
 `GliderPRO/Houses/` holds all 22 houses and 15 movies. That is deliberate — it is upstream's
 own layout, and it is the reason `make assets` works on a fresh clone with no network and no
 copy of the game. `assets/extracted/` is gitignored because it is *derived* data, not because
-the art is absent; a `git archive` of this repository is about 52 MB of 1994 assets.
+the art is absent; `GliderPRO/` is 50.7 MB of the repository's 62 MB, and a `git archive` of
+it carries every byte.
 
 Whether that redistribution is licensed is the open question, and it is the one thing between
 this port and a public release: see [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2, which

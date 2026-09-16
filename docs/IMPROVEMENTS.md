@@ -85,7 +85,8 @@ release tarball built from it. The first half is true and irrelevant; the second
 - `GliderPRO/Houses/*.binhex` — all 22 shipped houses, 34 MB.
 - `GliderPRO/Houses/*.mov` — the 15 QuickTime movies.
 
-`git ls-files GliderPRO/` is 137 files, and `git archive HEAD` is about 52 MB of 1994 assets. So
+`git ls-files GliderPRO/` is 137 files and 50.7 MB of the 62.2 MB this repository tracks, and
+`git archive HEAD` carries all of it. So
 this repository already redistributes the art, and so does any archive, zip or GitHub release
 tarball made from a clone, unless something is done to exclude it.
 
@@ -2533,7 +2534,7 @@ What the audit established, as facts rather than intentions:
   assets and no `DISPLAY`.** The asset-dependent steps skip by name and `check-caveats` closes by
   listing what it could not verify, so a green run on an empty tree never reads as a green run on
   a full one.
-- **A clone is 96 MB** — 52 MB of working tree, 32 MB of history — which is the vendored 1994
+- **A clone is 96 MB** — 64 MB of working tree, 32 MB of history — which is the vendored 1994
   data, not the port. 1.2 owns whether that stays.
 
 Four things the audit found, all fixed in the same commit as this entry:
