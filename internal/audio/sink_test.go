@@ -6,12 +6,16 @@ package audio
 // that did either would either be skipped on every build machine or would make noise on
 // somebody's desktop. What is testable about it -- that the encoding is right and that a full
 // queue drops instead of blocking -- is covered by the encoder tests below and by the bounded
-// channel's own semantics.
+// channel's own semantics. Its one piece of pure plumbing, the prefix put on the player's own
+// diagnostics, is tested directly: it needs no process, and getting it wrong would either
+// swallow the line that explains why there is no sound or split it across two.
 
 import (
+	"bytes"
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -325,6 +329,46 @@ func TestPlayersIsOrdered(t *testing.T) {
 	}
 	if _, err := OpenPipe("no-such-player"); err == nil {
 		t.Error("OpenPipe accepted an unknown player")
+	}
+}
+
+func TestStderrPrefixNamesThePlayer(t *testing.T) {
+	var out bytes.Buffer
+	s := &stderrPrefix{name: "pw-play", w: &out}
+
+	// Split mid-line and mid-word, the way a pipe read can arrive.
+	for _, chunk := range []string{"error: pw_cont", "ext_connect() failed", ": Host is down\n", "\n", "second\r\n", "no newline"} {
+		if n, err := s.Write([]byte(chunk)); n != len(chunk) || err != nil {
+			t.Fatalf("Write(%q) = %d, %v; want %d, nil", chunk, n, err, len(chunk))
+		}
+	}
+	if got, want := out.String(), "pw-play: error: pw_context_connect() failed: Host is down\npw-play: second\n"; got != want {
+		t.Errorf("before flush:\n got %q\nwant %q", got, want)
+	}
+
+	// The last line has no newline, which is how a player that dies mid-sentence ends.
+	s.flush()
+	if want := "pw-play: no newline\n"; !strings.HasSuffix(out.String(), want) {
+		t.Errorf("flush did not emit the partial line: %q", out.String())
+	}
+	s.flush()
+	if got := strings.Count(out.String(), "no newline"); got != 1 {
+		t.Errorf("a second flush emitted the line again: %d copies", got)
+	}
+}
+
+func TestStderrPrefixDoesNotBufferForever(t *testing.T) {
+	var out bytes.Buffer
+	s := &stderrPrefix{name: "aplay", w: &out}
+	// A player that never ends a line must not be able to grow the buffer without bound.
+	for i := 0; i < 100; i++ {
+		s.Write(bytes.Repeat([]byte("x"), 1000))
+	}
+	if len(s.buf) > 4096 {
+		t.Errorf("buffer grew to %d bytes with no newline in the stream", len(s.buf))
+	}
+	if out.Len() == 0 {
+		t.Error("nothing was emitted, so the output was swallowed rather than flushed")
 	}
 }
 

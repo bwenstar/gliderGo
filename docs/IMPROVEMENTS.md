@@ -2031,6 +2031,38 @@ been overwritten by an unrelated message would send them to a terminal they may 
 
 ---
 
+### 2.71 An audio player that is installed is not an audio player that works — **half DONE; the fallback is the other half**
+
+`OpenPipe` picks the first player on `players` that `exec.LookPath` finds and `cmd.Start`
+accepts, and `Start` succeeding means the binary was executed, not that it can reach a sound
+server. Run the game over SSH, in a container, or from a session that does not own the seat, and
+`pw-play` is present, starts, fails to connect, and exits. The game reports `audio=pw-play` and
+then plays nothing.
+
+Found by running `make check` in a clone under `env -i`, which is not a contrived environment:
+it is what a CI job, a systemd unit and an `ssh host glidergo` all look like from inside.
+
+The half that is done is attribution. The player's diagnostics have always been passed through
+to the terminal, on the reasoning that swallowing them leaves "there is no sound" unexplained,
+but they arrived anonymous:
+
+    error: pw_context_connect() failed: Host is down
+
+landing between two `glidergo:` lines, naming neither the program that said it nor which player
+the game had chosen. `audio.stderrPrefix` now tags each line with the player's name, so it reads
+`pw-play: error: ...` and both questions are answered by the line itself.
+
+The other half is to stop over-claiming: a chosen player that dies at once should be reported in
+the port's own voice and the next candidate tried, so a machine with both `pw-play` and `aplay`
+lands on the one that works. That needs `Pipe` to own the `Wait` it currently performs in
+`Close`, because a startup probe and `Close` cannot both wait on the same process, and it needs a
+short grace period at open time that the happy path also pays. Neither is difficult; both are
+more than a diagnostic fix, and the shape belongs with 2.48's native driver rather than in front
+of it. Until then the end-of-run line still says `pw-play stopped reading`, which is the
+after-the-fact version of the same fact.
+
+---
+
 ## 3. Things the original did not have and a 2026 release is expected to have
 
 ### 3.1 High scores — **DONE, 1.7c**

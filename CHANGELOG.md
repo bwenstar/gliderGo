@@ -33,6 +33,11 @@ versioning yet, because nothing has been versioned.
   and `make check` is still green, because the three tests that pinned the credits against its
   README skip when it is gone instead of failing. Verified by deleting it, hiding python3 behind a
   shim that errors, and running the whole target.
+- Found by that same clone run: the external audio player's diagnostics arrived anonymous, so an
+  unreachable sound server printed a bare `error: pw_context_connect() failed` between two of the
+  game's own lines. They are now tagged with the player's name. The player being installed still
+  does not mean it works, and falling back to the next one when it does not is recorded as
+  `docs/IMPROVEMENTS.md` 2.71.
 
 ### Stage 1.10 — saved games (`68b7b4b`, 2026-09-16)
 

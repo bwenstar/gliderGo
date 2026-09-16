@@ -25,6 +25,7 @@ package audio
 // docs/IMPROVEMENTS.md 2.48.
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -176,6 +177,7 @@ type Pipe struct {
 	name string
 	cmd  *exec.Cmd
 	w    io.WriteCloser
+	errs *stderrPrefix // nil in the tests, which have no child process
 
 	// free and queue are a two-channel buffer pool: queue holds the blocks waiting to be
 	// written and free holds the blocks waiting to be filled, so a steady stream allocates
@@ -230,8 +232,11 @@ func OpenPipe(prefer string) (*Pipe, error) {
 		cmd := exec.Command(path, args...)
 		// The player's own diagnostics go to the terminal: if aplay cannot open the
 		// device it says so, and swallowing that would leave "there is no sound" with
-		// no explanation anywhere. Its stdout is left alone for the same reason.
-		cmd.Stderr = os.Stderr
+		// no explanation anywhere. Its stdout is left alone for the same reason. The
+		// lines are tagged on the way through, because an untagged one reads like the
+		// game's own failure -- see stderrPrefix.
+		errs := &stderrPrefix{name: p.name, w: os.Stderr}
+		cmd.Stderr = errs
 
 		w, err := cmd.StdinPipe()
 		if err != nil {
@@ -240,7 +245,7 @@ func OpenPipe(prefer string) (*Pipe, error) {
 		if err := cmd.Start(); err != nil {
 			continue
 		}
-		return newPipe(p.name, cmd, w), nil
+		return newPipe(p.name, cmd, w, errs), nil
 	}
 
 	if prefer != "" {
@@ -258,17 +263,72 @@ func playerNames() []string {
 	return out
 }
 
-func newPipe(name string, cmd *exec.Cmd, w io.WriteCloser) *Pipe {
+func newPipe(name string, cmd *exec.Cmd, w io.WriteCloser, errs *stderrPrefix) *Pipe {
 	p := &Pipe{
 		name:  name,
 		cmd:   cmd,
 		w:     w,
+		errs:  errs,
 		free:  make(chan []byte, pipeDepth),
 		queue: make(chan []byte, pipeDepth),
 		done:  make(chan struct{}),
 	}
 	go p.pump()
 	return p
+}
+
+// stderrPrefix tags every line the external player writes with the player's name.
+//
+// The diagnostic itself has to reach the terminal, for the reason OpenPipe gives. What it must
+// not do is arrive anonymous. A player that cannot reach the sound server prints something like
+//
+//	error: pw_context_connect() failed: Host is down
+//
+// which, landing in the middle of the game's own output, reads as though the game had failed --
+// and names neither the program that said it nor the one thing that would let somebody act on
+// it, which player was being used. `pw-play: error: ...` answers both.
+//
+// Only the goroutine os/exec starts to copy the child's stderr writes here, so there is no lock.
+// Close flushes after Wait, which is the point at which that goroutine is guaranteed done.
+type stderrPrefix struct {
+	name string
+	w    io.Writer
+	buf  []byte
+}
+
+func (s *stderrPrefix) Write(b []byte) (int, error) {
+	s.buf = append(s.buf, b...)
+	for {
+		i := bytes.IndexByte(s.buf, '\n')
+		if i < 0 {
+			break
+		}
+		s.emit(s.buf[:i])
+		s.buf = s.buf[i+1:]
+	}
+	// A player that talks without ever ending a line does not get to grow this forever.
+	if len(s.buf) > 4096 {
+		s.emit(s.buf)
+		s.buf = nil
+	}
+	return len(b), nil
+}
+
+// flush emits a last line that arrived without its newline, which is how a player that dies
+// mid-sentence leaves the buffer.
+func (s *stderrPrefix) flush() {
+	if len(s.buf) > 0 {
+		s.emit(s.buf)
+		s.buf = nil
+	}
+}
+
+func (s *stderrPrefix) emit(line []byte) {
+	line = bytes.TrimRight(line, "\r")
+	if len(bytes.TrimSpace(line)) == 0 {
+		return // a blank line from the player is not worth a name
+	}
+	fmt.Fprintf(s.w, "%s: %s\n", s.name, line)
 }
 
 // pump is the only goroutine in the package, and it owns exactly one thing: the pipe.
@@ -335,6 +395,11 @@ func (p *Pipe) Close() error {
 		// for that and has it. A nonzero status here is the player's business and not
 		// the game's, so it is not reported: the samples were delivered either way.
 		_ = p.cmd.Wait()
+		// Wait has joined the goroutine copying the child's stderr, so anything it
+		// left without a newline can be emitted now without racing it.
+		if p.errs != nil {
+			p.errs.flush()
+		}
 	})
 	return err
 }
