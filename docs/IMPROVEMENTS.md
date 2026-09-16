@@ -1898,6 +1898,81 @@ just ended does not immediately start another. A release should also not start o
 player is part-way through choosing a house — the idle timer measures idleness, and a house picker
 with a cursor in it is not idle.
 
+### 2.66 The menu panel's bottom edge was a constant, and the seventh row was already outside it — **DONE, 1.10**
+
+Found while adding "Open Saved Game…" as the title screen's third row, and it predates 1.10:
+`menuBottom` was the constant `264` while the rows were laid out from `menuTop + menuFirst` at
+`menuPitch` intervals, so with six rows the sixth baseline was at 272 and with seven at 298 — both
+*below* the box they were drawn in. Nothing looked broken, because the rows are drawn after the
+panel and a menu row over the splash art reads as a menu row either way; what was lost was the
+panel, which had stopped being the thing the rows sit in.
+
+The fix is to derive it: `menuRect(n)` returns the box `n` rows need, so adding a row moves the
+box instead of overflowing it. That has a ceiling — `panel()` dims eight rows past every edge and
+`DrawOnSplash` writes the house's name upward from row 307, so a bottom past 299 lays grey over
+the top of the name — and `TestMenuPanelClearsTheHouseLabel` is what stops a future row from being
+added past it. Two constants came out of it as well: `menuRise` is now tied to `menuPitch` rather
+than sharing the house picker's `barRise`, because a selection bar one pitch tall is the tallest
+one that neither overlaps its neighbour nor clips the descenders above it.
+
+**Why it is worth a number rather than a silent fix:** it is the second time a shell constant has
+been found to be describing a layout that had moved (2.29 was the first). A geometry that is
+computed from the thing it bounds cannot drift; a constant beside it can, and will.
+
+### 2.67 A hint row that shrinks leaves the wider row's pixels on the screen — **DONE, 1.10**
+
+1.10 needed the pause hint to change *while the pause is up* — S replaces it with "game saved", Q
+replaces it with the give-up question — and that exposed a latent bug in the pause placard.
+`paintPause` fills only the rect the *current* hint occupies, so a hint that gets shorter paints
+over a prefix of the old one and leaves the tail behind: the player reads "game saved -- S again
+replaces itame". Nothing before 1.10 could reach it, because the hint was set once before the game
+started and never changed.
+
+`World.SetPauseHint` is the fix and the only supported way to change the text: it copies the old
+row's rect back from the work map first, so whatever the hint used to cover is restored before the
+new one is drawn, and `pausePainted` is left covering the union so `DoPause`'s restore is still
+right. The alternative — widening `pauseHintRect` to a fixed maximum — would have dimmed a band of
+the game the placard has no business touching.
+
+### 2.68 One save per house, where the original's dialogue would have allowed twenty — **decision taken, 1.10; revisit if anybody asks**
+
+`internal/saved` keys a saved game by house name, so saving twice replaces. The original's
+`SaveGame2` would have called `StandardPutFile` and let the player name the file, which means as
+many saves of one house as they liked — and in exchange, a resume meant finding the file again.
+
+The trade was taken deliberately: keyed saves make resuming one keystroke, which is what makes the
+feature usable at all on a title screen with no mouse, and Glider PRO is a game you resume rather
+than one you branch. It is a real loss all the same, and it is the kind of thing that is invisible
+until somebody wants to keep a save before a hard room. The shape of the fix if anybody does:
+`Store` already separates the key from the filename (`datadir.FileName`), so a suffix — `Titanic
+(2).save` — is a listing change and a picker, not a format change. The file format needs nothing:
+it already carries the house name it belongs to.
+
+### 2.69 "Beginning a new game will overwrite your saved game" — deliberately not ported — **decision taken, 1.10**
+
+`QueryResumeGame` (`Menu.c:710-758`, never called) puts up a modal asking whether to resume, and
+the original's design has a second one behind it: with one save per game there is a moment where
+starting a new game destroys the save you have. The port does not ask, because in the port that
+moment does not exist — a save is keyed by *house*, so starting a new game in Slumberland cannot
+touch the save in Titanic, and starting a new game in Slumberland does not overwrite Slumberland's
+save either. Only saving does.
+
+Recorded because the absence is a choice and not an oversight, and because 2.68's fix would bring
+the question back: numbered saves need a "which one?" and so a picker, and a picker needs the
+modal the port currently has no use for.
+
+### 2.70 The status band said one thing at a time, and the resume path has three things to say — **DONE, 1.10**
+
+The title screen's status band was a single `s.msg` string, set by whatever last had something to
+report. 1.10 gives it a third source — whether the selected house has a game to resume, and if so
+whose save it is and what is in it — which has to coexist with the two that were already there
+without either silently winning. `Shell.status()` is now the one place that orders them, so the
+band is a function of the shell's state rather than a record of the last write to it.
+
+Worth a number because the failure it prevents is specific: a player who presses `O` on a house
+with nothing to resume needs the reason *on the screen they are looking at*, and a band that had
+been overwritten by an unrelated message would send them to a terminal they may not have.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -2470,6 +2545,15 @@ Stage 4 (pure-Go `syscall` to `user32`/`gdi32`, no cgo) and macOS at Stage 6; un
 | `gameFixes` extracted and `TestEveryOptInFixIsCopiedToTheGame` written, because the field-by-field copy's compile-error claim was false | 1.9 | this stage |
 | 4.3 (the second script) `testdata/two.script` — a whole two-player game replayed to a golden trace, plus a companion test that reads the same run as sentences | 1.9 | this stage |
 | The trace grew a nine-column two-player tail that a one-player trace does not carry, so every golden on file stayed byte-identical | 1.9 | this stage |
+| `scripts/bootstrap-dev-env.sh --source system\|internal\|public\|auto`, `make doctor`, `fmt-check` inside `check`, `make cross` over all six targets, and `internal/module`'s stdlib-only assertion | public build path | earlier |
+| `internal/saved`: one save per house under `internal/datadir`, written atomically, and the original's five validation gates — the code it wrote out in full and never ran | 1.10 | this stage |
+| `internal/house`'s saved-game codec: `game2Type` from offset 6 on, decisions S1–S4 stated where the code is, and the 40-byte block re-encoded byte-for-byte out of all 22 shipped houses | 1.10 | this stage |
+| S4 — a house's embedded block resumed with the *house's* timeStamp, without which the original's own gate refuses every game its own writer produced, and Titanic's 1995 save can never be opened | 1.10 | this stage |
+| `S` while paused saves, alert 1041's two buttons on `Y`/`N`, and the pause key as a third answer the alert did not have | 1.10 | this stage |
+| "Open Saved Game…" on the title screen — MENU 129's third item, on the `O` it had — greyed with the reason, plus `-resume`, `-saves`, and both flag contradictions refused before a window opens | 1.10 | this stage |
+| 2.66 `menuRect(n)` derives the menu panel's bottom edge, so the rows cannot fall outside the box they sit in | 1.10 | this stage |
+| 2.67 `World.SetPauseHint` erases the old hint row before changing it, so a shrinking hint leaves no tail | 1.10 | this stage |
+| 2.70 `Shell.status()` orders the status band's three sources, so the resume message cannot be silently overwritten | 1.10 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

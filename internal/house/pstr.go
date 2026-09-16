@@ -19,6 +19,7 @@ type (
 	PStr16  [16]byte  // Str15:  high-score names
 	PStr28  [28]byte  // Str27:  room names
 	PStr32  [32]byte  // Str31:  high-score board banner
+	PStr64  [64]byte  // Str63:  the house name inside a saved game (see savedgame.go)
 	PStr256 [256]byte // Str255: house banner and trailer
 )
 
@@ -66,16 +67,19 @@ func pstrSet(b []byte, s string) bool {
 func (p PStr16) Text() string  { return pstrText(p[:]) }
 func (p PStr28) Text() string  { return pstrText(p[:]) }
 func (p PStr32) Text() string  { return pstrText(p[:]) }
+func (p PStr64) Text() string  { return pstrText(p[:]) }
 func (p PStr256) Text() string { return pstrText(p[:]) }
 
 func (p PStr16) Residue() []byte  { return pstrResidue(p[:]) }
 func (p PStr28) Residue() []byte  { return pstrResidue(p[:]) }
 func (p PStr32) Residue() []byte  { return pstrResidue(p[:]) }
+func (p PStr64) Residue() []byte  { return pstrResidue(p[:]) }
 func (p PStr256) Residue() []byte { return pstrResidue(p[:]) }
 
 func (p *PStr16) SetText(s string) bool  { return pstrSet(p[:], s) }
 func (p *PStr28) SetText(s string) bool  { return pstrSet(p[:], s) }
 func (p *PStr32) SetText(s string) bool  { return pstrSet(p[:], s) }
+func (p *PStr64) SetText(s string) bool  { return pstrSet(p[:], s) }
 func (p *PStr256) SetText(s string) bool { return pstrSet(p[:], s) }
 
 // HasResidue reports whether any byte past the length is non-zero, i.e. whether
@@ -92,6 +96,7 @@ func hasResidue(b []byte) bool {
 func (p PStr16) HasResidue() bool  { return hasResidue(p[:]) }
 func (p PStr28) HasResidue() bool  { return hasResidue(p[:]) }
 func (p PStr32) HasResidue() bool  { return hasResidue(p[:]) }
+func (p PStr64) HasResidue() bool  { return hasResidue(p[:]) }
 func (p PStr256) HasResidue() bool { return hasResidue(p[:]) }
 
 // macRomanHigh maps bytes 0x80-0xFF to Unicode. Generated from Python's

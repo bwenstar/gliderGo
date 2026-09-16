@@ -34,11 +34,21 @@ type fakeWin struct {
 
 	presents int
 	held     map[platform.Key]bool
+
+	// onPoll runs before each batch is handed out, with the pass about to be served in
+	// f.pass. It is how a test presses a key that is *polled* rather than delivered: the
+	// pause key is read through KeyDown and the give-up keys arrive as events, and the pause
+	// loop reads both in the same pass, so holding one for exactly some of the passes cannot
+	// be expressed by the script alone. See saved_test.go.
+	onPoll func(f *fakeWin)
 }
 
 func (f *fakeWin) Present(*platform.Framebuffer) error { f.presents++; return nil }
 
 func (f *fakeWin) PollEvents() []platform.Event {
+	if f.onPoll != nil {
+		f.onPoll(f)
+	}
 	if f.pass >= len(f.script) {
 		f.pass++
 		return []platform.Event{{Kind: platform.EventQuit}}

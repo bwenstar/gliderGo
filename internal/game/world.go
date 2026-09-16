@@ -50,6 +50,19 @@ type World struct {
 	// cache that has to be invalidated by hand.
 	H *house.House
 
+	// HouseName is thisHouseName (Main.c:69), the house's *file* name without its
+	// suffix -- which in the original is the only name a house has, since nothing
+	// inside a house file records one.
+	//
+	// The C reads it in three places and all three are saved games: SaveGame2 builds
+	// the suggested file name from its first word, OpenSavedGame compares it against
+	// the name in the save, and SavedGameMismatchError puts it in the alert. So the
+	// port had no use for it until 1.10 and the host kept it to itself; now
+	// CaptureSavedGame writes it into the file, and internal/saved's Check compares it
+	// back. Empty is legal -- a test's ad-hoc World -- and makes a save that no house
+	// can claim, which is why cmd/glidergo sets it beside H.
+	HouseName string
+
 	// R is the current locale. It is a field, not a pointer, and it is *rebuilt in
 	// place* by Rebuild rather than replaced -- see the note on Rebuild for why
 	// that has to be a method.
@@ -513,7 +526,20 @@ type World struct {
 	// This port has to say what the give-up key is, since a player who pauses with
 	// Escape has no Escape left to end the game with (see pause.go). Empty draws
 	// nothing, which is what a fidelity replay wants.
+	//
+	// The host may change it *while a pause is up*, and cmd/glidergo does: Q asks its
+	// save-and-quit question by rewriting this line and waiting for another key. That is
+	// what pausePainted is for.
 	PauseHint string
+
+	// pausePainted is the union of every rect paintPause has drawn since DoPause began.
+	//
+	// It exists because PauseHint can change mid-pause and the row's width is derived from
+	// the string. Restoring the area computed from the *final* hint would leave the outer
+	// pixels of any wider row that had been shown behind -- a stripe of black either side
+	// of the placard's shadow, which is exactly what the save-and-quit question would have
+	// produced when it replaced a long hint with a short one.
+	pausePainted Rect
 
 	// Quitting is `quitting`, a Main.c global: the application is shutting down.
 	// PlayGame's loop condition tests it every frame, and **nothing inside the loop
@@ -547,10 +573,8 @@ type World struct {
 	// and the Open Saved Game menu item says so up front with an alert of its own
 	// (ALRT 1046, 7.12).
 	//
-	// Nothing sets it yet: 1.10 owns saved games, and until then every game is a fresh
-	// one. It is here now rather than later because TestHighScore's *first statement*
-	// reads it, and a stage that added the flag afterwards would be adding it to code
-	// that had already been written as though the rule did not exist.
+	// Set by ResumeSavedGame, which is the only way a game can be resumed at all, so the
+	// rule holds by construction rather than by every caller remembering it.
 	ResumedSavedGame bool
 
 	// DoBackground is `doBackground`: the preference "keep playing while switched
@@ -585,9 +609,12 @@ type World struct {
 	// embedded saved game is residue, and the port keeps both fields for that reason:
 	// house.House.SavedGame round-trips the residue, and this one is the game.
 	//
-	// Filled by 1.10's loader. Until then it is zero, which makes ResumeGameMode start
-	// the glider at (0,0) of room 0 with no lives -- so 1.10 is what makes resume mean
-	// anything, and NewGameMode is the only mode this stage exercises.
+	// Filled by ResumeSavedGame, from a side-car (internal/saved) or from the house's own
+	// embedded block -- which is the one thing the C could not do, since nothing ever read
+	// those 40 bytes back. All zero means no game has been resumed, and ResumeGameMode
+	// would then start the glider at (0,0) of room 0 with no lives, so nothing may call
+	// NewGame(ResumeGameMode) without having set this first. savegame.go is the only
+	// writer and it is the reason that cannot be got wrong.
 	SavedGame house.Game
 
 	// In is Input.c's file-scope pair of sound-throttle variables.
@@ -691,6 +718,25 @@ type World struct {
 	// replay must not have its outcome depend on whether a board file exists on the
 	// machine running it.
 	HighScore func(score int32, rooms int16) bool
+
+	// SaveGame is the host's half of SaveGame2: writing the file.
+	//
+	// The split falls where the other hooks' does. This package owns *what* a saved game
+	// is -- CaptureGame builds it out of the same fields SaveGame2 would have, in the same
+	// order -- and the host owns where it goes and what to say if it cannot get there,
+	// because that is a data directory, a filesystem and a line of text on a screen.
+	//
+	// It returns an error and DoSaveGame **discards it**, which is deliberate and matches
+	// the C: SaveGame2 returns void, its caller checks nothing, and there is nowhere in the
+	// game loop that could act on a failure anyway. A host that wants to tell the player
+	// keeps the error itself -- cmd/glidergo stores it and puts it in the pause hint, which
+	// is the only place a paused player is reading.
+	//
+	// nil is a build with nowhere to save: `-shot`, a fidelity replay, `-saves none`. It
+	// makes DoSaveGame draw its "Saving Game" title and change nothing on disk, which is
+	// the honest rendering of a session that can play and cannot record -- the same shape
+	// as HighScore's nil and scores.Store's.
+	SaveGame func(sg *house.SavedGame) error
 
 	// The four music preferences and states (Music.c, Prefs.c). All read by NewGame's
 	// two music ladders and nowhere else in this stage.

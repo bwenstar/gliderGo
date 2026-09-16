@@ -73,20 +73,37 @@ const (
 
 // The menu panel. Right of centre and above the house label, over what is sky and
 // roofline in the shipped splash art rather than over the drawing's subject.
+//
+// Only three sides are constants. The bottom is derived from the number of rows the menu has
+// -- see menuRect -- because the space between this panel and the house label is exactly as
+// deep as the menu needs and not a pixel deeper.
 const (
-	menuTop    = 112
-	menuLeft   = 336
-	menuBottom = 264
-	menuRight  = 632
+	menuTop   = 112
+	menuLeft  = 336
+	menuRight = 632
 
 	menuScale = 2  // 12x18 per character
-	menuFirst = 30 // first baseline, relative to menuTop
-	menuPitch = 26
+	menuFirst = 28 // first baseline, relative to menuTop
+	menuPitch = 21
 	menuInset = 14
+
+	// From the last baseline to the panel's bottom, which is not the height of a row: a
+	// glyph at scale s reaches s*2-1 rows below its baseline and shadow() puts a black
+	// pixel one scale under that, so the deepest ink of the last row is 3*menuScale-1
+	// below it -- and the panel's inner frame is three rows above its bottom. Ten leaves
+	// that ink clear of the frame with a row to spare, which is what
+	// TestMenuPanelClearsTheHouseLabel checks along with the other end.
+	menuFoot = 10
+
+	// The menu's own selection bar, which cannot be the picker's barRise below: a bar runs
+	// from v-menuRise to v+2*menuScale, so one pitch less than that drop is the tallest bar
+	// that neither overlaps its neighbour nor clips the descenders of the row above it.
+	menuRise = menuPitch - 2*menuScale
 )
 
-// The inverse-video selection bar, shared by the menu and the picker: how far it
-// rises above the baseline and how far it is inset from the panel's edges.
+// The inverse-video selection bar of the house picker and the settings screen: how far it
+// rises above the baseline and how far it is inset from the panel's edges. The menu's rise is
+// menuRise, which is tied to its own pitch.
 const (
 	barRise = 20
 	barPad  = 6
@@ -250,11 +267,29 @@ func (s *Shell) drawHouseLabel(scr *render.Surface) {
 // The menu
 // ---------------------------------------------------------------------------
 
-func (s *Shell) drawMenu(scr *render.Surface) {
-	r := render.SetRect(menuLeft, menuTop, menuRight, menuBottom)
-	panel(scr, r)
+// menuRect is the panel n menu rows need.
+//
+// Deriving it is not tidiness. The panel is drawn *after* the house label (see Draw's order)
+// and panel() dims eight rows beyond every edge, so the halo's last row is the bottom plus
+// seven -- and the name DrawOnSplash writes at baseline 314 inks upwards from row 307, the
+// baseline less the font's ascent. A bottom past 299 therefore lays grey over the top of the
+// house's name. A constant bottom got that wrong in the other direction too: menuBottom was
+// 264 while the seventh row's baseline was already 298, so the last two rows of a seven-row
+// menu were drawn outside the box they belong to. With the bottom derived, adding a row moves
+// the box instead of overflowing it, and TestMenuPanelClearsTheHouseLabel is what stops a row
+// from being added past the point where the box can no longer move.
+func menuRect(n int) render.Rect {
+	if n < 1 {
+		n = 1
+	}
+	return render.SetRect(menuLeft, menuTop, menuRight,
+		int16(menuTop+menuFirst+(n-1)*menuPitch+menuFoot))
+}
 
+func (s *Shell) drawMenu(scr *render.Surface) {
 	m := s.menu()
+	panel(scr, menuRect(len(m)))
+
 	for i := range m {
 		v := int16(menuTop + menuFirst + i*menuPitch)
 		text := m[i].label
@@ -263,7 +298,7 @@ func (s *Shell) drawMenu(scr *render.Surface) {
 			col = render.Gray8 // the greyed-out menu item, kept as an idea
 		}
 		if i == s.sel {
-			bar := render.SetRect(int16(menuLeft+barPad), v-barRise,
+			bar := render.SetRect(int16(menuLeft+barPad), v-menuRise,
 				int16(menuRight-barPad), v+int16(menuScale*2))
 			if !m[i].ok {
 				// An unavailable item under the cursor gets an *outline*, not a filled
@@ -500,6 +535,7 @@ func (s *Shell) aboutLines() []aboutLine {
 		{},
 		{upperFirst(p.PauseKey) + " or Esc pauses   Delete gives up a waiting glider", cream, 1},
 		{"Q while paused gives up the game and comes back here", cream, 1},
+		{"S while paused saves it; O here starts it again", cream, 1},
 		{"S on the title screen changes any of this", render.LtGray8, 1},
 		{},
 		{"C names everybody who made the original", cream, 1},
@@ -562,8 +598,8 @@ func (s *Shell) drawBand(scr *render.Surface) {
 		right(scr, screenWide-8, bandText, ver, render.Gray8, 1)
 		room -= w + 12
 	}
-	if s.msg != "" {
-		scr.DrawString(8, bandText, fit(s.msg, room-8, 1), cream)
+	if line := s.status(); line != "" {
+		scr.DrawString(8, bandText, fit(line, room-8, 1), cream)
 	}
 }
 

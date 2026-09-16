@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"glidergo/internal/datadir"
 	"glidergo/internal/house"
 	"glidergo/internal/prefs"
 )
@@ -160,11 +161,11 @@ func TestFileNameIsPortable(t *testing.T) {
 		}
 		for i := 0; i < len(f); i++ {
 			c := f[i]
-			if !safeByte(c) && c != '%' {
+			if !datadir.SafeByte(c) && c != '%' {
 				t.Errorf("FileName(%q) = %q, which holds byte %02X at %d", name, f, c, i)
 			}
 		}
-		if base := strings.TrimSuffix(f, Ext); reserved[strings.ToUpper(base)] {
+		if base := strings.TrimSuffix(f, Ext); datadir.Reserved(base) {
 			t.Errorf("FileName(%q) = %q, a Windows device name", name, f)
 		}
 		if len(f) > 120 {

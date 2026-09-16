@@ -281,7 +281,7 @@ func TestEmptyLibraryExplainsItself(t *testing.T) {
 	}
 	for _, it := range s.menu() {
 		switch it.label {
-		case "New Game", "Two Player Game", "Load House...", "High Scores...":
+		case "New Game", "Two Player Game", "Open Saved Game...", "Load House...", "High Scores...":
 			if it.ok {
 				t.Errorf("%q should be unavailable with no houses", it.label)
 			}

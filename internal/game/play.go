@@ -508,8 +508,10 @@ func (w *World) Suspend() {
 //     shared rather than per-player. Two players draw on one battery.
 //
 // The resume arm reads World.SavedGame, which is the port's `smallGame` and is *not* the
-// house's embedded saved game -- see that field. Until 1.10 fills it, ResumeGameMode
-// starts an all-zero game.
+// house's embedded saved game -- see that field. ResumeSavedGame (savegame.go) is the only
+// thing that fills it, which is what makes "nobody calls NewGame(ResumeGameMode) without a
+// saved game" true by construction rather than by convention: with the field left zero this
+// arm would give the player no lives, no stars and a glider at (0,0).
 func (w *World) InitGlider(g *player.Glider, mode int16) {
 	g.Dest = w.WhereDoesGliderBegin(mode)
 
@@ -593,10 +595,16 @@ func (w *World) SetHouseToFirstRoom() {
 	w.ForceThisRoom(w.GetFirstRoomNumber())
 }
 
-// SetHouseToSavedRoom is Play.c:382-385: one statement. Note that it does not validate
-// the saved room number -- ForceThisRoom's own -1 test is the only guard, and a save
-// naming a room past the end of a house that has since been edited smaller lands on
+// SetHouseToSavedRoom is Play.c:382-385: one statement. Note that it does not validate the
+// saved room number -- ForceThisRoom's own -1 test is the only guard, and a save naming a
+// room past the end of a house that has since been edited smaller would land on
 // ThisRoom() == nil. See World.Room.
+//
+// It cannot be reached with such a number, because the one function that fills SavedGame
+// refuses it first: ResumeSavedGame checks the room against the house before it assigns
+// anything, which is where the C would have raised kYellowIllegalRoomNum from here instead
+// -- mid-NewGame, with the locale half built. The check is there rather than added here so
+// that this stays the transcription it is.
 func (w *World) SetHouseToSavedRoom() {
 	w.ForceThisRoom(w.SavedGame.RoomNumber)
 }

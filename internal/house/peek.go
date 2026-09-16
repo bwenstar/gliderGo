@@ -59,6 +59,15 @@ type Summary struct {
 	Unlocked  bool   // TimeStamp's low bit, clear: the editor may change it
 	Banner    string // the author's opening message, as BringUpBanner shows it
 	Scores    Scores // the ten-row board stored at offset 528
+
+	// The saved game the house carries: `hasGame` at offset 860 and the 40-byte
+	// `gameType` at 820. Both are in the header this already reads, and they are here so
+	// that a menu can offer "resume the game this house shipped with" without opening
+	// every room -- see EmbeddedGame, and internal/shell's saved-game row. Twenty of the
+	// twenty-two shipped houses carry a stale block with HasGame clear, so the flag is
+	// the only thing that says whether the block means anything.
+	HasGame bool
+	Game    Game
 }
 
 // PeekFile reads a house's header and reports whether the file is a house at all.
@@ -117,5 +126,7 @@ func PeekFile(path string) (*Summary, error) {
 		Unlocked:  h.Unlocked(),
 		Banner:    h.Banner.Text(),
 		Scores:    h.HighScores,
+		HasGame:   h.HasGame != 0,
+		Game:      h.SavedGame,
 	}, nil
 }

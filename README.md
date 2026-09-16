@@ -39,16 +39,20 @@ a very large house, and try to get further than you did last time.
 > one sound throttle and four mortals, with the original's three different answers to "who
 > leaves the room" pinned in tests (a wall refuses the second glider *audibly*, a
 > transporter refuses it in total silence and only if it is standing in the very same
-> transporter, and the manhole does not race at all).
+> transporter, and the manhole does not race at all), and **1.10** saved games — `S` while
+> paused saves, the title screen's "Open Saved Game…" row and `-resume` start it again, and the
+> file is `game2Type` from offset 6 on, so the live save shipped inside Titanic.house in 1995 can
+> be resumed. That last part is the whole of the difficulty: **every** saved-game path in the 1994
+> source is dead code, and the original's own validation would have refused every game its own
+> writer produced.
 >
 > Also done, between 1.9 and 1.10: **the public build path** — the port was developed against one
 > airgapped software mirror, and it now builds from a system Go, that mirror, or `go.dev`, with the
 > airgapped path unchanged. A fresh clone with nothing but Go 1.23 and `libx11-dev` reaches a green
 > `make check`, on a machine with no assets extracted and no display.
 >
-> Next: **1.10** saved games — mid-game save and resume, against the original's 40-byte
-> `gameType`, so the live save shipped inside Titanic.house can be resumed. See
-> [docs/PLAN.md](docs/PLAN.md), and
+> Stage 1 is done. Next: **Stage 2**, new houses — a house editor's worth of authored levels,
+> selectable alongside the originals. See [docs/PLAN.md](docs/PLAN.md), and
 > [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
 > release someone else could play.
 
@@ -176,6 +180,7 @@ pointer, and the only mouse in Glider PRO was in its editor.
 | `↑` `↓` | move the cursor |
 | `Return` | choose |
 | `N` / `2` | one-player / two-player game |
+| `O` | open the selected house's saved game |
 | `L` | load a house — `↑` `↓` move, `←` `→` page, a letter jumps, `Return` plays, `Space` selects |
 | `H` | the selected house's high scores |
 | `S` | settings |
@@ -188,6 +193,7 @@ pointer, and the only mouse in Glider PRO was in its editor.
 | throw a rubber band | `↑` | `W` |
 | use the battery | `↓` | `S` |
 | pause | `Tab` or `Esc` | |
+| save a paused game | `S` | |
 | give up a paused game | `Q` | |
 | give up a glider waiting in limbo | `Delete` | |
 
@@ -207,7 +213,14 @@ something a 1994 Macintosh had and this does not:
   out is written on the screen they land on (2.7).
 - **`Q` gives up a paused game** and hands the title screen back. The original's Command-Q is
   a chord the window manager owns on every platform this builds for; both pause placards
-  still read "or Cmd-Q to Quit the game", so the port prints its own line under them.
+  still read "or Cmd-Q to Quit the game", so the port prints its own line under them. It asks
+  first, with the two buttons alert 1041 had — `Y` saves the game before ending it, `N` does not
+  — and the pause key is a third answer that alert did not have, because Command-Q was a chord
+  nobody hits by accident and a bare `Q` is one letter from the controls.
+- **`S` saves a paused game**, which is where the original's own save lived
+  (`DoCommandKey`, `Input.c:55-63`). Offered only from the pause, and only when there is one
+  glider and somewhere to write it — the hint row under the placard names the key when it would
+  work and stays quiet when it would not.
 - **`Delete`** abandons a glider waiting in limbo, which is the original's own key for it. It is
   player one's key in the original, and that matters more than it looks: see below.
 
@@ -299,6 +312,40 @@ make run ARGS='-scores none'          # play and record nothing
 
 A hand-edited or truncated board is repaired rather than refused: you get a playable board and
 one line on stderr per thing that had to be worked around.
+
+### Saved games
+
+`S` while paused saves. `O` on the title screen, or `-resume` on the command line, starts it
+again — the room, the score, the gliders you have left, the bands and batteries you are carrying,
+the mode the glider was in, and every switch you had thrown in every room of the house.
+
+```bash
+bin/glidergo -house Titanic.house -resume     # straight into a saved game, no title screen
+bin/glidergo -resume                          # Slumberland's, like every other -house default
+make run ARGS='-saves /tmp/saves'             # keep them here instead
+make run ARGS='-saves none'                   # play and save nothing
+```
+
+`-resume` is refused, before a window opens, alongside `-two` (a save holds one glider) and
+`-room` (a save names its own room) — either combination would silently ignore half of what the
+command line asked for.
+
+Saves live one per house beside the score boards (`$XDG_DATA_HOME/glidergo/saves/`), and the
+newer one wins. The original's dialogue would have let you keep twenty of one house under twenty
+names; keying them by house instead makes resuming a keystroke rather than a file browser, and it
+is a real loss, recorded in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) rather than pretended
+away.
+
+**Two of the shipped houses carry a game saved in 1995**, and `O` will open those too: Titanic in
+room 104 with 4,700 points and two gliders left, and ImagineHouse PRO II in room 45 with 5,900
+and five. Nobody has ever resumed them.
+Every saved-game path in the 1994 source is dead code — the writer's body commented out, the
+reader's first live statement a `return false`, the menu item that would have called it commented
+out too — so this is a reconstruction of a format that shipped inside 22 files and was never once
+read back. The four decisions it needed are numbered S1–S4 in
+`internal/house/savedgame.go`, and the one that mattered is that the original stamped a save with
+the *clock* while the gate that validates it compares the *house's* timestamp: its own checks
+would have refused every game its own writer produced.
 
 ## What is in here
 

@@ -47,6 +47,7 @@ import (
 	"glidergo/internal/platform"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
+	"glidergo/internal/saved"
 )
 
 // Host is the machine's side of the shell: a surface to draw on, a way to show it,
@@ -113,6 +114,24 @@ type Host struct {
 	// true of a fresh install that has never finished a game.
 	Scores func(House) house.Scores
 
+	// Saved is what this installation has kept for a house: the header of the game the
+	// "Open Saved Game..." row would resume, or the reason there is nothing to resume.
+	//
+	// All three answers mean something different to the player and the row says which it
+	// got. A save that reads is offered, with its own one-line summary on the status band
+	// while the cursor is on the row. os.ErrNotExist is "not saved yet", which is the
+	// ordinary answer and the reason the row is greyed out rather than hidden -- an item that
+	// appears only sometimes is an item nobody finds. Anything else is a save that exists and
+	// cannot be used, and saying so here is better than starting a game and failing halfway
+	// into it.
+	//
+	// nil is a build with nowhere to keep saved games: -shot, `-saves none`, the tests, a
+	// read-only installation. Like Scores, this is asked once per house per visit and cached,
+	// not once per frame; unlike Scores it must not read a whole file, which is what
+	// saved.Store.Peek is for -- a large house's save is sixty kilobytes of object state that
+	// no menu row needs.
+	Saved func(House) (saved.Info, error)
+
 	// ApplyPrefs is called after every change, for the settings the machine has to be
 	// told about rather than asked for: the volume, chiefly, which the mixer holds its
 	// own copy of. Optional.
@@ -133,6 +152,18 @@ type Host struct {
 type Choice struct {
 	House     House
 	TwoPlayer bool
+
+	// Resume asks for the house's saved game instead of a new one: NewGame(ResumeGameMode)
+	// rather than NewGame(NewGameMode). The shell sets it only when Host.Saved has already
+	// answered with a save that reads, and the host must still validate -- the file can be
+	// removed, replaced or edited between the row being drawn and the key being pressed, and
+	// the five gates are the host's either way (internal/saved's Check).
+	//
+	// Never with TwoPlayer: a gameType holds one glider's position, mode and facing, so
+	// there is nowhere to put the second player and the game refuses to save one
+	// (game.CanSaveGame). The shell's row is one-player for that reason and not to keep
+	// things simple.
+	Resume bool
 }
 
 // Outcome is what came back. Score and StarsLeft are the two numbers the status
@@ -175,6 +206,14 @@ type Shell struct {
 	msg  string
 	quit bool
 
+	// loading is the one line that outranks everything else on the status band: what the
+	// shell is waiting for while it is not the thing in control. It is set for exactly one
+	// presented frame, by start, and empty every other moment -- which is why it is a
+	// separate field and not msg. A menu row's note describes what Return *would* do, and
+	// once Return has been pressed that description is stale; msg describes the last thing
+	// that finished, and a game that is still loading has not finished.
+	loading string
+
 	// The settings screen's own three: the cursor, which row is waiting for a
 	// keystroke (-1 for none), and whether anything has changed since it was opened.
 	set      int
@@ -193,6 +232,15 @@ type Shell struct {
 	// game. Throwing the map away is one line and cannot be wrong; a selective
 	// invalidation would be three and could be.
 	boards map[string]house.Scores
+
+	// saves caches what Host.Saved answered, by house, and it exists for boards' reason
+	// twice over: the menu is rebuilt on every draw *and* the status band asks a second time
+	// for the row under the cursor, so an uncached hook would stat and read a file a hundred
+	// and twenty times a second to draw a row that has not changed.
+	//
+	// Dropped whole with boards after every game, because a game is the one thing that
+	// writes a save.
+	saves map[string]savedEntry
 
 	// Frames counts passes through the loop. The tests use it as a clock, and it is
 	// the only way to tell from outside that the shell is alive.
@@ -378,12 +426,18 @@ func arrow(k platform.Key) bool {
 // item is one menu row: its letter, its label, whether it can be chosen now, and
 // what it does. why overrides the reason an unavailable item gives, for the items whose
 // reason is not "there are no houses".
+//
+// note is what the status band says while the cursor is on the row, for a row whose meaning
+// depends on something no label can carry -- which so far is exactly one row, the saved game
+// (saved.go). It is read at draw time rather than pushed into msg, so it appears when the
+// cursor arrives, disappears when it leaves, and cannot bury the line the last game left.
 type item struct {
 	key   platform.Key
 	label string
 	ok    bool
 	do    func()
 	why   string
+	note  string
 }
 
 // menu is this shell's UpdateMenus (Menu.c:62-96, §3.5.2, and P8's advice to port
@@ -399,6 +453,9 @@ func (s *Shell) menu() []item {
 	return []item{
 		{key: platform.KeyN, label: "New Game", ok: have, do: func() { s.play(false) }},
 		{key: platform.Key2, label: "Two Player Game", ok: have, do: func() { s.play(true) }},
+		// MENU 129's third item, with the command key it had: "Open Saved Game..." was
+		// ⌘O in 1994 (Glider PRO.r), and it never worked. See saved.go.
+		s.resumeItem(),
 		{key: platform.KeyL, label: "Load House...", ok: len(s.lib.Houses) > 0, do: s.openPicker},
 		// Options > High Scores (Menu.c:417-419), which in the original is enabled
 		// whenever a house is open and does nothing else at all: it calls DoHighScores
@@ -469,29 +526,49 @@ func (s *Shell) libRoot() string {
 	return s.lib.Root
 }
 
-// play hands a game to the host and comes back when it is over.
-//
-// Everything about the game happens inside that call, including several minutes of
-// somebody playing: the shell is not drawing, not polling and not presenting while
-// it runs, because the game is doing all three with the same window. That is
-// exactly the original's arrangement -- NewGame does not return until PlayGame does
-// (Play.c:219-221) -- and it is why the shell has no state to save across it.
+// play starts a new game on the selected house.
 func (s *Shell) play(two bool) {
 	h, ok := s.House()
 	if !ok {
 		s.msg = s.why("New Game")
 		return
 	}
+	s.start(Choice{House: h, TwoPlayer: two})
+}
+
+// start hands a game to the host and comes back when it is over.
+//
+// Everything about the game happens inside that call, including several minutes of
+// somebody playing: the shell is not drawing, not polling and not presenting while
+// it runs, because the game is doing all three with the same window. That is
+// exactly the original's arrangement -- NewGame does not return until PlayGame does
+// (Play.c:219-221) -- and it is why the shell has no state to save across it.
+func (s *Shell) start(c Choice) {
+	h := c.House
 	s.mode = modeSplash
-	s.msg = "playing " + h.Name + "..."
+	if c.Resume {
+		s.loading = "resuming " + h.Name + "..."
+	} else {
+		s.loading = "playing " + h.Name + "..."
+	}
+	defer func() { s.loading = "" }()
 
-	out, err := s.host.Play(Choice{House: h, TwoPlayer: two})
+	// One frame of that, presented, before the call that blocks. Opening a house reads a
+	// file, decodes every room and may build a sound bank; resuming one reads a save and
+	// applies it. That is long enough on a slow disk to look like a hang, and Run's loop is
+	// not coming round again until the game is over, so this is the only chance to say what
+	// is happening. Frames is deliberately not incremented: this is not a pass of the loop.
+	s.Draw()
+	s.host.Present()
 
-	// Whatever happened in there, the boards on disk may have moved: a qualifying score
-	// is written from inside the game, by the host's own high-score hook. So the cache
-	// goes, on every path out of a game including the error one -- a game that failed
-	// after recording a score is unlikely and is not worth a stale leaderboard.
-	s.boards = nil
+	out, err := s.host.Play(c)
+
+	// Whatever happened in there, the player's files may have moved: a qualifying score is
+	// written from inside the game by the host's high-score hook, and a saved game by its
+	// save hook. So both caches go, on every path out of a game including the error one -- a
+	// game that failed after writing one of them is unlikely and is not worth a stale
+	// leaderboard or a menu row offering a save that is no longer the newest one.
+	s.boards, s.saves = nil, nil
 
 	if err != nil {
 		s.msg = h.Name + ": " + err.Error()
@@ -520,6 +597,25 @@ func (s *Shell) setTitle() {
 		return
 	}
 	s.host.Title("gliderGo")
+}
+
+// status is what the band shows: what the shell is waiting for, or the note belonging to the
+// row the menu cursor is on, or the last message.
+//
+// The note wins over the message while the cursor is there and the message comes back when it
+// moves, which is why this is computed at draw time instead of assigned on the way past.
+// Writing the note into msg would mean a cursor movement could bury "Slumberland -- score
+// 8600, 3 stars left" -- the one line a player who has just finished a game wants to read.
+func (s *Shell) status() string {
+	if s.loading != "" {
+		return s.loading
+	}
+	if s.mode == modeSplash {
+		if m := s.menu(); s.sel >= 0 && s.sel < len(m) && m[s.sel].note != "" {
+			return m[s.sel].note
+		}
+	}
+	return s.msg
 }
 
 // opening is the status line a fresh shell comes up with: the one place a player is

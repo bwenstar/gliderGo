@@ -100,11 +100,16 @@ learned, and leaves `make check` green.
 - Platform layer with x11 + null backends, verified on screen at 944 fps.
 - Source archaeology: `docs/analysis/*.md` + `docs/ORIGINAL_GAME.md`.
 
-### Stage 1 — the faithful single-player port
+### Stage 1 — the faithful single-player port ✅ *done*
 
 The order matters: data before pixels, pixels before physics, physics before polish.
 Each step is independently verifiable, which is the only way to catch a fidelity
 regression before it is buried under three more subsystems.
+
+All ten items are done, plus 1.9, which the plan did not originally have, and the public build
+path. What remains from Stage 1 is not unbuilt work but recorded work: the numbered items in
+[docs/IMPROVEMENTS.md](IMPROVEMENTS.md), which is where every "this could be better" found while
+building a stage went instead of into the stage that found it.
 
 **1.1 Asset extraction (Python, one-time-per-checkout, reproducible)** ✅ *done*
 
@@ -311,7 +316,7 @@ box and the four room boundaries. 3,140 lines of code and 1,533 of tests, transc
   gliders property while removing its ordering hazard. Nothing else is refactored: where the C
   has eight functions that four would cover, this has eight.
 
-**1.5 Objects, collision, room transitions** — ~9,100 lines of C, six sub-stages
+**1.5 Objects, collision, room transitions** ✅ *done* — ~9,100 lines of C, six sub-stages
 
 The largest stage in the project: about twice everything committed so far, at 1.4's C-to-Go ratio
 roughly 9,000 lines of Go and 4,000 of tests. It was one four-line bullet until a reverse-
@@ -1118,7 +1123,7 @@ missing" below*
   nothing but Go 1.23 and `libx11-dev` reaches a green `make check`. Both verified; the public
   network path is reviewed rather than run, which is the honest limit of this machine.
 
-**1.10 Saved games** *(may slip past Stage 1 — it is the least load-bearing item here)*
+**1.10 Saved games** ✅ *done*
 - Mid-game save and resume. Half-built already: `internal/house` has parsed `gameType` (offset 820)
   and `hasGame` (860) since 1.2, and Titanic.house carries a live one — room 104, score 4700, two
   gliders, which `make check` already reports.
@@ -1126,9 +1131,55 @@ missing" below*
   house as `savedRoom` records (292 bytes each) carrying **per-room object state**, which is exactly
   what 1.5d builds. Shaping 1.5's room state so it serialises into that form costs nothing now and
   is a painful retrofit later. That is the whole of the dependency; the UI can come whenever.
-- *Acceptance:* a game saved mid-house and resumed restores room, score, lives, inventory, glider
-  mode and every room's object state; the format round-trips against the original's 40-byte
-  `gameType` so Titanic.house's shipped save can be resumed.
+- **This stage is a reconstruction, not a transcription, because every saved-game path in the
+  1994 source is dead code.** All four, so there is no doubt:
+  - `SaveGame2`'s entire body is commented out (`SavedGames.c:33-147`) — the writer that would
+    have called `StandardPutFile`.
+  - `OpenSavedGame`'s first live statement is `return false;		// TEMP fix this iwth
+    NavServices` (`SavedGames.c:169`), typo and all.
+  - `SaveGame(Boolean)` *is* complete, and its only call site is commented out (`Menu.c:458`), so
+    nothing could ever reach it.
+  - `QueryResumeGame` (`Menu.c:710-758`) is never called from anywhere.
+  So the 40 bytes at offset 820 are the only evidence that survives, and four decisions were
+  needed on top of them. They are numbered **S1–S4**, their normative home is
+  `internal/house/savedgame.go`'s package comment, and each is asserted by a test rather than
+  left as prose. Deliberately *not* D-numbers: `docs/analysis/format-decisions.md` already owns
+  a D1–D7 about the **original's** ambiguities, and these are decisions about what *this port
+  writes*. S1 the header is **110** bytes, not the 114 the original's own struct implies (this
+  one *is* format-decisions.md D1, and says so); S2 the first six bytes — an FSSpec's vRefNum and
+  parID, which mean nothing off a 1994 filesystem — become a magic `"gliG"` and a container
+  version, so a gliderGo save **is** `game2Type` from offset 6 on; S3 both shipped blocks are
+  version `0x0100` while `kSavedGameVersion` is `0x0200`, so both are accepted; S4 a house's
+  embedded block is resumed with **the house's** timeStamp.
+- **S4 is the one that would otherwise have made the whole feature unreachable.** `SaveGame`
+  stamps the save with the *clock* (`SavedGames.c:320`) while the gate that reads it back compares
+  the *house's* `timeStamp` — so the original's own validation would have refused every game its
+  own writer produced. `house.EmbeddedGame` substitutes the house's stamp, which is what makes
+  Titanic's shipped 1995 save resumable at all.
+- **The five gates** are the part the original wrote out in full and never ran, ported to
+  `saved.Check`: house name (case- *and* diacritic-insensitively, `EqualString(…, true, true)`,
+  which Go's `EqualFold` is not), `timeStamp`, version, room count, room number in range. Each
+  refuses **before** any art is loaded or any `World` is built, so a refused resume never presents
+  a frame — the C ran them after it had begun tearing the world down, which is why it could only
+  answer with a yellow alert over a half-started game.
+- **Where a save lives is a port decision.** The original's `StandardPutFile` put it wherever the
+  player browsed to; `internal/saved` keys one save per house under `internal/datadir`'s roof,
+  written atomically, so resuming is a keystroke rather than a file browser. One save per house
+  instead of the twenty names a dialogue would have allowed is a real loss and is recorded in
+  IMPROVEMENTS rather than pretended away. A house file is still never written.
+- **Two ways in and one way out.** Resuming: the title screen's "Open Saved Game…" row — MENU
+  129's third item, on the `O` it had — greyed with the reason when there is nothing to resume,
+  and `-resume` on the command line. Saving: `S` while paused, which is where the original put it
+  too (`DoCommandKey`, `Input.c:55-63`). Alert 1041's two buttons ("Save First", "Don't Save") are
+  `Y` and `N`; the port adds the pause key as a third answer the alert did not have, because
+  `DoCommandKey` assigns `playing = false` *before* asking and a bare `Q` is one letter from the
+  controls where Command-Q was a chord nobody hits by accident.
+- *Acceptance met:* `internal/game`'s `TestSaveAndResumeRoundTripsARealGame` plays a real house,
+  saves through the real encoder and resumes into a fresh `World` with room, score, lives,
+  inventory, glider mode and every room's object state restored; `TestGameCodecMatchesEveryShippedHeader`
+  decodes the 40-byte block out of all 22 shipped houses and re-encodes it to the same bytes; and
+  `TestEveryLiveShippedGameIsResumable` takes both live shipped saves — Titanic's among them —
+  through a file and back.
 
 #### What this plan was missing, and what it got right
 

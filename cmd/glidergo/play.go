@@ -23,6 +23,7 @@ package main
 // game's score.
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,7 @@ import (
 	"glidergo/internal/platform/backend"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
+	"glidergo/internal/saved"
 	"glidergo/internal/scores"
 	"glidergo/internal/shell"
 )
@@ -58,6 +60,14 @@ type app struct {
 	// can play and cannot record -- -scores none, or no data directory -- and every method
 	// on it tolerates that, so this is never checked at a call site (internal/scores).
 	store *scores.Store
+
+	// saves is the games in progress, one file per house, and it is nil under the same two
+	// conditions -- -saves none, or nowhere to write. Unlike store it *is* checked at two
+	// call sites, and both checks are the same decision: with nowhere to write, the game
+	// gets no SaveGame hook (so CanSaveGame is false and the pause hint stops offering the
+	// key) and the shell gets no Saved hook (so the menu row says why rather than offering
+	// a resume nothing could perform).
+	saves *saved.Store
 
 	bank  *audio.Bank
 	eng   *audio.Engine
@@ -92,6 +102,7 @@ func newApp(o *options, p *prefs.Prefs, canSave bool) *app {
 	// what makes its first candle flame and its first pendulum agree with 1994's.
 	a.randSeed = game.AdvanceRandSeed(a.randSeed)
 	a.openScores()
+	a.openSaves()
 	return a
 }
 
@@ -153,6 +164,85 @@ func (a *app) board(h shell.House) house.Scores {
 	b, notes := a.store.Load(h.Name, h.Scores)
 	a.reportScoreNotes(h.Name, notes)
 	return b
+}
+
+// savesNone is -saves' opt-out, spelled like -prefs none and -scores none.
+const savesNone = "none"
+
+// openSaves decides where the games in progress live, on openScores' pattern and with its
+// reasoning: a failure to resolve the directory is reported at startup rather than at the
+// moment somebody presses S, because that moment is the one where being told "there is
+// nowhere to put this" is least useful.
+func (a *app) openSaves() {
+	switch a.o.savesDir {
+	case savesNone:
+		return
+	case "":
+		st, err := saved.Open()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "glidergo: games cannot be saved: %v\n", err)
+			return
+		}
+		a.saves = st
+	default:
+		a.saves = saved.OpenDir(a.o.savesDir)
+	}
+}
+
+// savedGame is the shell's Host.Saved: what the "Open Saved Game..." row would resume, or
+// why there is nothing to resume.
+//
+// Two sources, in this order, and the order is the whole of the policy: **this
+// installation's save wins over the one the house shipped with.** A player's own game is the
+// one they mean, and a house's embedded block does not change, so a save laid over it is
+// always the newer of the two. The house's block stays where it is either way -- nothing
+// here writes a house file -- so deleting a save brings it back.
+//
+// The error from the store is the one that reaches the menu, not the house's: "no saved game
+// for Slumberland" is the answer when neither source has anything, and it is the store's
+// wording because the store is where a save the player makes will go.
+func (a *app) savedGame(h shell.House) (saved.Info, error) {
+	info, err := a.saves.Peek(h.Name)
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		return info, err
+	}
+
+	// No save of our own. PeekFile reads the 866-byte header and no rooms, which is the
+	// same read the picker already does for every house it lists, so the cost of asking is
+	// one header. A house that will not peek is not reported here: the row's job is to say
+	// whether there is a game to resume, and a house that cannot be read at all is a
+	// problem the moment it is *played*, with a better message than this row has room for.
+	sum, perr := house.PeekFile(h.Path)
+	if perr != nil || !sum.HasGame {
+		return saved.Info{}, err
+	}
+	from := saved.InfoOf(house.EmbeddedGame(h.Name, sum.TimeStamp, sum.Game))
+	from.FromHouse = true
+	return from, nil
+}
+
+// savedGameFor is the game a resume starts from, in savedGame's order: this installation's
+// save, then the house's own block. It takes the loaded house rather than a path because
+// every gate but the first needs it.
+//
+// The distinction from savedGame is what each one costs. That one reads a header for a menu
+// row; this one reads the whole save -- every room's object state -- because it is about to
+// be applied to a house.
+func (a *app) savedGameFor(name string, h *house.House) (*house.SavedGame, error) {
+	sg, err := a.saves.Load(name)
+	if err == nil {
+		return sg, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if h.HasGame == 0 {
+		// os.ErrNotExist is wrapped rather than replaced: a caller that wants to offer
+		// "start a new game instead" can still tell this apart from a broken save, and the
+		// text is what a player needs to read.
+		return nil, fmt.Errorf("%s has no saved game to resume: %w", name, os.ErrNotExist)
+	}
+	return house.EmbeddedGame(name, h.TimeStamp, h.SavedGame), nil
 }
 
 // openWindow opens the one window. The surfaces inside are always 640x480 -- the
@@ -280,9 +370,10 @@ func (a *app) bindAudio(w *game.World, name string) {
 
 // play runs one game and returns its result. An error means the game never started
 // -- the house would not load, the art is unreadable, the room number is out of
-// range -- and the shell shows it and stays up, because the player's next move is to
-// choose a different house (docs/IMPROVEMENTS.md 2.33).
-func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
+// range, the saved game does not belong to this house -- and the shell shows it and stays
+// up, because the player's next move is to choose a different house
+// (docs/IMPROVEMENTS.md 2.33).
+func (a *app) play(name, path string, two, resume bool) (shell.Outcome, error) {
 	o := a.o
 
 	h, err := house.LoadFile(path)
@@ -291,6 +382,24 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	}
 	if len(h.Rooms) == 0 {
 		return shell.Outcome{}, fmt.Errorf("%s: house has no rooms", path)
+	}
+
+	// The saved game, read and validated before anything is built.
+	//
+	// Both halves are deliberately here rather than after the World exists. internal/saved's
+	// Check is OpenSavedGame's four gates plus one, and the C runs them *after* it has begun
+	// tearing the world down for a resume -- so a mismatched save there left the player
+	// looking at a yellow alert and a half-started game (see game.ResumeSavedGame's note on
+	// kYellowIllegalRoomNum). Failing before the window's title changes means a refused
+	// resume is a message on the title screen's status band with the menu still under it.
+	var sg *house.SavedGame
+	if resume {
+		if sg, err = a.savedGameFor(name, h); err != nil {
+			return shell.Outcome{}, err
+		}
+		if err := saved.Check(sg, name, h); err != nil {
+			return shell.Outcome{}, err
+		}
 	}
 	if o.roomNum >= 0 {
 		if o.roomNum >= len(h.Rooms) {
@@ -326,6 +435,40 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	w := game.NewWorld(h, scene, seed)
 	w.TwoPlayer = two
 
+	// The house's name, which the World has no other way to learn: houseType has no name
+	// field and never did (a Mac document was named by its file), so a save has to be told
+	// what to write into its own header. Set for every game and not only a resumed one,
+	// because it is what a save made *during* this game will carry.
+	w.HouseName = name
+
+	// Where a save goes, and the one thing the game does not decide. A nil hook is a build
+	// with nowhere to write: CanSaveGame reads it, so the pause hint below stops offering a
+	// key that could not work.
+	//
+	// The error is kept rather than returned, because DoSaveGame's caller is a keystroke
+	// inside the pause loop and there is nothing there to return to. The pause hint is where
+	// it surfaces -- the one line a paused player is already reading.
+	var saveErr error
+	if a.saves != nil {
+		w.SaveGame = func(sg *house.SavedGame) error {
+			saveErr = a.saves.Save(sg)
+			if saveErr != nil {
+				fmt.Fprintf(os.Stderr, "glidergo: %v\n", saveErr)
+			}
+			return saveErr
+		}
+	}
+
+	// The saved game itself, applied to the World and to the house's rooms before NewGame
+	// reads either. Everything that could refuse has already refused above; this cannot
+	// fail for a reason the player did not already see, and is checked because a resume
+	// that silently did not happen would start a new game with the save's own score line.
+	if resume {
+		if err := w.ResumeSavedGame(sg); err != nil {
+			return shell.Outcome{}, err
+		}
+	}
+
 	// **DoBackground is true here and false in the original** (Main.c:186), and it is
 	// *not* the preference it looks like. It decides whether PlayGame pumps host events
 	// at all, and in a port that is not optional: with it false the window never sees a
@@ -345,7 +488,18 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	// docs/IMPROVEMENTS.md 2.7 asks for: Escape pauses rather than quitting, so the only way
 	// to throw a game away is to read this line first.
 	w.EscPause = a.p.EscPause()
-	w.PauseHint = "no Command key here -- press Q to give up the game"
+
+	// The hint's resting text, which is also the menu of keys the pause accepts. It names S
+	// only when a save would actually happen: CanSaveGame is false for a two-player game (one
+	// glider's worth of fields, see game/savegame.go) and for a build with nowhere to write,
+	// and a line that offered a key which silently did nothing would be worse than one that
+	// never mentioned it. The arms below replace this line while the pause is up and put it
+	// back when the pause ends.
+	baseHint := "no Command key here -- press Q to give up the game"
+	if w.CanSaveGame() {
+		baseHint = "no Command key here -- press S to save the game, Q to give it up"
+	}
+	w.PauseHint = baseHint
 
 	w.Fix = gameFixes(a.p.Fixes)
 
@@ -411,6 +565,20 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	// needs no such distinction: its Quit is a menu command and its window is the desktop.
 	closed := false
 
+	// asking is QuerySaveGame (alert 1041, "Do you want to save the state of the game before
+	// quitting?"), asked in the hint row rather than in a dialogue because that row is the
+	// only place this port has to say something to a paused player.
+	//
+	// The alert has two buttons and no Cancel -- "Save First" and "Don't Save" -- because
+	// DoCommandKey assigns `playing = false` *before* it asks (Input.c:55-58), so in 1994 the
+	// question was only ever about the save and never about the quitting. Y and N are those
+	// two buttons. The pause key is a third answer the alert did not have, and it is here
+	// because the keystroke that opens the question is different from the one that did in
+	// 1994: Command-Q is a chord nobody hits by accident and a bare Q is one letter away from
+	// the controls. Resuming is what a player who did not mean it wants, and it costs the
+	// faithful path nothing -- neither button moved.
+	asking := false
+
 	// The keys, resolved once. Doing it here and not per poll is safe because the
 	// settings screen is only reachable from the title screen, so no binding can change
 	// between this line and the end of the game -- and a rebind is therefore never half
@@ -448,15 +616,61 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 				w.Quitting = true
 				w.SwitchedOut = false
 
+			case ev.Kind == platform.EventKeyDown && w.Paused && asking:
+				// The two buttons of alert 1041, and nothing else: any other key is
+				// swallowed here so that a mistyped answer cannot fall through to the Q
+				// and S arms below and re-ask a question that is already up. The pause
+				// key is not a key event -- pauseDown polls the key state -- so the
+				// third answer is unaffected by this arm consuming the keyboard.
+				//
+				// Both answers end the game, which is the C's ordering and not an
+				// oversight of it: `playing = false` is already assigned by the time the
+				// alert appears. GiveUpGame is where those two assignments live, and it
+				// filters the save through CanSaveGame so that a yes from a game that
+				// cannot be saved writes nothing.
+				switch ev.Key {
+				case platform.KeyY:
+					w.GiveUpGame(true)
+				case platform.KeyN:
+					w.GiveUpGame(false)
+				}
+
 			case ev.Kind == platform.EventKeyDown && ev.Key == platform.KeyQ && w.Paused:
-				// DoCommandKey's Command-Q arm (Input.c:55-58), which in the original is
+				// DoCommandKey's Command-Q arm (Input.c:55-63), which in the original is
 				// reachable from inside the pause loop and nowhere else that matters.
 				// Plain Q here because the window manager owns Command-Q on every
 				// platform this builds for, and only while paused, so that Q stays
-				// bindable as a control. The saved-game offer the C makes on the way out
-				// (QuerySaveGame) is 1.10's.
-				w.Quitting = true
-				w.SwitchedOut = false
+				// bindable as a control.
+				//
+				// With nothing to save the question is skipped entirely and the game ends
+				// on this keystroke. That is where the C puts its `!twoPlayerGame &&
+				// !demoGoing` guard too -- around the question, not around the save -- so
+				// a two-player game has always given up in one key.
+				if !w.CanSaveGame() {
+					w.GiveUpGame(false)
+					break
+				}
+				asking = true
+				w.SetPauseHint("give up: Y saves the game first, N does not, " +
+					platform.KeyName(pauseKey) + " keeps playing")
+
+			case ev.Kind == platform.EventKeyDown && ev.Key == platform.KeyS && w.Paused &&
+				!ev.Repeat:
+				// DoCommandKey's Command-S arm (Input.c:65-71). Everything it does to the
+				// screen is DoSaveGame's; what is left here is the sentence afterwards,
+				// because the C's save could not fail (it did not happen) and this one can
+				// -- a full disk, a read-only home directory. saveErr is the hook's answer
+				// and the hint row is where a paused player is already looking.
+				//
+				// !ev.Repeat because a held S would otherwise write the file once per poll,
+				// each time with two presents of the "Saving Game" title over the top of a
+				// pause. A press is a save.
+				w.DoSaveGame()
+				if saveErr != nil {
+					w.SetPauseHint("the game could not be saved: " + saveErr.Error())
+				} else {
+					w.SetPauseHint("game saved -- S again replaces it, Q gives up the game")
+				}
 
 			case ev.Kind == platform.EventFocus:
 				if ev.Focused {
@@ -575,6 +789,15 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	// resuming press to be released -- is unnecessary because KeyPoll is edge-triggered
 	// too, so a key still held on the way out cannot pause again.
 	w.Pause = func(paint func()) {
+		// Every pause starts from the resting hint and no question outstanding, however the
+		// last one ended. Without this a player who gave up, was asked, resumed with the
+		// pause key and paused again would find the question still on the screen and Y still
+		// live -- a keystroke they answered a minute ago, waiting for them.
+		defer func() {
+			asking = false
+			w.SetPauseHint(baseHint)
+		}()
+
 		held := true
 		for {
 			// The same pump the frame loop uses, so that a pause answers an expose, a
@@ -723,7 +946,18 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 			version, backend.Name, a.fb.W, a.fb.H, a.p.Scale, a.p.Neighbors, seed)
 	}
 
-	w.NewGame(game.NewGameMode)
+	// kNewGameMode or kResumeGameMode (Play.c:100-190), which is the only difference a resume
+	// makes to the game after ResumeSavedGame has installed the fields. The mode decides three
+	// things inside NewGame: where the glider begins (WhereDoesGliderBegin reads the saved
+	// `where` instead of the first room's start), whether the score and the inventory are
+	// zeroed, and which of the two opening screens is shown -- a new game gets the author's
+	// banner, a resumed one gets DisplayStarsRemaining, which is the count of stars still to
+	// find and therefore the one thing a returning player needs.
+	mode := game.NewGameMode
+	if resume {
+		mode = game.ResumeGameMode
+	}
+	w.NewGame(mode)
 
 	// NewGame's teardown has just started the idle score on this World, which is about to
 	// go out of scope. Hand its place in the score to the title screen's cursor before it

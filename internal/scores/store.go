@@ -31,15 +31,12 @@ package scores
 // score board went in the same drawer. See Dir.
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 
+	"glidergo/internal/datadir"
 	"glidergo/internal/house"
 )
 
@@ -53,50 +50,16 @@ const Ext = ".scores"
 // renamed to something that can be typed.
 const SubDir = "scores"
 
-// Dir is where the boards go.
-//
-// Scores are *data*, not configuration: the player did not choose them, cannot usefully
-// edit them, and would not expect them in the same place as a settings file. On Linux the
-// XDG basedir spec says that means $XDG_DATA_HOME (~/.local/share), not $XDG_CONFIG_HOME,
-// and the distinction is not pedantry -- a dotfile-syncing setup that tracks ~/.config
-// should not be picking up a game's high scores. Go has os.UserConfigDir and os.UserCacheDir
-// and no os.UserDataDir, so the Linux path is resolved by hand and every other platform
-// falls back to the config directory, which is where its own conventions put both
-// (~/Library/Application Support, %AppData%).
-//
-// Two overrides, in order:
-//
-//	GLIDERGO_DATA     used verbatim, for a portable install and for tests
-//	GLIDERGO_CONFIG   if set, scores go under it, so that a player who has pointed the
-//	                  whole game at one directory gets one directory
-//
-// The second is prefs.Dir's variable and is honoured here on purpose: somebody who runs
-// `GLIDERGO_CONFIG=./glider-data glidergo` has said where they want the game's files, and
-// answering that with settings in one place and scores in another would be a bug.
+// Dir is where the boards go: internal/datadir's answer for SubDir. That package holds the
+// reasoning (data rather than config, the two environment overrides, the per-platform
+// bases); it is shared with internal/saved so that a house's board and its save land in the
+// same tree under the same rules.
 func Dir() (string, error) {
-	if d := os.Getenv("GLIDERGO_DATA"); d != "" {
-		return d, nil
-	}
-	if d := os.Getenv("GLIDERGO_CONFIG"); d != "" {
-		return filepath.Join(d, SubDir), nil
-	}
-	if runtime.GOOS == "linux" {
-		if d := os.Getenv("XDG_DATA_HOME"); filepath.IsAbs(d) {
-			return filepath.Join(d, "glidergo", SubDir), nil
-		}
-		// $XDG_DATA_HOME unset, or set to a relative path, which the spec says to treat as
-		// unset. ~/.local/share is the spec's own default.
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, ".local", "share", "glidergo", SubDir), nil
-		}
-		// No home directory either. Fall through rather than fail: os.UserConfigDir has
-		// its own answer and its own error message.
-	}
-	base, err := os.UserConfigDir()
+	d, err := datadir.Dir(SubDir)
 	if err != nil {
-		return "", fmt.Errorf("scores: no data directory: %w", err)
+		return "", fmt.Errorf("scores: %w", err)
 	}
-	return filepath.Join(base, "glidergo", SubDir), nil
+	return d, nil
 }
 
 // Store is a directory of boards.
@@ -240,89 +203,7 @@ func (st *Store) Save(houseName string, s *house.Scores) error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// House name -> file name
-// ---------------------------------------------------------------------------
-
-// safeByte is the set a file name may hold unescaped. Deliberately narrow: it is the
-// intersection of what Linux, macOS and Windows all accept in any position, so the same
-// house produces the same file name on all three and a scores directory can be copied
-// between them.
-func safeByte(c byte) bool {
-	switch {
-	case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9':
-		return true
-	case c == '-', c == '_', c == '.':
-		return true
-	}
-	return false
-}
-
-// maxBase is how long an escaped name may be before it is shortened. 100 leaves room for
-// the extension and the hash inside every filesystem limit worth caring about (255 bytes on
-// ext4 and APFS, 255 UTF-16 units on NTFS).
-const maxBase = 100
-
-// reserved is the Windows device names, which are refused *with any extension* and in any
-// case, so "CON.scores" is as unopenable as "CON". A house called Con is not likely; a
-// port that only works for likely house names is not finished.
-var reserved = map[string]bool{
-	"CON": true, "PRN": true, "AUX": true, "NUL": true,
-	"COM1": true, "COM2": true, "COM3": true, "COM4": true, "COM5": true,
-	"COM6": true, "COM7": true, "COM8": true, "COM9": true,
-	"LPT1": true, "LPT2": true, "LPT3": true, "LPT4": true, "LPT5": true,
-	"LPT6": true, "LPT7": true, "LPT8": true, "LPT9": true,
-}
-
-// FileName is the file a house's board lives in: the house's name, percent-escaped.
-//
-// The original had no such problem. Its side-car was named with `thisHouseName` verbatim
-// (HighScores.c:723), because HFS accepted every byte but ':' and a house name came from a
-// file name in the first place. This port will meet house names from three places -- a file
-// stem, a `.house` text file's own declaration, and Stage 2's new houses -- so the encoding
-// has to be total.
-//
-// It is injective, which is the property that matters: two different houses cannot share a
-// board. `%` is itself escaped, so a `%XX` in the output can only have come from escaping,
-// and the two special cases below cannot be produced any other way.
-//
-// One thing it is not is case-sensitive on a case-folding filesystem: "Titanic" and
-// "titanic" are one file on macOS and Windows and two on Linux. That is the original's
-// behaviour rather than a regression -- its folder scan compared names with
-// `EqualString(..., true, true)`, case- and diacritical-insensitively (HighScores.c:696) --
-// and treating two spellings of one house as one board is the better of the two answers
-// anyway.
-func FileName(houseName string) string {
-	var sb strings.Builder
-	sb.Grow(len(houseName) + 8)
-	for i := 0; i < len(houseName); i++ {
-		c := houseName[i]
-		if safeByte(c) {
-			sb.WriteByte(c)
-			continue
-		}
-		const hexDigits = "0123456789ABCDEF"
-		sb.WriteByte('%')
-		sb.WriteByte(hexDigits[c>>4])
-		sb.WriteByte(hexDigits[c&0x0F])
-	}
-	base := sb.String()
-
-	switch {
-	case base == "":
-		// A house with no name at all. `%` alone is not something the escaper can emit,
-		// so it cannot collide with any real name.
-		base = "%"
-	case reserved[strings.ToUpper(base)]:
-		// Escape the first byte, which is always safe to do and always unambiguous: an
-		// escape in that position could not have come from a safe byte.
-		base = fmt.Sprintf("%%%02X%s", base[0], base[1:])
-	case len(base) > maxBase:
-		// Too long for some filesystem, somewhere. Shorten it and append a digest of the
-		// *whole* name, so two houses that share a hundred-character prefix still get two
-		// files. Twelve hex digits of SHA-256 is 48 bits.
-		sum := sha256.Sum256([]byte(houseName))
-		base = base[:maxBase] + "-" + hex.EncodeToString(sum[:6])
-	}
-	return base + Ext
-}
+// FileName is the file a house's board lives in: the house's name, percent-escaped, with
+// Ext. The escaper is internal/datadir's, shared with internal/saved so that one house's
+// two files are named alike.
+func FileName(houseName string) string { return datadir.FileName(houseName, Ext) }

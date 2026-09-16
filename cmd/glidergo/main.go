@@ -70,6 +70,7 @@ import (
 	"glidergo/internal/platform"
 	"glidergo/internal/prefs"
 	"glidergo/internal/render"
+	"glidergo/internal/saved"
 	"glidergo/internal/shell"
 )
 
@@ -112,6 +113,8 @@ type options struct {
 	prefsPath   string
 	importPrefs string
 	scoresDir   string
+	savesDir    string
+	resume      bool
 
 	sound    bool
 	sounds   string
@@ -143,6 +146,8 @@ func parseFlags() (*options, error) {
 	flag.StringVar(&o.prefsPath, "prefs", "", "preferences file to use instead of the one in the config directory (\""+prefsNone+"\" = this build's defaults, saving nothing)")
 	flag.StringVar(&o.importPrefs, "import-prefs", "", "convert an original 226-byte \"Glider Prefs\" file into this port's settings, then exit")
 	flag.StringVar(&o.scoresDir, "scores", "", "directory for the high-score files, one per house (\""+scoresNone+"\" = play without recording any)")
+	flag.StringVar(&o.savesDir, "saves", "", "directory for saved games, one per house (\""+savesNone+"\" = play without saving any)")
+	flag.BoolVar(&o.resume, "resume", false, "with -house, resume its saved game instead of starting a new one")
 
 	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
 	flag.StringVar(&o.sounds, "sounds", "assets/extracted/sound", "directory of extracted sound assets")
@@ -154,6 +159,19 @@ func parseFlags() (*options, error) {
 
 	if o.volume < 0 || o.volume > audio.FullVolume {
 		return nil, fmt.Errorf("-volume must be 0 to %d", audio.FullVolume)
+	}
+	if o.resume && o.two {
+		// A gameType holds one glider's room, position, mode and facing, so there is
+		// nowhere in the format for a second player and the original refuses the save for
+		// the same reason (game.CanSaveGame). Refusing here rather than quietly dropping
+		// one of the two flags: both were asked for and they contradict each other.
+		return nil, errors.New("-resume and -two cannot both be given: a saved game holds one glider")
+	}
+	if o.resume && o.roomNum >= 0 {
+		// -room rewrites the house's first room, and a resume does not start in the house's
+		// first room -- it starts where the save says. Accepting both would silently ignore
+		// one of them, which is the failure mode that costs an hour of wondering why.
+		return nil, errors.New("-resume and -room cannot both be given: a saved game names its own room")
 	}
 	if o.scale < 1 {
 		return nil, errors.New("-scale must be at least 1")
@@ -211,7 +229,7 @@ func run() error {
 	switch {
 	case o.shot != "":
 		return shot(o, p)
-	case o.house != "" || o.frames > 0 || o.bench || o.dump != "":
+	case o.house != "" || o.frames > 0 || o.bench || o.dump != "" || o.resume:
 		return playDirect(o, p)
 	default:
 		return runShell(o, p, canSave)
@@ -299,7 +317,7 @@ func playDirect(o *options, p *prefs.Prefs) error {
 	if err := a.openAudio(); err != nil {
 		return err
 	}
-	if _, err := a.play(name, path, o.two); err != nil {
+	if _, err := a.play(name, path, o.two, o.resume); err != nil {
 		return err
 	}
 	return a.artErr
@@ -399,6 +417,15 @@ func (a *app) shellHost() shell.Host {
 		save = a.p.Save
 	}
 
+	// The same shape for the saved game, and for the same reason: a nil hook is what the
+	// menu row reads as "this build has nowhere to keep saved games", and it says so on the
+	// status band instead of offering a resume that could never work. -saves none and a
+	// machine with no data directory both land here.
+	var peek func(shell.House) (saved.Info, error)
+	if a.saves != nil {
+		peek = a.savedGame
+	}
+
 	return shell.Host{
 		Screen: scr,
 
@@ -438,7 +465,7 @@ func (a *app) shellHost() shell.Host {
 			// coming out of one channel is the one thing here a player could hear
 			// going wrong. music.go has the whole trade.
 			a.stopTitleMusic()
-			out, err := a.play(c.House.Name, c.House.Path, c.TwoPlayer)
+			out, err := a.play(c.House.Name, c.House.Path, c.TwoPlayer, c.Resume)
 			a.startTitleMusic()
 			return out, err
 		},
@@ -447,6 +474,12 @@ func (a *app) shellHost() shell.Host {
 		// rows. The shell caches whatever this answers and drops the cache after every
 		// game, so this is a file read per house per visit and not per frame.
 		Scores: a.board,
+
+		// What the "Open Saved Game..." row offers, and what the band says under it: this
+		// installation's save for the house, or the game the house file itself carries.
+		// Cached by the shell per house per visit and dropped after every game, so this is
+		// a header read and not a file read per frame -- see app.savedGame.
+		Saved: peek,
 
 		// The settings screen edits this in place, so the next game reads whatever it
 		// left behind -- which is the whole of how a rebind takes effect. The bindings

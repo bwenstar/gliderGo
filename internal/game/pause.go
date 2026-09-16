@@ -87,14 +87,19 @@ func (w *World) DoPause() {
 	// condition, so DoCommandKey clearing it from underneath -- Command-Q's
 	// `playing = false; paused = false` -- ends the pause here exactly as it does there.
 	w.Paused = true
+	// Seeded with what the first paint will cover, then widened by every paint. See
+	// World.pausePainted: the hint can change while the pause is up, and it is what the
+	// restore below is measured against.
+	w.pausePainted = w.pauseArea()
 	w.Pause(w.paintPause)
 	w.Paused = false
 
 	// CopyBits(workSrcMap -> mainWindow, bounds, bounds, srcCopy) (Input.c:107-109). The
 	// work map holds the last composited frame, so this is the cheapest possible restore
 	// and the reason the placard needs no saved-bits buffer of its own. The area is the
-	// placard plus the hint row, because both were drawn over the same pixels.
-	area := w.pauseArea()
+	// placard plus every hint row that was drawn, because all of them went over the same
+	// pixels.
+	area := w.pausePainted
 	w.Main.Copy(w.R.Work, area, area, render.SrcCopy)
 	w.present()
 }
@@ -130,7 +135,39 @@ func (w *World) paintPause() {
 		centerString(w.Main, r.Left, r.Right, r.Top+kPauseHintBase, w.PauseHint, render.White8, 1)
 	}
 
+	// Recorded, not recomputed later. The hint's width is the hint's, so a host that
+	// replaces a long hint with a short one mid-pause -- which is exactly what the
+	// save-and-quit question does -- would otherwise leave the wide row's outer pixels
+	// behind after DoPause restored only the narrow one's rect.
+	w.pausePainted = render.UnionSimilar(w.pausePainted, w.pauseArea())
+
 	w.present()
+}
+
+// SetPauseHint changes the hint row's text, and is the only safe way to change it while a
+// pause is up.
+//
+// The row is a black panel exactly as wide as its own text (pauseHintRect), so replacing a
+// long hint with a short one leaves the long one's outer pixels on screen: paintPause fills
+// the new rect and knows nothing about the old. That is not hypothetical -- it is what
+// happens the moment the host's give-up question is answered, or a save's confirmation
+// replaces the resting line. So the old row is put back from the work map first, which is
+// DoPause's own restore applied to one rect instead of all of them, and the next paint draws
+// the new text onto pixels the game owns.
+//
+// pausePainted is not narrowed. It is the union of everything drawn during this pause and the
+// restore at the end is measured against it, so a hint that shrank still gets its widest row
+// cleaned up if a later paint has grown it again.
+func (w *World) SetPauseHint(hint string) {
+	if hint == w.PauseHint {
+		return
+	}
+	if w.Paused {
+		if r := w.pauseHintRect(); !render.Empty(r) {
+			w.Main.Copy(w.R.Work, r, r, render.SrcCopy)
+		}
+	}
+	w.PauseHint = hint
 }
 
 // drawPausePanel is what a build with no extracted art shows instead of PICT 1015 or 1016,
