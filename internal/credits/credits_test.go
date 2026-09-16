@@ -1,9 +1,13 @@
 package credits
 
 // The point of these tests is that credits.txt is a transcription, and a transcription is
-// only worth anything while it still matches. GliderPRO/README.md is vendored read-only and
-// is always present -- unlike the extracted houses, which a fresh clone has none of -- so it
-// can be read unconditionally and every name checked against it.
+// only worth anything while it still matches. GliderPRO/README.md is vendored read-only, so
+// every name here can be checked against the only document that authorises it.
+//
+// The one thing GliderPRO/ is not is required: the game's data is committed, so a checkout can
+// have the whole 1994 source deleted and still play. These tests skip in that case rather than
+// failing, because nothing is wrong -- there is simply nothing left to compare against. They
+// still fail if the directory is there and the README is not, which is damage and not a choice.
 
 import (
 	"os"
@@ -14,7 +18,11 @@ import (
 
 func readme(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(repoRoot(t), "GliderPRO", "README.md"))
+	root := repoRoot(t)
+	if _, err := os.Stat(filepath.Join(root, "GliderPRO")); os.IsNotExist(err) {
+		t.Skip("no GliderPRO/ in this checkout: credits.txt cannot be checked against its source")
+	}
+	b, err := os.ReadFile(filepath.Join(root, "GliderPRO", "README.md"))
 	if err != nil {
 		t.Fatalf("the vendored README is the source for this file: %v", err)
 	}

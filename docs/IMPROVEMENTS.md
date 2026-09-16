@@ -2762,6 +2762,7 @@ alone for a stated reason rather than missed.
 | `.gitattributes` marks the tree `linguist-generated` and `binary`, with the three manifests exempted, so a diff of authored code is not drowned in 1,877 generated files | 1.10b | this stage |
 | CI refuses a checkout whose assets are missing instead of extracting them, and a separate `assets` job holds the committed tree to `make assets-check` | 1.10b | this stage |
 | The About box, the credits, the README and the no-assets screen all say the data ships here — the fourth rewrite of that sentence, and the first one that is true of a clone | 1.10b | this stage |
+| `internal/credits`' three transcription tests skip rather than fail when `GliderPRO/` is absent, so a checkout with the 1994 source deleted still reaches a green `make check` — proven by doing it | 1.10b | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

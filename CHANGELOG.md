@@ -29,6 +29,10 @@ versioning yet, because nothing has been versioned.
   byte-for-byte reproducible, which is what makes that comparison exact.
 - CI refuses a checkout whose assets are missing instead of extracting them, and a new `assets`
   job runs `make assets-check` so the committed tree cannot drift from its source.
+- `GliderPRO/` is now genuinely optional rather than nominally optional: delete it from a clone
+  and `make check` is still green, because the three tests that pinned the credits against its
+  README skip when it is gone instead of failing. Verified by deleting it, hiding python3 behind a
+  shim that errors, and running the whole target.
 
 ### Stage 1.10 — saved games (`9c08d5b`, 2026-09-16)
 
