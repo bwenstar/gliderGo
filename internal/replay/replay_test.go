@@ -994,7 +994,19 @@ func TestBadScriptsAreRejected(t *testing.T) {
 // TestRunRejectsUnrunnableScripts covers the checks Run makes before it loads anything, so
 // that a bad script fails with a sentence instead of a panic three packages down.
 func TestRunRejectsUnrunnableScripts(t *testing.T) {
-	base := func() *replay.Script { return localAssets(t, replay.NewScript("CD Demo House", 10)) }
+	// base takes the *subtest's* t rather than closing over this one. Closing over the parent
+	// looks equivalent and is not: localAssets calls requireAssets, whose t.Skipf on a checkout
+	// with no extracted assets would then call Goexit on the parent from the subtest's
+	// goroutine. That is not a skip, it is
+	//     testing.go: test executed panic(nil) or runtime.Goexit: subtest may have called
+	//     FailNow on a parent test
+	// -- a hard failure, on the one machine that most needs the suite to be runnable: a fresh
+	// clone. `cases` is a map, so which subtest tripped it varied from run to run, which is
+	// exactly as confusing as it sounds.
+	base := func(t *testing.T) *replay.Script {
+		t.Helper()
+		return localAssets(t, replay.NewScript("CD Demo House", 10))
+	}
 	cases := map[string]func(*replay.Script){
 		"no house":       func(s *replay.Script) { s.House = "" },
 		"zero frames":    func(s *replay.Script) { s.Frames = 0 },
@@ -1014,7 +1026,7 @@ func TestRunRejectsUnrunnableScripts(t *testing.T) {
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
-			s := base()
+			s := base(t)
 			mutate(s)
 			if _, err := replay.Run(s); err == nil {
 				t.Errorf("Run succeeded; want an error")

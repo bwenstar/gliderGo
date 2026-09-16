@@ -1,37 +1,120 @@
 # gliderGo — development environment
 
 Everything in this document was **probed on the actual machine**, not assumed. Dates of
-probing: 2026-09-10, host `Linux 6.17.0-1010-aws`, Ubuntu 24.04.4 LTS (noble), x86_64.
+probing: 2026-09-10 (the airgapped host: `Linux 6.17.0-1010-aws`, Ubuntu 24.04.4 LTS noble,
+x86_64) and 2026-09-16 (the public build path).
 
 This is the file to read first if you are a new session picking this project up.
 
 ---
 
-## 1. TL;DR for a fresh session
+## 1. Two ways in
+
+gliderGo is developed on an airgapped host whose only software source is an internal
+package mirror, and it is meant to end up on GitHub where contributors have the open
+internet. Both paths are supported and neither is the "real" one. §4 documents the airgapped
+network in detail because that is the one you cannot look up.
+
+### If you have Go 1.23+ and an internet connection
+
+Nothing to bootstrap. `make` finds a `go` on your PATH by itself.
 
 ```bash
-cd gliderGo
-./scripts/bootstrap-dev-env.sh      # rootless; installs Go into ~/.local/opt/go
-. scripts/env.sh                    # PATH/GOROOT/GOPROXY=off/GOTOOLCHAIN=local
-make check                          # builds and smoke-tests the platform layer
-make assets                         # extract the 1994 data (57 s, gitignored output)
-make houses                         # read all 22 original houses and prove nothing changed
-make fidelity                       # hash every frame's pixels against the checked-in corpus
+git clone <the repo> && cd gliderGo
+sudo apt-get install -y build-essential pkg-config libx11-dev   # or see §2 for your distro
+make check                          # fmt, vet, tests, build, cross-compile, smoke  (~15 s)
+make assets                         # extract the 1994 data (~70 s, gitignored output)
+make check                          # again: now the houses, audio and pixel corpus run too
+make run                            # play it
 ```
 
-Hard constraints you must design around (each proven below):
+`make check` passes on a clone with **no** extracted assets and **no** display — verified. The
+asset-dependent steps skip with a message and the closing summary lists what it could not
+verify, so a green run never overclaims. `make doctor` reports what your machine has and is
+missing.
 
-| Constraint | Consequence |
-|---|---|
-| No internet; **no Go module proxy exists on this network** | gliderGo is **standard-library-only**. Any third-party Go code must be vendored by hand from a source we can actually reach. Ebitengine/SDL bindings/raylib-go are **not obtainable**. |
-| No root (`sudo` unavailable to this session) | C libraries are unpacked from `.deb` files into `.toolchain/sysroot`, never installed system-wide. |
-| Go itself is not in the base image | Extracted rootlessly from the `golang:1.23-bookworm` container image (works, verified) or from Ubuntu `golang-1.2x-go` debs (fallback). |
-| No audio hardware (`/dev/snd` absent) | Audio cannot be heard on this box. Develop against a WAV-dumping sink; keep the real ALSA/PulseAudio path behind an interface. |
-| Display is NICE DCV X11 (`DISPLAY=:1`), no MIT-SHM headers | `XPutImage` over the wire is the default blit path. Measured **533 fps** for full-screen 640×480×32bpp — 8.9× the 60 fps budget, so this is a non-issue. |
+### If you have no Go, or no internet
+
+```bash
+./scripts/bootstrap-dev-env.sh      # picks a dependency source and says which; installs Go
+. scripts/env.sh                    # PATH/GOROOT/GOPROXY=off/GOTOOLCHAIN=local
+make check
+make assets
+```
+
+The script resolves dependencies from one of three sources and prints the one it chose:
+
+| `--source` | Toolchain from | C libraries from | For |
+|---|---|---|---|
+| `system` | a `go` already on PATH satisfying `go.mod` | your package manager (§2) | almost every contributor |
+| `internal` | the mirror's `golang:1.23-bookworm` image | the package mirror's Ubuntu tree | the airgapped host |
+| `public` | `go.dev/dl`, sha256-verified | `archive.ubuntu.com` | a contributor with no Go |
+
+`auto` (the default) tries them in that order: `system` first because it costs nothing,
+`internal` before `public` because a host that can see the mirror usually cannot see anything
+else. The toolchain source and the C-library source are resolved **separately** — on the
+airgapped host `auto` picks `system` for Go (it is already installed) while the `.deb` archive
+still has to be the package mirror.
+
+Useful flags: `--dry-run` prints every URL and file it would touch and changes nothing, which
+is the only way to review the public path from an airgapped box; `--check` (also `make doctor`)
+reports the environment; `--sysroot` unpacks the optional C libraries into
+`.toolchain/sysroot` without root. `GLIDERGO_GO_TARBALL=/path/to/go1.23.x.linux-amd64.tar.gz`
+skips the network entirely, which is how you carry a toolchain across an airgap by hand.
+
+Credentials for the internal source come from `MIRROR_USER` / `MIRROR_PASS` or
+`~/.netrc`. **They are intentionally never written into this repository.**
 
 ---
 
-## 2. Toolchain: what is installed and how
+## 2. Dependencies: the complete list
+
+gliderGo has **no Go dependencies at all** — standard library only, asserted offline by
+`internal/module` (which parses `go.mod` and every import in the tree, so it catches an import
+hidden behind a build tag that `go build` on this host would never compile). That is why there
+is no `go.sum` and no `vendor/`, and why `GOPROXY=off` is set everywhere.
+
+Everything it does need is a host tool:
+
+| What | Floor | Needed for | Without it |
+|---|---|---|---|
+| **Go** | 1.23 (`go.mod`) | everything | nothing builds |
+| **gcc** + **pkg-config** | any | cgo, i.e. the x11 backend | see below |
+| **libX11 headers** (`x11.pc`) | 1.8 | the x11 backend — the only one that opens a window | `make build` **silently produces the null backend**; `make check` now says so |
+| **python3** | 3.6 (f-strings) | `make assets` | no art, sound, houses or movies; every asset-dependent step skips |
+| **git** | any | the version string only | the binary reports `version=dev` |
+| **make** | any | convenience | use `go build ./cmd/glidergo` directly |
+| `libXext` headers | — | *nothing* — MIT-SHM is deliberately unused | nothing |
+| `libasound2` headers | — | a future native ALSA sink | nothing today; audio mixes to WAV |
+| `libsdl2` headers | — | the future macOS/iOS/Android backend (stage 6) | nothing today |
+| `xvfb` | — | running the on-screen bench in CI | use `make headless` instead |
+
+Per distro, the required set:
+
+```bash
+# Debian / Ubuntu
+sudo apt-get install -y build-essential pkg-config libx11-dev python3
+# Fedora / RHEL
+sudo dnf install -y gcc pkgconf-pkg-config libX11-devel python3
+# Arch
+sudo pacman -S --needed base-devel pkgconf libx11 python
+# macOS -- builds and tests, but has no backend yet, so it cannot draw
+xcode-select --install
+```
+
+`./scripts/bootstrap-dev-env.sh --check` prints this table filled in for your machine.
+
+**If you run the bench under Xvfb, set the depth explicitly.** `internal/platform/x11`
+rejects anything but 24 or 32 bits, and Xvfb's historical default is 8 — which fails the build
+step rather than skipping it:
+
+```bash
+xvfb-run -a -s '-screen 0 640x480x24' make bench
+```
+
+---
+
+## 3. Toolchain: what is installed and how
 
 ### Go
 
@@ -79,12 +162,12 @@ building and running a real X11 program (below).
 |---|---|
 | `libxext-dev` 1.3.4 | MIT-SHM headers → zero-copy blits (optional; XPutImage is already fast enough) |
 | `libasound2-dev` 1.2.11 | proper ALSA headers for the Linux audio backend |
-| `libsdl2-dev` 2.30.0 (+ `libsdl2-image/mixer/ttf-dev`) | the portability escape hatch — see §4 |
+| `libsdl2-dev` 2.30.0 (+ `libsdl2-image/mixer/ttf-dev`) | the portability escape hatch — see §5 |
 | `gcc-mingw-w64-x86-64`, `binutils-mingw-w64-x86-64` 13.2 | cgo cross-compilation to Windows |
 
 ---
 
-## 3. The package mirror: exactly what this network can and cannot reach
+## 4. The package mirror: exactly what this network can and cannot reach
 
 Base URL `https://mirror.internal.example.com/repo` — 49 repositories.
 Credentials: supply via `MIRROR_USER` / `MIRROR_PASS` env vars or `~/.netrc`.
@@ -115,11 +198,11 @@ libraries and `golang-golang-x-{image,sync,sys,text,…}-dev`, which are reachab
 none of the game/windowing/audio libraries are among them (checked: ebiten, go-sdl2,
 go-gl/glfw, oto, purego → all absent).
 
-This single fact drives the whole architecture in §4.
+This single fact drives the whole architecture in §5.
 
 ---
 
-## 4. Consequence: the platform layer is ours
+## 5. Consequence: the platform layer is ours
 
 Because no Go game engine is obtainable, gliderGo carries its own thin platform
 abstraction (a *port layer*, not an engine) with the standard library plus small,
@@ -157,7 +240,7 @@ so correctness is verifiable offline; ALSA/`waveOut`/SDL sinks are then thin.
 
 ---
 
-## 5. Measured performance baseline
+## 6. Measured performance baseline
 
 A cgo+Xlib probe (`/tmp/x11test`, reproduced by `make bench`, or by `make check` when
 `DISPLAY` is set) on this host:
@@ -173,7 +256,7 @@ so we have ~9× headroom on the display path even before MIT-SHM. Rendering is n
 
 ---
 
-## 6. Repository layout
+## 7. Repository layout
 
 ```
 gliderGo/
@@ -192,11 +275,13 @@ gliderGo/
 │   └── glidertool/         # house CLI: dump/build/check/info/rooms + `types`
 ├── internal/
 │   ├── house/              # house model, binary codec (byte-exact), text codec
+│   ├── module/             # the stdlib-only invariant, checked offline (tests only)
 │   └── platform/           # 640x480 framebuffer, x11 (cgo) and null backends
 ├── tools/                  # asset-extraction and probe scripts (python3)
 │   └── extract_all.py      #   the driver: `make assets` -> assets/extracted/
-├── assets/extracted/       # gitignored: 1,899 generated files, 46 MB, rebuilt in 57 s
-├── scripts/                # bootstrap-dev-env.sh, env.sh (generated)
+├── assets/extracted/       # gitignored: 1,899 generated files, 46 MB, rebuilt in ~70 s
+├── scripts/                # bootstrap-dev-env.sh, env.sh (generated, gitignored)
+├── .github/workflows/      # public CI -- see the caveat at the top of ci.yml
 └── .toolchain/             # gitignored: sysroot + deb cache
 ```
 
@@ -217,13 +302,15 @@ available locally without becoming a submodule.
 
 ---
 
-## 7. Known environment gaps
+## 8. Known environment gaps
 
 | Gap | Workaround | Blocks |
 |---|---|---|
 | No audio device | WAV-dump sink; verify by ear elsewhere | hearing sound locally, not development |
 | No `sudo` | rootless sysroot via `dpkg-deb -x` | nothing |
-| No Go module proxy | stdlib-only + hand-written cgo shims | third-party engines (accepted; see §4) |
+| No Go module proxy | stdlib-only + hand-written cgo shims | third-party engines (accepted; see §5) |
 | No MIT-SHM headers | plain `XPutImage` (fast enough) | nothing |
 | No macOS/iOS build host | SDL2 backend + CI later | Mac/iOS targets, by definition |
 | X server is remote (DCV) | fine for dev; frame-diff tests use the null backend | precise vsync measurement |
+| **The public path cannot be tested from here** | `--dry-run` reviews it offline; every *command* it runs was verified | confidence in `go.dev` parsing, `archive.ubuntu.com`, and `.github/workflows/ci.yml` until someone runs them on a connected host |
+| No `xvfb` installed | verified against `Xephyr :77 -screen 640x480x24` instead, which the x11 backend accepted at 686 fps | certainty about `xvfb-run` specifically |

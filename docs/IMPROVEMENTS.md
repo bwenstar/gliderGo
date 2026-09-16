@@ -2284,6 +2284,120 @@ is guaranteed to reproduce *itself*, which is what a determinism test needs.
 
 ---
 
+## 5. Getting off this machine: the build, the package and the public path
+
+Everything above is about the game. This section is about the fact that the game is being
+written on one airgapped host and is meant to end up on GitHub, and that those two things have
+different failure modes. Added when the public build path was put in beside the mirror one.
+
+### 5.1 The public build path cannot be tested from the machine that wrote it — **note; needs one connected host, before the first public push**
+
+`scripts/bootstrap-dev-env.sh --source public` and `.github/workflows/ci.yml` are the two
+pieces of this repository that have **never run**. They cannot: this host cannot resolve
+`go.dev`, `archive.ubuntu.com` or `github.com`, and a `curl` to any of them fails at connect.
+What *is* verified is everything they are made of — every command the workflow invokes was run
+here (`make doctor`, `make check` on a no-asset tree with `DISPLAY` unset, `make cross`,
+`fmt-check` against a deliberately unformatted file), the script's own logic was reviewed with
+`--dry-run` for all three sources, and the internal deb path was exercised end to end against
+the package mirror's Ubuntu tree, which is the same code with a different base URL.
+
+The specific things a connected host should check first, in the order they are likely to be
+wrong:
+
+1. The action versions. `actions/checkout@v4`, `actions/setup-go@v5`, `actions/cache@v4` and
+   `actions/upload-artifact@v4` were the current majors as of the knowledge this was written
+   with, and that is the weakest claim in the file.
+2. `install_go_public`'s parse of `https://go.dev/dl/?mode=json&include=all`. The shape of that
+   index is not documented as an API. The code picks the newest stable non-rc release at or
+   above `go.mod`'s floor and then sha256-verifies the tarball against the digest in the same
+   index — which is **integrity, not authenticity**: an index served by an attacker would agree
+   with its own tarball. `GLIDERGO_GO_SHA256` exists so a digest can be pinned out of band, and
+   `GLIDERGO_GO_TARBALL` skips the network entirely.
+3. `xvfb-run -a -s '-screen 0 640x480x24' make bench`. The depth argument is not decoration —
+   `internal/platform/x11` refuses anything but 24 or 32, Xvfb's historical default is 8, and
+   the failure is a hard error rather than a skip. Verified here against `Xephyr` at both
+   depths (686 fps at 24, refused at 8) because no `xvfb` is installed on this host.
+
+None of this blocks Stage 1. It blocks the first push to a public remote, which is where it
+will announce itself loudly and cheaply.
+
+### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **planned, before the release pipeline; the CI half is worked around**
+
+The extractor writes straight into `assets/extracted/`: no temp directory, no rename, no lock.
+So for the ~70 seconds it runs, that tree is a mixture of the old extraction and the new one, and
+anything reading it sees half-written files. This is not theoretical — a `go test ./...` running
+concurrently with a `make assets` failed decoding a golden PNG with "unexpected EOF", which took
+a while to recognise as a build-system problem rather than a renderer one.
+
+Three consequences, and only the first is currently handled:
+
+- **CI.** `.github/workflows/ci.yml` runs `make assets` as its own step, before anything that
+  reads the tree, and a comment there says why. That is a workaround in the caller, not a fix.
+- **A cancelled extraction leaves a tree that looks complete.** `make check`'s guards test for
+  contents (`[ -s art/manifest.json ]`, `ls houses/*.house`), which catches an *empty* tree but
+  not a half-written one. The manifest is written last, which helps by accident rather than by
+  design.
+- **Two `make assets` at once** — a developer in one terminal, an editor's build task in
+  another — interleave silently.
+
+The fix is the ordinary one: extract into `assets/.extracted.tmp-$$`, `os.replace` the finished
+tree into place, and take a lock file for the duration so the second run waits or refuses. It is
+maybe thirty lines in `extract_all.py` and it wants doing before a release pipeline exists, since
+a pipeline is precisely a place where two jobs share a checkout.
+
+### 5.3 An installed copy still looks for its assets beside the binary — **decision needed, before packaging**
+
+Every asset path in the port resolves relative to the working directory or to a flag:
+`assets/extracted/art`, `assets/extracted/houses`, `-art`, `-houses`. That is correct for a
+development tree and wrong for anything installed — a `/usr/bin/glidergo` run from a home
+directory finds nothing, and the first-run screen it draws instead (`first-run.png`, which
+`make headless` renders precisely so nobody has to guess) is at least honest about it.
+
+The decision is not technical, it is a layout: does a release ship the extracted assets, and if
+so where do they go — `$XDG_DATA_HOME/glidergo` alongside the scores, `/usr/share/glidergo`, or
+inside the binary with `embed`? Each answer interacts with §1.2, which is still open: if
+gliderGo may not redistribute the 1994 art, then an installed copy has to run the extractor
+against the player's own copy of the game, and that turns a packaging question into a
+first-run-experience question. §1.2 is the user's call and this follows it, so it is deliberately
+not being pre-empted here.
+
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **planned, end of Stage 1 at the earliest**
+
+`.github/workflows/ci.yml` builds, tests and cross-compiles, and uploads the cross-built
+binaries as inspection artifacts with a seven-day retention. It has no tag trigger, no release
+job, no installer and no checksums, and the header says so rather than leaving it to be
+discovered. That is on purpose: publishing is blocked on 5.3 and on §1.2, and a half-considered
+release job is worse than none because it produces downloadable binaries that cannot find their
+own assets.
+
+What a release job eventually needs, so the list exists: a tag trigger, `make cross` plus the
+native cgo Linux build, a `sha256sum` manifest, a `CHANGELOG.md` (§1.3), and the licence and
+credits files inside every archive — the last of those being a GPLv2 obligation rather than a
+courtesy. Note also that `VERSION` comes from `git describe --tags --always --dirty`, and this
+repository has no tags at all yet, so every build so far is stamped with a bare short hash.
+
+### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; the CI matrix is the first attempt**
+
+`make cross` builds `windows/amd64`, `windows/arm64`, `darwin/amd64`, `darwin/arm64`,
+`linux/arm64` and `linux/amd64` in about four seconds, and it is worth being precise about what
+that proves. Because the two backend selectors are exact complements —
+`backend_x11.go` is `linux && cgo && !nullbackend`, `backend_null.go` is
+`nullbackend || !cgo || !linux` — **every GOOS except linux resolves to the null backend**. So a
+green cross-build is evidence that the game logic, the house codec, the asset pipeline, the
+shell, the scores and the replay harness are portable, and it is *no* evidence that any of those
+targets can draw a pixel. It also cannot see a path-separator or filesystem-case bug, which is
+the class of thing that only appears on the real OS.
+
+`ci.yml`'s `native` job is the first attempt at closing that: `go build`, `go vet` and
+`go test ./...` on `windows-latest` and `macos-latest`, with a best-effort
+`python3 tools/extract_all.py` marked `continue-on-error` because the extractor is stdlib-only
+python3 that has only ever run on Linux. A failure there is a real finding for this file rather
+than a reason to hide the step, which is why it is not hidden. Windows gets a real backend at
+Stage 4 (pure-Go `syscall` to `user32`/`gdi32`, no cgo) and macOS at Stage 6; until then
+"it compiles on macOS" is the whole claim.
+
+---
+
 ## Done
 
 | Item | Stage | Commit |

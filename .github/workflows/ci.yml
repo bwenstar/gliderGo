@@ -1,0 +1,167 @@
+# gliderGo CI, for the public GitHub path.
+#
+# HONEST CAVEAT, READ FIRST. This file has never run. It was written on the airgapped host the
+# port is being developed on, which cannot reach github.com, so nothing below is verified end to
+# end -- not the action versions, not the runner package names, not xvfb. What *is* verified is
+# every command it invokes: `make check` was run here on a fresh no-asset tree with DISPLAY
+# unset and passed, `make cross` builds all seven targets, and the depth-24 requirement was
+# confirmed against a nested X server. Expect the first push to need a correction or two, most
+# likely in an action version. The failure modes to look for are listed at the bottom.
+#
+# WHAT THIS DOES NOT DO. There is no release job: no tagged builds, no artifacts published, no
+# installer. Cross-compiled binaries are uploaded for inspection only. Packaging needs decisions
+# that have not been made yet -- where an installed copy looks for its assets is still repo-
+# relative, and the asset-licence question is open. See docs/IMPROVEMENTS.md.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Both are the repo's defaults, restated so a CI log shows them. gliderGo has no
+  # dependencies -- internal/module asserts it -- so `off` should never bite; if it ever does,
+  # that is the news. GOTOOLCHAIN=local keeps the Go that setup-go installed.
+  GOPROXY: "off"
+  GOTOOLCHAIN: local
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The real check: Linux, cgo on, x11 compiled, assets extracted, pixels compared.
+  # This is the only job that runs the fidelity corpus, because it is the only one with a
+  # libX11 and an extracted asset tree.
+  # ---------------------------------------------------------------------------
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # libx11-dev is the one hard requirement: without its pkg-config metadata the x11 backend
+      # does not compile and `make check` silently falls back to the null backend -- which is
+      # why check-caveats now says so out loud. xvfb is for the on-screen bench at the end.
+      # libxext-dev and libasound2-dev are deliberately absent: internal/platform/x11 states it
+      # does not use MIT-SHM, and the audio target mixes to a WAV rather than to a device.
+      - name: Install C dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libx11-dev xvfb
+
+      # go-version-file keeps one source of truth: go.mod's `go` directive, which
+      # scripts/bootstrap-dev-env.sh also reads. cache: false is not an optimisation choice --
+      # setup-go's cache wants a go.sum to key on, and there is none to have.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Report the environment
+        run: make doctor
+
+      # The extracted assets are ~1 minute of python3 and are reproducible from the committed
+      # GliderPRO/ tree, so they are cached on a hash of their inputs rather than committed.
+      # tools/ is in the key because a change to the extractor changes the output.
+      - name: Cache extracted assets
+        id: assets-cache
+        uses: actions/cache@v4
+        with:
+          path: assets/extracted
+          key: assets-${{ hashFiles('GliderPRO/**', 'tools/**') }}
+
+      # Never in parallel with anything that reads them: tools/extract_all.py writes
+      # assets/extracted/ in place with no temp-and-rename, so a concurrent `go test` sees
+      # half-written PNGs and fails with "unexpected EOF" on a golden. That is an observed
+      # failure, not a theoretical one -- see docs/IMPROVEMENTS.md.
+      - name: Extract assets
+        if: steps.assets-cache.outputs.cache-hit != 'true'
+        run: make assets
+
+      # A restored-but-empty cache would be worse than a cold one, because the Makefile's
+      # guards would skip the asset-dependent steps and the job would still pass. Fail instead.
+      - name: Refuse a half-restored asset cache
+        run: |
+          test -s assets/extracted/art/manifest.json
+          test -s assets/extracted/sound/manifest.tsv
+          ls assets/extracted/houses/*.house >/dev/null
+
+      # OUT keeps the scratch PNGs and WAVs out of /tmp, so two jobs on one self-hosted runner
+      # cannot collide. On a GitHub-hosted runner each job has its own VM and this is free.
+      - name: make check
+        run: make check OUT="$RUNNER_TEMP"
+
+      # The one thing `make check` cannot do without a display: put real pixels through
+      # XPutImage. Depth matters and is the likeliest thing to break here --
+      # internal/platform/x11 rejects anything but 24 or 32 ("unsupported display depth 8"),
+      # and Xvfb's historical default is 8. Hence the explicit screen argument.
+      - name: On-screen bench under Xvfb
+        run: xvfb-run -a -s '-screen 0 640x480x24' make bench
+
+      - name: Upload the shell screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shell-screens
+          path: ${{ runner.temp }}/glidergo-shell
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Every target a release would ship. Compiles only -- see `make cross`'s comment for why a
+  # green cross-build is not evidence that the target can draw anything yet.
+  # ---------------------------------------------------------------------------
+  cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make cross
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-binaries
+          path: bin/cross/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Windows and macOS, natively. The port has no backend for either yet, so this proves the
+  # portable four-fifths: game logic, house loader, asset pipeline, shell composition, scores,
+  # replay. On a real filesystem with a real path separator, which is the part cross-compiling
+  # from Linux cannot check.
+  #
+  # `make` is not installed on windows-latest, so these steps call go and python directly
+  # rather than through the Makefile.
+  # ---------------------------------------------------------------------------
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - run: go build ./...
+      - run: go vet ./...
+
+      # The extractor is stdlib-only python3 but has only ever been run on Linux, so a
+      # platform-specific path or newline bug here is plausible and is not this job's subject.
+      # If it fails the suite still runs: every asset-dependent test skips rather than fails
+      # (that is a deliberate property -- a fresh clone must be able to run its own tests), so
+      # the job still proves what it is for. A failure here is a real finding for
+      # docs/IMPROVEMENTS.md, which is why it is not hidden.
+      - name: Extract assets (best effort)
+        continue-on-error: true
+        run: python3 tools/extract_all.py
+
+      - run: go test ./...

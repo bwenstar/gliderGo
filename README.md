@@ -41,6 +41,11 @@ a very large house, and try to get further than you did last time.
 > transporter refuses it in total silence and only if it is standing in the very same
 > transporter, and the manhole does not race at all).
 >
+> Also done, between 1.9 and 1.10: **the public build path** — the port was developed against one
+> airgapped software mirror, and it now builds from a system Go, that mirror, or `go.dev`, with the
+> airgapped path unchanged. A fresh clone with nothing but Go 1.23 and `libx11-dev` reaches a green
+> `make check`, on a machine with no assets extracted and no display.
+>
 > Next: **1.10** saved games — mid-game save and resume, against the original's 40-byte
 > `gameType`, so the live save shipped inside Titanic.house can be resumed. See
 > [docs/PLAN.md](docs/PLAN.md), and
@@ -51,16 +56,44 @@ a very large house, and try to get further than you did last time.
 
 ## Quick start
 
+If you have Go 1.23 or newer, there is nothing to bootstrap and nothing to download —
+gliderGo is standard library only, which `internal/module` asserts offline:
+
 ```bash
-./scripts/bootstrap-dev-env.sh    # rootless: installs Go 1.23 into ~/.local/opt/go
-. scripts/env.sh                  # PATH, GOROOT, GOPROXY=off
+sudo apt-get install -y build-essential pkg-config libx11-dev python3   # other distros: docs/DEV_ENVIRONMENT.md §2
 make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
-make assets                       # extract the 1994 art/sound/houses/movies (57 s)
+make assets                       # extract the 1994 art/sound/houses/movies (~70 s)
+make check                        # again: now the houses, audio and pixel corpus run too
 make run                          # window at the original's 640x480
+```
+
+`make check` passes on a fresh clone with no extracted assets and no display: the
+asset-dependent steps skip with a message, and the closing summary names everything it could
+*not* verify, so a green run never overclaims more than it checked. `make doctor` reports what
+your machine has and what it is missing.
+
+If you have no Go, or no internet:
+
+```bash
+./scripts/bootstrap-dev-env.sh    # picks a dependency source, says which, installs Go 1.23
+. scripts/env.sh                  # PATH, GOROOT, GOPROXY=off, GOTOOLCHAIN=local
+make check
+```
+
+The bootstrap resolves from a Go already on `PATH`, an internal package mirror, or
+`go.dev` — `--dry-run` shows exactly what it would fetch from where without touching anything.
+The airgapped host this port is developed on uses the middle one; see
+[docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1.
+
+The rest of the Makefile:
+
+```bash
 make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
 make houses                       # round-trip every original house through the codec
 make audio                        # replay 600 frames to /tmp/glidergo-audio.wav
 make fidelity                     # hash every frame's pixels against the checked-in corpus
+make cross                        # compile every target a release would ship
+make help                         # every target, with a line each
 ```
 
 Run these from this directory — the parent directory above has no Makefile, so `make check`
@@ -85,7 +118,7 @@ authored and how houses are diffed in git.
 Looking at the 1994 pixels:
 
 ```bash
-make assets                                                 # needed once, for the art (57 s)
+make assets                                                 # needed once, for the art (~70 s)
 bin/glidertool render -scale 2 -o /tmp/room.png "assets/extracted/houses/Demo House.house"
 bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
 ```
@@ -129,7 +162,9 @@ does not yet finish: the glider dies in the start room 573 records in, and that 
 sharpest fidelity target the project has ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.18).
 
 The build needs no network access at run time and no third-party Go modules —
-see [why](docs/DEV_ENVIRONMENT.md#3-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
+see [why](docs/DEV_ENVIRONMENT.md#4-the-package-mirror-exactly-what-this-network-can-and-cannot-reach).
+`internal/module` turns that into a test: it parses `go.mod` and every import in the tree, so
+an import hidden behind a build tag this host never compiles is still caught.
 
 ## Controls
 
@@ -281,7 +316,7 @@ one line on stderr per thing that had to be worked around.
 | `internal/demo/` | The attract-mode input stream: six-byte `{frame, key, padding}` records, a playback cursor, and a recorder. The 1994 resource is 1,117 keystrokes of somebody flying "Demo House", and replaying it through the port's own physics is the strictest determinism test here — a script can name one with `demo`. |
 | `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG), `replay` (headless run from a script), `demo info` / `dump` / `check` and the `types` reference table. |
 | `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
-| `assets/extracted/` | **Generated, gitignored.** 1,899 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in 57 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
+| `assets/extracted/` | **Generated, gitignored.** 1,899 files of 1994 art, sound, house forks and movies, reproducible from `GliderPRO/` in ~70 s. Deleting it costs nothing; `make assets-check` proves the extraction is deterministic. |
 
 ## Planned scope
 

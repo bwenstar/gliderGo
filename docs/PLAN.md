@@ -1099,6 +1099,25 @@ missing" below*
   with `fixes.player2_give_up` (IMPROVEMENTS 2.23) as the opt-in way out, since Delete is the *only*
   exit from the transit deadlock and in the original only one of the two players holds it.
 
+**The public build path** ✅ *done* — *not a numbered stage; requested between 1.9 and 1.10*
+- The development environment assumed one network: the internal package mirror. gliderGo is
+  meant to end up on GitHub, so `scripts/bootstrap-dev-env.sh` now resolves dependencies from a Go
+  already on `PATH`, from the package mirror, or from `go.dev` (`--source system|internal|public|auto`,
+  reviewable offline with `--dry-run`, reported by `make doctor`). **The airgapped path is
+  unchanged** and is still what this host uses — `auto` picks the installed Go and the package mirror's
+  Ubuntu mirror, and the two sources resolve independently.
+- The rest is about being buildable by a stranger rather than about Go: `make check` now passes on
+  a clone with no extracted assets and no `DISPLAY`, and its closing summary enumerates what it
+  could *not* verify instead of claiming everything; `fmt-check` replaced `fmt` inside `check`, so
+  the step no longer dirties the worktree and bakes `-dirty` into the version string; `make cross`
+  builds all six release targets; `internal/module` asserts the stdlib-only invariant by parsing
+  `go.mod` and every import in the tree, which catches an import behind a build tag this host
+  never compiles; and `.github/workflows/ci.yml` exists but **has never run** — see IMPROVEMENTS
+  5.1 for exactly which parts of it are unverified and in what order to distrust them.
+- *Acceptance:* the airgapped host's behaviour is byte-identical to before, and a fresh clone with
+  nothing but Go 1.23 and `libx11-dev` reaches a green `make check`. Both verified; the public
+  network path is reviewed rather than run, which is the honest limit of this machine.
+
 **1.10 Saved games** *(may slip past Stage 1 — it is the least load-bearing item here)*
 - Mid-game save and resume. Half-built already: `internal/house` has parsed `gameType` (offset 820)
   and `hasGame` (860) since 1.2, and Titanic.house carries a live one — room 104, score 4700, two
@@ -1139,6 +1158,20 @@ parent repository**, as instructed, so the parent repository's CI, Pages and rel
 root `README.md`, `public-root/index.html` or `wiki/home.md`, and `public/index.html` and
 `CHANGELOG.md` do not exist, against the 11-point checklist in the parent repository's `CLAUDE.md`. Either
 is defensible; nothing downstream can be released until it is chosen.
+
+The public build path added between 1.9 and 1.10 does not settle that, but it does change the
+cost of each answer, so the shape is worth recording. gliderGo can now be built three ways —
+from a Go already on `PATH`, from the internal package mirror, or from `go.dev` — chosen by
+`scripts/bootstrap-dev-env.sh` and reported by `make doctor`, and it carries a
+`.github/workflows/ci.yml` of its own. That is a **standalone** repository's CI, not a parent repository
+subproject's: it assumes gliderGo is the root of its checkout, and the parent repository's pipeline
+would need its own separate job either way, because gliderGo's build wants a `libx11-dev` and a
+python3 that no other subproject here needs. So the two are not alternatives any more — the
+GitHub path exists and works on its own terms, and folding gliderGo into the parent repository would be
+*additive* (a `public/index.html`, a `CHANGELOG.md`, entries in `release.sh` and
+its CI config) rather than a fork in the road. Both CI systems on one tree is a real cost in
+duplication, and it is the honest price of a project that has to live on an airgapped forge and
+a public GitHub at once. Still the user's call, still at the end of Stage 1.
 
 `Map.c` was checked and is **editor-only**, so it belongs to Stage 5 and not Stage 1:
 `OpenMapWindow` has one caller, `OpenCloseEditWindows` (`Menu.c:792-799`), gated on
