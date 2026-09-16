@@ -14,10 +14,19 @@ package game
 // the low sixteen bits of the new seed returned as a signed short. That is what Apple
 // documented and what every reimplementation of the Toolbox uses.
 //
-// It is deterministic and seedable, which is what the port actually needs, but it has not
-// been verified against a real Mac's output because there is no Mac here to ask. Until it
-// is, a recorded demo from 1994 may drift. Stage 1.8 owns that check; see
-// docs/IMPROVEMENTS.md 2.18.
+// It is deterministic and seedable, which is what the port actually needs, and 1.8c checked
+// everything about it that can be checked without a Mac to ask: rand_test.go pins the stream
+// from seed 1, state by state, against the 24 draws tabulated in
+// docs/analysis/toolbox-primitives.md §1.6, pins RandomInt's inclusive bound and its exact
+// skew over all 65536 raw words (§1.7), and proves the int32 multiply-then-mod a literal
+// translation would have written leaves the stream by the third draw (§1.8). What is still
+// unverifiable is whether Apple's trap really was this generator; §1.5 argues it from the
+// documentation and §1.13 bounds the cost of being wrong -- animation phase, never
+// trajectory. See docs/IMPROVEMENTS.md 2.18.
+//
+// Nothing about a recorded demo rests on it. §1.12 proves the shipped `'demo'` replay is
+// RNG-independent -- Player.c never draws, and Demo House has none of the objects that do --
+// and the port's own replay confirms it: four different seeds produce the same run.
 
 // Random is the Toolbox's Random(): advance the seed and return its low word, signed.
 //
@@ -31,10 +40,12 @@ package game
 // widening it would work and would stop the arithmetic being the thing it is a
 // transcription of.
 func (w *World) Random() int16 {
-	// A zero seed is a fixed point of the recurrence and would return 0 forever. The
-	// Toolbox seeds from the clock (Utilities.c:60, GetDateTime into qd.randSeed) and
-	// cannot hit it; here the zero value of the field can, so it is nudged. See
-	// World.RandSeed for why the default is 1 and not the wall clock.
+	// A zero seed is a fixed point of the recurrence and would return 0 forever, and
+	// 0x7FFFFFFF maps to zero on the first step. The Toolbox can reach neither -- the
+	// shipped build starts at 1 and Random never produces 0 -- but the zero value of a Go
+	// field can, so both are nudged to 1. That also makes `-seed 0` and `seed 0` in a
+	// replay script mean seed 1, which is the seed the original started from; see
+	// World.RandSeed.
 	if w.RandSeed <= 0 || w.RandSeed == 0x7FFFFFFF {
 		w.RandSeed = 1
 	}
@@ -48,6 +59,26 @@ func (w *World) Random() int16 {
 	w.RandSeed = t
 
 	return int16(uint16(t & 0xFFFF))
+}
+
+// AdvanceRandSeed moves a bare seed on by one draw, for a caller that has to account for a
+// draw the original made outside any game.
+//
+// There is exactly one such draw in the shipped build and it happens at launch: `VariableInit`
+// picks the editor's default flower with `wasFlower = RandomInt(kNumFlowers)`
+// (InterfaceInit.c:160, called from Main.c:321), before the splash screen is up and long before
+// a house is opened. So the original's *first* game does not start on seed 1, it starts on
+// 16807 -- and since `qd.randSeed` is one stream for the whole process, every animation phase
+// in that game is one draw along from where a naive port puts it. cmd/glidergo accounts for it
+// here rather than by creating a World it would throw away.
+//
+// (The other launch-time draw, `thePrefs.fakeLong = Random()` at Main.c:232, is inside
+// `WriteOutPrefs` and only runs at startup when the copy-protection check rewrote the prefs
+// file, so it is not reproducible from the sources; see docs/ORIGINAL_GAME.md §19.1.)
+func AdvanceRandSeed(seed int32) int32 {
+	w := World{RandSeed: seed}
+	w.Random()
+	return w.RandSeed
 }
 
 // RandomInt is Utilities.c:72-81: a random integer "within range".

@@ -451,7 +451,7 @@ names.
 | 10-18 | `GliderPRO/Sources/GameOver.c:123, 125, 127, 296, 322, 346, 369, 384, 385` | `right/5`, `bottom`, 6, 32, 8, 2, `4+4`, `8+8`, 2 | page-flutter animation | animation |
 | 19-23 | `GliderPRO/Sources/ObjectAdd.c:621, 626, 689, 715, 742` | `10 + RandomInt(10)` x4, `RandomInt(kNumFlowers)` | editor: randomise new object's delay / flower species | editor |
 | 24 | `GliderPRO/Sources/Transitions.c:44` | `RandomInt(colWide)` | `PourScreenOn` | **dead** |
-| 25 | `GliderPRO/Sources/InterfaceInit.c:160` | `RandomInt(kNumFlowers)` (6) | `wasFlower` - the flower shown on the splash screen; not a "splash variant" selector | launch |
+| 25 | `GliderPRO/Sources/InterfaceInit.c:160` | `RandomInt(kNumFlowers)` (6) | `wasFlower` - the **editor's** default flower species. Nothing on the splash screen reads it: it is defined in `ObjectAdd.c:42` and its only readers are `ObjectAdd.c:743, :746`, where placing a `kFlower` picks its art, plus the two writes from the object-info dialog at `ObjectInfo.c:2341, :2373`. What matters to a port is not the value but the **draw** - see §1.14 | launch |
 | 26-32 | `GliderPRO/Sources/Play.c:735, 736, 739, 759, 760, 775, 784` | `RandomInt(kRingSpread) + kRingBaseDelay`, `RandomInt(3) + 3`, `RandomInt(kChimeDelay) + 1`, then the same ring pair again, `RandomInt(2)`, `RandomInt(delayTime) + 1` | telephone ring + chimes | audio |
 
 **`GliderPRO/Sources/Player.c` contains zero RNG calls.** Grepped for `Random`, `RandomInt`,
@@ -661,7 +661,7 @@ Enumerated, with the observable difference if the port's stream differs from R-R
 | Sparkle timing | `Dynamics.c:304`, `Dynamics3.c:208` | when an idle `kSparkle` next twinkles: `RandomInt(60)+15` frames for the first wait, `RandomInt(240)+60` for each subsequent one |
 | Coffee-maker cycle | `Dynamics.c:492, :506` | `200 + RandomInt(200)` frames between brew cycles, so the sound cue and light drift out of phase with the original if the stream differs |
 | Game-over page flutter | `GameOver.c:123, 125, 127, 296, 322, 346, 369, 384, 385` | the whole death animation's trajectory - the single most visible RNG effect in the game |
-| Splash flower | `InterfaceInit.c:160` | `wasFlower = RandomInt(kNumFlowers)` - which of 6 flower bitmaps the splash screen shows at launch; **persistent**, so this is the most conspicuous single draw |
+| Editor's default flower | `InterfaceInit.c:160` | `wasFlower = RandomInt(kNumFlowers)` - which of 6 flower bitmaps the *editor* will use for the next `kFlower` placed (`ObjectAdd.c:743`). The **value** is invisible outside the editor, but the **draw** is not: it is the one draw the shipped build makes outside any game, at `VariableInit` time, so the first game of a session starts one step along the stream. A port that does not account for it puts every candle flame and every pendulum in that game one draw out of phase - `internal/game/rand.go`'s `AdvanceRandSeed` is what accounts for it |
 | Telephone ring schedule | `Play.c:735, 736, 739` | when the phone rings in a house that has one |
 | Chime schedule | `Play.c:759, 760, 775, 784` | chime timing in a house with `kChimes` |
 | Editor object randomisation | `ObjectAdd.c:621, 626, 689, 715, 742` | initial state of a newly placed object |
@@ -673,7 +673,8 @@ knows the original, and it is purely cosmetic.
 
 If a port instead emulates the non-Carbon target (`GetDateTime` into `qd.randSeed`):
 
-1. The splash flower at `InterfaceInit.c:160` becomes 1-of-6 per launch instead of fixed.
+1. The editor's default flower at `InterfaceInit.c:160` becomes 1-of-6 per launch instead of fixed
+   - invisible unless you open the editor, but it is still a draw, and every draw after it moves.
 2. Every flame/coal/pendulum/star in every room gets a different initial phase per launch.
 3. The game-over page flutter differs per launch.
 4. The telephone ring time differs per launch.
@@ -683,6 +684,16 @@ If a port instead emulates the non-Carbon target (`GetDateTime` into `qd.randSee
 
 Recommendation: implement R-RNG-1 with a fixed seed of 1 as the default, and expose the seed as
 a configuration knob. Anything that claims frame-exactness must use seed 1.
+
+**Taken, in 1.8c.** `cmd/glidergo`'s `-seed` defaults to 1 and `-seed 0` means "use the clock
+instead", which is the knob and the other branch in one flag. Two details the recommendation above
+does not say out loud and a port gets wrong by default: `qd.randSeed` is a QuickDraw global, so one
+stream spans *every* game in a process rather than restarting per game (`cmd/glidergo`'s
+`app.randSeed`, read back out of the `World` after each game the way the music cursor is), and the
+launch draw at `InterfaceInit.c:160` happens before any of them, so the first game of a session
+starts on 16807 (`game.AdvanceRandSeed`). The one draw that is *not* emulated is `WriteOutPrefs`'s
+`thePrefs.fakeLong = Random()` (`Main.c:232`), which runs at startup only when the
+copy-protection check rewrote the prefs file; see `docs/ORIGINAL_GAME.md` §19.1 exception (e).
 
 ## 1.16 Go implementation sketch
 

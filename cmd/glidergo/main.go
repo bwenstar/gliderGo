@@ -131,7 +131,7 @@ func parseFlags() (*options, error) {
 	flag.IntVar(&o.neighbors, "neighbors", 9, "how much of the house to compose around the player: 1, 3 or 9")
 	flag.IntVar(&o.scale, "scale", 1, "integer nearest-neighbour magnification of the 640x480 image")
 	flag.BoolVar(&o.two, "two", false, "two players on one keyboard (the title screen's Two Player Game does the same)")
-	flag.Int64Var(&o.seed, "seed", 0, "fix the random stream for a reproducible run (0 = use the clock)")
+	flag.Int64Var(&o.seed, "seed", 1, "the random stream's starting state; 1 is what the 1994 build launched with (0 = use the clock instead)")
 	flag.IntVar(&o.frames, "frames", 0, "quit after N frames, for headless and timed runs (0 = play)")
 	flag.BoolVar(&o.bench, "bench", false, "run with no frame pacing and report the rate the machine sustains")
 	flag.StringVar(&o.dump, "dump", "", "with -tags nullbackend, write each frame as a PNG into this directory")

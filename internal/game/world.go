@@ -62,9 +62,24 @@ type World struct {
 	// pull from it in composition order, so two runs that consume the same sequence
 	// look identical and a replay can be pinned.
 	//
-	// Seeded once per game and never re-seeded on a room change, exactly as the
-	// original seeds qd.randSeed from the clock at launch (Utilities.c:60) and
-	// leaves it alone. A fixed seed makes a whole game reproducible; see Random.
+	// Set once when the game starts and never re-seeded on a room change, exactly as
+	// the original seeds qd.randSeed once and leaves it alone. A fixed value makes a
+	// whole game reproducible; see Random.
+	//
+	// **The original's seed is 1, on every launch.** `ToolBoxInit` does
+	// `GetDateTime((UInt32 *)&qd.randSeed)` (Utilities.c:61), but inside
+	// `#if !TARGET_CARBON`, and GliderPRO/Prefix.h:1 sets TARGET_CARBON to 1 -- so the
+	// shipped build never seeds at all and Carbon leaves the QuickDraw global at 1.
+	// That is why toolbox-primitives.md §1.6's verified stream is a seed-1 stream, and
+	// why the flame phases, the editor's default flower and the game-over flutter were
+	// the *same* every launch in 1994. The clock seeding is the pre-Carbon 68k branch;
+	// §1.15 lists what choosing it changes, and cmd/glidergo offers it as `-seed 0`.
+	//
+	// **A World is not the whole stream.** `qd.randSeed` is a QuickDraw global and so
+	// spans the whole process: the second game of a session carries on from wherever the
+	// first left off. Anything that plays more than one game in one run has to hand the
+	// value back afterwards -- cmd/glidergo's app.randSeed is that, and it also accounts
+	// for the one draw the original makes before any game (game.AdvanceRandSeed).
 	RandSeed int32
 
 	// P1 and P2 are theGlider and theGlider2. Values, not pointers, so that

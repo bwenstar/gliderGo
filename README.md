@@ -27,11 +27,18 @@ a very large house, and try to get further than you did last time.
 > rebindable, a native config file, and Tab or Escape pausing with the original's placards),
 > and **1.7c** high scores (both entry dialogs, the board on screen, and a per-house
 > side-car so a new score is recorded without rewriting a 1994 house file) with the credits
-> screen the port owed its contributors.
+> screen the port owed its contributors, **1.7d** the in-game overlays and game over (the
+> house's own banner, the stars-remaining panel, the win and loss animations, and the music on
+> the title screen), and **1.8** the fidelity pass — a checked-in corpus of per-frame pixel
+> hashes, the 1994 attract mode replaying through this port's own physics, the Toolbox random
+> stream verified draw by draw against the documented algorithm, and the twenty-row fidelity
+> contract audited row by row in
+> [docs/ORIGINAL_GAME.md](docs/ORIGINAL_GAME.md) §19.1 — twenty citations and five written
+> exceptions, so "the port is faithful" is a claim you can check rather than take.
 >
-> In progress: the last of **1.7, the shell** — **1.7d** the in-game overlays and game over:
-> the house's own banner, the stars-remaining panel, the win and loss animations, and the
-> music on the title screen. See [docs/PLAN.md](docs/PLAN.md), and
+> Next: **1.9** local two-player — two gliders in one room on one keyboard, which is what the
+> original's two-player mode was. Most of the machinery landed in 1.4 and nothing consumes it
+> yet. See [docs/PLAN.md](docs/PLAN.md), and
 > [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
 > release someone else could play.
 

@@ -491,26 +491,43 @@ was meant to recover. That is frame-pacing work, it belongs with 1.8's timing pa
 setting that is written down and honest about being inert is cheaper to finish than one that
 has to be invented later along with the file-format change to carry it.
 
-### 2.18 The random stream is unverified against real hardware — **answered as far as it can be, 1.8b; the physics gap it exposed is open**
+### 2.18 The random stream is unverified against real hardware — **premise disproved, 1.8b; the table test is 1.8c; the physics gap it exposed is open**
 
 `internal/game/rand.go` transcribes the original's linear congruential generator, and the
 demo replay in 1.8 depends on it bit for bit. It has not been checked against a trace from
 a real Mac, and until it is, a demo that desyncs is ambiguous between "the RNG is wrong"
 and "the input replay is wrong". 1.8 should capture a reference trace first.
 
-**1.8b closed the ambiguity from the other end, and the answer changes what this entry is
-asking for.** There is no reference trace to capture, because *the original had no reproducible
-one*: `ToolBoxInit` does `GetDateTime((UInt32 *)&qd.randSeed)` (`Utilities.c:61`) and nothing
-in the shipped game ever reseeds — there are no `InitRandomSeed` callers — so the 1994 attract
-mode drew a different random stream on every launch. A player who watched the demo twice saw two
-different demos. `RandomInt` reaches gameplay through `ObjectAdd.c` (the drip and toast delays,
-`10 + RandomInt(10)`; `RandomInt(kNumFlowers)`) and `Play.c` (phone rings, chimes), so this is
-not a cosmetic difference. The consequence: **the shipped `'demo'` resource cannot be a bit-exact
-fidelity oracle, and no amount of work on rand.go would make it one.** What it can be is a
-determinism oracle for this port — the same stream, the same seed, the same frames, twice — and
-that is what `internal/replay/testdata/demo.script` and `TestTheDemoReplaysTheSameWayTwice` are.
-Verifying rand.go itself is now an *independent* task (a direct table test against hand-computed
-LCG output, 1.8c) rather than something the demo can settle.
+**The premise above is wrong, and `toolbox-primitives.md` had already disproved it — 1.8b
+confirmed the disproof by experiment.** The demo replay does **not** depend on the RNG. §1.12's
+proof is in four steps: `GetDemoInput` dispatches on the frame counter and draws nothing; `Player.c`
+contains no `Random` call at all, so trajectory is a function of (initial state, input, geometry);
+Demo House contains **0** `kSparkle`, **0** `kCoffee`, **0** `kChimes`, `phoneBit` false — so none
+of the RNG-consuming *registrars* even fires; and §1.13 enumerates every reader of the five arrays
+the RNG feeds and finds nothing but `CopyBits` source-rect selection. R-RNG-2 is normative: a port
+could replay the shipped demo frame-exactly with a `Random()` that returns 0 forever.
+
+1.8b's replay is the empirical confirmation. Seeds 0, 1, 7 and 12345 produce the *same* run — the
+same three deaths, the same 573 records consumed, the same end frame — and differ only in the pixel
+digests, which is exactly the containment §1.13 describes. So the ambiguity this entry was written
+about is gone: a demo that desyncs is the physics, not the RNG.
+
+**And 1.8b's own note about clock seeding was wrong, which is worth recording because it inverts
+the conclusion.** `ToolBoxInit` does `GetDateTime((UInt32 *)&qd.randSeed)` at `Utilities.c:61`, but
+inside `#if !TARGET_CARBON` — and `GliderPRO/Prefix.h:1` sets `TARGET_CARBON 1`. The build this
+source tree describes therefore never seeds: it starts from `randSeed == 1` on every launch
+(`toolbox-primitives.md` §1.3, §1.4), which is why §1.6's verified table is a seed-1 table. The
+clock seeding is the pre-Carbon 68k branch. So the attract mode *was* reproducible, the shipped
+demo **is** a legitimate fidelity oracle, and the 573-of-1117 divergence below is a defect in this
+port and not an artefact of a stream nobody can reproduce.
+
+What is left of this entry is narrower and still real: `internal/game/rand.go`'s generator is a
+reconstruction of a Toolbox trap whose code is not in the tree, and it has never been checked
+against anything. §1.6 tabulates 24 verified draws from seed 1 — state, `Random()` as `int16`, and
+`RandomInt` at the three ranges the game asks for — so the check is a table test, and 1.8c writes
+it. That closes it as far as it can be closed without a Mac to ask; what remains open after that is
+only whether Apple's trap really was Park-Miller, which §1.5 argues from the documentation and
+§1.13 bounds the cost of.
 
 **What the demo replay does measure, and the number to beat.** The port does not fly the recorded
 path. Replaying the shipped stream against Demo House:
@@ -566,6 +583,42 @@ the window size and the frame count together, and `glidertool replay`'s trace he
 carry all four. The alternative — giving the sparkles and the coffee maker their own
 generator — would be a real deviation and is not proposed; it is recorded here as the escape
 hatch if the demo replay proves impossible otherwise.
+
+**1.8b establishes that the escape hatch is not needed, for this stream.** Demo House has no
+sparkle and no coffee maker at all, so none of the three sites above fires during the shipped
+replay — which is the house-specific half of R-RNG-2's proof. It stays written down because it
+binds any *other* recording: a demo captured in a house with scenery that draws is only valid at
+the window size it was captured at, and `glidertool replay`'s trace header carries the house, the
+seed, the neighbourhood and the frame count for that reason.
+
+**1.8c writes the table test, and finds that "the generator matches" was only a third of the
+job.** `internal/game/rand_test.go` pins the seed-1 stream state by state against §1.6's 24
+verified draws, pins `RandomInt`'s inclusive upper bound by constructing the raw word that reaches
+it, pins its exact skew over all 65536 raw words, and shows that the `(16807*seed) % 2147483647`
+an int32 transcription would naturally have written leaves the stream by the **third** draw — so
+Schrage's split is load-bearing and not decoration. It also proves the containment from the other
+side: `TestThePhysicsNeverDrawsFromTheRNG` walks `internal/game/player`'s AST and asserts the
+package contains no call to `Random` or `RandomInt` at all, which is R-RNG-2's first step turned
+into something that fails if a later stage breaks it.
+
+The two-thirds that were not the generator, both of which a port gets wrong by default:
+
+- **Scope.** `qd.randSeed` is a QuickDraw global, so in the original *one* stream spans every game
+  in a process. A `World` seeded afresh per game replays the same "random" opening every time —
+  the same candle phase, the same first telephone delay — which is the one way a fixed seed can be
+  *less* faithful than a clock. `cmd/glidergo` now holds the stream on `app.randSeed` and reads it
+  back out of the `World` after each game, the same hand-off `adoptScore` does for the music
+  cursor.
+- **The launch draw.** `VariableInit` (`InterfaceInit.c:160`, from `Main.c:321`) spends one draw
+  before any game, on the editor's default flower. So the original's first game starts on **16807**,
+  not 1, and `game.AdvanceRandSeed` is what puts the port on the same step. `-seed` now defaults to
+  1 with `0` meaning "use the clock", which is §1.15's recommended knob and its other branch in one
+  flag.
+
+What is still open is unchanged and is only the one thing: whether Apple's trap really was
+Park-Miller-by-Schrage, which needs a Mac. `ORIGINAL_GAME.md` §19.1 exception (e) is the written
+form of that, together with the two draws the port deliberately does not make (`WriteOutPrefs`'s
+conditional `fakeLong`, and `PourScreenOn`, which is dead code).
 
 ### 2.19 The mirror-room flame blink — **DONE as an opt-in fix, 1.7b; default is 2.x**
 
@@ -2234,7 +2287,14 @@ is guaranteed to reproduce *itself*, which is what a determinism test needs.
 | 2.63 The recorder refuses a duplicate frame, `Validate` rejects one, and `demo check` reports it | 1.8b | this stage |
 | 2.64 `devDemoRecord` reports once per run, and `badIndex`'s doc names the exception | 1.8b | this stage |
 | 2.65 The arcade abort is transcribed and pinned: any game key hands the player the game back | 1.8b | this stage |
-| 2.18 (as far as it can be) The demo is a determinism oracle; the 1994 RNG was clock-seeded | 1.8b | this stage |
+| 2.18 (premise) The demo is a determinism oracle, and the shipped Carbon build never seeded at all | 1.8b | this stage |
+| 2.18 (as far as it can be without a Mac) The RNG's stream, `RandomInt`'s bound and skew, and the naive-int32 divergence, all pinned as table tests | 1.8c | this stage |
+| 2.18 (scope) One random stream per *process*, as `qd.randSeed` is, handed back after every game | 1.8c | this stage |
+| 2.18 (the launch draw) `-seed` defaults to 1, `0` means the clock, and `AdvanceRandSeed` accounts for `VariableInit`'s draw so the first game starts on 16807 | 1.8c | this stage |
+| Contract item 6 `game.TestPlayGameOrder`: the frame loop's call order *and* each call's guard set, read out of the AST | 1.8c | this stage |
+| Contract item 15 `render.TestTheMaskingStrategyOfEveryObjectType`: the 21/9/2/3 painter census, which no pixel test can see | 1.8c | this stage |
+| Contract item 4 `internal/render/view_test.go`: the audit's one genuinely unheld row — `playOriginV` comes from the *screen*, not the house rect, and nothing had ever said so | 1.8c | this stage |
+| The fidelity contract audited row by row — `ORIGINAL_GAME.md` §19.1, twenty citations and five written exceptions | 1.8c | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

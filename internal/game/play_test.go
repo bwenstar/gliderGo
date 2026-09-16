@@ -12,6 +12,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"sort"
@@ -476,6 +477,150 @@ func TestRenderFrameOrder(t *testing.T) {
 		t.Error("RenderStars is no longer the else arm of the parity if; " +
 			"flames and stars must never both draw in one frame")
 	}
+}
+
+// TestPlayGameOrder pins the frame loop's call order and, for each call, which of the
+// loop's two guards it is inside.
+//
+// This is item 6 of the fidelity contract (docs/ORIGINAL_GAME.md §19) and it is the item
+// with the widest blast radius: every enemy in the game moves against *last* frame's glider
+// position because HandleDynamics runs before the input is read, and every contested pickup
+// in a two-player game goes to player 1 because player 1's input, hot-spot pass and
+// interaction all happen first. Reorder two lines and every trajectory in every house
+// changes, with no other symptom -- so, like TestRenderFrameOrder above, this reads the
+// source rather than measuring behaviour, because a behavioural equivalent would be pinning
+// one house's geometry rather than the sequence.
+//
+// The guard membership is asserted as well as the order, because the three ungated calls are
+// ungated *on purpose* and it is the kind of thing a later stage tidies up: HandleDynamics
+// before the player, and HandleTriggers/HandleBands outside `!gameOver` so that a fuse lit on
+// the frame the last glider died still burns through the sixteen-frame countdown
+// (Play.c:445-497).
+func TestPlayGameOrder(t *testing.T) {
+	const src = "play.go"
+
+	f, err := parser.ParseFile(token.NewFileSet(), src, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", src, err)
+	}
+	decl, recv := methodBody(t, f, "PlayGame")
+
+	// Play.c:445-497 and :499-546 transcribed, one body instead of the C's two arms. The
+	// demo branch is player one's alone; the two P2 calls are the whole of the C's
+	// two-player arm.
+	want := []string{
+		"pumpWhileSwitchedOut",
+		"HandleTelephone",
+		"HandleDynamics",
+		"GetDemoInput(P1)",
+		"GetInput(P1)", "GetInput(P2)",
+		"HandleInteraction",
+		"HandleTriggers", "HandleBands",
+		"HandleGlider(P1)", "HandleGlider(P2)",
+		"RenderFrame", "HandleDynamicScoreboard",
+		"HideGlider(P1)", "RefreshScoreboard", "arcadeBlackenBoard",
+		"DoDiedGameOver", "DoGameOver",
+		"arcadeBlackenBoard",
+	}
+	if got := receiverCalls(decl.Body, recv); strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("PlayGame's call order changed:\n  got  %s\n  want %s",
+			strings.Join(got, " "), strings.Join(want, " "))
+	}
+
+	// Which guards each call sits inside, innermost last. `!w.GameOver` and `w.Playing`
+	// are the two that matter; `w.TwoPlayer` is here because the P2 calls must stay
+	// under it and the P1 calls must not.
+	guards := receiverCallGuards(decl.Body, recv)
+	for _, c := range []struct {
+		call  string
+		under []string
+		why   string
+	}{
+		{"HandleTelephone", nil,
+			"the phone rings through the death countdown"},
+		{"HandleDynamics", nil,
+			"enemies move before the input is read, and keep moving after the last death"},
+		{"GetDemoInput(P1)", []string{"!w.GameOver", "!w.TwoPlayer && w.DemoGoing"},
+			"the attract mode drives player one only, and only in a one-player game"},
+		{"GetInput(P1)", []string{"!w.GameOver", "!(!w.TwoPlayer && w.DemoGoing)"},
+			"a dead player's keys are not read, and a demo's keys come from the resource"},
+		{"HandleInteraction", []string{"!w.GameOver"},
+			"one call serves both players, inside the same guard as the input"},
+		{"HandleTriggers", nil,
+			"a lit fuse burns through the countdown (Play.c:481-482 is outside the guard)"},
+		{"HandleBands", nil,
+			"a band in flight still lands after the last glider dies"},
+		{"HandleGlider(P1)", []string{"!w.GameOver"},
+			"the only caller of MoveGlider, gated with the input"},
+		{"GetInput(P2)", []string{"!w.GameOver", "!(!w.TwoPlayer && w.DemoGoing)", "w.TwoPlayer"},
+			"player two exists only in a two-player game"},
+		{"HandleGlider(P2)", []string{"!w.GameOver", "w.TwoPlayer"},
+			"as above"},
+		{"RenderFrame", []string{"w.Playing"},
+			"the second test of the loop condition: the last simulated frame is never drawn"},
+		{"HandleDynamicScoreboard", []string{"w.Playing"},
+			"drawn with the frame it belongs to"},
+	} {
+		got, ok := guards[c.call]
+		if !ok {
+			t.Errorf("%s is no longer called in PlayGame", c.call)
+			continue
+		}
+		if strings.Join(got, " ") != strings.Join(c.under, " ") {
+			t.Errorf("%s is guarded by [%s], want [%s] -- %s",
+				c.call, strings.Join(got, ", "), strings.Join(c.under, ", "), c.why)
+		}
+	}
+}
+
+// receiverCallGuards maps each call on the receiver to the conditions it is nested under,
+// outermost first, rendered as source. An `else` arm contributes `!(cond)`, because "inside
+// the else of `if demo`" is a different guard from "inside `if demo`" and the whole point of
+// the map is which calls a guard protects.
+//
+// The walk is written out rather than done with a plain ast.Inspect stack because Inspect
+// cannot tell a body from an else: it hands out both as children of the same IfStmt. Only
+// ifs contribute -- the loop is the frame itself, and the switches are all inside the callees.
+//
+// A call appearing twice keeps its *first* entry, which is the innermost-guarded one in
+// source order (arcadeBlackenBoard is called in the countdown and again after the loop), so
+// an assertion about it gets the tighter answer rather than an arbitrary one.
+func receiverCallGuards(n ast.Node, recv string) map[string][]string {
+	out := map[string][]string{}
+	var walk func(ast.Node, []string)
+	walk = func(nd ast.Node, conds []string) {
+		if nd == nil {
+			return
+		}
+		if is, ok := nd.(*ast.IfStmt); ok {
+			cond := types.ExprString(is.Cond)
+			walk(is.Init, conds)
+			walk(is.Cond, conds)
+			walk(is.Body, append(conds, cond))
+			walk(is.Else, append(conds, "!("+cond+")"))
+			return
+		}
+		if call, ok := nd.(*ast.CallExpr); ok {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && isReceiver(sel.X, recv) {
+				if names := receiverCalls(call, recv); len(names) > 0 {
+					if _, seen := out[names[0]]; !seen {
+						out[names[0]] = append([]string(nil), conds...)
+					}
+				}
+			}
+		}
+		// Children only: Inspect visits nd first, and every deeper node is handed to
+		// walk instead so that a nested if pushes its condition.
+		ast.Inspect(nd, func(c ast.Node) bool {
+			if c == nil || c == nd {
+				return true
+			}
+			walk(c, conds)
+			return false
+		})
+	}
+	walk(n, nil)
+	return out
 }
 
 // methodBody finds a method by name and returns it with its receiver's identifier, which

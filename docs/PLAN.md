@@ -681,7 +681,7 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     answer on Linux and no answer at all on Windows, where nothing equivalent is in the box. It is
     the one part of the audio path Stage 4 cannot cross-compile (`docs/IMPROVEMENTS.md` 2.48).
 
-**1.7 The shell**
+**1.7 The shell** ✅ *done*
 - Splash, menus, house selection, preferences, scoreboard, game over.
 - **High scores** (owner-requested, and the original had them): a **10-row board per house**,
   each row `{name, score, timestamp, roomsVisited}` plus the house's `banner` — the original's
@@ -908,7 +908,7 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     (`docs/analysis/scoring.md` 7.12). Silence is what a 1994 player got and it is also the right
     answer: a dialog to tell somebody they did not win is a dialog nobody wants.
 
-**1.8 Fidelity pass**
+**1.8 Fidelity pass** ✅ *done*
 - `internal/fidelity`: frame-diff harness, input-trace replays, a checked-in corpus of
   reference frames. Three commits:
   - **1.8a The corpus** ✅ *done* — `internal/fidelity`, and the first pixels this project has
@@ -967,15 +967,73 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     - **There is no `glidertool demo build`.** A hand-authored input stream is what a replay
       script's `at` lines already are, and they are better at it — two players, all seven keys, no
       six-byte encoding to get wrong. The only streams worth writing are ones a game recorded.
-    - What building it pinned: **the shipped demo is a determinism oracle, not a fidelity oracle.**
-      `ToolBoxInit` seeds `qd.randSeed` from the clock (`Utilities.c:61`) and nothing ever reseeds
-      it, so the 1994 attract mode diverged run to run on real hardware too — there is no byte
-      sequence this port could be wrong about. What it *can* prove is that the same stream replays
-      identically twice here, which is 1.8's acceptance criterion, and the port does not yet fly the
-      recorded path: the glider dies three times in the start room, 573 of 1117 records in
-      (IMPROVEMENTS 2.18). That is the sharpest fidelity target the project has, and the harness
-      test deliberately does not pin it — the day the physics improve, a fidelity test should fail,
-      not a test about determinism.
+    - What building it pinned: **the demo is a fidelity oracle, and the port fails it.** The run
+      does not fly the recorded path — the glider dies three times in the start room, 573 of the
+      1117 records in, and the game ends at frame 1775 instead of the stream's 3414. Nothing about
+      the recording excuses that. `qd.randSeed` cannot be the cause on two independent grounds:
+      `toolbox-primitives.md` §1.12 proves the shipped demo is RNG-independent (Demo House contains
+      no sparkle, no coffee maker, no chimes and no phone, and `Player.c` never draws), and this
+      port's own runs confirm it — seeds 0, 1, 7 and 12345 all die on the same three frames, only
+      the pixel digests differing. So 573 of 1117 is a physics defect and it is the sharpest
+      fidelity target the project has (IMPROVEMENTS 2.18). The determinism half is what the
+      harness test asserts, and it deliberately does not pin the death frames: the day the physics
+      improve, the test that fails should be a fidelity test.
+      - The seeding is worth getting right because 1.8b got it wrong first. `ToolBoxInit` does
+        `GetDateTime((UInt32 *)&qd.randSeed)` at `Utilities.c:61` — but **inside
+        `#if !TARGET_CARBON`**, and `GliderPRO/Prefix.h:1` sets `TARGET_CARBON 1`. So the build
+        this source tree describes never seeds at all: it starts from `randSeed == 1` on every
+        launch, which is why `toolbox-primitives.md` §1.6's table is a *seed-1* table and why the
+        attract mode was reproducible. The clock seeding is the pre-Carbon 68k branch. 1.8c makes
+        the port's default match (`cmd/glidergo -seed`, and §1.15's list of what a clock seed
+        changes).
+  - **1.8c The contract** ✅ *done* — the RNG verified as far as it can be, the two contract items
+    that had no test given one, and the whole twenty-row contract audited in writing
+    (`ORIGINAL_GAME.md` §19.1). This is the commit that turns "the port is faithful" from an
+    assertion into twenty citations and five named exceptions.
+    - **The RNG (contract item 20).** `internal/game/rand_test.go` pins the seed-1 stream state by
+      state against `toolbox-primitives.md` §1.6's 24 verified draws, pins `RandomInt`'s inclusive
+      upper bound by constructing the raw word that reaches it, pins its exact skew across all
+      65536 raw words, and shows that the `(16807*seed) % 2147483647` an int32 transcription would
+      naturally have written leaves the stream by the **third** draw — so Schrage's split is
+      load-bearing. `TestThePhysicsNeverDrawsFromTheRNG` walks `internal/game/player`'s AST and
+      asserts the package contains no draw at all, which turns R-RNG-2's first step into something
+      a later stage cannot quietly break.
+    - **And two-thirds of "match the RNG" turned out not to be the generator.** `qd.randSeed` is a
+      QuickDraw global, so one stream spans every game in a process; a `World` seeded per game
+      replays the same "random" opening every time, which is the one way a fixed seed can be *less*
+      faithful than a clock. The stream now lives on `app.randSeed` and is read back after each
+      game, the way `adoptScore` hands back the music cursor. And `VariableInit` spends one draw at
+      launch on the editor's default flower (`InterfaceInit.c:160`), so the original's *first* game
+      starts on **16807**, not 1 — `game.AdvanceRandSeed` is what puts the port on the same step.
+      `-seed` defaults to 1, and `-seed 0` means "use the clock", which is §1.15's knob and its
+      other branch in one flag.
+    - **The two items with no test (6 and 15), tested by reading the source rather than the
+      pixels.** Both are cases where a behavioural test would pin the wrong thing.
+      `game.TestPlayGameOrder` takes `PlayGame`'s AST and asserts the flat call order *and* which
+      of the loop's two guards each call sits inside — because the three ungated calls are ungated
+      on purpose (`HandleDynamics` before the input, `HandleTriggers`/`HandleBands` outside
+      `!gameOver`) and that is exactly the kind of thing a later stage tidies up.
+      `render.TestTheMaskingStrategyOfEveryObjectType` reads `DrawARoomsObjects`'s switch and
+      counts which painter each object type reaches: 21 colour-keyed, 9 opaque, 2 mask-paired, 3
+      procedural with no painter at all. No pixel test can see this — both paths draw something of
+      the right size in the right place, so `TestComposeEveryRoom` passes either way while a colour
+      key punches 681 holes in the angel's robe.
+    - **And the audit found one row genuinely unheld, which is the point of doing it.** Contract
+      item 4 says `playOriginV` derives from the *screen* and not from `houseRect`, so the rooms sit
+      10 px below the house rect's centre and every hard-coded object y in the game was authored
+      against that. Nothing asserted it: every other test takes the origin *from* the view rather
+      than stating it, which is the right dependency direction and is exactly why the view itself
+      had no test. Change one word in `NewView` and the only thing that fails is the pixel corpus,
+      reporting that 600 frame hashes moved without saying why. `internal/render/view_test.go` now
+      pins the derivation, the 3x3 displacements against `kVertLocalOffset` (not `kTileHigh`, which
+      is equal and would pass for the wrong reason), and the max-view clamp that no 640x480 build
+      exercises — and it was verified to fail on that one-word change before being kept.
+    - **Five exceptions, written down rather than left in someone's head** (§19.1): the frame
+      limiter sleeps instead of spinning but ends on the same tick; the shared key map is a hook
+      called once per glider rather than one file-scope `KeyMap`; `visited` is written once because
+      this port has no second copy to keep in sync; the quit path's unreachable splash repaint is
+      dropped (2.62); and three residual differences in the random stream, of which only one — was
+      Apple's trap really Park-Miller? — actually needs a Mac to settle.
 - **Demo replay is the harness, not a feature.** The original records input as `demoType`
   (`{long frame; char key; char padding}`, `GliderStructs.h`) — a keystroke stream keyed to frame
   numbers. Replaying one is a frame-exact determinism test, which is what Stage 3's race needs and

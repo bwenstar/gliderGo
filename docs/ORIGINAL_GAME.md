@@ -1453,6 +1453,104 @@ the `pages[]` underflow, the demo's read-past-end, the `Random()` seeding altern
 `AppendResMenu('DRVR')` items, the dead saved-game subsystem, `DrawLighting`'s no-op stub, and
 the `idleMode` variable.
 
+### 19.1 The contract, audited (stage 1.8c)
+
+Stage 1.8's acceptance criterion is that every row above is either satisfied or has a written
+exception. This is that audit. It is a *documentation* pass over work the earlier stages did, not
+a claim that 1.8c implemented twenty things: the point of writing it down is that "the port is
+faithful" stops being an assertion and becomes twenty citations a reader can check, and that the
+five places where the port knowingly differs are on the record instead of in someone's head.
+
+The rule for "held" is deliberately strict — a row counts as held only if a test fails when the
+behaviour changes, *naming what changed*. A transcription with a good comment and no test is not
+held, and neither is one whose only witness is the pixel corpus: the corpus reports that 600 frame
+hashes moved and does not say why. Applying that rule found one row not held. Row 4's
+`playOriginV` derivation had no assertion anywhere — every other test in the repository takes the
+origin *from* the view rather than stating it, which is the right dependency direction and is
+exactly why nothing checked the view itself. `internal/render/view_test.go` is 1.8c's answer, and
+it was verified to fail (with the 10-px message) on the one-word change from `Screen` to `House`
+before being kept.
+
+| # | Row | Held by | Pinned by |
+|---:|---|---|---|
+| 1 | 30.07 Hz integer step, no catch-up | `internal/game/render_frame.go` (`awaitFrame`) | `game.TestPlayGameAdvancesTheTwoClocks`, `game.TestRenderFrameOrder` (`awaitFrame`'s position), `fidelity.TestFramesAreStableWithinARun` — **exception (a)** |
+| 2 | `MoveGlider`'s desired-velocity ramp | `internal/game/player/glider.go` | `player.TestFreeFallTrace`, `TestHoldRightTrace`, `TestHeliumTrace`, `TestNoVerticalClamp`, `TestHorizontalClampInsideSignBranches`, `TestWasVelWrittenUnconditionally`, `TestWholeIsSweptNotAccumulated` |
+| 3 | Battery bypasses the ramp | `internal/game/player/input.go` | `player.TestBatteryFollowsTheBank`, `TestHeliumIsTheNegativeHalf`, `TestBatteryFizzlesAtZero`, `TestThrustSoundEveryFourthFrame` |
+| 4 | 512x322 unscaled, 3x3, 20-px board | `internal/render/view.go` | `render.TestTheOriginComesFromTheScreenAndNotTheHouseRect`, `TestARoomIsFiveHundredAndTwelveByThreeHundredAndTwentyTwo`, `TestTheHouseRectIsTheScreenLessTheScoreboard` (**new in 1.8c** — this was the one row the audit found *un*held), `TestScoreboardGeometry640`, `TestScoreboardTwoOffsets`, `TestComposeEveryRoom` |
+| 5 | The nine limits, `CheckGliderInRoom` | `internal/game/player/escape.go` | `player.TestTwoThresholdsPerBoundary`, `TestWallBouncesToTheWallFace`, `TestOpenSideNeedsNoClearance`, `TestFloorIsLethalWithoutPermission`, `TestIgnoreGroundFallsThrough`, `TestNonInRoomModesAreNotBounded`, `TestCornerExitGetsTwoVerdicts` |
+| 6 | `PlayGame`'s per-frame order | `internal/game/play.go` | `game.TestPlayGameOrder` — the call sequence *and* each call's guard set, read out of the AST (**new in 1.8c**) |
+| 7 | One input sample per frame, shared | `internal/game/play.go` (`GetInput`), `internal/game/player/input.go` | `game.TestPlayGameOrder` (one poll per glider per frame), `player.TestBandDebounce`, `TestRefusedBandCostsNothing`, `game.TestGetDemoInputOnlyPollsPlayerOne` — **exception (b)** |
+| 8 | One signed battery/helium counter | `internal/game/rewards.go` | `game.TestBatteryAndHeliumShareOneSignedCounter`, `TestFifteenRewardArms` |
+| 9 | Lives semantics (`mortals` = spares) | `internal/game/play.go`, `internal/game/mortal.go` | `game.TestNewGameSetsUpTheGliderAndTheGame`, `TestTwoPlayerInitGliderDoesNotDoubleTheLives`, `TestTwoPlayerDoublesTheFiveSupplies`, `TestGliderCountClamp`, `player.TestIdleCountdownLivesInHVel` |
+| 10 | Room-visit scoring on departure | `internal/game/transit.go` | `game.TestTheRoomCountAgreesWithTheScore`, `TestCountRoomsVisitedCountsTheFlagAndNothingElse`, `replay`'s duct trace (score 100 → 200 on the transition) — **exception (c)** |
+| 11 | 28 hot-spot actions, `hotSpots[56]` | `internal/game/objects.go`, `internal/render/locale.go` | `game.TestHotSpotTypeCoverage`, `TestSetObjectStateEveryType`, `TestScrutinizedActions`, `TestObjectGraphEveryRoom`, `TestHotSpotTableOverflowReturnsMinusOne` |
+| 12 | Present-before-erase, `RenderFrame` order | `internal/game/render_frame.go` | `game.TestRenderFrameOrder` (the layer order out of the AST, plus the flames-or-stars parity branch and player 1's z-order over player 2), `TestPlayGameKeepsPublishingFrames`, `fidelity.TestFrames` (600 hashed frames) — **exception (d)** |
+| 13 | `evenFrame` half-rate gating | `internal/game/render_frame.go`, the movers | `game.TestEvenFrameGatingIsPerHandler`, `TestBallAndFishRegistrationSetEvenFrame`, `TestRenderFlamesEntersForAnyOfItsThreeTables` |
+| 14 | Score roll at 13 points/frame | `internal/game/scoreboard.go` | `game.TestScoreRoll`, `TestScoreRollJumpsWhenDisarmed`, `TestScoreRollDrawsTheIntermediateNumber`, `TestRefreshScoreboardArmsAndEmptiesTheRoll` |
+| 15 | The four masking strategies | `internal/render/locale.go`, `internal/render/objectdraw2.go` | `render.TestTheMaskingStrategyOfEveryObjectType` — the 21/9/2/3 census read out of the dispatch (**new in 1.8c**) |
+| 16 | Sound priority over 3 channels, mono | `internal/audio/engine.go` | `audio.TestLowestPriorityWins`, `TestRepeatedSoundSpreadsAcrossChannels`, `TestTriggerExclusivity`, `TestCompletionCallbackFreesTheChannel`, `TestMixSumsAndClips` |
+| 17 | Both music sequences | `internal/game/music.go`, `internal/audio/music.go` | `game.TestScoreTables`, `TestWholeScoreWrapsEarly`, `TestGameScoreSettlesOnOneRefrain`, `TestProdGameScoreMode`, `audio.TestMusicQueueAndChain` |
+| 18 | Byte-exact house round-trip | `internal/house` | `house.TestCorpusRoundTrip` (every shipped house, byte for byte), `TestCorpusSlack`, `TestCorpusNonCompacted`, `TestCorpusRoomInvariants` |
+| 19 | The hard budget limits | `internal/game/objects.go`, `internal/render/anim.go` | `game.TestTablesRespectTheirCaps`, `TestHotSpotTableOverflowReturnsMinusOne`, `render.TestEachFamilyIsRefusedAtItsOwnCap`, `TestTheSavedMapBudgetSaturatesInShippedContent`, `TestASaturatedTableDoesNotConsumeARandomDraw` |
+| 20 | R-RNG-1's stream, `RandomInt`'s range | `internal/game/rand.go` | `game.TestRandomMatchesTheVerifiedSeed1Stream`, `TestRandomIntUpperBoundIsInclusive`, `TestRandomIntSkewOverEveryRawWord`, `TestNaiveInt32ModularWouldHaveDiverged`, `TestAdvanceRandSeedIsOneDraw`, `TestThePhysicsNeverDrawsFromTheRNG` (**all new in 1.8c**) — **exception (e)** |
+
+#### The five exceptions
+
+**(a) Row 1 — the wait is slept, not spun.** The C's limiter is `while (TickCount() < nextFrame)
+{ }`. `awaitFrame` keeps the condition and the reseed-from-now (so there is still no catch-up) but
+takes a `World.WaitTick` hook for the loop *body*: nil is the C's empty body and is what the
+fidelity and replay builds use, and `cmd/glidergo` installs a 1 ms sleep. That changes how the
+wait is spent, not when it ends. The open half of IMPROVEMENTS 2.17 — a "keep real time" setting
+that skips frames on a stall — would be a real contract change, which is why `prefs.KeepRealTime`
+is declared, defaults to false, and is still read by nothing.
+
+**(b) Row 7 — the shared key map is a hook, not a file-scope global.** The C polls
+`GetKeys(theKeys)` once into a file-scope `KeyMap` and both players read the same buffer.
+`World.KeyPoll` is called once per glider and returns that glider's already-resolved `player.Keys`
+(the three rebindable keys resolved on the way through), so the port has two calls where the C has
+one buffer. The observable behaviour is the same — one sample per frame per glider, no repeat, no
+queue — but a host that returned *different* key states to the two calls in one frame would
+diverge from the original in a way no test here can see, so the contract lives in the hook's
+documented obligation rather than in the type.
+
+**(c) Row 10 — one `visited` write, not two.** The C writes `visited` into the house handle and
+again into the `thisRoom` working copy, because those are two structures with the same field.
+`World.ThisRoom()` returns a pointer into the house, so the port has nothing to keep in sync and
+the two writes collapse into one that cannot go stale. Both of the C's indices name the same room
+at every call site (`DrawLocale` sets `localNumbers[kCentralRoom]` from `thisRoom` and nothing
+between them can run), so this is unobservable — but the row says "both copies", so it is written
+down.
+
+**(d) Row 12 — the quit path does not repaint the splash into the work map.** `NewGame`'s tail
+(`Play.c:257-273`) ends a quit game by scaling the splash art into `workSrcMap` and invalidating
+the window, so the Mac's next update event paints the title screen out of it. Here the title
+screen belongs to `internal/shell` and is composed on the shell's own surface, so not one of those
+294,400 pixels is reachable; the write is dropped deliberately (IMPROVEMENTS 2.62). It buys back a
+harness invariant worth more than the pixels — with the work map left as the last frame drew it,
+`replay`'s plane hashes can insist that a still room's work map equals its background map, which
+catches exactly the draws that forget a back rect. The two *ending* paths keep their restore,
+because there the splash is on screen a moment later. Nothing in the frame order moves; the
+omission is one call after the loop has ended.
+
+**(e) Row 20 — three residual differences in the random stream.** The generator, the seed and the
+scope all match (`rand.go`, and `cmd/glidergo`'s process-lifetime `app.randSeed` with
+`game.AdvanceRandSeed` accounting for `VariableInit`'s launch draw), but:
+
+1. `WriteOutPrefs`'s `thePrefs.fakeLong = Random()` (`Main.c:232`) is **not** emulated. It only
+   runs at startup when the copy-protection check rewrote the prefs file (`Main.c:315`
+   `didValidation`), so whether the original's first game starts one draw further along depends on
+   state that is not in this tree. A port cannot be faithful to both branches; it is faithful to
+   the one that does not require guessing.
+2. `PourScreenOn`'s `RandomInt(colWide)` rejection loop (`Transitions.c:44`) is dead code in the
+   shipped build and is deliberately not transcribed (`internal/game/screen.go`), so it consumes
+   no draws here. If it were ever reached in the original it would consume an unbounded number.
+3. Whether Apple's `Random()` trap really was Park–Miller-by-Schrage is **unverifiable without a
+   Mac.** §1.5 of `toolbox-primitives.md` argues it from Apple's own documentation and §1.13
+   bounds the cost of being wrong: animation phase, never trajectory. R-RNG-2 proves the shipped
+   demo replay is RNG-independent, and `game.TestThePhysicsNeverDrawsFromTheRNG` proves the same
+   thing about this port from the other end — the physics package contains no draw at all. See
+   IMPROVEMENTS 2.18.
+
 ---
 
 ## 20. Known unknowns

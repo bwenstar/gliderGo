@@ -69,6 +69,15 @@ type app struct {
 	// World in the process that is not a game. See music.go.
 	title *game.World
 
+	// randSeed is the random stream, held here because the original holds it in
+	// QuickDraw's globals. `qd.randSeed` is process-lifetime: the second game of a session
+	// carries on from wherever the first one left the sequence, so its candles start on
+	// different frames and its telephone rings after a different delay. A World that were
+	// seeded afresh each game would replay the same "random" opening every time, which is
+	// the one way a fixed seed can be less faithful than a clock. Resolved once by
+	// resolveSeed and handed back at the end of every game; see play.
+	randSeed int32
+
 	// artErr is the first sticky asset error from any game this session. It is
 	// reported rather than returned mid-session, because losing a finished game's
 	// score to a missing PICT would be a worse trade than a line on stderr.
@@ -76,9 +85,40 @@ type app struct {
 }
 
 func newApp(o *options, p *prefs.Prefs, canSave bool) *app {
-	a := &app{o: o, p: p, canSave: canSave}
+	a := &app{o: o, p: p, canSave: canSave, randSeed: resolveSeed(o.seed)}
+	// The original's launch spends one draw before any game does: VariableInit picks the
+	// editor's default flower out of the same stream (game.AdvanceRandSeed says where). So
+	// the first game of a session starts on 16807 rather than on 1, and matching that is
+	// what makes its first candle flame and its first pendulum agree with 1994's.
+	a.randSeed = game.AdvanceRandSeed(a.randSeed)
 	a.openScores()
 	return a
+}
+
+// resolveSeed turns -seed into the state the random stream starts the process at.
+//
+// The default is 1, and that is a fidelity decision rather than a convenience one: the
+// original seeds `qd.randSeed` from the clock at `Utilities.c:61`, but that call sits inside
+// `#if !TARGET_CARBON` and `GliderPRO/Prefix.h:1` sets TARGET_CARBON, so the shipped build
+// begins every launch on the 1 that InitGraf left in the QuickDraw globals. Matching it is
+// what makes this port's candles start on the frames the 1994 build's did, and it is the seed
+// docs/analysis/toolbox-primitives.md §1.6's verified draw table is a table of.
+//
+// `-seed 0` asks for the clock instead. That is the 68k build's behaviour -- a real thing the
+// game did on other hardware, which is why it is offered rather than removed -- and it is
+// what a run that should not be the same run twice wants. The value is folded into the
+// generator's legal range here rather than left to World.Random's guard, so that the two
+// nanosecond readings in two billion that land on the recurrence's dead ends do not silently
+// become the default seed and make a clock run look like a fixed one.
+func resolveSeed(flag int64) int32 {
+	if flag != 0 {
+		return int32(flag)
+	}
+	seed := int32(uint32(time.Now().UnixNano()) & 0x7FFFFFFF)
+	if seed == 0 || seed == 0x7FFFFFFF {
+		seed = 16807 // 0 is a fixed point and 2^31-1 maps to it; any other state will do
+	}
+	return seed
 }
 
 // scoresNone is what -scores takes to mean "play, and record nothing". It is spelled the
@@ -280,13 +320,9 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	scene.NumNeighbors = a.p.Neighbors
 	scene.Clock = time.Now()
 
-	// A zero seed means "use the clock", which is what the original does:
-	// InitializeRandom seeds from the time at launch. A fixed seed makes a whole run
-	// reproducible, which is what 1.8's replay tests will want.
-	seed := int32(o.seed)
-	if seed == 0 {
-		seed = int32(time.Now().UnixNano())
-	}
+	// The stream is the process's, not this game's: it was resolved at startup by
+	// resolveSeed and the last game handed back where it had got to. See app.randSeed.
+	seed := a.randSeed
 	w := game.NewWorld(h, scene, seed)
 	w.TwoPlayer = two
 
@@ -693,6 +729,12 @@ func (a *app) play(name, path string, two bool) (shell.Outcome, error) {
 	// does, so the score carries on across the transition the way one global would. See
 	// music.go's adoptScore.
 	a.adoptScore(w)
+
+	// And the same hand-off for the random stream, which is a QuickDraw global in the
+	// original and so spans games in one process. Read back after NewGame returns rather
+	// than while the game runs, because that is the one moment the World is finished with
+	// it; a game that never started drew nothing and leaves the stream where it was.
+	a.randSeed = w.RandSeed
 
 	if !o.quiet {
 		el := time.Since(start)
