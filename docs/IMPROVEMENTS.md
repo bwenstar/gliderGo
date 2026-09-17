@@ -1565,10 +1565,11 @@ original, never quieter, so it cannot hide a sound the 1994 build played. There 
 of evidence that the author knew something was wrong here — the call to `FlushAnyTriggerPlaying`
 inside `LoadTriggerSound` is commented out (`Sound.c:275`).
 
-### 2.48 The audio sink is a subprocess, not a device — **note; now a shipping gap on Windows rather than a future one, and the release notes say so**
+### 2.48 The audio sink is a subprocess, not a device — **DONE on Windows: a native `waveOut` sink, in the binary. The subprocess stays the Linux answer and the fallback everywhere**
 
-The port has no audio driver. `audio.Pipe` writes raw PCM to `pw-play`, `paplay`, `aplay`,
-`ffplay` or `play`, whichever is installed, and `audio.WAV` writes a file. That began as a
+For most of the port there was no audio driver at all. `audio.Pipe` writes raw PCM to `pw-play`,
+`paplay`, `aplay`, `ffplay` or `play`, whichever is installed, and `audio.WAV` writes a file — and
+on Linux that is still what happens, deliberately. That began as a
 constraint — the build host is airgapped, so there is no `golang.org/x/sys`, no `oto` and no
 `ebiten`, and ALSA or PulseAudio means cgo — but it is a defensible answer on Linux on its own
 merits: every desktop ships at least one of those five, they all read s16le mono on stdin, and a
@@ -1599,8 +1600,47 @@ things were done rather than left:
   `-wav out.wav` as the way to hear what you missed.
 - The README's audio paragraph says which platform its five-player answer is good on.
 
-The native sink is still owed. What changed is that a player meets the gap as a documented
-limitation with a workaround rather than as a game that makes no noise for no stated reason.
+**Then the sink itself was written, because a documented limitation is still a game that makes no
+noise.** `internal/audio/waveout_windows.go` is a `waveOut` driver in pure `syscall`: mono s16le at
+22255 Hz through `WAVE_MAPPER`, eight blocks in rotation, `WHDR_DONE` polled every 4 ms by one
+goroutine, and a tenth of a second of silence written ahead of the first mixed sample so the device
+does not starve on the first hiccup. `internal/audio/device.go` is the seam it arrives through —
+`Open` tries the native device first and the external players second, and nothing above it learns
+which it got, exactly as `internal/platform/backend` does for the display. `-audio list` now says
+`waveout` first on a Windows machine, `-audio waveout` insists on it, and the shutdown report gained
+a fourth counter (`gaps`) that only a real device can produce.
+
+Four things about it are worth knowing:
+
+- **It has never run here.** Nothing Windows in this port has (see `internal/platform/win32`), so
+  the file carries the same caveat at the top and the two ways out stay wired: `-audio ffplay` still
+  takes the subprocess path and `-wav out.wav` still writes a file. What *is* checked from here is
+  the half where a mistake would be silent — `waveout.go` holds the two structure layouts, the
+  constants and the error table with no build tag, and `waveout_test.go` asserts every WAVEHDR and
+  WAVEFORMATEX offset, the C structure's 18 declared bytes inside Go's 20, and the tuning numbers
+  against each other, on every platform in `go test ./...`. The rest is checked by somebody else's
+  machine: `waveout_windows_test.go` runs in CI's `native` job, where it loads winmm out of the
+  system directory and resolves all seven entry points for real, and on any machine that has a sound
+  card it also opens the device and plays twelve frames of silence through the full rotation. A
+  hosted runner has no card, so the first test carries CI and the second skips there — which means a
+  misspelt export or a mishandled path length is a red X on the next push, and only the playback
+  path is still waiting for a human with a Windows desktop.
+- **`waveOut` rather than WASAPI**, which is five COM interfaces and a render thread against seven
+  plain functions and a struct, in code nobody here can run. On Windows 10 and 11 `waveOut` is a
+  shim over WASAPI in shared mode anyway, so the game mixes with the rest of the desktop.
+- **winmm is loaded by absolute path.** It is not a KnownDLL and it is not in Go's own system-DLL
+  set, so a bare `LoadLibrary("winmm.dll")` would search the directory the executable was started
+  from first — and a release archive tells the player to run the binary from the directory they
+  unpacked it into, which is exactly the arrangement a planted DLL needs. `GetSystemDirectoryW`
+  answers first.
+- **The blocks are package-level arrays**, because `waveOutWrite` keeps the pointer it is given and
+  Go's rules for pointers handed to foreign code do not cover that. A global is the one allocation
+  whose address the language cannot ever change. `runtime.Pinner` was the first draft and is worse:
+  a Pinner collected without `Unpin` panics the process by design, so a bookkeeping slip becomes a
+  crash in a shipped game. `VirtualAlloc` was the second and is also worse: reading it back needs a
+  pointer made out of an integer, which is what `go vet`'s `unsafeptr` check exists to object to.
+
+CoreAudio at Stage 6 is the same problem again, and the seam is now in place for it.
 
 ### 2.49 Five house sounds ship as silence — **note; blocked on data, and 4.1's linter should say so**
 
@@ -2084,9 +2124,12 @@ the port's own voice and the next candidate tried, so a machine with both `pw-pl
 lands on the one that works. That needs `Pipe` to own the `Wait` it currently performs in
 `Close`, because a startup probe and `Close` cannot both wait on the same process, and it needs a
 short grace period at open time that the happy path also pays. Neither is difficult; both are
-more than a diagnostic fix, and the shape belongs with 2.48's native driver rather than in front
-of it. Until then the end-of-run line still says `pw-play stopped reading`, which is the
-after-the-fact version of the same fact.
+more than a diagnostic fix, and the shape belonged with 2.48's native driver rather than in front
+of it. **2.48 has since landed, so this is no longer waiting on anything**, and the seam it added
+is where the retry belongs: `audio.Open` already tries the device and then the players in order,
+which is the same loop a player that dies at once needs to fall out of. Until then the end-of-run
+line still says `pw-play stopped taking samples`, which is the after-the-fact version of the same
+fact.
 
 ---
 

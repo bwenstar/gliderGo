@@ -33,12 +33,12 @@
 # archives are named `-headless` so nobody downloads one expecting to play. macOS is stage 6.
 #
 # The two windows archives carry a caveat the linux one does not, and it belongs in the release
-# notes rather than in a bug report: that backend has never been executed. It was written on an
-# airgapped Linux host with no Windows to run it on, it compiles and vets for amd64 and arm64, and
-# ci.yml's `native` job on windows-latest is the first thing that runs its tests. Sound is the
-# other gap -- the audio sink pipes PCM to an external player, and Windows ships none, so a
-# Windows player hears nothing unless FFmpeg or SoX happens to be on their PATH
-# (internal/audio/sink.go's installHint, docs/IMPROVEMENTS.md 2.48).
+# notes rather than in a bug report: neither that backend nor the sound behind it has ever been
+# executed. Both were written on an airgapped Linux host with no Windows to run them on, both
+# compile and vet for amd64 and arm64, and ci.yml's `native` job on windows-latest is the first
+# thing that runs their tests. What is no longer a gap is sound itself: internal/audio has a native
+# waveOut driver, so an unzipped .exe plays without FFmpeg or anything else installed, and
+# `-audio ffplay` is the way round it if the driver misbehaves (docs/IMPROVEMENTS.md 2.48).
 
 name: Release
 
@@ -353,17 +353,18 @@ jobs:
           inside the .exe, which is why it is 15 MB. A console window opens alongside the game;
           that is where it says which house it loaded and what it could not find.
 
-          TWO THINGS TO EXPECT ON WINDOWS.
+          ONE THING TO EXPECT ON WINDOWS.
 
-          There is no sound unless FFmpeg or SoX is installed and on your PATH. The port has no
-          audio driver of its own yet -- it pipes the mix to whichever external player it finds,
-          and Windows ships none of them. Everything else works without one, and
-          "${cmd} -wav out.wav" writes what you would have heard to a file.
+          This is the first Windows release, and the code behind it has had far less wear than
+          the Linux equivalent: the window, the keyboard and the sound were all written on
+          Linux, which cannot run any of them, so you may well be the first person to see it
+          draw or hear it play. If something looks wrong it probably is, and a bug report with
+          the console output in it is worth a great deal. See README.md.
 
-          This is the first Windows release, and the window code behind it has had far less wear
-          than the Linux equivalent: it was written on Linux, which cannot run it, so you may
-          well be the first person to see it draw. If something looks wrong it probably is, and
-          a bug report with the console output in it is worth a great deal. See README.md.
+          Sound needs nothing installed -- the game talks to Windows' own audio directly. If it
+          is silent or stutters, "${cmd} -audio list" shows what this machine has, "${cmd}
+          -audio ffplay" uses FFmpeg instead if you have it, and "${cmd} -wav out.wav" writes
+          what you should have heard to a file.
           TXT
             else
               cat > "$stage/HOW-TO-RUN.txt" <<TXT
@@ -482,16 +483,18 @@ jobs:
 
           Two things, both honest rather than apologetic.
 
-          **The window code has never been run.** It was written on an offline Linux machine
-          with no Windows to test on. It compiles for x86-64 and ARM64, its keyboard and
-          scaling logic are unit-tested, and CI compiles and tests it on a Windows runner —
-          but until you start it, nobody has watched it draw a frame. If it misbehaves, a bug
-          report with the console output in it is genuinely useful.
+          **The Windows code has never been run.** The window, the keyboard and the sound were
+          all written on an offline Linux machine with no Windows to test on. They compile for
+          x86-64 and ARM64, the keyboard, scaling and audio ABI are unit-tested, and CI
+          compiles and tests them on a Windows runner — but until you start it, nobody has
+          watched it draw a frame or heard it play a note. If it misbehaves, a bug report with
+          the console output in it is genuinely useful.
 
-          **There is no sound** unless FFmpeg or SoX is installed and on your PATH. The port
-          has no audio driver of its own yet; it pipes the mix to an external player, and
-          Windows ships none. Everything else works regardless, and `-wav out.wav` writes what
-          you would have heard to a file.
+          **Sound needs nothing installed.** The game carries its own `waveOut` driver and
+          talks to Windows' audio directly — no FFmpeg, no redistributable. `-audio list` shows
+          what this machine has, `-audio ffplay` uses FFmpeg instead if the driver gives you
+          trouble and you have it, and `-wav out.wav` writes what you should have heard to a
+          file.
 
           ### Running it
 

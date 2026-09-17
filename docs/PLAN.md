@@ -690,6 +690,7 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     `pw-play`, `paplay`, `aplay`, `ffplay` or `play`, whichever exists — which is a defensible
     answer on Linux and no answer at all on Windows, where nothing equivalent is in the box. It is
     the one part of the audio path Stage 4 cannot cross-compile (`docs/IMPROVEMENTS.md` 2.48).
+    *Since closed: Stage 4 wrote the `waveOut` sink, and the seam that lets a platform have one.*
 
 **1.7 The shell** ✅ *done*
 - Splash, menus, house selection, preferences, scoreboard, game over.
@@ -1282,10 +1283,16 @@ this early.
   `WM_CHAR` for typed text. No cgo, so it cross-compiles from this box, and the nearest-neighbour
   expansion is shared with the X11 backend as `platform.Expand` — extracted precisely so that the
   arithmetic in the Windows blit path can be unit-tested on a machine with no Windows.
-- **Not done.** Audio. `winmm`'s `waveOutWrite`, or more likely WASAPI, is still owed; Windows
-  ships none of the five external players the sink pipes to, so a Windows player has sound only if
-  FFmpeg or SoX is on their `PATH`. Stated in the release notes and each Windows archive's
-  `HOW-TO-RUN.txt` rather than left to be discovered (`docs/IMPROVEMENTS.md` 2.48).
+- **Done, and it was the other half of the same decision.** Audio: `internal/audio/waveout_windows.go`
+  is a winmm `waveOut` sink in pure `syscall` — mono s16le at 22255 Hz through `WAVE_MAPPER`, eight
+  blocks in rotation, `WHDR_DONE` polled by one goroutine, a tenth of a second of silence written
+  ahead of the first sample so the device does not starve. Windows ships none of the five external
+  players the pipe sink knows, so shipping an archive that drew and could not make a noise was the
+  same mistake as shipping one that could not draw. `internal/audio/device.go` is the seam:
+  `Open` takes the native device where a platform has one and the players otherwise, which is what
+  Stage 6 will want for CoreAudio (`docs/IMPROVEMENTS.md` 2.48). WASAPI was considered and rejected —
+  five COM interfaces and a render thread against seven functions and a struct, in code nobody here
+  can run, for latency this game cannot use.
 - *Acceptance, and how much of it is met:* `make cross-windows` produces the binary, `go vet`
   passes for `windows/amd64` and `windows/arm64`, and `ci.yml`'s `native` job compiles it with a
   Windows toolchain and then runs `-frames 300 -bench` on `windows-latest`. **Not met:** frame

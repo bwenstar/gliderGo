@@ -9,8 +9,11 @@
 # Expect the first push to need a correction or two, most likely in an action version.
 #
 # The `native` job's Windows half is the exception to "verified locally": nothing here can run a
-# Windows binary, so that job is the first execution of internal/platform/win32 in existence. Its
-# bench step is deliberately continue-on-error for that reason.
+# Windows binary, so that job is the first execution of internal/platform/win32 and of the waveOut
+# audio sink in existence. Its bench step is deliberately continue-on-error for that reason. Its
+# `go test` step is not, because internal/audio's Windows tests were written to be safe on a runner
+# with no sound card: they load winmm and resolve its entry points, which either works or is a real
+# defect worth a red X.
 #
 # WHAT THIS DOES NOT DO. Releases are release.yml's job, not this one, and the split is
 # deliberate: this workflow runs on pushes to main and on pull requests, and release.yml runs on
@@ -195,9 +198,10 @@ jobs:
   # real path separator, which is the part cross-compiling from Linux cannot check.
   #
   # On Windows it is more than that, and it is the most important job in this file. The win32
-  # backend was written on an airgapped Linux host with no Windows to run it on, so THIS is where
-  # it is compiled by a Windows toolchain for the first time and, in the bench step at the end,
-  # executed at all for the first time. See internal/platform/win32/win32.go's own caveat.
+  # backend and the waveOut audio sink were written on an airgapped Linux host with no Windows to
+  # run them on, so THIS is where they are compiled by a Windows toolchain for the first time and,
+  # in the test and bench steps, executed at all for the first time. See the caveats those two
+  # files carry: internal/platform/win32/win32.go and internal/audio/waveout_windows.go.
   #
   # `make` is not installed on windows-latest, so these steps call go and python directly
   # rather than through the Makefile.
@@ -222,6 +226,12 @@ jobs:
       # Windows and macOS without an extraction step -- which is a stronger check than it used
       # to be: it reads 1994 binary data through a real filesystem on both platforms.
       #
+      # On Windows it also runs internal/audio's waveout_windows_test.go, which is the first
+      # execution of the audio sink's loader anywhere: GetSystemDirectoryW, an absolute-path load
+      # of winmm.dll and a FindProc for each of the seven waveOut entry points. A hosted runner
+      # has no sound card, so the test that opens the device skips there and only a machine with
+      # one plays (silence) -- but a misspelt export or a mishandled path length fails here.
+      #
       # The extractor itself is stdlib-only python3 that has only ever run on Linux, so it is
       # run here too, best-effort: a platform-specific path or newline bug in it is plausible
       # and is a real finding for docs/IMPROVEMENTS.md rather than a reason to hide the step.
@@ -243,6 +253,11 @@ jobs:
       # house and finds one inside the .exe it just built, so this is also where a house is loaded
       # out of the embedded archive on Windows and played -- `go test ./assets` above only proves
       # the archive opens there.
+      #
+      # The bench opens audio too, and on a runner with no sound card that is worth as much as the
+      # opposite would be: it is the path a player on a machine without one takes, so the log
+      # should show the game reporting no output and playing on rather than refusing to start.
+      # `-audio list` before it is the cheap version of the same question, printed on its own line.
       - name: On-screen bench, the first run of the win32 backend (best effort)
         if: matrix.os == 'windows-latest'
         continue-on-error: true
@@ -250,6 +265,7 @@ jobs:
         run: |
           go build -o glidergo.exe ./cmd/glidergo
           .\glidergo.exe -version
+          .\glidergo.exe -audio list
           .\glidergo.exe -frames 300 -bench
 
       - name: Extract assets to a temp tree (best effort)

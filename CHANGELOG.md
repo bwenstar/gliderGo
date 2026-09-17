@@ -15,6 +15,59 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Windows makes a noise on its own (2026-09-17)
+
+The Windows archives drew and were silent, because the port had no audio driver at all: it encodes
+the mix as raw PCM and pipes it to whichever command-line player the machine has, and Windows ships
+none of the five it knows. The advice in the release notes — install FFmpeg or SoX — was true and was
+not good enough for a game. `docs/IMPROVEMENTS.md` 2.48 is now closed on Windows.
+
+- `internal/audio/waveout_windows.go` is a winmm `waveOut` sink in pure `syscall`: mono s16le at
+  22255 Hz through `WAVE_MAPPER`, which resamples, so the odd rate the 1994 samples want is not the
+  device's problem. Eight blocks rotate, one goroutine owns the device, and `WHDR_DONE` is polled
+  every 4 ms — no cgo, no COM, no redistributable, and nothing to install.
+- `internal/audio/device.go` is the seam it arrives through. `Open` tries the native device first and
+  the external players second and nothing above it learns which it got, which is the job
+  `internal/platform/backend` does for the display. Linux keeps the subprocess deliberately: ALSA,
+  PulseAudio and PipeWire are C libraries, there is no cgo on the audio path, and a player that dies
+  takes nothing with it. macOS at Stage 6 wants a CoreAudio sink behind the same seam.
+- **A tenth of a second of silence goes in before the first mixed sample.** The device consumes at
+  its own crystal rate while the game produces what the wall clock says is due, so a device with no
+  cushion starves on the first hiccup — the difference between sound and sound with clicks in it. It
+  is deliberate lag bought as underrun immunity, and the sink does not try to rebuild it later,
+  because inserted silence is latency that never comes back. The gaps are counted instead and the
+  shutdown report has a fourth number: `4 gaps at waveout`.
+- **winmm is loaded by absolute path**, via `GetSystemDirectoryW`. It is not on Windows' KnownDLLs
+  list and not in Go's own system-DLL set, so a bare name would search the directory the executable
+  was started from first — and the release archive tells the player to run the binary from the
+  directory they unpacked it into, which is exactly the arrangement a planted `winmm.dll` wants.
+- **The blocks the device reads are package-level arrays.** `waveOutWrite` keeps the pointer it is
+  handed and reads that memory from a driver thread afterwards, which is the one case Go's rules for
+  pointers passed to foreign code do not cover; a global is the only allocation whose address the
+  language cannot ever change. `runtime.Pinner` was tried first and rejected — a Pinner collected
+  without `Unpin` panics the process by design, turning a bookkeeping slip into a crash in a shipped
+  game — and `VirtualAlloc` second, because reading it back needs a pointer made out of an integer,
+  which is what `go vet`'s `unsafeptr` check exists to object to.
+- `-audio list` now lists outputs rather than players and names `waveout` first where it exists;
+  `-audio waveout` insists on it. A mistyped name is still an error rather than a silent fallback,
+  and the message now lists the device alongside the players so the reply contains the spelling.
+- `reportAudio` looks inside a `Tee`, which fixes a small blindness the new counter exposed: with
+  `-audio` and `-wav` together the drop counter went unreported, so the one run that was recording
+  *because* the sound was wrong was the run whose numbers were missing.
+- **It has never been run here**, like everything else Windows in this port, and it says so at the top
+  of the file. What is checked from Linux is the half where a mistake is silent:
+  `internal/audio/waveout.go` holds the two structure layouts, the constants and the MMRESULT table
+  with no build tag, and `waveout_test.go` asserts every `WAVEHDR` and `WAVEFORMATEX` offset, the C
+  structure's 18 declared bytes inside Go's 20, the alignment the atomic `WHDR_DONE` load needs, and
+  the tuning constants against each other. `-audio ffplay` and `-wav out.wav` remain the two ways
+  round it.
+- **CI runs the rest of it**, which is new: `waveout_windows_test.go` loads winmm out of the system
+  directory and resolves all seven entry points on a real Windows, so a misspelt export or a
+  mishandled path length is a failed test rather than a silent evening. On a machine that has a sound
+  card the same file opens the device and plays twelve frames of silence through the whole rotation —
+  prepare, write, poll, reclaim, reset, close — and on a hosted runner, which has no card, that half
+  skips and says so.
+
 ### The assets ride inside the binaries (2026-09-17)
 
 A downloaded `glidergo` now runs from anywhere, with nothing beside it. `docs/IMPROVEMENTS.md` 5.3

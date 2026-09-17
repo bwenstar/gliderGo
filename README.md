@@ -49,8 +49,9 @@ the window.
 The Windows half comes with a caveat that is worth stating plainly rather than in a footnote: it
 was written on an offline Linux machine that cannot run it, so its window creation, message pump
 and blit had never been executed by anybody at the point of writing. CI compiles and benches it on
-a Windows runner; a person running it is still the real test. Sound on Windows needs FFmpeg or SoX
-on your `PATH`, for the reason in the audio note further down.
+a Windows runner; a person running it is still the real test. The same is true of its sound, which
+is now a `waveOut` driver in the binary rather than a missing feature — see the audio note further
+down for what to do if it misbehaves.
 
 ## Where it is up to
 
@@ -63,10 +64,14 @@ Windows archives which could not draw was the wrong thing to ship. It is pure `s
 the pixels, `WM_KEYDOWN` for the glider, `WM_CHAR` for typing a high-score name on a keyboard
 layout this port has never seen — and it needs no cgo, so it cross-compiles from Linux.
 
+**Windows sound came with it**, for the same reason: a Windows archive that draws and cannot make a
+noise is half a game. The port now carries a `waveOut` driver (pure `syscall` again, no cgo), so an
+unzipped `.exe` plays without FFmpeg or anything else installed.
+
 Next is Stage 2, new houses in the spirit of the originals and selectable alongside them, and
 then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
-Then the house editor the original had (Stage 5), macOS and possibly mobile (Stage 6), and the
-rest of Stage 4: a native audio driver, so Windows makes a noise without FFmpeg installed.
+Then the house editor the original had (Stage 5), and macOS and possibly mobile (Stage 6), which
+needs a CoreAudio sink behind the same seam the Windows one arrived through.
 
 - [docs/PLAN.md](docs/PLAN.md) — the staged plan and the decisions behind it
 - [CHANGELOG.md](CHANGELOG.md) — what each stage actually landed
@@ -120,15 +125,19 @@ have no Go,
 `./scripts/bootstrap-dev-env.sh` installs one into your home directory without root; see
 [docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1 for that and §2 for other distributions.
 
-There is no audio driver in here on purpose. The mix is piped as raw PCM to whichever of
-`pw-play`, `paplay`, `aplay`, `ffplay` or `play` your machine has; `-audio list` shows which were
-found, `-volume 0..7` is the original's range, and with no player at all the game runs silently.
+Sound takes the shortest road each platform offers, and `-audio list` prints what yours has, best
+first. On Windows that is a `waveOut` driver built into the binary — no FFmpeg, no redistributable,
+nothing to install. On Linux the mix is piped as raw PCM to whichever of `pw-play`, `paplay`,
+`aplay`, `ffplay` or `play` you already have, which is deliberate rather than lazy: every desktop
+ships at least one, they all read s16le mono on stdin, and a player that crashes takes nothing with
+it, where an ALSA callback lives inside the game's address space. `-volume 0..7` is the original's
+range, `-audio waveout` or `-audio aplay` insists on one output, and `-wav out.wav` writes the mix
+to a file whether or not anything is playing it. With no output at all the game runs silently rather
+than refusing to start.
 
-That answer is a good one on Linux and a poor one on Windows, which ships none of the five. Two
-of them travel — FFmpeg's `ffplay` and SoX's `play` — so a Windows machine with either on its
-`PATH` has sound, and one without runs silent until the port grows a WASAPI sink
-([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48). `-wav out.wav` writes the mix to a file
-either way.
+The Windows sink has the same caveat as the Windows backend: it compiles, its ABI is unit-tested,
+and it has never been run by anybody. If it misbehaves, `-audio ffplay` takes the external-player
+road instead ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48).
 
 ## Controls
 

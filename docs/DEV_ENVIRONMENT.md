@@ -115,7 +115,7 @@ Everything it does need is a host tool:
 | **git** | any | the version string only | the binary reports `version=dev` |
 | **make** | any | convenience | use `go build ./cmd/glidergo` directly |
 | `libXext` headers | — | *nothing* — MIT-SHM is deliberately unused | nothing |
-| `libasound2` headers | — | a future native ALSA sink | nothing today; audio mixes to WAV |
+| `libasound2` headers | — | *nothing* — a native ALSA sink is deliberately not the plan; see `internal/audio/device.go` | nothing |
 | `libsdl2` headers | — | the future macOS/iOS/Android backend (stage 6) | nothing today |
 | `xvfb` | — | running the on-screen bench in CI | use `make headless` instead |
 
@@ -260,7 +260,8 @@ Rationale for each backend:
 
 - **x11** — zero downloads, already proven at 533 fps. Ships first.
 - **win32** — Windows can be reached with *pure Go* (`syscall` to `user32.dll`/`gdi32.dll`,
-  `StretchDIBits` for the blit, `waveOutWrite` for audio). No cgo, no mingw, and it
+  `StretchDIBits` for the blit, and `waveOutWrite` to `winmm.dll` for audio — both now written).
+  No cgo, no mingw, and it
   cross-compiles from this box with `GOOS=windows go build`. This is the cheapest possible
   route to the user's "Windows later" goal given we cannot fetch SDL.
 - **sdl2** — the one dependency we *can* obtain (as a C library via `.deb`, plus source for
@@ -272,9 +273,20 @@ Rationale for each backend:
   reference PNGs.
 
 Audio: the original uses Mac Sound Manager `'snd '` resources (see
-`docs/analysis/audio.md`). Since this box has no `/dev/snd`, the plan is to decode `'snd '`
-to raw PCM once, at asset-extraction time, and have the null sink write mixed output to WAV
-so correctness is verifiable offline; ALSA/`waveOut`/SDL sinks are then thin.
+`docs/analysis/audio.md`). Since this box has no `/dev/snd`, `'snd '` is decoded to raw PCM once,
+at asset-extraction time, and the mix can always be written to a WAV so that correctness is
+verifiable offline. Where it goes in a real session is `internal/audio/device.go`'s decision, and
+it differs by platform on purpose:
+
+- **Windows** — `internal/audio/waveout_windows.go`, a winmm `waveOut` sink in pure `syscall`. No
+  cgo and nothing to install, which is the whole point: an unzipped `.exe` makes a noise.
+  Untested, like everything else Windows here.
+- **Linux** — no driver, deliberately. The mix is piped as raw PCM to `pw-play`, `paplay`,
+  `aplay`, `ffplay` or `play`, whichever exists. ALSA, PulseAudio and PipeWire are C libraries and
+  there is no cgo on the audio path; a subprocess is both simpler and safer, since a player that
+  dies takes nothing with it.
+- **macOS** — nothing yet, and it ships none of those five players either, so Stage 6 owes it a
+  CoreAudio sink behind the same seam.
 
 ---
 

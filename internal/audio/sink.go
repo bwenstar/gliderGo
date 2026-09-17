@@ -19,11 +19,13 @@ package audio
 // milliseconds after the frame that asked for it, depending on which player was found. For
 // Glider PRO -- where the loudest thing in the game is a glider being shredded, and nothing
 // depends on sub-frame audio timing -- that is fine, and it stays fine unless the port ever
-// wants sample-accurate feedback, which it never will. If a platform's answer turns out to be
-// worse than this -- Windows ships none of the five in the box, and two of them are installable
-// there rather than absent, see installHint -- the Sink interface is two methods wide and a
-// native driver can be dropped in behind it without the engine knowing. See
-// docs/IMPROVEMENTS.md 2.48.
+// wants sample-accurate feedback, which it never will.
+//
+// Where it is *not* fine is Windows, which ships none of the five, and the answer there was to
+// write the driver rather than to widen the advice: device.go is the seam and waveout_windows.go
+// is the winmm sink behind it. So this file is now the Linux answer and the fallback everywhere,
+// which is also why installHint still has a Windows branch -- reaching it there means the native
+// device was tried first and could not be opened.
 
 import (
 	"bytes"
@@ -218,7 +220,7 @@ func OpenPipe(prefer string) (*Pipe, error) {
 			}
 		}
 		if list == nil {
-			return nil, fmt.Errorf("audio: unknown player %q; known players are %s", prefer, strings.Join(playerNames(), ", "))
+			return nil, fmt.Errorf("audio: unknown output %q; known outputs are %s", prefer, strings.Join(outputNames(), ", "))
 		}
 	}
 
@@ -263,13 +265,14 @@ func OpenPipe(prefer string) (*Pipe, error) {
 // Three of the five are Linux sound stacks and mean nothing on Windows: telling somebody there to
 // install ALSA is worse than saying nothing, because they will go and try. The other two travel.
 // ffplay is FFmpeg's and `play` is SoX's, both ship official Windows builds, and exec.LookPath
-// finds `ffplay.exe` from the bare name because Windows consults PATHEXT -- so the honest Windows
-// answer is not "no sound ever", it is "one of these two, on your PATH". Whether either then plays
-// raw PCM on stdin there is untested; nothing in this port has been run on Windows at all (see
-// internal/platform/win32). A native WASAPI sink is docs/IMPROVEMENTS.md 2.48.
+// finds `ffplay.exe` from the bare name because Windows consults PATHEXT.
+//
+// Reaching this on Windows now means something more specific than it used to, and the wording says
+// so: Open tries the built-in waveOut device first (device.go), so if this text is on the screen
+// then that device is missing or busy and an external player is the way round it.
 func installHint() string {
 	if runtime.GOOS == "windows" {
-		return "install FFmpeg (ffplay) or SoX (play) and put it on your PATH"
+		return "the built-in output is unavailable, so install FFmpeg (ffplay) or SoX (play) and put it on your PATH"
 	}
 	return "install one of " + strings.Join(playerNames(), ", ") +
 		" (PipeWire, PulseAudio, ALSA, FFmpeg or SoX)"

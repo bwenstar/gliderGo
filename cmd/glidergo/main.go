@@ -13,7 +13,7 @@
 //	go run ./cmd/glidergo -two                     # two gliders on one keyboard
 //	go run ./cmd/glidergo -bench                   # 300 frames unpaced, report the rate
 //	go run ./cmd/glidergo -shot /tmp/splash.png    # draw a screen to a PNG and exit
-//	go run ./cmd/glidergo -audio list              # which external players this machine has
+//	go run ./cmd/glidergo -audio list              # which sound outputs this machine has
 //	go run ./cmd/glidergo -sound=false             # the original's dontLoadSounds
 //	go run ./cmd/glidergo -wav /tmp/session.wav    # record the mix as well as play it
 //	go run ./cmd/glidergo -prefs none              # this build's defaults, saving nothing
@@ -237,7 +237,7 @@ func parseFlags() (*options, error) {
 	flag.StringVar(&o.sounds, "sounds", "", "directory of extracted sound assets to use instead of the ones built in")
 	flag.BoolVar(&o.music, "music", true, "play the score as well as the effects")
 	flag.IntVar(&o.volume, "volume", 7, "output volume, 0 to 7; 0 is silence and also stops the score")
-	flag.StringVar(&o.audioOut, "audio", "", "external player to pipe the mix to, or \"list\" for what this machine has")
+	flag.StringVar(&o.audioOut, "audio", "", "sound output to use, or \"list\" for what this machine has")
 	flag.StringVar(&o.wav, "wav", "", "write the mix to this WAV file")
 
 	flag.BoolVar(&o.showVersion, "version", false, "print the build, the compiled-in backend and where the assets are coming from, then exit")
@@ -300,12 +300,12 @@ func run() error {
 	// been told there is no sound wants the answer now, not after a megabyte of
 	// samples has loaded.
 	if o.audioOut == "list" {
-		found := audio.Players()
+		found := audio.Outputs()
 		if len(found) == 0 {
-			fmt.Println("glidergo: no audio player found; -wav writes a file instead")
+			fmt.Println("glidergo: no sound output found; -wav writes a file instead")
 			return nil
 		}
-		fmt.Printf("glidergo: audio players on this machine, best first: %s\n",
+		fmt.Printf("glidergo: sound outputs on this machine, best first: %s\n",
 			strings.Join(found, " "))
 		return nil
 	}
@@ -760,11 +760,13 @@ func writePNG(path string, s *render.Surface, scale int) error {
 //
 // Three cases, and the middle one is the one worth stating:
 //
-//	-wav alone          write the file and look for no player. Recording is the intent, and
+//	-wav alone          write the file and open no output. Recording is the intent, and
 //	                    starting a player as well would be a surprise on a build machine.
 //	-audio and -wav     both, through a Tee: play it and keep what was played.
-//	neither             the first player that exists. An empty answer is not an error here --
-//	                    this host has no sound card at all -- so the caller warns and plays on.
+//	neither             the best output there is -- the native device where the platform has
+//	                    one, the first installed player otherwise (audio.Open). An empty answer
+//	                    is not an error here, because a host can genuinely have no sound card,
+//	                    so the caller warns and plays on.
 func openSink(prefer, wav string) (audio.Sink, string, error) {
 	var sinks []audio.Sink
 	var where []string
@@ -779,17 +781,17 @@ func openSink(prefer, wav string) (audio.Sink, string, error) {
 	}
 
 	if prefer != "" || wav == "" {
-		pipe, err := audio.OpenPipe(prefer)
+		out, err := audio.Open(prefer)
 		if err != nil {
 			if len(sinks) == 0 {
 				return &audio.Discard{}, "none", err
 			}
 			// A WAV is already open, so the session is not silent and the missing
-			// player is worth less than the recording: report it and keep the file.
+			// output is worth less than the recording: report it and keep the file.
 			return sinks[0], where[0], err
 		}
-		sinks = append(sinks, pipe)
-		where = append(where, pipe.Name())
+		sinks = append(sinks, out)
+		where = append(where, out.Name())
 	}
 
 	switch len(sinks) {
@@ -804,12 +806,13 @@ func openSink(prefer, wav string) (audio.Sink, string, error) {
 
 // reportAudio is the audio half of the shutdown summary.
 //
-// Three of these numbers are the ones a bug report needs and cannot get any other way.
+// Four of these numbers are the ones a bug report needs and cannot get any other way.
 // *refused* is the channel policy doing its job -- three channels and a busy room -- and a
 // large number there is not a defect. *skipped* is the frame loop having stalled for more than
 // four frames, which is a game problem wearing an audio problem's clothes. *dropped* is the
-// external player having stopped reading, which is the player's problem or the machine's. They
-// have three different fixes, which is why they are three different counters.
+// output having stopped taking samples, which is the device's problem or the machine's, and
+// *gaps* is the sound device having run dry, which is the same stall heard from the far end.
+// They have four different fixes, which is why they are four different counters.
 func reportAudio(eng *audio.Engine, pump *audio.Pump, sink audio.Sink) {
 	if eng == nil {
 		return
@@ -825,16 +828,42 @@ func reportAudio(eng *audio.Engine, pump *audio.Pump, sink audio.Sink) {
 	if pump.Skipped > 0 {
 		line += fmt.Sprintf(", %.2fs skipped after stalls", float64(pump.Skipped)/audio.Rate)
 	}
-	if p, ok := sink.(*audio.Pipe); ok {
-		if n := p.Dropped(); n > 0 {
-			line += fmt.Sprintf(", %d samples dropped by %s", n, p.Name())
+	if s := streamIn(sink); s != nil {
+		if n := s.Dropped(); n > 0 {
+			line += fmt.Sprintf(", %d samples dropped by %s", n, s.Name())
 		}
-		if err := p.Err(); err != nil {
-			line += fmt.Sprintf(", %s stopped reading (%v)", p.Name(), err)
+		// Underruns are the native device's to report; an external player's buffer hides
+		// them, which is why this asks rather than assuming the method is there.
+		if u, ok := s.(interface{ Underruns() int64 }); ok {
+			if n := u.Underruns(); n > 0 {
+				line += fmt.Sprintf(", %d gaps at %s", n, s.Name())
+			}
+		}
+		if err := s.Err(); err != nil {
+			line += fmt.Sprintf(", %s stopped taking samples (%v)", s.Name(), err)
 		}
 	}
 	if pump.Err != nil {
 		line += fmt.Sprintf(", sink error (%v)", pump.Err)
 	}
 	fmt.Println(line)
+}
+
+// streamIn finds the output inside whatever openSink built, or nil if there is none.
+//
+// The Tee case is the one that matters: with `-audio` and `-wav` together the sink is a Tee, and
+// asking it directly used to find nothing -- so the run that was recording *because* the sound was
+// wrong was the one run whose drop and gap counters went unreported.
+func streamIn(sink audio.Sink) audio.Stream {
+	switch s := sink.(type) {
+	case audio.Stream:
+		return s
+	case audio.Tee:
+		for _, inner := range s {
+			if found := streamIn(inner); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }
