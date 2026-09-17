@@ -2212,6 +2212,35 @@ translator may need to change.
 Worth deciding at Stage 2 rather than later: the new houses will have names, banners and room names
 of their own, and those are content a translator would also want.
 
+### 3.6 A house may leave the player in a room with no way out, and a faithful port cannot tell them why — **note; the linter half is 4.1 at Stage 2, the player-facing half is 3.2's decision**
+
+A player reported being unable to get out of Slumberland's basement and asked whether the port had
+lost a staircase. It had not: this is the house's design, and `internal/game/basement_test.go` now
+pins it. Both basement staircases stand over a four-pixel updraught that is the only lift in the
+room reaching their 112x32 trigger box, both of those vents are authored `initial 0`, and each is
+switched on from somewhere else — "Good Night"'s from the thermostat in "Anabell Lee" next door,
+"Going Up? No?"'s from the one in "Switch Me", two floors up in another suite. Walk down the stairs
+before finding the plate and there is no way back up. The authors knew: the rooms down there are
+called "Going Up? No?", "How do you get out of here?" and "Don't Ask, Just Get Out!".
+
+Two separate things follow, and neither is a fidelity change:
+
+- **The house linter (4.1) should be able to answer the question the player asked.** Reachability is
+  computable from the data — for each room, which exits exist, which are gated by an object state,
+  and which switch anywhere in the house writes that state. A house where a room's only exit is
+  gated by a switch that room cannot reach is worth reporting, not as an error (Slumberland ships
+  that way on purpose) but as a fact an author of a *new* house at Stage 2 almost never intends.
+  The same pass gives the port a real answer to "is this a bug?" for any house, instead of one
+  person reading object tables by hand, which is how this took an afternoon.
+- **Nothing tells the player.** The 1994 game's answer was the manual and word of mouth, and neither
+  ships with a download. This is 3.2's territory — an optional hint that defaults to off — and the cheapest useful
+  version is not a hint system: it is that a player who has lost the last glider in a room with no
+  reachable exit is in a state the game already knows how to detect, and could say something about
+  once 3.2 decides whether the port is allowed to be kind.
+
+Deliberately not fixed: the vents stay off, the trigger box stays 112x32, and the basement stays a
+trap. Stage 1's contract is the 1994 behaviour, and this *is* the 1994 behaviour.
+
 ---
 
 ## 4. Tooling and content

@@ -15,6 +15,35 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Slumberland's basement is a trap on purpose (2026-09-18)
+
+A player went down the stairs in Slumberland and could not get back up, and asked whether the port
+had lost a staircase. It had not. Both basement staircases are entered through a 112x32 box at the
+top of the flight, the only lift in either room that reaches that box is a four-pixel updraught
+standing directly under it, and both of those vents are authored `initial 0` — off at the start of
+every game, because `SetObjectsToDefaults` copies `initial` into `state` (`Play.c:601-660`). Each is
+switched on from another room: "Good Night"'s from the thermostat in "Anabell Lee" next door, which
+is reachable from the basement, and "Going Up? No?"'s from the one in "Switch Me", two floors up in
+another suite, which is not. The room names are the authors' own commentary — "Going Up? No?", "How
+do you get out of here?", "Don't Ask, Just Get Out!".
+
+No behaviour changed. What is new is `internal/game/basement_test.go`, so that the next reader to
+meet the basement finds an argument instead of repeating the investigation:
+
+- The data half rebuilds both trigger boxes and both vent columns from the shipped house and asserts
+  the column ends inside the box, that **no other blower in the room reaches it**, that the vent is
+  off both as authored and after `SetObjectsToDefaults`, and that the switch which opens it lives in
+  the room the house says it does and sends `Toggle`.
+- The flying half puts a glider on the column in "Good Night" twice. With the vent as the house
+  ships it, the room never changes and the glider is lost. With the vent toggled — the poke the
+  thermostat next door sends — the same placement rides it into the staircase and arrives in "Choose
+  Me" on the floor above, in `GliderComingUp`, at the rect derived from `GetUpStairsRightEdge` rather
+  than from this port.
+- `docs/IMPROVEMENTS.md` 3.6 records the two things this *does* argue for and neither is a fidelity
+  change: the Stage 2 house linter (4.1) should compute exit reachability, so the port can answer
+  "is this a bug?" for any house without anybody reading object tables by hand; and telling the
+  player anything at all belongs to 3.2's decision about whether the port may be kind.
+
 ### Windows makes a noise on its own (2026-09-17)
 
 The Windows archives drew and were silent, because the port had no audio driver at all: it encodes
