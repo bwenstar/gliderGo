@@ -23,11 +23,20 @@
 # Running ./glidergo from anywhere else fails to find its houses. That is docs/IMPROVEMENTS.md
 # 5.3, still open; when it is fixed this comment and the release notes below should shrink.
 #
-# WHICH BUILDS CAN ACTUALLY DRAW. Only linux/amd64, and only because it is the one target built
-# with cgo against libX11. Every other target resolves to the null backend -- see `make cross`'s
-# comment for the exact build-tag complements -- which runs the whole game but shows nothing on
-# screen. Those archives are named `-headless` so that nobody downloads the Windows one
-# expecting to play. A win32 backend is stage 4 and SDL2 is stage 6; see docs/PLAN.md.
+# WHICH BUILDS CAN ACTUALLY DRAW. Three of the six: linux/amd64 through X11, and both windows
+# targets through GDI. The linux one is built with cgo against libX11; the windows ones need no
+# cgo at all, because internal/platform/win32 is pure syscall. The remaining three -- both darwin
+# targets and cross-compiled linux/arm64 -- resolve to the null backend (see `make cross`'s comment
+# for the build-tag complements), which runs the whole game but shows nothing on screen, and those
+# archives are named `-headless` so nobody downloads one expecting to play. macOS is stage 6.
+#
+# The two windows archives carry a caveat the linux one does not, and it belongs in the release
+# notes rather than in a bug report: that backend has never been executed. It was written on an
+# airgapped Linux host with no Windows to run it on, it compiles and vets for amd64 and arm64, and
+# ci.yml's `native` job on windows-latest is the first thing that runs its tests. Sound is the
+# other gap -- the audio sink pipes PCM to an external player, and Windows ships none, so a
+# Windows player hears nothing unless FFmpeg or SoX happens to be on their PATH
+# (internal/audio/sink.go's installHint, docs/IMPROVEMENTS.md 2.48).
 
 name: Release
 
@@ -204,9 +213,10 @@ jobs:
       # Package one directory per target, each self-contained: binaries at the root, the asset
       # tree at the relative path the binaries look for, and the documents a stranger needs.
       #
-      # linux/amd64 gets the cgo x11 binary -- the only build that can draw -- so the archive a
-      # Linux player downloads is the playable one. Every other target gets the null-backend
-      # build and is named `-headless`, because an archive that silently shows nothing is worse
+      # linux/amd64 gets the cgo x11 binary rather than the CGO_ENABLED=0 one, so the archive a
+      # Linux player downloads is the playable one. The two windows archives are playable from
+      # the plain cross-build, because win32 needs no cgo. The other three get the null-backend
+      # build and are named `-headless`, because an archive that silently shows nothing is worse
       # than one that says so in its filename.
       - name: Package the archives
         id: pkg
@@ -223,8 +233,8 @@ jobs:
           linux-arm64||-headless|tar
           darwin-amd64||-headless|tar
           darwin-arm64||-headless|tar
-          windows-amd64||-headless|zip
-          windows-arm64||-headless|zip
+          windows-amd64|||zip
+          windows-arm64|||zip
           '
 
           for row in $targets; do
@@ -266,7 +276,8 @@ jobs:
 
             # How to actually start it, next to the thing you just unpacked. Written for the
             # only reader who matters here: somebody who has this archive open and does not
-            # know that five of the six cannot draw.
+            # know that three of the six cannot draw, or that one of the three that can has
+            # never been run by anybody.
             #
             # A headless archive must NOT tell its reader to run the bare binary. The null
             # backend delivers no quit event, and without -frames the shell loop has no exit
@@ -306,7 +317,32 @@ jobs:
 
           Either way, run it from this directory: it looks for assets/extracted beside itself.
 
-          A Windows build that draws is stage 4 and macOS is stage 6. See README.md.
+          The linux-amd64 and windows archives do draw. On Linux arm64, building from source on
+          the machine itself gives you the X11 backend -- this archive is headless only because
+          it was cross-compiled without cgo. macOS is stage 6. See README.md.
+          TXT
+            elif [ "$format" = zip ]; then
+              cat > "$stage/HOW-TO-RUN.txt" <<TXT
+          Open PowerShell or Command Prompt in this directory and run:
+
+              ${cmd}
+
+          Double-clicking glidergo.exe in Explorer works too -- Explorer starts a program in its
+          own directory, which is what matters here, because the game looks for assets/extracted
+          beside itself. A console window opens alongside the game; that is where it says which
+          house it loaded and what it could not find.
+
+          TWO THINGS TO EXPECT ON WINDOWS.
+
+          There is no sound unless FFmpeg or SoX is installed and on your PATH. The port has no
+          audio driver of its own yet -- it pipes the mix to whichever external player it finds,
+          and Windows ships none of them. Everything else works without one, and
+          "${cmd} -wav out.wav" writes what you would have heard to a file.
+
+          This is the first Windows release, and the window code behind it has had far less wear
+          than the Linux equivalent: it was written on Linux, which cannot run it, so you may
+          well be the first person to see it draw. If something looks wrong it probably is, and
+          a bug report with the console output in it is worth a great deal. See README.md.
           TXT
             else
               cat > "$stage/HOW-TO-RUN.txt" <<TXT
@@ -405,11 +441,27 @@ jobs:
 
           | Archive | Plays on screen? |
           |---|---|
-          | `linux-amd64` | **Yes** — the only build with a window backend (X11). |
-          | everything marked `headless` | No. It runs the whole game but draws nothing yet. |
+          | `linux-amd64` | **Yes** — X11 backend, built against libX11. |
+          | `windows-amd64`, `windows-arm64` | **Yes** — GDI backend, new here. Read the caveat below. |
+          | anything marked `headless` | No. It runs the whole game but draws nothing yet. |
 
-          A Windows backend is stage 4 and macOS is stage 6. The headless builds are still
-          useful: they run houses, take `-shot` screenshots and dump frames as PNGs.
+          macOS is stage 6. The headless builds are still useful: they run houses, take `-shot`
+          screenshots and dump frames as PNGs.
+
+          ### If you are on Windows, read this first
+
+          Two things, both honest rather than apologetic.
+
+          **The window code has never been run.** It was written on an offline Linux machine
+          with no Windows to test on. It compiles for x86-64 and ARM64, its keyboard and
+          scaling logic are unit-tested, and CI compiles and tests it on a Windows runner —
+          but until you start it, nobody has watched it draw a frame. If it misbehaves, a bug
+          report with the console output in it is genuinely useful.
+
+          **There is no sound** unless FFmpeg or SoX is installed and on your PATH. The port
+          has no audio driver of its own yet; it pipes the mix to an external player, and
+          Windows ships none. Everything else works regardless, and `-wav out.wav` writes what
+          you would have heard to a file.
 
           ### Running it
 
@@ -422,8 +474,12 @@ jobs:
           ./glidergo
           ```
 
+          On Windows, unzip and either double-click `glidergo.exe` or run `.\glidergo.exe`
+          from a shell opened in that folder. Each archive has a `HOW-TO-RUN.txt` saying the
+          same thing.
+
           Linux needs libX11 at run time (`libx11-6`, present on any desktop install) and a
-          24- or 32-bit display.
+          24- or 32-bit display. Windows needs nothing at all — no runtime, no redistributable.
 
           ### Verifying the download
 

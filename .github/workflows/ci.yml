@@ -8,6 +8,10 @@
 # the depth-24 requirement the x11 backend imposes was confirmed against a nested X server.
 # Expect the first push to need a correction or two, most likely in an action version.
 #
+# The `native` job's Windows half is the exception to "verified locally": nothing here can run a
+# Windows binary, so that job is the first execution of internal/platform/win32 in existence. Its
+# bench step is deliberately continue-on-error for that reason.
+#
 # WHAT THIS DOES NOT DO. Releases are release.yml's job, not this one, and the split is
 # deliberate: this workflow runs on every branch push and pull request, and release.yml runs on
 # `v*` tags -- which this one does not match, so tagging deliberately does not fire the whole CI
@@ -123,8 +127,9 @@ jobs:
         run: make assets-check OUT="$RUNNER_TEMP"
 
   # ---------------------------------------------------------------------------
-  # Every target a release would ship. Compiles only -- see `make cross`'s comment for why a
-  # green cross-build is not evidence that the target can draw anything yet.
+  # Every target a release would ship. Compiles only: the windows rows do contain a real backend
+  # now, but a green build says it compiles and nothing more -- see `make cross`'s comment, and
+  # the `native` job below for the one that actually runs it.
   # ---------------------------------------------------------------------------
   cross:
     runs-on: ubuntu-latest
@@ -142,10 +147,16 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Windows and macOS, natively. The port has no backend for either yet, so this proves the
-  # portable four-fifths: game logic, house loader, asset pipeline, shell composition, scores,
-  # replay. On a real filesystem with a real path separator, which is the part cross-compiling
-  # from Linux cannot check.
+  # Windows and macOS, natively. Two different jobs wearing one matrix.
+  #
+  # On macOS the port still has no backend, so this proves the portable four-fifths: game logic,
+  # house loader, asset pipeline, shell composition, scores, replay. On a real filesystem with a
+  # real path separator, which is the part cross-compiling from Linux cannot check.
+  #
+  # On Windows it is more than that, and it is the most important job in this file. The win32
+  # backend was written on an airgapped Linux host with no Windows to run it on, so THIS is where
+  # it is compiled by a Windows toolchain for the first time and, in the bench step at the end,
+  # executed at all for the first time. See internal/platform/win32/win32.go's own caveat.
   #
   # `make` is not installed on windows-latest, so these steps call go and python directly
   # rather than through the Makefile.
@@ -175,6 +186,29 @@ jobs:
       # and is a real finding for docs/IMPROVEMENTS.md rather than a reason to hide the step.
       # It writes to a temp tree so it cannot dirty the checked-out assets.
       - run: go test ./...
+
+      # The first time the win32 backend runs anywhere: build the game, open a real window and
+      # push 300 frames through StretchDIBits. Everything before this step only proves it
+      # compiles.
+      #
+      # Best-effort on purpose, and the reason is not timidity. A hosted Windows runner is not a
+      # desktop -- the agent runs as a service, so whether CreateWindowExW and a window DC behave
+      # as they do in front of a logged-in user is exactly the sort of thing that cannot be
+      # settled from here. If this step fails, the interesting thing is its log, not a red X on a
+      # pull request that has nothing to do with Windows. If it *passes*, the backend has drawn.
+      #
+      # -frames bounds the run so it cannot hang waiting for a quit event that no automated
+      # session will ever send; timeout-minutes is the belt to that braces. The bench needs a
+      # house, which the committed assets provide, and it must run from the repo root because the
+      # asset flags default to repo-relative paths.
+      - name: On-screen bench, the first run of the win32 backend (best effort)
+        if: matrix.os == 'windows-latest'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          go build -o glidergo.exe ./cmd/glidergo
+          .\glidergo.exe -version
+          .\glidergo.exe -frames 300 -bench
 
       - name: Extract assets to a temp tree (best effort)
         continue-on-error: true

@@ -41,8 +41,16 @@ It is standard-library Go with no third-party modules at all — no game engine,
 audio library. There is no `go.sum` here because there is nothing to lock, and a test asserts it
 stays that way.
 
-Linux/X11 is the only thing that draws so far. Windows, macOS and arm64 cross-compile and run
-headless, which is most of the port but none of the window.
+Linux/X11 and Windows/GDI both draw. Neither backend needs a game library: X11 is a few hundred
+lines of cgo against Xlib, and Windows is pure `syscall` — no cgo, no redistributable, nothing to
+install. macOS and cross-compiled arm64 still run headless, which is most of the port but none of
+the window.
+
+The Windows half comes with a caveat that is worth stating plainly rather than in a footnote: it
+was written on an offline Linux machine that cannot run it, so its window creation, message pump
+and blit had never been executed by anybody at the point of writing. CI compiles and benches it on
+a Windows runner; a person running it is still the real test. Sound on Windows needs FFmpeg or SoX
+on your `PATH`, for the reason in the audio note further down.
 
 ## Where it is up to
 
@@ -50,10 +58,15 @@ headless, which is most of the port but none of the window.
 screen and house picker, settings, high scores, saved games, both endings, and two-player on one
 keyboard.
 
+**Stage 4's Windows backend landed early**, out of plan order, because a release that shipped two
+Windows archives which could not draw was the wrong thing to ship. It is pure `syscall` — GDI for
+the pixels, `WM_KEYDOWN` for the glider, `WM_CHAR` for typing a high-score name on a keyboard
+layout this port has never seen — and it needs no cgo, so it cross-compiles from Linux.
+
 Next is Stage 2, new houses in the spirit of the originals and selectable alongside them, and
 then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
-After that, a pure-Go Windows backend with no cgo (Stage 4), the house editor the original had
-(Stage 5), and macOS and possibly mobile (Stage 6).
+Then the house editor the original had (Stage 5), macOS and possibly mobile (Stage 6), and the
+rest of Stage 4: a native audio driver, so Windows makes a noise without FFmpeg installed.
 
 - [docs/PLAN.md](docs/PLAN.md) — the staged plan and the decisions behind it
 - [CHANGELOG.md](CHANGELOG.md) — what each stage actually landed
@@ -64,8 +77,8 @@ After that, a pure-Go Windows backend with no cgo (Stage 4), the house editor th
 Every `v*` tag packages six archives and attaches them to a GitHub Release with a `SHA256SUMS`
 beside them. Each one is self-contained — binaries, the 1994 art and sounds, all 22 houses — and
 has to be run from the directory you unpack it into, because it looks for `assets/extracted`
-there. Only `linux-amd64` can draw to a screen; the other five are marked `headless` and explain
-themselves in the archive.
+there. `linux-amd64` and the two `windows` archives draw to a screen; the other three are marked
+`headless` and explain themselves in the archive. Every archive carries a `HOW-TO-RUN.txt`.
 
 If the Releases page has nothing you want, building it is four seconds after the clone.
 
@@ -88,6 +101,10 @@ house. No extraction step, no asset download, no network, and you do not need py
 `vet` and `test`, so without its pkg-config file even `make check` fails. `make headless` is the
 build that needs neither it nor a display.
 
+On Windows there is no equivalent line, because there is nothing to install: `go build
+./cmd/glidergo` with no cgo produces a `.exe` that draws. `make cross-windows` builds it from
+Linux, and `make cross` builds every target a release ships.
+
 ```bash
 make check      # fmt, vet, tests, build, headless, audio, pixel corpus, cross-compile
 make doctor     # what your machine has and what it is missing
@@ -101,6 +118,12 @@ Run those from the repository root — every default path is relative to it. If 
 There is no audio driver in here on purpose. The mix is piped as raw PCM to whichever of
 `pw-play`, `paplay`, `aplay`, `ffplay` or `play` your machine has; `-audio list` shows which were
 found, `-volume 0..7` is the original's range, and with no player at all the game runs silently.
+
+That answer is a good one on Linux and a poor one on Windows, which ships none of the five. Two
+of them travel — FFmpeg's `ffplay` and SoX's `play` — so a Windows machine with either on its
+`PATH` has sound, and one without runs silent until the port grows a WASAPI sink
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48). `-wav out.wav` writes the mix to a file
+either way.
 
 ## Controls
 
@@ -227,7 +250,7 @@ carries.
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
-| `internal/platform/` | 640×480 software framebuffer, X11 (cgo) and headless (PNG/WAV) backends. |
+| `internal/platform/` | 640×480 software framebuffer; X11 (cgo), Windows (pure `syscall`) and headless (PNG/WAV) backends. |
 | `internal/replay/`, `internal/fidelity/` | The determinism harness and the pixel corpus. |
 | `cmd/glidergo`, `cmd/glidertool` | The game, and the tool above. |
 | `tools/` | The asset extractors: BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. Standard-library python3. |

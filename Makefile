@@ -208,7 +208,7 @@ fidelity:
 		echo "fidelity: no extracted assets -- skipped; the pixels were NOT checked"; $(NO_ASSETS); \
 	fi
 
-## cross-windows: prove the Windows target still compiles (null backend until win32 lands)
+## cross-windows: build the Windows executable (win32 backend, no cgo needed)
 cross-windows:
 	@mkdir -p $(BIN)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(BIN)/glidergo.exe ./cmd/glidergo
@@ -219,17 +219,25 @@ cross-windows:
 #
 # What this proves and what it does not, because a green cross-build is easy to over-read.
 #
-# The two backend selectors are exact logical complements:
+# The three backend selectors are exact logical complements, so every row below resolves to
+# exactly one of them (internal/platform/backend/doc.go has them side by side):
 #
-#   internal/platform/backend/backend_x11.go   //go:build linux && cgo && !nullbackend
-#   internal/platform/backend/backend_null.go  //go:build nullbackend || !cgo || !linux
+#   backend_x11.go     linux && cgo && !nullbackend                              x11
+#   backend_win32.go   windows && !nullbackend                                   win32
+#   backend_null.go    nullbackend || (!linux && !windows) || (!cgo && !windows)  null
 #
-# so every GOOS except linux resolves to the null backend and compiles happily. That makes
-# this target real evidence that the game logic, the house loader, the asset pipeline and the
-# shell are portable -- which is the whole port except the window -- and NO evidence that the
-# target can draw a pixel. Those binaries still do useful work: they run, they take -shot
-# screenshots and they dump frames as PNGs with -dump. They just show nothing on screen.
-# A win32 backend is stage 4 and an SDL2 one is stage 6; see docs/PLAN.md.
+# The windows rows carry a real backend even at CGO_ENABLED=0, because win32 is pure syscall.
+# The darwin rows and cross-compiled linux/arm64 resolve to null and compile happily, which
+# makes those rows real evidence that the game logic, the house loader, the asset pipeline and
+# the shell are portable -- the whole port except the window -- and NO evidence that the target
+# can draw a pixel. Those binaries still do useful work: they run, they take -shot screenshots
+# and they dump frames as PNGs with -dump. They just show nothing on screen. macOS is stage 6;
+# see docs/PLAN.md.
+#
+# A green windows row is a weaker claim than a green linux/amd64 +cgo one, and worth saying
+# plainly: it means the win32 backend compiles and vets for that architecture, not that it has
+# ever opened a window. Nothing on this airgapped Linux host can run it. The first execution
+# is ci.yml's `native` job on windows-latest; see internal/platform/win32/win32.go's own note.
 #
 # linux/arm64 is built with CGO_ENABLED=0 for a different reason: cgo there needs an aarch64
 # cross-compiler, and without one the build dies inside runtime/cgo with
@@ -245,11 +253,11 @@ CROSS_TARGETS := windows/amd64 windows/arm64 darwin/amd64 darwin/arm64 linux/arm
 cross:
 	@mkdir -p $(BIN)/cross
 	@fail=0; for t in $(CROSS_TARGETS); do \
-		os=$${t%%/*}; arch=$${t##*/}; ext=""; \
-		[ "$$os" = windows ] && ext=".exe"; \
+		os=$${t%%/*}; arch=$${t##*/}; ext=""; be="null backend"; \
+		[ "$$os" = windows ] && { ext=".exe"; be="win32 backend (never run here)"; }; \
 		out=$(BIN)/cross/glidergo-$$os-$$arch$$ext; \
 		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(GAMEFLAGS)' -o $$out ./cmd/glidergo 2>&1; then \
-			printf '  %-22s %8s KiB  null backend\n' "$$os/$$arch" "$$(( $$(wc -c < $$out) / 1024 ))"; \
+			printf '  %-22s %8s KiB  %s\n' "$$os/$$arch" "$$(( $$(wc -c < $$out) / 1024 ))" "$$be"; \
 		else \
 			printf '  %-22s FAILED\n' "$$os/$$arch"; fail=1; \
 		fi; \

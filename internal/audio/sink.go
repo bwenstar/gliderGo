@@ -20,8 +20,9 @@ package audio
 // Glider PRO -- where the loudest thing in the game is a glider being shredded, and nothing
 // depends on sub-frame audio timing -- that is fine, and it stays fine unless the port ever
 // wants sample-accurate feedback, which it never will. If a platform's answer turns out to be
-// worse than this (Windows has no such tool in the box), the Sink interface is two methods
-// wide and a native driver can be dropped in behind it without the engine knowing. See
+// worse than this -- Windows ships none of the five in the box, and two of them are installable
+// there rather than absent, see installHint -- the Sink interface is two methods wide and a
+// native driver can be dropped in behind it without the engine knowing. See
 // docs/IMPROVEMENTS.md 2.48.
 
 import (
@@ -34,6 +35,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -251,8 +253,26 @@ func OpenPipe(prefer string) (*Pipe, error) {
 	if prefer != "" {
 		return nil, fmt.Errorf("audio: %s is not installed", prefer)
 	}
-	return nil, fmt.Errorf("audio: no audio player found; install one of %s (%s) or use -wav to write a file instead",
-		strings.Join(playerNames(), ", "), "PipeWire, PulseAudio, ALSA, FFmpeg or SoX")
+	return nil, fmt.Errorf("audio: no audio player found; %s, or use -wav to write a file instead",
+		installHint())
+}
+
+// installHint names the players worth installing on this machine, which is not the same list
+// everywhere.
+//
+// Three of the five are Linux sound stacks and mean nothing on Windows: telling somebody there to
+// install ALSA is worse than saying nothing, because they will go and try. The other two travel.
+// ffplay is FFmpeg's and `play` is SoX's, both ship official Windows builds, and exec.LookPath
+// finds `ffplay.exe` from the bare name because Windows consults PATHEXT -- so the honest Windows
+// answer is not "no sound ever", it is "one of these two, on your PATH". Whether either then plays
+// raw PCM on stdin there is untested; nothing in this port has been run on Windows at all (see
+// internal/platform/win32). A native WASAPI sink is docs/IMPROVEMENTS.md 2.48.
+func installHint() string {
+	if runtime.GOOS == "windows" {
+		return "install FFmpeg (ffplay) or SoX (play) and put it on your PATH"
+	}
+	return "install one of " + strings.Join(playerNames(), ", ") +
+		" (PipeWire, PulseAudio, ALSA, FFmpeg or SoX)"
 }
 
 func playerNames() []string {

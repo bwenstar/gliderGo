@@ -57,7 +57,7 @@ internal/
   platform/            port layer: Framebuffer, Window, Key, AudioSink  [DONE]
     x11/               Linux backend, cgo + Xlib                        [DONE]
     null/              headless: PNG frames + WAV audio, for tests       [DONE]
-    win32/             Windows backend, pure Go syscall to gdi32        [stage 4]
+    win32/             Windows backend, pure Go syscall to gdi32        [DONE, never run]
     sdl2/              macOS/iOS/Android backend, hand-written cgo      [stage 6]
   house/               House/Room/Object model; binary loader + text loader/writer
   assets/              extracted sprite sheets, palettes, sounds; sprite atlas indexing
@@ -1269,12 +1269,28 @@ here is genuinely just transport.
 - *Acceptance:* two processes on this host race to completion; killing the guest mid-race
   leaves the host in a defined state; a house-set mismatch is rejected with a clear message.
 
-### Stage 4 — Windows
+### Stage 4 — Windows — **the window half is done, out of order; audio is not**
 
-- `internal/platform/win32`: pure Go `syscall` to `user32`/`gdi32` (`StretchDIBits`) and
-  `winmm` (`waveOutWrite`). No cgo, so it cross-compiles from this box today.
-- *Acceptance:* `GOOS=windows make cross-windows` produces a binary that runs on Windows 10+;
-  frame output diffed against the Linux build on the same input trace.
+Brought forward ahead of Stages 2 and 3 for one reason: the release pipeline (5.4) already
+packaged two Windows archives, and shipping archives that could not draw was worse than doing
+this early.
+
+- **Done.** `internal/platform/win32`: pure Go `syscall` to `user32`/`gdi32`, one window at an
+  integer multiple of 640×480, a `StretchDIBits` blit from a top-down 32bpp DIB whose scan lines
+  are byte-for-byte the port's own `Framebuffer`, `WM_KEYDOWN`/`WM_KEYUP` for physical keys and
+  `WM_CHAR` for typed text. No cgo, so it cross-compiles from this box, and the nearest-neighbour
+  expansion is shared with the X11 backend as `platform.Expand` — extracted precisely so that the
+  arithmetic in the Windows blit path can be unit-tested on a machine with no Windows.
+- **Not done.** Audio. `winmm`'s `waveOutWrite`, or more likely WASAPI, is still owed; Windows
+  ships none of the five external players the sink pipes to, so a Windows player has sound only if
+  FFmpeg or SoX is on their `PATH`. Stated in the release notes and each Windows archive's
+  `HOW-TO-RUN.txt` rather than left to be discovered (`docs/IMPROVEMENTS.md` 2.48).
+- *Acceptance, and how much of it is met:* `make cross-windows` produces the binary, `go vet`
+  passes for `windows/amd64` and `windows/arm64`, and `ci.yml`'s `native` job compiles it with a
+  Windows toolchain and then runs `-frames 300 -bench` on `windows-latest`. **Not met:** frame
+  output diffed against the Linux build on the same input trace, and any run in front of a human.
+  Nothing on this airgapped host can execute a Windows binary, which is why the backend's own
+  package comment opens by saying it has never run.
 
 ### Stage 5 — house editor
 

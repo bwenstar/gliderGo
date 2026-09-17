@@ -15,6 +15,51 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A Windows backend, so the Windows archives can draw (2026-09-17)
+
+Stage 4's window half, brought forward ahead of Stages 2 and 3. The release pipeline was already
+packaging two Windows archives and both were `-headless`; shipping those was worse than doing this
+early.
+
+- `internal/platform/win32`: one window at an integer multiple of 640×480, a `StretchDIBits` blit
+  per frame, `WM_KEYDOWN`/`WM_KEYUP` for the glider and `WM_CHAR` for typing a high-score name.
+  Pure `syscall` to `user32`, `gdi32` and `kernel32` — no cgo, no dependency, nothing for a player
+  to install — so it cross-compiles from Linux and `CGO_ENABLED=0` release archives get a real
+  window rather than the null backend.
+- The blit is a copy, not a conversion. A BI_RGB 32bpp DIB scan line is `0x00RRGGBB` per pixel as a
+  little-endian DWORD, which is byte-for-byte the port's own BGRX `Framebuffer`; a negative
+  `biHeight` makes the DIB top-down so the rows go up in the order they already sit in.
+- `platform.Expand`, the nearest-neighbour scaler, was extracted from the X11 backend and is now
+  shared by both. That was the point: the arithmetic in the Windows blit path is the part most
+  likely to be wrong and the part a Linux machine can still test, and it now runs under `go test`
+  at four scales with padded strides on both surfaces. X11 draws through the shared version at the
+  same frame rate as before (844.9 fps at 1:1, 122.4 fps at 2:1 on this host).
+- Keys and text are split into `keys.go`, deliberately with **no build tag**, so the two pure
+  pieces — the 256-entry virtual-key table and the UTF-16 accumulator that recombines surrogate
+  pairs — are unit-tested on Linux. One test walks `platform.KeyNames()` so a key added to the enum
+  with no Windows mapping fails there rather than in a bug report; another round-trips the whole
+  BMP through `utf16.Encode`. Both were proven to fail on injected defects before being trusted.
+- Backend selection is still compile-time only, and there are now three selectors rather than two.
+  `internal/platform/backend/doc.go` reads them side by side and states the two load-bearing
+  details: `!windows` on the cgo clause, so a `CGO_ENABLED=0` Windows build still gets a window,
+  and `nullbackend` first, so `make headless` and the fidelity corpus win on a host that could
+  open one. Verified empirically with `go list` across six configurations, not by reasoning about
+  the tags.
+- `OpenPipe`'s "no audio player" message no longer recites five Linux sound stacks at a Windows
+  reader. It names the two that have Windows builds, `ffplay` and `play`, because `exec.LookPath`
+  finds `ffplay.exe` from the bare name — so a Windows machine with FFmpeg or SoX on its `PATH`
+  does have sound, which is a better answer than the "silence" that was expected (2.48).
+- **It has never run.** It was written on the same airgapped Linux host as everything else here,
+  which has no Windows to execute it on. What is verified: it compiles and vets for `windows/amd64`
+  and `windows/arm64`, the pure pieces are tested, and the shared expansion is tested and
+  benchmarked. What is not: window creation, the message pump and the blit. The package comment
+  opens by saying so, `ci.yml`'s `native` job now runs `-frames 300 -bench` on `windows-latest` as
+  the first execution in existence, and both the release notes and each Windows archive's
+  `HOW-TO-RUN.txt` tell the reader they may be the first person to see it draw.
+- Consequently the two Windows archives lose their `-headless` suffix, and `make cross` stops
+  calling those rows null. Three of six archives draw now; the packaging change was rehearsed by
+  extracting the step from the YAML and running it verbatim against a real `make cross` tree.
+
 ### A release pipeline (2026-09-17)
 
 - `.github/workflows/release.yml`: a `v*` tag runs the test suite, cross-compiles every target,
@@ -275,6 +320,7 @@ this file first:
   Shipping the content is decided; confirming it is not.
 - The release pipeline exists but has never run, and nothing is tagged yet, so a build still
   reports a bare short hash as its version (5.4). There is no installer either.
-- Only Linux/X11 can draw. Windows is Stage 4, macOS Stage 6; everything else compiles and runs
-  headless (5.5).
+- Linux/X11 and Windows/GDI draw; macOS and cross-compiled arm64 still run headless (5.5). The
+  Windows backend has never been run by a human — see the entry at the top of this file — and
+  Windows has no sound unless FFmpeg or SoX is on the `PATH` (2.48).
 - An installed copy still looks for its assets beside the binary (5.3).

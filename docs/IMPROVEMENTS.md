@@ -1565,7 +1565,7 @@ original, never quieter, so it cannot hide a sound the 1994 build played. There 
 of evidence that the author knew something was wrong here — the call to `FlushAnyTriggerPlaying`
 inside `LoadTriggerSound` is commented out (`Sound.c:275`).
 
-### 2.48 The audio sink is a subprocess, not a device — **note; a native driver is Stage 4 and Stage 6 work**
+### 2.48 The audio sink is a subprocess, not a device — **note; now a shipping gap on Windows rather than a future one, and the release notes say so**
 
 The port has no audio driver. `audio.Pipe` writes raw PCM to `pw-play`, `paplay`, `aplay`,
 `ffplay` or `play`, whichever is installed, and `audio.WAV` writes a file. That began as a
@@ -1582,8 +1582,25 @@ Linux*. **Windows has no such tool in the box, and this is the one part of the a
 Stage 4 cannot simply cross-compile.** `Sink` is two methods wide precisely so that a native
 driver can be dropped in behind it without the engine knowing; WASAPI via `syscall` (no cgo, and
 no dependency the airgap forbids) is the likely shape, and CoreAudio at Stage 6 is the same
-problem again. Until then Windows gets `-wav` and silence, which must be stated in the release
-notes rather than discovered.
+problem again.
+
+Since the win32 backend landed this stopped being a future problem and became a shipping one: two
+of the six release archives are Windows archives that draw, and they are silent by default. Three
+things were done rather than left:
+
+- `OpenPipe`'s not-found error no longer recites five Linux sound stacks at a Windows reader.
+  `installHint` (`internal/audio/sink.go`) branches on `runtime.GOOS` and names the two players
+  that actually have Windows builds — FFmpeg's `ffplay` and SoX's `play`. `exec.LookPath` finds
+  `ffplay.exe` from the bare name because Windows consults `PATHEXT`, so **a Windows machine with
+  either on its `PATH` has sound**, which is a better answer than "none" and was worth finding out
+  before writing "silence" in a release note. Whether either then plays raw PCM on stdin there is
+  untested, like everything else Windows in this port.
+- The release notes and each Windows archive's `HOW-TO-RUN.txt` state it up front, alongside
+  `-wav out.wav` as the way to hear what you missed.
+- The README's audio paragraph says which platform its five-player answer is good on.
+
+The native sink is still owed. What changed is that a player meets the gap as a documented
+limitation with a workaround rather than as a game that makes no noise for no stated reason.
 
 ### 2.49 Five house sounds ship as silence — **note; blocked on data, and 4.1's linter should say so**
 
@@ -2578,25 +2595,38 @@ unpacked archive before being written down.
 still open. Also still open, and the one thing a release cannot fix: §1.2's reading of the
 licence the 1994 content is shipped under.
 
-### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; the CI matrix is the first attempt**
+### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; the CI matrix is the first attempt, and there is now a Windows backend riding on it**
 
 `make cross` builds `windows/amd64`, `windows/arm64`, `darwin/amd64`, `darwin/arm64`,
 `linux/arm64` and `linux/amd64` in about four seconds, and it is worth being precise about what
-that proves. Because the two backend selectors are exact complements —
-`backend_x11.go` is `linux && cgo && !nullbackend`, `backend_null.go` is
-`nullbackend || !cgo || !linux` — **every GOOS except linux resolves to the null backend**. So a
-green cross-build is evidence that the game logic, the house codec, the asset pipeline, the
-shell, the scores and the replay harness are portable, and it is *no* evidence that any of those
-targets can draw a pixel. It also cannot see a path-separator or filesystem-case bug, which is
-the class of thing that only appears on the real OS.
+that proves. There are now three backend selectors rather than two, and they are still exact
+complements (`internal/platform/backend/doc.go` reads them side by side):
+`backend_x11.go` is `linux && cgo && !nullbackend`, `backend_win32.go` is
+`windows && !nullbackend`, and `backend_null.go` is the negation of both. So the darwin rows and
+cross-compiled `linux/arm64` resolve to the null backend, and a green build for those is evidence
+that the game logic, the house codec, the asset pipeline, the shell, the scores and the replay
+harness are portable — and *no* evidence that they can draw a pixel. It also cannot see a
+path-separator or filesystem-case bug, which is the class of thing that only appears on the real
+OS.
 
-`ci.yml`'s `native` job is the first attempt at closing that: `go build`, `go vet` and
-`go test ./...` on `windows-latest` and `macos-latest`, with a best-effort
-`python3 tools/extract_all.py` marked `continue-on-error` because the extractor is stdlib-only
-python3 that has only ever run on Linux. A failure there is a real finding for this file rather
-than a reason to hide the step, which is why it is not hidden. Windows gets a real backend at
-Stage 4 (pure-Go `syscall` to `user32`/`gdi32`, no cgo) and macOS at Stage 6; until then
-"it compiles on macOS" is the whole claim.
+The windows rows are a different case since the win32 backend landed: they carry a real backend
+even at `CGO_ENABLED=0`, so a green build there means the Windows window code compiles for that
+architecture. That is a stronger claim than "the portable part compiles" and a much weaker one
+than "it works". **Nothing on this machine can execute it.** The backend was written here, on an
+airgapped Linux host, and the first execution of `internal/platform/win32` in existence is
+`ci.yml`'s `native` job.
+
+That job is the whole of the verification story for Windows, so it is worth knowing exactly what
+it does: `go build`, `go vet` and `go test ./...` on `windows-latest` and `macos-latest`; then, on
+Windows only, `glidergo -version` and `glidergo -frames 300 -bench`, which opens a real window and
+pushes 300 frames through `StretchDIBits`. The bench is `continue-on-error` on purpose — a hosted
+runner is not a desktop session, so whether `CreateWindowExW` behaves there as it does in front of
+a logged-in user cannot be settled from here, and the log is the interesting output either way.
+The `python3 tools/extract_all.py` step is `continue-on-error` for the older reason: the extractor
+is stdlib-only python3 that has only ever run on Linux, and a failure is a finding for this file
+rather than a reason to hide the step.
+
+macOS is still Stage 6, and there "it compiles" remains the whole claim.
 
 ### 5.6 Is a fresh checkout playable? — **audited and yes; four defects found and fixed, 1.10a**
 

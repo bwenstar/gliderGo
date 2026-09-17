@@ -163,32 +163,18 @@ func (w *Window) SetTitle(s string) error {
 // Present uploads fb and displays it, magnifying by the configured integer
 // scale with nearest-neighbour sampling (the only scaling that keeps 1994 pixel
 // art honest).
+//
+// The expansion itself is platform.Expand rather than a loop here, because the
+// win32 backend does exactly the same thing into a DIB and the arithmetic is
+// worth having in one place -- one that can be unit-tested on a machine with no
+// display, which this file cannot be. XPutImage's own errors are asynchronous
+// and arrive at the X error handler, so there is nothing to check here.
 func (w *Window) Present(fb *platform.Framebuffer) error {
 	if fb.W != w.w || fb.H != w.h {
 		return fmt.Errorf("x11: framebuffer is %dx%d, window expects %dx%d", fb.W, fb.H, w.w, w.h)
 	}
-	dst := unsafe.Slice((*byte)(w.buf), w.bufLen)
-	dstStride := w.pw * 4
-
-	if w.scale == 1 {
-		for y := 0; y < fb.H; y++ {
-			copy(dst[y*dstStride:(y+1)*dstStride], fb.Pix[y*fb.Stride:y*fb.Stride+fb.W*4])
-		}
-	} else {
-		for y := 0; y < fb.H; y++ {
-			src := fb.Pix[y*fb.Stride : y*fb.Stride+fb.W*4]
-			row := dst[y*w.scale*dstStride:][:dstStride]
-			for x := 0; x < fb.W; x++ {
-				px := src[x*4 : x*4+4]
-				for s := 0; s < w.scale; s++ {
-					copy(row[(x*w.scale+s)*4:], px)
-				}
-			}
-			// Replicate the expanded row for the remaining scale-1 lines.
-			for s := 1; s < w.scale; s++ {
-				copy(dst[(y*w.scale+s)*dstStride:][:dstStride], row)
-			}
-		}
+	if err := platform.Expand(unsafe.Slice((*byte)(w.buf), w.bufLen), w.pw*4, fb, w.scale); err != nil {
+		return err
 	}
 
 	C.XPutImage(w.dpy, C.Drawable(w.win), w.gc, w.img, 0, 0, 0, 0, C.uint(w.pw), C.uint(w.ph))
