@@ -38,7 +38,7 @@ import (
 	"sort"
 	"strings"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // House is one entry in the picker: a file that sniffed as a house, and what its

@@ -28,8 +28,8 @@ package shell
 import (
 	"fmt"
 
-	"glidergo/internal/house"
-	"glidergo/internal/scores"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/scores"
 )
 
 // openScores puts the board up for the selected house.

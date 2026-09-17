@@ -17,8 +17,8 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // scoreboardWorld is a world on the smallest house that will build, with art if `art` is

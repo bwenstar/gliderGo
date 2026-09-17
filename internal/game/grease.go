@@ -33,8 +33,8 @@ package game
 // and the asymmetry is the thing to check first if a slick ever appears in the wrong place.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The spill (GliderDefines.h:77, :166). One sound for the jar going over; the slick itself

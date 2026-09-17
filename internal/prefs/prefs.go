@@ -51,7 +51,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 // Version is this schema's version. It goes in the file so a future build can tell an

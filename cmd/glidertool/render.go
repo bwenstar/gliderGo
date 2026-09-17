@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // renderCmd composes rooms the way the game does and writes them out as PNGs.

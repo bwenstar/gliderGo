@@ -19,9 +19,9 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // playTestWorld loads a house with its art and returns a world ready for NewGame, with a

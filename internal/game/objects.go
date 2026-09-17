@@ -1,6 +1,6 @@
 package game
 
-import "glidergo/internal/house"
+import "github.com/bwenstar/gliderGo/internal/house"
 
 // MasterObject is objDataType (GliderStructs.h): one entry in the object graph.
 //

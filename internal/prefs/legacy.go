@@ -50,8 +50,8 @@ import (
 	"fmt"
 	"os"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 // LegacySize is the exact size of a `prefsInfo` record, which is the exact size of the

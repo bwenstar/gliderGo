@@ -15,10 +15,10 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/demo"
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/replay"
+	"github.com/bwenstar/gliderGo/internal/demo"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
 // fixture is a two-room house exercising the things the tool has to survive: a

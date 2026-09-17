@@ -45,8 +45,8 @@ package game
 // you, and can kill. It is the only one with a renderer's shape and no renderer.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The appliance sounds (GliderDefines.h:79-91, :126-147). Declared here rather than in a

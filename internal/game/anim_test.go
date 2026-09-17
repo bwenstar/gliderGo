@@ -28,7 +28,7 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // ---------------------------------------------------------------------------

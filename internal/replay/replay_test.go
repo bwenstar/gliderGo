@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"glidergo/internal/audio"
-	"glidergo/internal/demo"
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/render"
-	"glidergo/internal/replay"
+	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/demo"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden traces in testdata/")

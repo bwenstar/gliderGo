@@ -3,8 +3,8 @@
 package backend
 
 import (
-	"glidergo/internal/platform"
-	"glidergo/internal/platform/x11"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform/x11"
 )
 
 // Name identifies the compiled-in backend.

@@ -43,8 +43,8 @@ package game
 // recomputed rather than accumulated it cannot drift.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The four remaining file-local #defines from Dynamics2.c:11-17. BalloonStart,

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // board is a filled-in high-score table, for a host hook to hand back.

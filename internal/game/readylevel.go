@@ -15,7 +15,7 @@ package game
 // free frame; calling Rebuild where ReadyLevel belongs leaves the previous room's
 // openings in place, so the glider can fly through a wall that is now drawn solid.
 
-import "glidergo/internal/game/player"
+import "github.com/bwenstar/gliderGo/internal/game/player"
 
 // ReadyLevel is RoomGraphics.c:402-419: load the central room and everything around
 // it, from scratch.

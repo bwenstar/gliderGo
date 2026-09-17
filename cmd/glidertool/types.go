@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // typesCmd prints the object type table. It exists for hand-authoring: the text

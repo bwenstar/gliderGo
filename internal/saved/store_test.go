@@ -17,8 +17,8 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/datadir"
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/datadir"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // A saved game with a distinguishable value in every field, so that a transposition shows up

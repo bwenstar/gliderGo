@@ -7,8 +7,8 @@ package game
 // call into them and because they are the one part of 1.5c that can end a life.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // ShoveVelocity is kShoveVelocity (Dynamics.c:17), a file-local #define rather than one

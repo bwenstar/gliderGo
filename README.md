@@ -66,7 +66,7 @@ gliderGo is standard library only, which `internal/module` asserts offline:
 
 ```bash
 sudo apt-get install -y build-essential pkg-config libx11-dev   # other distros: docs/DEV_ENVIRONMENT.md §2
-git clone <this repository> glidergo && cd glidergo
+git clone https://github.com/bwenstar/gliderGo && cd gliderGo
 make run                          # window at the original's 640x480
 make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
 ```
@@ -92,10 +92,10 @@ If you have no Go, or no internet:
 make check
 ```
 
-The bootstrap resolves from a Go already on `PATH`, an internal package mirror, or
-`go.dev` — `--dry-run` shows exactly what it would fetch from where without touching anything.
-The airgapped host this port is developed on uses the middle one; see
-[docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1.
+The bootstrap resolves from a Go already on `PATH`, `go.dev`, or a private mirror you describe
+in an optional gitignored `scripts/local-source.sh` — `--dry-run` shows exactly what it would
+fetch from where without touching anything, and `GLIDERGO_GO_TARBALL=…` skips the network
+entirely. See [docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1.
 
 The rest of the Makefile:
 

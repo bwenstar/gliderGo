@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 func houseCmd(args []string) error {

@@ -43,11 +43,11 @@ import (
 	"errors"
 	"fmt"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
-	"glidergo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/saved"
 )
 
 // Host is the machine's side of the shell: a surface to draw on, a way to show it,

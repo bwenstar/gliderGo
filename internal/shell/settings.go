@@ -34,9 +34,9 @@ package shell
 import (
 	"fmt"
 
-	"glidergo/internal/platform"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The panel and its three columns. The columns are fixed rather than measured because

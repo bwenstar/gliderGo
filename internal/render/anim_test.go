@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // animScene is a composed-enough Scene: a real view so the origin is non-zero, no art, and a

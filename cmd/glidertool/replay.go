@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"glidergo/internal/audio"
-	"glidergo/internal/replay"
+	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
 // replayCmd runs the game headlessly from a script and prints what happened, one line per

@@ -35,8 +35,8 @@ package game
 // See its own comment for the uneven tick-tock that produces.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The clock (GliderDefines.h:67-68, :124-125). Two sounds for the two ends of a swing, at

@@ -23,9 +23,9 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The reflected glider: a 48x15 sprite at a known place in the room, with two flat-coloured

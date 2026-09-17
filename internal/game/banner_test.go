@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // waitLog records what the game asked the host to wait for.

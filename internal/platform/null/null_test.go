@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 func TestWindowRecordsFramesAndScriptedInput(t *testing.T) {

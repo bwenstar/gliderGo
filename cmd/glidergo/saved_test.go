@@ -19,11 +19,11 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/prefs"
-	"glidergo/internal/saved"
-	"glidergo/internal/shell"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
 // savesApp is an app with a saves directory and nothing else: no window, no audio, no scores.

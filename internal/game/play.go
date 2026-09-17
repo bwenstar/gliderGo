@@ -27,8 +27,8 @@ package game
 // needs to be true on its first pass.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The three values of TheMode (GliderDefines.h:186-188). Not a named type, because the

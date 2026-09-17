@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"os"
 
-	"glidergo/internal/platform"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
-	"glidergo/internal/shell"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
 // DefaultScreens is every screen Shell.Show knows, in the order a player meets them.

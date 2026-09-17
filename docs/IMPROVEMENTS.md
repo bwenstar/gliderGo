@@ -2451,7 +2451,7 @@ is guaranteed to reproduce *itself*, which is what a determinism test needs.
 
 Everything above is about the game. This section is about the fact that the game is being
 written on one airgapped host and is meant to end up on GitHub, and that those two things have
-different failure modes. Added when the public build path was put in beside the mirror one.
+different failure modes. Added when the public build path was put in beside the private one.
 
 ### 5.1 The public build path cannot be tested from the machine that wrote it — **note; needs one connected host, before the first public push**
 
@@ -2461,8 +2461,8 @@ pieces of this repository that have **never run**. They cannot: this host cannot
 What *is* verified is everything they are made of — every command the workflow invokes was run
 here (`make doctor`, `make check` on a no-asset tree with `DISPLAY` unset, `make cross`,
 `fmt-check` against a deliberately unformatted file), the script's own logic was reviewed with
-`--dry-run` for all three sources, and the internal deb path was exercised end to end against
-the package mirror's Ubuntu tree, which is the same code with a different base URL.
+`--dry-run` for all three sources, and the `.deb` path was exercised end to end against this
+host's own Ubuntu mirror, which is the same code with a different base URL.
 
 The specific things a connected host should check first, in the order they are likely to be
 wrong:
@@ -2657,12 +2657,16 @@ written they say the gliderGo-specific thing above rather than the generic thing
 Recorded so that none of these is rediscovered as a surprise. Each one is small; each was left
 alone for a stated reason rather than missed.
 
-- **`go.mod` says `module glidergo`, and a public repository's module path should be its URL.**
-  The Go-idiomatic path is `github.com/<owner>/glidergo`, which makes the package importable and
-  the source browsable from a stack trace. It is a one-line change plus every import in the tree,
-  and it is the one item here that **cannot be guessed**: it needs the account the repository will
-  actually live under. Nothing breaks meanwhile — a bare module path builds and tests fine, and
-  with no dependencies there is nothing for a proxy to resolve. Ask before changing it.
+- ~~**`go.mod` says `module glidergo`, and a public repository's module path should be its
+  URL.**~~ **Closed, 1.10c.** It was the one item here that could not be guessed — it needed the
+  account the repository would actually live under — and that account is now known:
+  `github.com/bwenstar/gliderGo`, set in `go.mod` and in 248 import lines across 113 files. The
+  test that pins it keeps a second copy of the string on purpose (`internal/module`'s
+  `modulePath`), because a test that read the path out of the file it is checking would accept a
+  typo. Two new cases in that test's table earn their place only now that the path has a dot in
+  its first element: `github.com/bwenstar/glidergo` and `github.com/bwenstar/other` must both be
+  refused, which is what proves the prefix match is *this* module rather than anything on
+  `github.com` or anything of this owner's.
 - **`LICENSE` omits GPLv2's "How to Apply These Terms to Your New Programs" appendix.** That
   appendix is instructions to the *next* author, not part of the licence's operative text, and its
   absence changes nothing legally; the terms are complete (sections 0–12 plus the preamble). Left
@@ -2782,7 +2786,7 @@ alone for a stated reason rather than missed.
 | `make cross`'s host cgo build can fail the target again: its exit status was being overwritten by a later `printf` | 1.10a | this stage |
 | `make headless` clears its output directory first, so a shot from a previous run cannot be read as work just done | 1.10a | this stage |
 | Every reference to the private repository this was developed inside is gone from the tree, and 46 absolute home paths across 21 documents are now repo-relative | 1.10a | this stage |
-| `scripts/bootstrap-dev-env.sh`'s internal mirror is opt-in via `GLIDERGO_MIRROR_HOST`, and `deb_arch()` translates `uname -m` instead of answering `amd64` | 1.10a | this stage |
+| `scripts/bootstrap-dev-env.sh`'s private mirror is opt-in rather than built in, and `deb_arch()` translates `uname -m` instead of answering `amd64` | 1.10a | this stage |
 | 1.3 `CHANGELOG.md`: one section per stage, each naming the commit that closed it, under `Unreleased` because there are no tags | 1.10a | this stage |
 | The About box and the no-assets title screen say where the art actually comes from — it ships with the source, undecoded — instead of "your own copy" | 1.10a | this stage |
 | `.gitattributes`: `* -text`, so a Windows checkout cannot rewrite `Glider PRO.r`'s 199,843 LFs and silently change the extractor's input hashes | 1.10a | this stage |
@@ -2795,6 +2799,10 @@ alone for a stated reason rather than missed.
 | CI refuses a checkout whose assets are missing instead of extracting them, and a separate `assets` job holds the committed tree to `make assets-check` | 1.10b | this stage |
 | The About box, the credits, the README and the no-assets screen all say the data ships here — the fourth rewrite of that sentence, and the first one that is true of a clone | 1.10b | this stage |
 | `internal/credits`' three transcription tests skip rather than fail when `GliderPRO/` is absent, so a checkout with the 1994 source deleted still reaches a green `make check` — proven by doing it | 1.10b | this stage |
+| 2.71 The external audio player's stderr is prefixed with the player's name, so an unreachable sound server no longer prints an unattributed `error:` between two of the game's own lines | 1.10b | this stage |
+| 5.8 (the module-path item) `module github.com/bwenstar/gliderGo`, with two new cases in `internal/module`'s table that are only discriminating once the path has a dot in its first element | 1.10c | this stage |
+| The private mirror is out of the tree entirely: `--source local` reads an optional gitignored hook, and no doc, script or comment names anyone's internal network | 1.10c | this stage |
+| The author email in all 42 commits' metadata is a personal address — a leak that no content grep could have found, since it is in the objects rather than the files | 1.10c | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

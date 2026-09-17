@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // update rewrites testdata/locale_golden.txt from the current renderer. It is

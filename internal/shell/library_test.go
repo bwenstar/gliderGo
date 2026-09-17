@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // houseBytes builds the smallest file that is a real house: a 866-byte header with

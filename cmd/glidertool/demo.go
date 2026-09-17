@@ -29,7 +29,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"glidergo/internal/demo"
+	"github.com/bwenstar/gliderGo/internal/demo"
 )
 
 func demoCmd(args []string) error {

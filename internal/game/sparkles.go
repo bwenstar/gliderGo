@@ -42,8 +42,8 @@ package game
 // rather than assuming it.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // MaxFlyingPointsLoop is kMaxFlyingPointsLoop (GliderDefines.h:254): how many times a

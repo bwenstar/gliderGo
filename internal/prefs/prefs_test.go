@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 // The defaults are a transcription of Main.c's no-prefs block, so they are checked

@@ -40,7 +40,7 @@ import (
 	"strings"
 	"time"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // Max is kMaxScores: the number of rows on a board. Ten, everywhere, and not a

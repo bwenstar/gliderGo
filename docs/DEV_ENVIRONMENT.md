@@ -10,17 +10,17 @@ This is the file to read first if you are a new session picking this project up.
 
 ## 1. Two ways in
 
-gliderGo is developed on an airgapped host whose only software source is an internal
-package mirror, and it is meant to end up on GitHub where contributors have the open
-internet. Both paths are supported and neither is the "real" one. §4 says what that airgapped
-network could and could not supply, which is the fact that shaped the whole port.
+gliderGo was written on an airgapped host — no internet, one private package mirror — and it is
+meant to be built by contributors who have the open internet. Both paths are supported and
+neither is the "real" one. §4 says what that airgapped network could and could not supply,
+which is the fact that shaped the whole port.
 
 ### If you have Go 1.23+ and an internet connection
 
 Nothing to bootstrap. `make` finds a `go` on your PATH by itself.
 
 ```bash
-git clone <this repository> glidergo && cd glidergo
+git clone https://github.com/bwenstar/gliderGo && cd gliderGo
 sudo apt-get install -y build-essential pkg-config libx11-dev   # or §2 for your distro
 make check                          # fmt, vet, tests, build, cross-compile, smoke  (~15 s)
 make run                            # play it
@@ -54,26 +54,38 @@ The script resolves dependencies from one of three sources and prints the one it
 | `--source` | Toolchain from | C libraries from | For |
 |---|---|---|---|
 | `system` | a `go` already on PATH satisfying `go.mod` | your package manager (§2) | almost every contributor |
-| `internal` | the mirror's `golang:1.23-bookworm` image | the package mirror's Ubuntu tree | the airgapped host |
+| `local` | whatever `scripts/local-source.sh` defines | ditto | a machine that can reach neither |
 | `public` | `go.dev/dl`, sha256-verified | `archive.ubuntu.com` | a contributor with no Go |
 
-`auto` (the default) tries them in that order: `system` first because it costs nothing,
-`internal` before `public` because a host that can see an internal mirror usually cannot see
-anything else. `internal` is skipped unless `GLIDERGO_MIRROR_HOST` names a mirror — there
-is no built-in hostname, so nobody else's `make doctor` probes a network they have never heard
-of. The toolchain source and the C-library source are resolved **separately** — on the
-airgapped host `auto` picks `system` for Go (it is already installed) while the `.deb` archive
-still has to be the package mirror.
+`auto` (the default) tries them in that order: `system` first because it costs nothing, `local`
+before `public` because a machine with a private mirror usually has one precisely because it
+cannot see the open internet. `local` is skipped, silently, unless `scripts/local-source.sh`
+exists — it does not exist in a clone, it is gitignored, and nothing about anyone's private
+network is built into this repository, so nobody else's `make doctor` probes a host they have
+never heard of. The toolchain source and the C-library source are resolved **separately**,
+which is what the airgapped host needs: `auto` picks `system` for Go, because Go is already
+installed there, while a `.deb` still has to come from that host's own mirror.
 
 Useful flags: `--dry-run` prints every URL and file it would touch and changes nothing, which
 is the only way to review the public path from an airgapped box; `--check` (also `make doctor`)
 reports the environment; `--sysroot` unpacks the optional C libraries into
-`.toolchain/sysroot` without root. `GLIDERGO_GO_TARBALL=/path/to/go1.23.x.linux-amd64.tar.gz`
-skips the network entirely, which is how you carry a toolchain across an airgap by hand.
+`.toolchain/sysroot` without root.
 
-Credentials for the internal source, if it wants any, come from `MIRROR_USER` /
-`MIRROR_PASS` or `~/.netrc`. **No credential and no internal hostname is written into this
-repository.**
+If your machine cannot reach `go.dev` there are three ways out, and none of them needs an edit
+to the script:
+
+| | |
+|---|---|
+| `GLIDERGO_GO_TARBALL=/path/to/go1.23.x.linux-amd64.tar.gz` | uses a tarball you carried across by hand; no network at all |
+| `GLIDERGO_GO_DL_HOST=…`, `GLIDERGO_UBUNTU_MIRROR=…` | points the `public` source at a mirror that speaks the same protocols |
+| `scripts/local-source.sh` | for a source that needs real logic rather than a different URL |
+
+That last one is the `local` source: a gitignored file defining up to five shell functions —
+`local_source_label`, `_reachable`, `_install_go`, `_ubuntu_url`, `_curl_args` — documented
+where the script sources it. It is where a hostname, a mirror's layout and a path to a
+credential belong, because none of those are a public repository's to carry. **No credential
+and no private hostname is written into this repository**, and the script behaves exactly as
+though the file did not exist when it does not.
 
 ---
 
@@ -138,11 +150,14 @@ go version go1.23.12 linux/amd64      GOROOT=$HOME/.local/opt/go
 ```
 
 Obtained without root, and without a Go download being reachable, by taking the toolchain out
-of a container image from an internal registry mirror (~250 MB tar):
+of the official `golang` container image — that host had a mirror of Docker Hub but not of
+`go.dev`. Worth knowing as a trick in its own right, since it needs no root and no package
+manager (~250 MB tar):
 
 ```bash
-podman pull "$GLIDERGO_MIRROR_HOST/registry-1.docker.io/library/golang:1.23-bookworm"
-podman run --rm -v /tmp:/out:z <image> sh -c 'tar -C /usr/local -cf /out/go-toolchain.tar go'
+podman pull golang:1.23-bookworm          # or "$YOUR_REGISTRY/library/golang:1.23-bookworm"
+podman run --rm -v /tmp:/out:z golang:1.23-bookworm \
+        sh -c 'tar -C /usr/local -cf /out/go-toolchain.tar go'
 tar -C ~/.local/opt -xf /tmp/go-toolchain.tar
 ```
 
@@ -188,17 +203,15 @@ building and running a real X11 program (below).
 
 ## 4. The constraint that produced this architecture: no obtainable Go game engine
 
-gliderGo was written on an airgapped host whose only software source is an internal
-package mirror. The details of that network are its owner's business and are not written
-down here — set `GLIDERGO_MIRROR_HOST` and, if it wants them, `MIRROR_USER` /
-`MIRROR_PASS` or a `~/.netrc` entry, and `scripts/bootstrap-dev-env.sh` will use it;
-leave the variable unset and the internal source is skipped entirely. **No credential and no
-internal hostname is committed to this repository.** What matters here is only what such a
-mirror could and could not supply, because that is what shaped the port.
+gliderGo was written on an airgapped host whose only software source was one private package
+mirror. The details of that network are its owner's business and are not written down here;
+§1 says how a machine like it plugs its own source in without this repository knowing anything
+about it. What matters here is only what such a mirror could and could not supply, because that
+is what shaped the port.
 
-Reachable, and used: the mirrored Ubuntu archive (so C dev libraries could be fetched
-rootless as `.deb`s and unpacked into a sysroot) and a Docker Hub mirror (so the official
-`golang` image could supply a toolchain). Between them that is a Go compiler and `libX11`.
+Reachable, and used: a mirrored Ubuntu archive (so C dev libraries could be fetched rootless as
+`.deb`s and unpacked into a sysroot) and a Docker Hub mirror (so the official `golang` image
+could supply a toolchain — §3). Between them that is a Go compiler and `libX11`.
 
 Not reachable, and this is the load-bearing half:
 

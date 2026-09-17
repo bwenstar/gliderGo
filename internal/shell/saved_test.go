@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/platform"
-	"glidergo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/saved"
 )
 
 // savedInfo is a header for a host hook to hand back. The numbers are QueryResumeGame's own

@@ -49,7 +49,7 @@ package game
 // two different mailboxes in the same room. World.ActiveRectEscaped has the note on why
 // storing a hot-spot index across a frame is safe here and would not be in general.
 
-import "glidergo/internal/game/player"
+import "github.com/bwenstar/gliderGo/internal/game/player"
 
 // Sound IDs and priorities used only from this file (GliderDefines.h:63-180). Declared
 // here rather than centrally, following the player package's convention of putting each

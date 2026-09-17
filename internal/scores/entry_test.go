@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 func key(k platform.Key, text string) platform.Event {

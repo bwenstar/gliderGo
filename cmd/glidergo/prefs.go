@@ -34,8 +34,8 @@ import (
 	"fmt"
 	"os"
 
-	"glidergo/internal/game"
-	"glidergo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/game"
+	"github.com/bwenstar/gliderGo/internal/prefs"
 )
 
 // prefsNone is what -prefs takes to mean "the defaults, and read and write nothing". It

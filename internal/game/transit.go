@@ -83,8 +83,8 @@ package game
 // that cannot deadlock is not faithful.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // ---------------------------------------------------------------------------

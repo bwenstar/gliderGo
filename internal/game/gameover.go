@@ -41,8 +41,8 @@ package game
 // in initDiedGameOver, which is what gives the paper its run-up.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The four pictures and the page sheet's frame count (GameOver.c:18-22).

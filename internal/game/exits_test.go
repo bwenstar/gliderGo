@@ -43,8 +43,8 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // exitCase is one of the seven.

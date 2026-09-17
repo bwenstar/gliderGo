@@ -31,11 +31,11 @@ import (
 	"os"
 	"time"
 
-	"glidergo/internal/game"
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/render"
-	"glidergo/internal/scores"
+	"github.com/bwenstar/gliderGo/internal/game"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/scores"
 )
 
 // The three waits, in the units the analysis states them in. A tick is 1/60.15 s

@@ -17,7 +17,7 @@ package game
 // makes the -1 case -- where the first block retires a player and the second moves the
 // survivor -- readable as the two separate events it is.
 
-import "glidergo/internal/game/player"
+import "github.com/bwenstar/gliderGo/internal/game/player"
 
 // OffAMortal is Player.c:1482-1604: a glider has finished dying. Spend a life.
 //

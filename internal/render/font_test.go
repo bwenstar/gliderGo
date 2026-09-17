@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // The font's data is a compile-time constant, so most of what could go wrong with it is a

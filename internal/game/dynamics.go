@@ -27,8 +27,8 @@ package game
 // and why dinahs[].room is nearly dead state (see UpdateOutletsLighting).
 
 import (
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // MaxDynamicObs is kMaxDynamicObs (GliderDefines.h:265): the whole locale's budget for

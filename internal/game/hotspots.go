@@ -1,6 +1,6 @@
 package game
 
-import "glidergo/internal/render"
+import "github.com/bwenstar/gliderGo/internal/render"
 
 // This file is ObjectRects.c:277-1063: AddActiveRect and CreateActiveRects.
 //

@@ -36,7 +36,7 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/game/player"
 )
 
 // ---------------------------------------------------------------------------

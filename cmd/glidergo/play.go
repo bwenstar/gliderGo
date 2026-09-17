@@ -29,17 +29,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"glidergo/internal/audio"
-	"glidergo/internal/game"
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/platform/backend"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
-	"glidergo/internal/saved"
-	"glidergo/internal/scores"
-	"glidergo/internal/shell"
+	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/game"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform/backend"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/scores"
+	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
 // app is the host: the things that outlive one game.

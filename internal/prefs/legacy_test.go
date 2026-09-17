@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 // ---------------------------------------------------------------------------

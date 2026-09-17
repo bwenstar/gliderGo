@@ -15,6 +15,23 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Ready to publish (2026-09-17)
+
+- The module path is `github.com/bwenstar/gliderGo`, which is where the repository will live —
+  `go.mod` plus 248 import lines across 113 files. This closes the one item in
+  `docs/IMPROVEMENTS.md` 5.8 that could not be guessed, because it needed the account first.
+- Nothing in the tree names the private network the port was written on. `scripts/bootstrap-dev-env.sh`'s
+  third source is now `local`: whatever an optional, gitignored `scripts/local-source.sh` defines,
+  skipped silently when that file is absent, which it is in a clone. A machine that cannot reach
+  `go.dev` has three ways out of it and none of them is an edit to a tracked file —
+  `GLIDERGO_GO_TARBALL` for a tarball carried across by hand, `GLIDERGO_GO_DL_HOST` /
+  `GLIDERGO_UBUNTU_MIRROR` for a mirror that speaks the same protocols, or that hook for a source
+  that needs real logic. No hostname, no credential, and no reference to any of it in the docs.
+- Every commit's author and committer email is a personal address rather than the work one the
+  machine was configured with. The rewrite touched nothing else: trees, names, dates and subjects
+  are identical, verified by diffing all 42 commits before and after, so only the hashes moved —
+  and the hashes this file cites moved with them and were repointed.
+
 ### The game's data is committed (2026-09-16)
 
 - `assets/extracted/` is now in the repository: 1,877 files, 15.5 MB — the 1994 art, the sounds
@@ -39,7 +56,7 @@ versioning yet, because nothing has been versioned.
   does not mean it works, and falling back to the next one when it does not is recorded as
   `docs/IMPROVEMENTS.md` 2.71.
 
-### Stage 1.10 — saved games (`68b7b4b`, 2026-09-16)
+### Stage 1.10 — saved games (`f769c8d`, 2026-09-16)
 
 - Reading and writing the original's saved-game format, reconstructed from four code paths that
   were dead in the 1994 sources. Both shipped saves load: Titanic (room 104, 4,700 points, 4
@@ -48,24 +65,25 @@ versioning yet, because nothing has been versioned.
   `internal/house/savedgame.go`'s package comment rather than in a commit message, because they
   are load-bearing for anyone reading the codec.
 
-### Public build path (`ca7db6f`, 2026-09-16)
+### Public build path (`30e5c04`, 2026-09-16)
 
-- `scripts/bootstrap-dev-env.sh` resolves the toolchain and the C libraries from `system`,
-  `internal` or `public` and prints which it chose, so the project builds on a machine with the
-  open internet as well as on the airgapped host it was written on. The internal mirror is opt-in
-  via `GLIDERGO_MIRROR_HOST`; no hostname and no credential is committed.
+- `scripts/bootstrap-dev-env.sh` resolves the toolchain and the C libraries from `system`, `local`
+  or `public` and prints which it chose, so the project builds on a machine with the open internet
+  as well as on the airgapped host it was written on. A private mirror is opt-in — the machine
+  describes its own in a gitignored `scripts/local-source.sh` — so no hostname and no credential
+  is committed.
 - `.github/workflows/ci.yml`: `make check` with assets and a display under Xvfb, `make cross`,
   and `go build`/`vet`/`test` natively on Windows and macOS. It has never run — the machine it was
   written on cannot reach GitHub — and says so at the top.
 
-### Stage 1.9 — local two-player race (`72776d4`, 2026-09-16)
+### Stage 1.9 — local two-player race (`2938b87`, 2026-09-16)
 
 - Two gliders, one keyboard, separate worlds, furthest-on-one-life wins. This is the local half of
   the networked race that Stage 3 owns.
 - Three race strictnesses, because the plan's single "same house, same seed" rule turned out not
   to be enough to make two runs comparable.
 
-### Stage 1.8 — fidelity, pinned to pixels (`7641446`, `439d583`, `f005a05`)
+### Stage 1.8 — fidelity, pinned to pixels (`9bd8310`, `7f4858c`, `2d8683f`)
 
 - `internal/fidelity`: reference PNGs and a hash corpus, the first pixels checked into the
   repository. A rendering change now needs `go test ./internal/fidelity -update` and a moved hash
@@ -74,7 +92,7 @@ versioning yet, because nothing has been versioned.
 - The original's RNG verified against the C, and the fidelity contract audited in writing —
   which is what found the last two contract items nothing had ever tested.
 
-### Stage 1.7 — the shell around the game (`cd92a11`, `5619a1a`, `8aee990`, `e3eff6e`, `51e67c8`)
+### Stage 1.7 — the shell around the game (`abb3165`, `40d9ae6`, `ac2192f`, `a8f82df`, `3879a61`)
 
 - Title screen, house picker, settings, a pause that can be got out of, both in-game banners,
   both endings, the credits, and music on the title screen.
@@ -87,58 +105,58 @@ versioning yet, because nothing has been versioned.
 - Deviation: the scoreboard sits where the port puts it, not where 1994 put it, and the reason is
   recorded (2.9).
 
-### Stage 1.6 — audio (`ac36aa0`)
+### Stage 1.6 — audio (`5774d75`)
 
 - Three channels with the 1994 priority policy, decoding Mac Sound Manager `'snd '` resources to
   PCM at extraction time.
 - `glidertool replay -wav` and a mix digest, so a bug report can carry what the game sounded like
   and not just what it looked like.
 
-### Stage 1.5 — the world (`64be9a8` … `2393149`)
+### Stage 1.5 — the world (`ecbbbc6` … `85a3f38`)
 
-The largest stage, specified in full before any of it was written (`64be9a8`), then built in six
-parts: the 117-type object graph (`a68d2a4`), the frame loop and room traversal that made the game
-playable (`76a2b9f`, `0e9994c`), the scoreboard and a hand-authored bitmap font with full Mac
-Roman coverage (`7e2dd98`, `6627299`, `09fc6f9`), dynamics — appliances, movers, toggles, triggers
-(`6459623`), rewards and switches and the per-room state byte that outlives its room (`7c2d5fb`),
-rubber bands and grease (`7cb9d04`), and the animated locale — flames, stars, pendulums, shreds
-(`2393149`).
+The largest stage, specified in full before any of it was written (`ecbbbc6`), then built in six
+parts: the 117-type object graph (`fc61b9f`), the frame loop and room traversal that made the game
+playable (`50046b3`, `aade14d`), the scoreboard and a hand-authored bitmap font with full Mac
+Roman coverage (`667fd37`, `2e50657`, `0d95095`), dynamics — appliances, movers, toggles, triggers
+(`4d78d7e`), rewards and switches and the per-room state byte that outlives its room (`742557f`),
+rubber bands and grease (`70b92ac`), and the animated locale — flames, stars, pendulums, shreds
+(`85a3f38`).
 
 - `badIndex` gives one named path to every out-of-range read the C performs and the port refuses,
   so a refusal is reported rather than silently papered over.
 - `internal/replay` and `glidertool replay`: the bug-report format (4.2).
-- Fixed a launch-time "hang" that was a lost window and a dropped expose event (`b1cc3b2`).
+- Fixed a launch-time "hang" that was a lost window and a dropped expose event (`e2c636d`).
 
-### Stage 1.4 — the glider (`20985dd`)
+### Stage 1.4 — the glider (`e08f60a`)
 
 - The player as a 24-mode integer state machine, transcribed from `Player.c`.
 
-### Stage 1.3 — a static room, composed the 1994 way (`843e786`)
+### Stage 1.3 — a static room, composed the 1994 way (`18261bd`)
 
 - Backgrounds, tiles and object art assembled in the original's order.
-- `make check` made to work without a display (`c78c259`), which is what the null backend is for.
+- `make check` made to work without a display (`d9529ed`), which is what the null backend is for.
 
-### Stage 1.2 — the house format (`81c7626`)
+### Stage 1.2 — the house format (`27cfebb`)
 
 - `internal/house`: the 1994 binary codec, byte for byte, plus a text codec so new houses can be
   authored by hand. `cmd/glidertool` dumps, builds, checks and lists rooms.
 
-### Stage 1.1 — the asset pipeline (`00af087`)
+### Stage 1.1 — the asset pipeline (`76e82b8`)
 
 - `make assets` (`tools/extract_all.py`): 38 committed files under `GliderPRO/` in, 1,899 files
   and 46 MB out, in about 70 s. No Macintosh, no copy of the retail game and no network
   (`docs/IMPROVEMENTS.md` 5.6). The output was gitignored at this point; it is committed now, see
   *The game's data is committed* above.
 
-### Stage 0 — the source of truth (`69dfacc`, `d4c6cfb`, `cdd04ef`)
+### Stage 0 — the source of truth (`85846aa`, `a287886`, `77ae195`)
 
 - The original 1994 Glider PRO source vendored unmodified under `GliderPRO/` as the reference
-  (`cdd04ef`), and reverse-documented into `docs/ORIGINAL_GAME.md` and `docs/analysis/*.md`
-  before any Go was written (`69dfacc`).
+  (`77ae195`), and reverse-documented into `docs/ORIGINAL_GAME.md` and `docs/analysis/*.md`
+  before any Go was written (`85846aa`).
 - The rootless development environment, with the platform layer proven end to end at 533 fps
-  (`d4c6cfb`).
+  (`a287886`).
 - GPLv2 `LICENSE` and `docs/IMPROVEMENTS.md`, which tracks everything a public release needs that
-  fidelity does not (`d9a61e1`).
+  fidelity does not (`227bee1`).
 
 ### Known not-yet-done
 

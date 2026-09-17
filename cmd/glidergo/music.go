@@ -23,7 +23,7 @@ package main
 // ladders called on it. Nothing about the score is reimplemented here, which is the point
 // -- `StartIdleMusic` keeps being the only thing that knows what idle music means.
 
-import "glidergo/internal/game"
+import "github.com/bwenstar/gliderGo/internal/game"
 
 // titleScore returns the World that owns the title screen's cursor into the score,
 // building it on first use, or nil for a session with no mixer.

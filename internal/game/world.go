@@ -21,10 +21,10 @@
 package game
 
 import (
-	"glidergo/internal/demo"
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/demo"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // Rect is the QuickDraw rect, shared with internal/house and internal/render so no

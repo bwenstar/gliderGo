@@ -34,7 +34,7 @@ package game
 // A released game cannot ship that. The port keeps the layout and moves the board: see
 // World.BoardDestRect for the deviation and docs/IMPROVEMENTS.md 2.9 for the entry.
 
-import "glidergo/internal/render"
+import "github.com/bwenstar/gliderGo/internal/render"
 
 // The two scoreboard layouts and the band's height (GliderDefines.h:513-515).
 //

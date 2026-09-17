@@ -32,8 +32,8 @@ package scores
 import (
 	"fmt"
 
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The layout constants, HighScores.c:90-92.

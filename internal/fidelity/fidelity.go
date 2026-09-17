@@ -52,8 +52,8 @@ import (
 	"sort"
 	"strings"
 
-	"glidergo/internal/render"
-	"glidergo/internal/replay"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
 // Reference is a checked-in corpus: a description of the run, and one row per thing hashed.

@@ -26,8 +26,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"glidergo/internal/datadir"
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/datadir"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // Ext is the file's extension. The original identified its saves by the type code 'gliG'

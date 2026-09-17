@@ -17,7 +17,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 // Window records presented frames instead of displaying them.

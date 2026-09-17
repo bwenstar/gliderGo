@@ -4,10 +4,9 @@
 # port is being developed on, which cannot reach github.com, so nothing below is verified end to
 # end -- not the action versions, not the runner package names, not xvfb. What *is* verified is
 # every command it invokes: `make check` was run here on a fresh no-asset tree with DISPLAY
-# unset and passed, `make cross` builds all six cross targets plus the host's own cgo build,
-# and the depth-24 requirement was
-# confirmed against a nested X server. Expect the first push to need a correction or two, most
-# likely in an action version. The failure modes to look for are listed at the bottom.
+# unset and passed, `make cross` builds all six cross targets plus the host's own cgo build, and
+# the depth-24 requirement the x11 backend imposes was confirmed against a nested X server.
+# Expect the first push to need a correction or two, most likely in an action version.
 #
 # WHAT THIS DOES NOT DO. There is no release job: no tagged builds, no artifacts published, no
 # installer. Cross-compiled binaries are uploaded for inspection only. Packaging needs decisions

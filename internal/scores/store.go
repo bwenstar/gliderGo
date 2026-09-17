@@ -36,8 +36,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"glidergo/internal/datadir"
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/datadir"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // Ext is the side-car's extension. The original's files had none -- they were named after

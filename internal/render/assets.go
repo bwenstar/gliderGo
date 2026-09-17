@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // Assets is the extracted art tree, loaded on demand into indexed Surfaces.

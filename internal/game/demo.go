@@ -15,8 +15,8 @@ package game
 // band it does not own and therefore diverges from the recording on frame 1442.
 
 import (
-	"glidergo/internal/demo"
-	"glidergo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/demo"
+	"github.com/bwenstar/gliderGo/internal/game/player"
 )
 
 // GetDemoInput is Input.c:186-277: drive player one's glider from the recorded stream.

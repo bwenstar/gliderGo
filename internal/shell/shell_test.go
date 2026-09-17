@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The shell is driven entirely through its Host, which is what makes it testable

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/credits"
-	"glidergo/internal/platform"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/credits"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The way in: A opens the About box, C opens the credits from it, and any key leaves. The

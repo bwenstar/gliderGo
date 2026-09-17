@@ -25,9 +25,9 @@ import (
 	"strings"
 	"testing"
 
-	"glidergo/internal/fidelity"
-	"glidergo/internal/render"
-	"glidergo/internal/replay"
+	"github.com/bwenstar/gliderGo/internal/fidelity"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
 var update = flag.Bool("update", false, "rewrite the references in testdata/")

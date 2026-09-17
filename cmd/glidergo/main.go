@@ -67,13 +67,13 @@ import (
 	"strings"
 	"time"
 
-	"glidergo/internal/audio"
-	"glidergo/internal/platform"
-	"glidergo/internal/platform/backend"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
-	"glidergo/internal/saved"
-	"glidergo/internal/shell"
+	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform/backend"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
 // version is what the title screen and a bug report quote. The Makefile sets it from

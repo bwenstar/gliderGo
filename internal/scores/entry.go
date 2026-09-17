@@ -37,9 +37,9 @@ import (
 	"fmt"
 	"strings"
 
-	"glidergo/internal/house"
-	"glidergo/internal/platform"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The two character limits, from PasStringCopyNum's third argument.

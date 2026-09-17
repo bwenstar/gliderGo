@@ -38,8 +38,8 @@ package game
 // docs/IMPROVEMENTS.md 2.11 for the release-build instrumentation of it.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // MaxGarbageRects, the cap on both lists, is in consts.go with the other table

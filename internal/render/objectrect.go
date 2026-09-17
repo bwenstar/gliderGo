@@ -1,6 +1,6 @@
 package render
 
-import "glidergo/internal/house"
+import "github.com/bwenstar/gliderGo/internal/house"
 
 // GetObjectRect, from GliderPRO/Sources/ObjectRects.c:32-273.
 //

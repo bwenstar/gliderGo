@@ -12,8 +12,8 @@ package scores
 import (
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // ---------------------------------------------------------------------- anchors

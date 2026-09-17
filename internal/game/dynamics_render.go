@@ -37,8 +37,8 @@ package game
 // internal/render/objectdraw2.go) and the renderer leaves it alone until it launches.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // renderDinah is the six-line shape, shared by six of the seven.

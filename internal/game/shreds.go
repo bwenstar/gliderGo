@@ -71,8 +71,8 @@ package game
 // the respawn.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // MaxShredded is kMaxShredded (GliderDefines.h:264). Four clouds at once, shared by every

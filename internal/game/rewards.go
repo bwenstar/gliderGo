@@ -61,7 +61,7 @@ package game
 // one player is out, the doubling stops -- so the survivor of a two-player game collects
 // at single rate. Note what is *not* doubled: points, and the star count.
 
-import "glidergo/internal/game/player"
+import "github.com/bwenstar/gliderGo/internal/game/player"
 
 // What a prize is worth (GliderDefines.h:537-541), and what a supply refills
 // (Interactions.c:16-19, which are file-local #defines there and file-local here for the

@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // ------------------------------------------------------------------- fixtures

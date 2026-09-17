@@ -14,9 +14,9 @@ import (
 	"sort"
 	"testing"
 
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // ---------------------------------------------------------------------------

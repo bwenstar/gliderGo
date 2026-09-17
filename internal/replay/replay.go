@@ -84,12 +84,12 @@ import (
 	"strings"
 	"time"
 
-	"glidergo/internal/audio"
-	"glidergo/internal/demo"
-	"glidergo/internal/game"
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/demo"
+	"github.com/bwenstar/gliderGo/internal/game"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // DefaultClock is the instant a script runs at unless it says otherwise.

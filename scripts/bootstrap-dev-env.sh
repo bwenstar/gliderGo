@@ -1,44 +1,47 @@
 #!/usr/bin/env bash
 # Bootstrap the gliderGo development environment.
 #
-# Two networks, one script. gliderGo was written on an airgapped host whose only
-# software source is an internal package mirror, and it is meant to end up on
-# GitHub where contributors have the open internet and, usually, a Go toolchain
-# already. Those are different worlds and neither is the "real" one, so the script
-# does not privilege either: it works out where dependencies can actually come
-# from and says which it picked.
+# The script works out where dependencies can actually come from and says which it
+# picked, because the commonest confusion a bootstrap can cause is installing from
+# a network you did not expect.
 #
 #   ./scripts/bootstrap-dev-env.sh                    # detect a source, install Go, write scripts/env.sh
 #   ./scripts/bootstrap-dev-env.sh --sysroot          # also fetch the optional C dev libraries
 #   ./scripts/bootstrap-dev-env.sh --check            # verify an existing environment, install nothing
-#   ./scripts/bootstrap-dev-env.sh --source public    # force a source: system | internal | public
+#   ./scripts/bootstrap-dev-env.sh --source public    # force a source: system | local | public
 #   ./scripts/bootstrap-dev-env.sh --dry-run          # print the plan and every URL, touch nothing
 #
-# THE THREE SOURCES
+# THE SOURCES
 #
 #   system    A Go already on your PATH that satisfies go.mod's `go` directive.
 #             Installs nothing and downloads nothing. This is the right answer for
 #             almost every contributor and is why `auto` tries it first.
-#   internal  The internal package mirror: the golang container image for the
-#             toolchain, the mirrored Ubuntu archive for C libraries. The airgapped
-#             host's only option, and unchanged from before this script grew a
-#             second path.
 #   public    go.dev for the toolchain, a public Ubuntu mirror for C libraries.
-#             What a GitHub contributor without a Go install gets.
+#             What a contributor without a Go install gets.
+#   local     Whatever scripts/local-source.sh defines, if that file exists. See
+#             "A MACHINE THAT CANNOT REACH GO.DEV" below. Absent on a fresh clone,
+#             and skipped silently when absent.
 #
-# `--source auto` (the default) tries them in that order. System first because it
-# is free and correct; internal before public because a host that can see
-# The mirror is usually a host that cannot see anything else.
+# `--source auto` (the default) tries system, then local, then public: system
+# because it is free and correct, and local before public because a machine that
+# has a private source usually has it precisely because it cannot see the public
+# internet.
 #
-# CREDENTIALS
+# A MACHINE THAT CANNOT REACH GO.DEV
 #
-# The internal source may need them: export MIRROR_USER / MIRROR_PASS,
-# or put a machine entry for the mirror host in ~/.netrc. They are never
-# written into the repository and never echoed. The public source needs none.
+# Some machines are behind a proxy, on a disconnected network, or have a company
+# mirror with its own hostname, layout and credentials. None of that belongs in a
+# public repository, so this script has no such host built into it. Three ways out,
+# none of them needing an edit to this file:
 #
-# The internal source also needs to be told where it is: there is no built-in
-# hostname, so `internal` is skipped entirely unless GLIDERGO_MIRROR_HOST is
-# exported. Nothing about anybody's private network is committed here.
+#   - Carry the tarball across and name it, which needs no network at all:
+#         GLIDERGO_GO_TARBALL=/path/to/go1.23.x.linux-amd64.tar.gz ./scripts/bootstrap-dev-env.sh
+#   - Redirect the public source at a mirror that speaks the same protocols:
+#         GLIDERGO_GO_DL_HOST=https://mirror.example.com/golang
+#         GLIDERGO_UBUNTU_MIRROR=http://mirror.example.com/ubuntu
+#   - Or, for a source that needs real logic rather than a different URL, write
+#     scripts/local-source.sh. It is gitignored, it is sourced if it exists, and
+#     the block that loads it below documents the four functions it may define.
 #
 # WHAT THIS SCRIPT IS NOT
 #
@@ -54,23 +57,33 @@ GO_DIR="$TOOLCHAIN_DIR/go"
 SYSROOT="$REPO_ROOT/.toolchain/sysroot"
 CACHE="$REPO_ROOT/.toolchain/cache"
 
-# --- an internal package mirror, if there is one -------------------------
-# Opt-in, and deliberately so. This is empty unless GLIDERGO_MIRROR_HOST is
-# exported, because a hostname on a private network is worth nothing to anybody
-# else: the earlier default meant every stranger's `make doctor` resolved and
-# probed a company host they have no business knowing about, waited three seconds
-# for it, and then printed a row that reads like a missing prerequisite. The
-# airgapped host this port was written on exports the variable once and behaves
-# exactly as before.
-MIRROR_HOST="${GLIDERGO_MIRROR_HOST:-}"
-MIRROR="https://$MIRROR_HOST/repo"
-INTERNAL_UBUNTU="$MIRROR/archive.ubuntu.com-ubuntu"
-GO_IMAGE="$MIRROR_HOST/registry-1.docker.io/library/golang:1.23-bookworm"
+# --- an optional private source, if this machine has one ---------------------
+# A hostname on somebody's private network is worth nothing to anybody else, and
+# is not this repository's to publish, so no such host is written down here. If
+# scripts/local-source.sh exists it is sourced now and may define any of:
+#
+#   local_source_label        print a short name for the log line ("acme mirror")
+#   local_source_reachable    return 0 if it answers; the guard for everything else
+#   local_source_install_go   install a toolchain into $GO_DIR (honour $DRY_RUN)
+#   local_source_ubuntu_url   print a base URL for an Ubuntu archive mirror
+#   local_source_curl_args    print extra curl arguments, e.g. credentials
+#
+# Every one is optional and the file itself is gitignored. A clone without one
+# behaves exactly as though this block were not here: `local` is reported as "not
+# configured", never probed, and never chosen. Being sourced this early means the
+# hook can also override GO_DL_HOST or PUBLIC_UBUNTU and stop there, which is all
+# a plain URL-swap mirror needs.
+LOCAL_SOURCE_FILE="$REPO_ROOT/scripts/local-source.sh"
+# shellcheck source=/dev/null
+[[ -f "$LOCAL_SOURCE_FILE" ]] && source "$LOCAL_SOURCE_FILE"
 
-# have_internal is the guard every probe of that mirror goes through, so that an
-# unset host is "not configured" and never a failed connection to `https:///`.
-have_internal() { [[ -n "$MIRROR_HOST" ]]; }
-internal_reachable() { have_internal && reachable "$MIRROR/api/repositories"; }
+# have_local is the guard every use of the hook goes through, so that a clone with
+# no hook can never reach a half-defined one.
+have_local() { declare -F local_source_reachable >/dev/null 2>&1; }
+local_reachable() { have_local && local_source_reachable; }
+local_label() {
+  if declare -F local_source_label >/dev/null 2>&1; then local_source_label; else printf 'scripts/local-source.sh\n'; fi
+}
 
 # --- the open internet -------------------------------------------------------
 # Both are overridable so that a third kind of network -- a company mirror that is
@@ -111,7 +124,7 @@ MULTIARCH="$(gcc -dumpmachine 2>/dev/null || echo x86_64-linux-gnu)"
 #   libsdl2-dev     -> SDL2 headers + static/shared lib [portable backend: win/mac/ios/android]
 SYSROOT_PACKAGES=(libxext-dev libx11-dev libasound2-dev libsdl2-dev libsdl2-2.0-0)
 
-SOURCE=auto      # system | internal | public | auto
+SOURCE=auto      # system | local | public | auto
 MODE=go-only     # go-only | sysroot | check
 DRY_RUN=0
 
@@ -141,10 +154,15 @@ go_version() { "$1" version 2>/dev/null | awk '{ print $3 }' | sed 's/^go//'; }
 # Reachability, and choosing a source
 # ---------------------------------------------------------------------------
 
+# curl_auth is every download in this script. Credentials, if a private source
+# needs any, come from the hook or from ~/.netrc -- never from this file, and never
+# from a command line, where they would show up in `ps` for every other user.
 curl_auth() {
   local args=(--fail --silent --show-error --location --max-time 300)
-  if [[ -n "${MIRROR_USER:-}" && -n "${MIRROR_PASS:-}" ]]; then
-    args+=(--user "$MIRROR_USER:$MIRROR_PASS")
+  if declare -F local_source_curl_args >/dev/null 2>&1; then
+    local extra
+    mapfile -t extra < <(local_source_curl_args)
+    args+=("${extra[@]}")
   else
     args+=(--netrc-optional)
   fi
@@ -181,13 +199,15 @@ found_go() {
 # is installing from a network the user did not expect.
 choose_source() {
   if [[ "$SOURCE" != auto ]]; then
-    # The one forced source that can be impossible: there is no built-in internal
-    # mirror to fall back on, on purpose (see GLIDERGO_MIRROR_HOST above), so
-    # say which variable is missing rather than fetching from `https:///`.
-    if [[ "$SOURCE" == internal ]] && ! have_internal; then
-      die "--source internal needs a mirror to talk to, and none is configured.
-       Export GLIDERGO_MIRROR_HOST=<your mirror host> and re-run, or
-       use --source system (a Go already on PATH) or --source public (go.dev)."
+    # The one forced source that can be impossible: there is no private source
+    # built into this script, on purpose, so name the file that would define one
+    # rather than failing later inside a function that does not exist.
+    if [[ "$SOURCE" == local ]] && ! have_local; then
+      die "--source local needs $LOCAL_SOURCE_FILE to exist and to define
+       local_source_reachable, and it does not. See the header for what that file
+       is for, or use --source system (a Go already on PATH) or --source public
+       (go.dev). To install from a tarball you already have, no source is needed:
+           GLIDERGO_GO_TARBALL=/path/to/go.tar.gz $0"
     fi
     log "Source: $SOURCE (forced with --source)"
     return
@@ -210,9 +230,9 @@ choose_source() {
     warn "$onpath is go$(go_version "$onpath"), older than go.mod's $floor -- looking for a newer one"
   fi
 
-  if internal_reachable; then
-    SOURCE=internal
-    log "Source: internal -- $MIRROR_HOST answered"
+  if local_reachable; then
+    SOURCE=local
+    log "Source: local -- $(local_label) answered"
     return
   fi
   if reachable "$GO_DL_HOST/dl/"; then
@@ -222,12 +242,12 @@ choose_source() {
   fi
 
   die "no source for a Go toolchain: no local go >= $floor, and neither
-       ${MIRROR_HOST:-no internal mirror configured} nor $GO_DL_HOST is reachable.
+       $(have_local && local_label || echo "no private source configured") nor $GO_DL_HOST is reachable.
 
   If you have a Go tarball already, point at it and re-run:
       GLIDERGO_GO_TARBALL=/path/to/go$floor.linux-$DEB_ARCH.tar.gz $0
   Or install Go yourself and re-run; anything >= $floor on PATH is enough.
-  Or force a source with --source system|internal|public to see its own error."
+  Or force a source with --source system|local|public to see its own error."
 }
 
 # ---------------------------------------------------------------------------
@@ -351,38 +371,16 @@ install_go_public() {
   install_go_from_tarball "$tarball"
 }
 
-install_go_internal() {
-  local runtime="" c
-  for c in podman docker; do command -v "$c" >/dev/null 2>&1 && runtime="$c" && break; done
-
-  if [[ -n "$runtime" ]]; then
-    if (( DRY_RUN )); then
-      plan "$runtime pull $GO_IMAGE"
-      plan "$runtime run --rm -v $CACHE:/out:z $GO_IMAGE  -- tar /usr/local/go out of the image"
-      plan "extract that tar into $TOOLCHAIN_DIR (creating $GO_DIR)"
-      return
-    fi
-    mkdir -p "$TOOLCHAIN_DIR" "$CACHE"
-    log "Extracting the Go toolchain from $GO_IMAGE via $runtime (no root required)"
-    "$runtime" pull "$GO_IMAGE"
-    "$runtime" run --rm -v "$CACHE:/out:z" "$GO_IMAGE" \
-      sh -c 'tar -C /usr/local -cf /out/go-toolchain.tar go'
-    tar -C "$TOOLCHAIN_DIR" -xf "$CACHE/go-toolchain.tar"
-    rm -f "$CACHE/go-toolchain.tar"
-    return
-  fi
-
-  if (( DRY_RUN )); then
-    plan "no container runtime found; fall back to Ubuntu golang-1.2x-go debs from $INTERNAL_UBUNTU"
-    return
-  fi
-  log "No container runtime; falling back to the Ubuntu golang .deb"
-  install_debs_into "$CACHE/godeb" golang-1.23-go golang-1.23-src ||
-    install_debs_into "$CACHE/godeb" golang-1.22-go golang-1.22-src
-  local found
-  found="$(find "$CACHE/godeb/usr/lib" -maxdepth 1 -name 'go-1.*' | head -1)"
-  [[ -n "$found" ]] || die "could not locate an extracted Go toolchain"
-  cp -a "$found" "$GO_DIR"
+# install_go_local delegates to the hook, which owns whatever the private source
+# needs -- a container image, a mirrored archive, an internal file server. This
+# script deliberately knows none of that. install_go re-checks $GO_DIR/bin/go
+# afterwards, so a hook that quietly does nothing is caught rather than believed.
+install_go_local() {
+  declare -F local_source_install_go >/dev/null 2>&1 ||
+    die "--source local, but $LOCAL_SOURCE_FILE defines no local_source_install_go.
+       Either add one, or use --source public, or name a tarball with
+       GLIDERGO_GO_TARBALL."
+  local_source_install_go
 }
 
 install_go() {
@@ -400,7 +398,7 @@ install_go() {
         log "Using $go (go$(go_version "$go")); nothing to install"
         return
         ;;
-      internal) install_go_internal ;;
+      local)    install_go_local ;;
       public)   install_go_public ;;
       *) die "unknown source: $SOURCE" ;;
     esac
@@ -424,34 +422,39 @@ install_go() {
 # from -- and conflating the two is a mistake worth naming, because it is the one
 # this script made first.
 #
-# On the airgapped build host, `auto` resolves the toolchain to `system`: Go is
-# already installed at ~/.local/opt/go, so nothing needs downloading. But the
-# Ubuntu archive still has to be the package mirror, because archive.ubuntu.com
-# does not exist on that network. Deriving the mirror from SOURCE meant
-# `--sysroot` reached for the public archive on the only machine the flag has
-# ever run on. So the two are resolved separately.
+# A machine with a private source usually resolves the *toolchain* to `system` --
+# Go is already installed, so nothing needs downloading -- while still needing the
+# private Ubuntu mirror, because archive.ubuntu.com is not reachable from it.
+# Deriving the mirror from SOURCE meant `--sysroot` reached for the public archive
+# on exactly the machines that cannot see it. So the two are resolved separately.
 DEB_SOURCE=""
 
 ubuntu_mirror() {
   case "$DEB_SOURCE" in
-    internal) printf '%s\n' "$INTERNAL_UBUNTU" ;;
-    *)        printf '%s\n' "$PUBLIC_UBUNTU" ;;
+    local) local_source_ubuntu_url ;;
+    *)     printf '%s\n' "$PUBLIC_UBUNTU" ;;
   esac
 }
+
+# has_local_ubuntu is narrower than have_local: a hook may define a toolchain
+# source and no Ubuntu mirror, and picking `local` for the debs on the strength of
+# the toolchain half would call a function that does not exist.
+has_local_ubuntu() { declare -F local_source_ubuntu_url >/dev/null 2>&1; }
 
 resolve_deb_source() {
   [[ -n "$DEB_SOURCE" ]] && return
   case "$SOURCE" in
-    internal|public) DEB_SOURCE="$SOURCE" ;;
+    public) DEB_SOURCE=public ;;
+    local)  has_local_ubuntu && DEB_SOURCE=local || DEB_SOURCE=public ;;
     *)
-      # An explicit mirror wins; then a reachable mirror; then the public
+      # An explicit mirror wins; then a reachable private source; then the public
       # archive, which is also the honest default when nothing is reachable --
       # the fetch fails with a connection error naming a URL, which is a better
       # diagnostic than this script guessing.
       if [[ -n "${GLIDERGO_UBUNTU_MIRROR:-}" ]]; then
         DEB_SOURCE=public
-      elif internal_reachable; then
-        DEB_SOURCE=internal
+      elif has_local_ubuntu && local_reachable; then
+        DEB_SOURCE=local
       else
         DEB_SOURCE=public
       fi
@@ -675,12 +678,12 @@ check_env() {
 
   # Which networks this machine can see. Reported rather than acted on: --check
   # installs nothing, and knowing the answer is most of diagnosing a bootstrap.
-  if have_internal; then
-    internal_reachable \
-      && probe "internal mirror ($MIRROR_HOST)" "reachable" \
-      || probe "internal mirror ($MIRROR_HOST)" "unreachable"
+  if have_local; then
+    local_reachable \
+      && probe "private source ($(local_label))" "reachable" \
+      || probe "private source ($(local_label))" "unreachable"
   else
-    probe "internal mirror" "not configured (set GLIDERGO_MIRROR_HOST)"
+    probe "private source" "none (optional: see scripts/bootstrap-dev-env.sh --help)"
   fi
   reachable "$GO_DL_HOST/dl/" && probe "public $GO_DL_HOST" "reachable" || probe "public $GO_DL_HOST" "unreachable"
 
@@ -702,7 +705,7 @@ while (( $# )); do
     --sysroot)  MODE=sysroot ;;
     --check)    MODE=check ;;
     --dry-run|-n) DRY_RUN=1 ;;
-    --source)   shift; [[ $# -gt 0 ]] || die "--source needs a value: system, internal, public or auto"; SOURCE="$1" ;;
+    --source)   shift; [[ $# -gt 0 ]] || die "--source needs a value: system, local, public or auto"; SOURCE="$1" ;;
     --source=*) SOURCE="${1#--source=}" ;;
     # Print the header block and stop at the first line of code, so that help
     # cannot drift out of date the way a hardcoded line range does.
@@ -713,8 +716,8 @@ while (( $# )); do
 done
 
 case "$SOURCE" in
-  system|internal|public|auto) ;;
-  *) die "unknown --source: $SOURCE (want system, internal, public or auto)" ;;
+  system|local|public|auto) ;;
+  *) die "unknown --source: $SOURCE (want system, local, public or auto)" ;;
 esac
 
 case "$MODE" in

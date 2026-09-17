@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // The calendar is the one object in a static room whose appearance depends on

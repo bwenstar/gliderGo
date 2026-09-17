@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // GetPicture by numeric id, across both resource chains.

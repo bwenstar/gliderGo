@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // Composing a room: GliderPRO/Sources/RoomGraphics.c plus the parts of Room.c,

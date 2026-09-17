@@ -72,8 +72,8 @@ package game
 // either glider is the same event.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The switch click (GliderDefines.h:64, :156). One sound for all five plates -- the

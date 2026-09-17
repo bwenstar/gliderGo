@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"glidergo/internal/game"
-	"glidergo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/game"
+	"github.com/bwenstar/gliderGo/internal/prefs"
 )
 
 // scoreLog is a music channel that records what it was asked for.

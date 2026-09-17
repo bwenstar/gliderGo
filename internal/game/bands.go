@@ -73,8 +73,8 @@ package game
 // room's clocks from across it.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // RubberBandVelocity is the fixed horizontal speed (RubberBands.c:12): 20 px/frame either

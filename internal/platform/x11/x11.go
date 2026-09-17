@@ -49,7 +49,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"glidergo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/platform"
 )
 
 // Window is an X11 window plus its presentation image.

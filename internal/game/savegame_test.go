@@ -16,8 +16,8 @@ import (
 	"bytes"
 	"testing"
 
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // saveWorld is a headless one-room world with a save hook that records rather than writes.

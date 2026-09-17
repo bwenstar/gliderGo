@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"glidergo/internal/datadir"
-	"glidergo/internal/house"
-	"glidergo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/datadir"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/prefs"
 )
 
 // ------------------------------------------------------------------ directory

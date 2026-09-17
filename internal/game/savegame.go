@@ -47,8 +47,8 @@ package game
 import (
 	"fmt"
 
-	"glidergo/internal/game/player"
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // CanSaveGame reports whether this game may be written to disk at all.

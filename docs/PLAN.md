@@ -94,9 +94,9 @@ learned, and leaves `make check` green.
 
 ### Stage 0 — foundations ✅ *done*
 
-- Git repo initialised; original source vendored read-only (`cdd04ef`).
+- Git repo initialised; original source vendored read-only (`77ae195`).
 - Rootless dev environment: Go from a container image, `scripts/bootstrap-dev-env.sh`,
-  `make check` (`d4c6cfb`).
+  `make check` (`a287886`).
 - Platform layer with x11 + null backends, verified on screen at 944 fps.
 - Source archaeology: `docs/analysis/*.md` + `docs/ORIGINAL_GAME.md`.
 
@@ -1105,12 +1105,13 @@ missing" below*
   exit from the transit deadlock and in the original only one of the two players holds it.
 
 **The public build path** ✅ *done* — *not a numbered stage; requested between 1.9 and 1.10*
-- The development environment assumed one network: the internal package mirror. gliderGo is
+- The development environment assumed one network: this host's private package mirror. gliderGo is
   meant to end up on GitHub, so `scripts/bootstrap-dev-env.sh` now resolves dependencies from a Go
-  already on `PATH`, from the package mirror, or from `go.dev` (`--source system|internal|public|auto`,
-  reviewable offline with `--dry-run`, reported by `make doctor`). **The airgapped path is
-  unchanged** and is still what this host uses — `auto` picks the installed Go and the package mirror's
-  Ubuntu mirror, and the two sources resolve independently.
+  already on `PATH`, from `go.dev`, or from a private source the machine describes for itself in a
+  gitignored `scripts/local-source.sh` (`--source system|local|public|auto`, reviewable offline
+  with `--dry-run`, reported by `make doctor`). **The airgapped path is unchanged** and is still
+  what this host uses — `auto` picks the installed Go and that host's own Ubuntu mirror, and the
+  two sources resolve independently. No hostname and no credential is committed.
 - The rest is about being buildable by a stranger rather than about Go: `make check` now passes on
   a clone with no extracted assets and no `DISPLAY`, and its closing summary enumerates what it
   could *not* verify instead of claiming everything; `fmt-check` replaced `fmt` inside `check`, so

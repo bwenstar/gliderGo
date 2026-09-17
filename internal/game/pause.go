@@ -43,7 +43,7 @@ package game
 // until the pause really ends, because the erase is after the wait -- a held key shows a
 // paused game rather than a frozen one. See docs/IMPROVEMENTS.md 2.5.
 
-import "glidergo/internal/render"
+import "github.com/bwenstar/gliderGo/internal/render"
 
 // The placard: the two pictures (Input.c:17-18) and the rect they are drawn in (:82).
 //

@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"strings"
 
-	"glidergo/internal/house"
-	"glidergo/internal/prefs"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The port's screen. Fixed, because the game's own coordinate system is: the

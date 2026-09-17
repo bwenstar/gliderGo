@@ -18,8 +18,8 @@ package shell
 // prints one line saying C, and C comes here.
 
 import (
-	"glidergo/internal/credits"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/credits"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // The credits panel. Wider than the About box because the rows are two columns of prose --

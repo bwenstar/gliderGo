@@ -10,7 +10,7 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/house"
 )
 
 // scoreWorld is a headless world on a house with n rooms, none of them visited.

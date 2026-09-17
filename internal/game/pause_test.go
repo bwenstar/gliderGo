@@ -11,8 +11,8 @@ package game
 import (
 	"testing"
 
-	"glidergo/internal/house"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // pauseWorld is a headless world with a painted work map and a painted screen, so that a

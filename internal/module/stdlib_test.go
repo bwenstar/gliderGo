@@ -40,7 +40,11 @@ import (
 
 // modulePath is what go.mod declares, and therefore the one non-stdlib import prefix that is
 // legitimate: gliderGo's own packages.
-const modulePath = "glidergo"
+//
+// Deliberately a second copy of the string rather than something parsed out of go.mod. A test
+// that read the path from the file it is checking would agree with any path at all, including a
+// typo, which is the one thing worth catching here.
+const modulePath = "github.com/bwenstar/gliderGo"
 
 // repoRoot walks up from the package directory to the directory holding go.mod.
 func repoRoot(t *testing.T) string {
@@ -179,7 +183,7 @@ func TestGoModDeclaresNoDependencies(t *testing.T) {
 // TestTheGoModCheckCatchesEachWayIn is the negative half: one case per route a dependency can
 // take into go.mod, plus the two cases where the parser must not cry wolf.
 func TestTheGoModCheckCatchesEachWayIn(t *testing.T) {
-	const good = "module glidergo\n\ngo 1.23\n"
+	const good = "module " + modulePath + "\n\ngo 1.23\n"
 
 	for _, tc := range []struct {
 		name  string
@@ -201,9 +205,9 @@ func TestTheGoModCheckCatchesEachWayIn(t *testing.T) {
 		// Three: the require itself, the line inside it, and the missing ")".
 		{"an unterminated block", good + "require (\n\ta.com/b v1.0.0\n", 3},
 		{"an unknown directive", good + "vendorise all\n", 1},
-		{"the wrong module path", "module notglidergo\n\ngo 1.23\n", 1},
+		{"the wrong module path", "module github.com/bwenstar/notGliderGo\n\ngo 1.23\n", 1},
 		{"no module line", "go 1.23\n", 1},
-		{"no go line", "module glidergo\n", 1},
+		{"no go line", "module " + modulePath + "\n", 1},
 		{"empty", "", 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -227,10 +231,15 @@ func TestTheImportRuleAcceptsTheStandardLibraryAndRefusesModules(t *testing.T) {
 		{"os", true},
 		{"path/filepath", true},
 		{"encoding/binary", true},
-		{"C", true},                      // cgo, used by internal/platform/x11
-		{"glidergo", true},               // the module itself
-		{"glidergo/internal/game", true}, // and its packages
+		{"C", true},        // cgo, used by internal/platform/x11
+		{modulePath, true}, // the module itself
+		{"github.com/bwenstar/gliderGo/internal/game", true}, // and its packages
 
+		// Now that the module path has a dot in its first element, these two are what
+		// prove the prefix match is *this* module rather than anything on github.com or
+		// anything of this owner's.
+		{"github.com/bwenstar/glidergo", false}, // same owner, and Go paths are case-sensitive
+		{"github.com/bwenstar/other", false},
 		{"github.com/user/repo", false},
 		{"golang.org/x/image/draw", false},       // the one a renderer would reach for first
 		{"gitlab.internal.example.com/x", false}, // a self-hosted forge, dots and all

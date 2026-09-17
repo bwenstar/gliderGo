@@ -14,8 +14,8 @@ import (
 	"reflect"
 	"testing"
 
-	"glidergo/internal/game"
-	"glidergo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/game"
+	"github.com/bwenstar/gliderGo/internal/prefs"
 )
 
 // TestHermeticRunsIgnoreThePlayersPreferences is the property `make check` rests on.

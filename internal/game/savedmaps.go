@@ -20,8 +20,8 @@ package game
 // HandleSwitches, for a prize collected remotely by a switch wired to it.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // RestoreFromSavedMap puts the background back over object `who` of room `where`.

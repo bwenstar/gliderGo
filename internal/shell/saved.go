@@ -39,8 +39,8 @@ import (
 	"errors"
 	"os"
 
-	"glidergo/internal/platform"
-	"glidergo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/saved"
 )
 
 // errNoSaves is what a shell with no Saved hook answers: -shot, `-saves none`, the tests, a

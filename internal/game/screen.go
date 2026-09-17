@@ -24,8 +24,8 @@ package game
 // AddRectToWorkRects for why the offset is the caller's job and not theirs.
 
 import (
-	"glidergo/internal/game/player"
-	"glidergo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/game/player"
+	"github.com/bwenstar/gliderGo/internal/render"
 )
 
 // present makes Main visible, if anything is watching. See World.Present for the
