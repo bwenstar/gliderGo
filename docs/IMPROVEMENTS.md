@@ -2803,6 +2803,8 @@ alone for a stated reason rather than missed.
 | 5.8 (the module-path item) `module github.com/bwenstar/gliderGo`, with two new cases in `internal/module`'s table that are only discriminating once the path has a dot in its first element | 1.10c | this stage |
 | The private mirror is out of the tree entirely: `--source local` reads an optional gitignored hook, and no doc, script or comment names anyone's internal network | 1.10c | this stage |
 | The author email in all 42 commits' metadata is a personal address — a leak that no content grep could have found, since it is in the objects rather than the files | 1.10c | this stage |
+| Four commit *messages* named the mirror by product name, found by grepping `git log` rather than the tree, which is the same class of leak one level out | 1.10c | this stage |
+| The Makefile reads `GLIDERGO_TOOLCHAIN_DIR` rather than hard-coding `~/.local/opt`, so it cannot disagree with the bootstrap about which Go was just installed | 1.10c | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

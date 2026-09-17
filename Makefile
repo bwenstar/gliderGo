@@ -7,7 +7,13 @@
 
 # A toolchain this repo's bootstrap installed, else whatever `go` is on PATH.
 # Override with `make GO=/path/to/go` to build against a specific one.
-GO      ?= $(shell test -x $(HOME)/.local/opt/go/bin/go && echo $(HOME)/.local/opt/go/bin/go || echo go)
+#
+# GLIDERGO_TOOLCHAIN_DIR is read rather than hard-coded so that this agrees with
+# scripts/bootstrap-dev-env.sh, which honours the same variable and defaults to the same
+# place. Set it there and not here and `make` would quietly build with a different Go
+# than the one you just installed.
+GLIDERGO_TOOLCHAIN_DIR ?= $(HOME)/.local/opt
+GO      ?= $(shell test -x $(GLIDERGO_TOOLCHAIN_DIR)/go/bin/go && echo $(GLIDERGO_TOOLCHAIN_DIR)/go/bin/go || echo go)
 BIN     := bin
 PKG     := ./...
 ASSETS  := assets/extracted

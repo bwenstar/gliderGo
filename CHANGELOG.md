@@ -28,9 +28,18 @@ versioning yet, because nothing has been versioned.
   `GLIDERGO_UBUNTU_MIRROR` for a mirror that speaks the same protocols, or that hook for a source
   that needs real logic. No hostname, no credential, and no reference to any of it in the docs.
 - Every commit's author and committer email is a personal address rather than the work one the
-  machine was configured with. The rewrite touched nothing else: trees, names, dates and subjects
-  are identical, verified by diffing all 42 commits before and after, so only the hashes moved —
-  and the hashes this file cites moved with them and were repointed.
+  machine was configured with, and four commit *messages* that named the mirror by product name
+  no longer do. Neither rewrite touched anything else: trees, names, dates and subjects are
+  identical, verified by diffing every commit before and after, so only the hashes moved — and
+  the 40 hashes this file and `docs/PLAN.md` cite moved with them and were repointed.
+- The Makefile reads `GLIDERGO_TOOLCHAIN_DIR` instead of hard-coding `~/.local/opt`, so it agrees
+  with the bootstrap script about where a toolchain was installed. Set that variable for the
+  bootstrap and `make` would previously have built with a different Go than the one it had just
+  installed.
+- Verified the way a stranger would meet it: cloned the repository into a scratch directory,
+  removed the remote, and ran `make check` under `env -i` with nothing but `HOME`, `PATH` and a
+  Go — green, with the summary correctly listing the on-screen blit as not exercised because
+  `DISPLAY` was unset. `make bench` with a display then drew 300 frames at 770 fps.
 
 ### The game's data is committed (2026-09-16)
 
