@@ -94,9 +94,9 @@ learned, and leaves `make check` green.
 
 ### Stage 0 — foundations ✅ *done*
 
-- Git repo initialised; original source vendored read-only (`77ae195`).
+- Git repo initialised; original source vendored read-only (`3c67f83`).
 - Rootless dev environment: Go from a container image, `scripts/bootstrap-dev-env.sh`,
-  `make check` (`a287886`).
+  `make check` (`c0c7641`).
 - Platform layer with x11 + null backends, verified on screen at 944 fps.
 - Source archaeology: `docs/analysis/*.md` + `docs/ORIGINAL_GAME.md`.
 
