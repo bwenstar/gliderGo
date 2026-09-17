@@ -24,7 +24,7 @@ import "testing"
 // saved-map slots or 16 jars without building a house that has them.
 func greaseScene(t *testing.T) *Scene {
 	t.Helper()
-	s := NewScene(DefaultView(), NewAssets(""), testHouse())
+	s := NewScene(DefaultView(), NewAssets(nil), testHouse())
 	if s.Back == nil || s.Back.Bounds().Wide() < 64 {
 		t.Fatalf("fixture back map is %v; backupGrease needs somewhere to copy from",
 			s.Back.Bounds())

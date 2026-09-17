@@ -17,6 +17,9 @@ GO      ?= $(shell test -x $(GLIDERGO_TOOLCHAIN_DIR)/go/bin/go && echo $(GLIDERG
 BIN     := bin
 PKG     := ./...
 ASSETS  := assets/extracted
+# The archive of that tree which every executable embeds, so that a downloaded binary needs no
+# files beside it. It is committed like the tree; `make assets-zip` regenerates it.
+ASSETS_ZIP := assets/extracted.zip
 
 # The asset-tree tests every target below shares, so that they cannot drift apart.
 #
@@ -32,6 +35,7 @@ ASSETS  := assets/extracted
 HAVE_HOUSES := ls $(ASSETS)/houses/*.house >/dev/null 2>&1
 HAVE_SOUND  := [ -s $(ASSETS)/sound/manifest.tsv ]
 HAVE_ART    := [ -s $(ASSETS)/art/manifest.json ]
+HAVE_ZIP    := [ -s $(ASSETS_ZIP) ]
 NO_ASSETS   := echo "   they are committed, so this means they were removed: \`make assets\` puts them back (about a minute)"
 
 # Where the scratch PNGs and WAVs go. Overridable because these paths are fixed, not
@@ -67,18 +71,32 @@ export GOPROXY
 export GOTOOLCHAIN
 
 .PHONY: all build glidertool houses run bench smoke headless audio fidelity test vet fmt \
-	fmt-check check check-caveats clean clean-assets cross cross-windows assets assets-check \
-	tools doctor help
+	fmt-check check check-caveats clean clean-assets cross cross-windows assets assets-zip \
+	assets-check embedded tools doctor help
 
 all: build glidertool
 
+# embedded guards the one asset every build needs, as opposed to the ones only a run needs.
+#
+# assets/extracted.zip is a //go:embed input, so a checkout without it does not produce a binary
+# that draws nothing -- it does not compile. That is the right failure, but the compiler reports
+# it as `pattern extracted.zip: no matching files found`, which does not say what the file is or
+# how to get it back. Every target that compiles depends on this instead.
+embedded:
+	@$(HAVE_ZIP) || { \
+		echo "gliderGo: $(ASSETS_ZIP) is missing, and it is built into every executable."; \
+		echo "          It is committed: \`git checkout -- $(ASSETS_ZIP)\` restores it,"; \
+		echo "          or \`make assets-zip\` rebuilds it from $(ASSETS)."; \
+		exit 1; \
+	}
+
 ## build: compile the game for this host (x11 backend)
-build:
+build: embedded
 	@mkdir -p $(BIN)
 	$(GO) build -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo ./cmd/glidergo
 
 ## glidertool: compile the house inspector (`bin/glidertool help`)
-glidertool:
+glidertool: embedded
 	@mkdir -p $(BIN)
 	$(GO) build -ldflags '$(LDFLAGS)' -o $(BIN)/glidertool ./cmd/glidertool
 
@@ -104,20 +122,14 @@ bench: build
 # DISPLAY is reported and skipped rather than failing the build. `make bench`
 # still fails without one, because there it is what was asked for.
 #
-# It needs a house as well as a display, and that second guard is the one that was missing.
-# `-bench` flies Slumberland, so on a desktop machine with a fresh clone and nothing
-# extracted this target used to fail `check` with `open assets/extracted/houses/
-# Slumberland.house: no such file or directory` -- the first command the README gave a
-# stranger, broken by the one condition nobody developing here is ever in. Every other
-# asset-consuming step already guarded; this one guarded on DISPLAY alone.
+# There is no asset guard here any more, and that is the embed's doing: `-bench` flies
+# Slumberland, and Slumberland is inside the executable. A checkout with `make clean-assets`
+# run over it still benches.
 smoke: build
 	@if [ -z "$$DISPLAY" ]; then \
 		echo "smoke: DISPLAY is unset -- skipped the on-screen bench;"; \
 		echo "       the blit path is still covered by \`make headless\`."; \
 		echo "       Run \`make bench\` from a desktop session to check X11."; \
-	elif ! $(HAVE_HOUSES); then \
-		echo "smoke: no extracted houses -- skipped the on-screen bench, which needs one to fly in."; \
-		$(NO_ASSETS); \
 	else \
 		$(BIN)/glidergo -frames 300 -bench; \
 	fi
@@ -128,41 +140,27 @@ smoke: build
 # through the null backend; -shot draws the shell, which needs no backend at all -- it
 # composes one surface and writes a PNG, so the screens a player meets first are covered on
 # a machine with no X server. That is the whole reason -shot exists.
-# The -frames half needs a house to fly in and a sound bank to trigger, so it is guarded like
-# every other asset-consuming step. The -shot half is not, deliberately: composing the shell
-# needs no assets, and the last two lines exist precisely to render the screens a fresh clone
-# shows. So on a checkout with nothing extracted this target still does real work.
-headless:
+#
+# Neither half is guarded on the asset tree, because neither half reads it: both binaries carry
+# the houses, the art and the sounds inside them. The guards that used to be here are what the
+# embed removed, and the last two lines are what replaced them -- the no-assets layouts are now
+# reachable only by naming a directory that is not there, which is what those two do.
+headless: embedded
 	@mkdir -p $(BIN)
 	$(GO) build -tags nullbackend -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo-null ./cmd/glidergo
 	@# Both output directories are cleared first, because both are listed afterwards and $(OUT)
-	@# is a fixed path: without this, a run that skips the frame dump for want of assets still
-	@# lists the frames an earlier run left behind, and the listing reads as work just done.
+	@# is a fixed path: without this, a failed run still lists the frames an earlier run left
+	@# behind, and the listing reads as work just done.
 	@rm -rf $(OUT)/glidergo-frames $(OUT)/glidergo-shell
-	@if $(HAVE_HOUSES) && $(HAVE_SOUND); then \
-		$(BIN)/glidergo-null -frames 3 -dump $(OUT)/glidergo-frames && ls -1 $(OUT)/glidergo-frames; \
-	else \
-		echo "headless: no extracted assets -- skipped the 3-frame dump;"; \
-		echo "          the shell screens below need none and still ran."; $(NO_ASSETS); \
-	fi
-	@for s in splash settings about credits; do \
+	$(BIN)/glidergo-null -frames 3 -dump $(OUT)/glidergo-frames
+	@ls -1 $(OUT)/glidergo-frames
+	@for s in splash houses settings about credits scores; do \
 		$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/$$s.png -shot-screen $$s || exit 1; \
 	done
-	@# Two shell screens cannot compose without a house, and both exit rather than draw an empty
-	@# one, which is right for the program: the picker has nothing to list, and the high-score
-	@# board is per-house, so with no houses there is no board to show. Guarding them is what
-	@# lets this target run on a fresh clone. The empty-house layout is still covered -- that is
-	@# exactly what first-run.png below is.
-	@if $(HAVE_HOUSES); then \
-		for s in houses scores; do \
-			$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/$$s.png -shot-screen $$s || exit 1; \
-		done; \
-	else \
-		echo "headless: no houses, so the picker and score screens were skipped;"; \
-		echo "          first-run.png below is the layout a fresh clone actually shows."; \
-	fi
-	@# And the first-run screens: no art and no houses is what a fresh clone has, and it is
-	@# the one layout nobody developing here ever sees by accident.
+	@# And the layouts a build with no assets shows: an empty picker, and an About box with no
+	@# plate behind it. Nobody sees these by accident now -- a binary always has its own copy --
+	@# so `-art /nonexistent -houses /nonexistent` is the only way they get drawn at all, and
+	@# they are worth drawing because that is also what `-art` pointed at a typo looks like.
 	@$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/first-run.png \
 		-art /nonexistent -houses /nonexistent -quiet 2>/dev/null
 	@$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/about-no-art.png -shot-screen about \
@@ -172,18 +170,13 @@ headless:
 ## audio: replay 600 frames and write the mix to /tmp/glidergo-audio.wav
 #
 # The build host has no sound card, so this is the only end-to-end check the audio path can
-# get here: it runs the whole chain -- extracted bank, house trigger sounds, channel policy,
-# mixer, RIFF writer -- and leaves a file to carry to a machine that does have one. It prints
-# the two digests, which is what a bug report quotes, and skipped rather than failed without
-# assets, for `make houses`' reason: a fresh clone has none and `check` must still pass.
+# get here: it runs the whole chain -- the bank inside the executable, house trigger sounds,
+# channel policy, mixer, RIFF writer -- and leaves a file to carry to a machine that does have
+# one. It prints the two digests, which is what a bug report quotes.
 audio: glidertool
-	@if $(HAVE_SOUND) && $(HAVE_HOUSES); then \
-		$(BIN)/glidertool replay -house "CD Demo House" -room 4 -where 423,20 -frames 600 \
-			-wav $(OUT)/glidergo-audio.wav | grep -E 'sound|mix|digest'; \
-		ls -l $(OUT)/glidergo-audio.wav; \
-	else \
-		echo "audio: no extracted sounds -- skipped"; $(NO_ASSETS); \
-	fi
+	$(BIN)/glidertool replay -house "CD Demo House" -room 4 -where 423,20 -frames 600 \
+		-wav $(OUT)/glidergo-audio.wav | grep -E 'sound|mix|digest'
+	@ls -l $(OUT)/glidergo-audio.wav
 
 ## fidelity: compare this build's pixels against the checked-in reference corpus
 #
@@ -209,7 +202,7 @@ fidelity:
 	fi
 
 ## cross-windows: build the Windows executable (win32 backend, no cgo needed)
-cross-windows:
+cross-windows: embedded
 	@mkdir -p $(BIN)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(BIN)/glidergo.exe ./cmd/glidergo
 	@# `file` is not installed everywhere -- it is a nicety here, not a check.
@@ -250,7 +243,7 @@ cross-windows:
 # with no x11 pkg-config metadata says `skipped` instead of `FAILED`, because compiling the
 # release targets is what this target is for and the host backend is `make build`'s job.
 CROSS_TARGETS := windows/amd64 windows/arm64 darwin/amd64 darwin/arm64 linux/arm64 linux/amd64
-cross:
+cross: embedded
 	@mkdir -p $(BIN)/cross
 	@fail=0; for t in $(CROSS_TARGETS); do \
 		os=$${t%%/*}; arch=$${t##*/}; ext=""; be="null backend"; \
@@ -339,12 +332,11 @@ check-caveats:
 		echo "  - libx11 dev metadata is missing, so the x11 backend was NOT compiled"; n=1; \
 	fi; \
 	if ! $(HAVE_HOUSES) || ! $(HAVE_ART) || ! $(HAVE_SOUND); then \
-		echo "  - no extracted assets: houses, audio and the pixel corpus were NOT checked"; n=1; \
+		echo "  - no extracted asset tree: the house round-trip and the pixel corpus were NOT"; \
+		echo "    checked (the runs above used the copy inside the binaries and are unaffected)"; n=1; \
 	fi; \
 	if [ -z "$$DISPLAY" ]; then \
 		echo "  - DISPLAY is unset, so the on-screen blit was NOT exercised"; n=1; \
-	elif ! $(HAVE_HOUSES); then \
-		echo "  - there is a display, but no house to fly in, so the on-screen blit was NOT exercised"; n=1; \
 	fi; \
 	if [ $$n -eq 0 ]; then \
 		echo "         toolchain, cgo, tests, houses, headless, audio, pixels, cross-build and the blit path"; \
@@ -352,13 +344,26 @@ check-caveats:
 		echo "         everything above ran, but note the gaps -- this was not a full check"; \
 	fi
 
-## assets: re-extract assets/extracted/ from GliderPRO/ (committed already; this regenerates)
+## assets: re-extract assets/extracted/ and repack the archive the binaries embed
 #
-# Nobody needs to run this to play: the tree it writes is in the repository. It is here for
-# three cases -- changing the extractor, restoring the tree after `make clean-assets`, and
-# regenerating the houses/*.rsrc intermediates, which are the one part not committed.
+# Nobody needs to run this to play: both the tree and the archive it writes are in the
+# repository. It is here for three cases -- changing the extractor, restoring the tree after
+# `make clean-assets`, and regenerating the houses/*.rsrc intermediates, which are the one part
+# not committed.
+#
+# It packs as well as extracts, because the executables read the archive and not the tree: an
+# extraction that stopped at the tree would leave a developer looking at a new PNG in git status
+# and the old one on screen. `go test ./assets` is the backstop that says the two agree.
 assets:
 	python3 tools/extract_all.py
+	@$(MAKE) --no-print-directory assets-zip
+
+## assets-zip: repack assets/extracted.zip from assets/extracted/ without re-extracting
+#
+# The second half of `make assets` on its own, for a tree that changed by some other means: a
+# hand-authored house dropped in, or a file restored from git.
+assets-zip:
+	$(GO) run ./tools/packassets
 
 ## assets-check: prove the committed asset tree is exactly what the extractor produces
 #
@@ -368,6 +373,11 @@ assets:
 # .gitattributes on why that was a real risk on Windows).
 #
 # houses/*.rsrc is excluded because it is deliberately not committed -- see .gitignore.
+#
+# The archive is not compared here. `go test ./assets` does that, file by file, in the ordinary
+# test run -- so the two halves of the claim divide as "the tree is what the extractor makes"
+# (this target, which needs python3 and a minute) and "the binaries carry the tree" (a test,
+# which needs neither).
 assets-check:
 	@rm -rf $(OUT)/glidergo-assets-check
 	@python3 tools/extract_all.py --out $(OUT)/glidergo-assets-check >/dev/null \
@@ -382,9 +392,12 @@ assets-check:
 doctor:
 	@./scripts/bootstrap-dev-env.sh --check
 
-## tools: list the extraction/inspection scripts (each is a standalone CLI)
+## tools: list the extraction and packing tools (each is a standalone CLI)
 tools:
-	@ls tools/*.py 2>/dev/null || echo "no extraction tools yet"
+	@ls tools/*.py 2>/dev/null || echo "no extraction scripts yet"
+	@# The Go tools, by the file that makes one a command rather than by directory, so that a
+	@# stray __pycache__ is not listed as something to `go run`.
+	@ls tools/*/main.go 2>/dev/null | sed 's|/main.go$$||;s|^|go run ./|' || true
 
 ## clean: remove build output (not assets/extracted -- use clean-assets)
 clean:
@@ -394,6 +407,11 @@ clean:
 #
 # This deletes committed files, so `git status` will have plenty to say afterwards.
 # `git checkout -- assets/extracted` restores them without re-running the extractor.
+#
+# It leaves assets/extracted.zip alone, deliberately, and that is worth knowing: the archive is
+# a build input, so removing it stops the build, and a binary built without the tree present
+# still plays the 22 houses. What a cleaned tree costs is the extractor's own checks -- `make
+# houses`, `make assets-check` and the fidelity corpus, which read files rather than the archive.
 clean-assets:
 	rm -rf $(ASSETS)
 

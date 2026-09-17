@@ -72,7 +72,8 @@ internal/
   fidelity/            frame-diff and trace-diff harness against reference data
 tools/                 python3 extractors (PICT, snd, BinHex, house dump)
 levels/                new houses in text form (stage 2)
-assets/extracted/      generated, gitignored — reproducible from GliderPRO/ via tools/
+assets/extracted/      generated but committed — reproducible from GliderPRO/ via tools/
+assets/extracted.zip   that tree packed for go:embed — what every binary carries
 ```
 
 Three rules that keep the port honest:

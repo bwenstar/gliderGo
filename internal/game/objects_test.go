@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,9 +24,9 @@ const (
 	goldenFile = "testdata/objects_golden.txt"
 )
 
-// requireAssets skips rather than fails when the extracted art is absent, the same
-// way internal/render's tests do. The houses are derived from a copyrighted 1994
-// application and are not in the repository.
+// requireAssets skips rather than fails when the extracted art is absent, the same way
+// internal/render's tests do: the tree is committed, so this guards `make clean-assets` and a
+// half-written extraction rather than a fresh clone.
 func requireAssets(t *testing.T, sub string) string {
 	t.Helper()
 	dir := filepath.Join(assetRoot, sub)
@@ -35,12 +36,22 @@ func requireAssets(t *testing.T, sub string) string {
 	return dir
 }
 
+// dirFS is an asset root as the loaders take it, and an empty dir is "no art tree". These tests
+// read the working copy rather than the copy built into the executables, which is where an edit
+// to an asset is; internal/render's own dirFS says the same thing at more length.
+func dirFS(dir string) fs.FS {
+	if dir == "" {
+		return nil
+	}
+	return os.DirFS(dir)
+}
+
 // newTestWorld builds a headless world on a house: a default 640x480 view, an asset
 // loader that may or may not find art, and a fixed random seed.
 func newTestWorld(h *house.House, artDir, forkDir string) *World {
-	a := render.NewAssets(artDir)
+	a := render.NewAssets(dirFS(artDir))
 	if forkDir != "" {
-		a.OpenHouseResFork(forkDir)
+		a.OpenHouseResFork(forkDir, dirFS(forkDir))
 	}
 	sc := render.NewScene(render.DefaultView(), a, h)
 	w := NewWorld(h, sc, 1)

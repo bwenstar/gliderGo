@@ -15,6 +15,61 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The assets ride inside the binaries (2026-09-17)
+
+A downloaded `glidergo` now runs from anywhere, with nothing beside it. `docs/IMPROVEMENTS.md` 5.3
+had been open since Stage 0 asking where an installed copy should look for its art; the answer taken
+is that it should not look anywhere.
+
+- `assets/extracted.zip` — 1,877 files, 11.3 MB — is committed beside the tree and compiled into
+  every executable by `assets/assets.go`. `glidertool` carries it too: a tool that renders houses and
+  replays recordings is no use in an archive that no longer ships an asset tree.
+- The four asset flags (`-art`, `-houses`, `-houseart`, `-sound`) now default to empty, meaning the
+  copy inside this binary; naming a directory replaces that root. `-version` prints which of the two
+  each root came from, so a bug report says it.
+- **A zip rather than an `embed.FS` over the directory, and this is the load-bearing detail.**
+  `go:embed` accepts only names that are valid module file paths, so an apostrophe is out — and three
+  shipped houses have one: `Castle o' the Air`, `Nemo's Market`, `Rainbow's End`. Naming such a file
+  in a pattern fails the build, which is survivable. Naming its *directory* skips it **in silence**:
+  120 files, 350,674 bytes, three houses and three houses' worth of custom art missing from the game
+  with nothing anywhere to say so. A zip has no such rule and the 1994 names survive byte for byte
+  inside it. `assets.TestApostropheNamesSurvived` is the tripwire, and it does not skip when the tree
+  is absent, because its subject is the bytes in the binary.
+- The pack is deterministic — names sorted, every timestamp fixed at 1994-10-01 UTC, no mode bits, no
+  directory entries — so `make assets-zip` twice gives the same bytes and the committed archive is
+  not a source of spurious diffs. `go test ./assets` compares the archive against the tree file by
+  file and by content rather than by archive bytes, since a toolchain's deflate is free to change;
+  a tampered byte in the tree fails it with the file and both lengths named.
+- The plumbing changed shape once, cleanly: `*zip.Reader` is an `fs.FS`, so every loader takes an
+  `fs.FS` from its caller instead of opening paths. Nothing under `internal/` knows the built-in copy
+  exists — only the two commands import `assets` — which is also why `go test ./internal/...` links
+  none of these 11 MB. `internal/assetfs` holds the resolution rule in one place, and
+  `internal/assetpack` holds the pack and the comparison so that `tools/packassets` can run them
+  without importing the package that embeds what it is about to write.
+- The Makefile gained an `embedded` guard: every build target refuses without the archive rather than
+  producing an executable that comes up empty, and says both how to restore it and how to rebuild it.
+  `make assets` repacks after extracting. Three targets that used to skip on a tree-less checkout now
+  do real work — `audio`, `headless` (3 frames and 8 screens) and `check-caveats` — because they no
+  longer need one; `houses` still skips, since it names `.house` files by path.
+- A release archive is now two binaries and five documents, no `assets/` at all, and no
+  `HOW-TO-RUN.txt` tells anybody where to stand. `release.yml` proves the claim rather than asserting
+  it: it copies one cross-built binary into an empty directory, runs `-version` and `-shot` there,
+  and then greps every packaged executable for two asset filenames — zip stores member names
+  uncompressed, so that check works on the Windows and macOS binaries a Linux runner cannot execute.
+- **What it costs.** A binary went from about 3.6 MB to 14.9 MB; an archive holds two of them, so the
+  same 11.3 MB ships twice and the six archives went from about 15 MB to about 26 MB each. The
+  repository carries the assets twice as well, 68.6 MB tracked to 79.9 MB. Three ways to spend that
+  back — one binary instead of two, keeping only the archive in git, unioning the roots instead of
+  replacing them — are written up as deferred in 5.3 rather than half-done here.
+- Verified two ways beyond the suite. A replay produces the identical digest `7364a572f7b6d7d7`
+  whether it reads the built-in copy or the tree, so the embed changed no pixel and no sample; and
+  the `linux-amd64` archive's binary, alone in an empty directory, played 300 on-screen frames of
+  Slumberland with sound at 552 fps unpaced.
+- Unrelated but adjacent, and it was costing every push: `ci.yml` ran its whole matrix twice over the
+  same commit whenever a branch with an open pull request was pushed, once for `push: branches:
+  ["**"]` and once for `pull_request`. Concurrency groups cannot collapse those two — the refs differ
+  — so `push` is now `main` only, with a concurrency group per ref that cancels superseded runs.
+
 ### A Windows backend, so the Windows archives can draw (2026-09-17)
 
 Stage 4's window half, brought forward ahead of Stages 2 and 3. The release pipeline was already
@@ -69,8 +124,8 @@ early.
   triggers on `push: branches` and `pull_request`, and **a tag push is neither**. Without it,
   tagging would run no tests at all and a release would ship binaries no suite had ever seen.
 - Each archive carries its own copy of `assets/extracted` at the relative path the binaries look
-  for, because they look for it relative to the working directory and not to themselves (5.3, still
-  open). So an archive is self-contained and has to be run from its own root, and its
+  for, because they look for it relative to the working directory and not to themselves (5.3, closed
+  by the entry above). So an archive is self-contained and has to be run from its own root, and its
   `HOW-TO-RUN.txt` says so.
 - Five of the six cannot draw, so they are named `-headless` rather than left to disappoint
   somebody. Their `HOW-TO-RUN.txt` deliberately does not tell the reader to run the bare binary:

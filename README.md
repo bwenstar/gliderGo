@@ -75,10 +75,11 @@ rest of Stage 4: a native audio driver, so Windows makes a noise without FFmpeg 
 ## Getting a build
 
 Every `v*` tag packages six archives and attaches them to a GitHub Release with a `SHA256SUMS`
-beside them. Each one is self-contained — binaries, the 1994 art and sounds, all 22 houses — and
-has to be run from the directory you unpack it into, because it looks for `assets/extracted`
-there. `linux-amd64` and the two `windows` archives draw to a screen; the other three are marked
-`headless` and explain themselves in the archive. Every archive carries a `HOW-TO-RUN.txt`.
+beside them. Unpack one and run it from anywhere: the 1994 art, the sounds and all 22 houses are
+compiled into the binary, so there is no asset directory to keep beside it and nothing to install.
+That is why it is 15 MB. `linux-amd64` and the two `windows` archives draw to a screen; the other
+three are marked `headless` and explain themselves in the archive. Every archive carries a
+`HOW-TO-RUN.txt`.
 
 If the Releases page has nothing you want, building it is four seconds after the clone.
 
@@ -94,8 +95,10 @@ make run
 
 The 1994 data is committed, decoded, under `assets/extracted/` — art, sounds, music and every
 house. No extraction step, no asset download, no network, and you do not need python3 to play.
-(`make assets` re-derives that tree from `GliderPRO/` if you are working on the extractors, and
-`make assets-check` proves the committed copy is byte-for-byte what they produce.)
+`assets/extracted.zip` is that tree packed for `go:embed`, which is how a built binary carries its
+own assets and needs no files beside it; `make assets` re-derives both from `GliderPRO/` if you are
+working on the extractors, `make assets-check` proves the tree is byte-for-byte what they produce,
+and `go test ./assets` proves the archive still matches the tree.
 
 `libx11-dev` is a hard requirement rather than a nicety: cgo compiles the X11 backend during
 `vet` and `test`, so without its pkg-config file even `make check` fails. `make headless` is the
@@ -111,7 +114,9 @@ make doctor     # what your machine has and what it is missing
 make help       # every target, one line each
 ```
 
-Run those from the repository root — every default path is relative to it. If you have no Go,
+Run those from the repository root, which is where the Makefile expects to be. The binary it
+builds does not care: `bin/glidergo` carries its own assets and plays from any directory. If you
+have no Go,
 `./scripts/bootstrap-dev-env.sh` installs one into your home directory without root; see
 [docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1 for that and §2 for other distributions.
 
@@ -193,7 +198,7 @@ High scores are per house, ten to a board, and **sorted on rooms visited before 
 knowing before you optimise for the wrong number. Twenty of the 22 houses still carry their
 authors' own playtesting from 1995: `Ozma` is top of thirteen boards, and the best run in the box
 is 108 rooms and 47,000 points through ImagineHouse PRO II on 1995-07-03. New scores go beside
-them in `~/.local/share/glidergo/<house>.scores`; the house files themselves are never written
+them in `~/.local/share/glidergo/scores/<house>.scores`; the house files themselves are never written
 to, since rewriting 185 KB of 1994 binary to save 292 bytes is one power cut away from losing a
 house.
 
@@ -247,6 +252,7 @@ carries.
 |---|---|
 | `GliderPRO/` | The original's *data*, vendored read-only: `Glider PRO.r` — the whole resource fork — and all 22 houses. The 1994 C itself is not here; see below. |
 | `assets/extracted/` | The same data decoded and committed, so a clone plays. Output, but output that ships. |
+| `assets/extracted.zip` | That tree packed for `go:embed`. It is what every binary carries, which is why one runs with no files beside it. |
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
@@ -300,10 +306,10 @@ unambiguously a derivative work, and carries the same licence.
 One caveat, stated plainly because it is the last thing standing between this and a release
 someone else can rely on: **the assets are not the source.** That grant is about code. The houses
 are credited to five other authors, and two PICT resources derive from illustrations by John R.
-Neill (*Ozma of Oz*) and Winsor McCay (*Little Nemo*). This repository redistributes all of it,
-twice over — `GliderPRO/`'s resource fork and houses byte-for-byte as upstream ships them, and
-`assets/extracted/` decoded from those — on the reasoning that upstream publishes the same files
-in the same layout. That reading is defensible and it is not confirmed;
+Neill (*Ozma of Oz*) and Winsor McCay (*Little Nemo*). This repository redistributes all of it —
+`GliderPRO/`'s resource fork and houses byte-for-byte as upstream ships them, `assets/extracted/`
+decoded from those, and `assets/extracted.zip` packed from that and welded into every binary a
+release attaches — on the reasoning that upstream publishes the same files in the same layout. That reading is defensible and it is not confirmed;
 nobody has asked John Calhoun. [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2 lays out the
 choice and says where it stands.
 

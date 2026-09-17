@@ -31,7 +31,7 @@ import (
 // a house that has 24 objects in it.
 func animScene(t *testing.T) *Scene {
 	t.Helper()
-	s := NewScene(DefaultView(), NewAssets(""), testHouse())
+	s := NewScene(DefaultView(), NewAssets(nil), testHouse())
 	if s.Back == nil || s.Back.Bounds().Wide() < 64 {
 		t.Fatalf("fixture back map is %v; bakeStrip needs somewhere to copy from",
 			s.Back.Bounds())
@@ -658,9 +658,9 @@ func TestTheSavedMapBudgetSaturatesInShippedContent(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
-		assets := NewAssets(artDir)
+		assets := NewAssets(dirFS(artDir))
 		if fork := filepath.Join(forkRoot, name); dirExists(fork) {
-			assets.OpenHouseResFork(fork)
+			assets.OpenHouseResFork(fork, dirFS(fork))
 		}
 		s := NewScene(DefaultView(), assets, h)
 

@@ -10,11 +10,13 @@ package fidelity_test
 // diff is either the change you meant to make -- in which case commit it and say so in the
 // message -- or it is a bug you have just been handed for free.
 //
-// The references are checked in and the assets are not, which is the one awkward fact about
-// this package: a fresh clone cannot check its own pixels until `make assets` has run. The
-// tests skip in that case rather than fail, for internal/replay's reason (a checkout must be
-// able to run its own suite), and `make fidelity` is the step that refuses to skip on a
-// machine where the assets *are* present.
+// The references and the assets are both checked in, so a fresh clone can check its own pixels
+// with no extraction step. This package reads the asset *tree* rather than the copy compiled into
+// the executables, and deliberately: it names files by path, `-update` writes references beside
+// them, and the thing being pinned is what the extractors produce. The tests still skip when the
+// tree is absent -- `make clean-assets` and an interrupted extraction both leave one -- for
+// internal/replay's reason, that a checkout must be able to run its own suite; `make fidelity` is
+// the step that refuses to skip on a machine where the assets *are* present.
 
 import (
 	"bytes"

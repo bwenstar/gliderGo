@@ -1,7 +1,7 @@
 // Command glidergo is the game.
 //
-// Run with no arguments it comes up on the title screen, finds every house in
-// assets/extracted/houses and waits for somebody to start a game -- which is the
+// Run with no arguments it comes up on the title screen, lists every house built
+// into this executable and waits for somebody to start a game -- which is the
 // whole of what stage 1.7 adds, and the reason this is a game rather than a
 // demonstration. internal/shell is that title screen; internal/game is the 1994 code;
 // this file is the machine, and play.go is one game on it.
@@ -61,13 +61,17 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/bwenstar/gliderGo/assets"
+	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/platform/backend"
 	"github.com/bwenstar/gliderGo/internal/prefs"
@@ -95,10 +99,21 @@ func main() {
 
 // options is the command line, parsed and checked once.
 type options struct {
-	house     string
-	houses    string
-	artDir    string
-	houseArt  string
+	house string
+
+	// The four asset roots. **Empty means the copy built into this executable**, which is
+	// what every one of them is unless somebody says otherwise, and the reason a downloaded
+	// binary needs no files beside it. A named directory replaces that root rather than
+	// layering over it; see internal/assetfs, and read the four of them through the methods
+	// below rather than reaching for the strings.
+	houses   string
+	artDir   string
+	houseArt string
+
+	// tree is the built-in tree the four empty roots resolve against: assets.Tree(). It is a
+	// field and not a package call so that a test can build an options with none.
+	tree fs.FS
+
 	roomNum   int
 	neighbors int
 	scale     int
@@ -119,7 +134,7 @@ type options struct {
 	resume      bool
 
 	sound    bool
-	sounds   string
+	sounds   string // the fourth asset root, and empty means built-in like the rest
 	music    bool
 	volume   int
 	audioOut string
@@ -128,14 +143,24 @@ type options struct {
 	showVersion bool
 }
 
+// The four asset roots, each as a filesystem and a name for messages. They are resolved at
+// every use rather than once into fields, because resolving one is an os.DirFS or an fs.Sub
+// and neither reads anything -- and because a root that is a live directory should be looked
+// at when it is needed, not cached at startup. See internal/assetfs.
+
+func (o *options) artRoot() (fs.FS, string)      { return assetfs.Root(o.tree, o.artDir, "art") }
+func (o *options) houseArtRoot() (fs.FS, string) { return assetfs.Root(o.tree, o.houseArt, "houseart") }
+func (o *options) housesRoot() (fs.FS, string)   { return assetfs.Root(o.tree, o.houses, "houses") }
+func (o *options) soundRoot() (fs.FS, string)    { return assetfs.Root(o.tree, o.sounds, "sound") }
+
 // printVersion answers -version. It prints more than the version string because the
 // thing it is for is the first line of a bug report, and the four facts underneath
 // are the ones that decide whether a report is even about the same program: which
 // backend was compiled in (the null one draws nothing and is chosen silently by any
 // build without cgo, or off Linux), which Go built it, which OS and architecture, and
-// whether the asset trees are where the flags say. That last one is committed, so
-// "missing" means it was deleted or the flag is wrong -- either way it explains a
-// large class of "it starts and there is nothing there" reports on its own.
+// where the game is reading its assets from. That last one is the built-in copy unless a
+// flag says otherwise, so "missing" means a flag names a directory that is not there --
+// which explains a large class of "it starts and there is nothing there" reports on its own.
 //
 // It deliberately does not open a window, load a sound bank or read the preferences,
 // so it answers on a machine where the game itself cannot start.
@@ -145,31 +170,50 @@ func printVersion(o *options) {
 	fmt.Printf("  built by  %s\n", runtime.Version())
 	fmt.Printf("  platform  %s/%s\n", runtime.GOOS, runtime.GOARCH)
 
-	// Named individually rather than as one yes/no: the three trees are extracted by
-	// separate passes of tools/extract_all.py and a half-extracted tree is a real
-	// state, not a hypothetical one (docs/IMPROVEMENTS.md 5.2).
+	// What the executable is carrying, first, because it is the answer to "does this need
+	// files beside it" and because a build with no assets in it -- which nothing released is,
+	// but a `go build` of a stripped tree could be -- explains everything below it.
+	if files, bytes := assetfs.Measure(o.tree); files > 0 {
+		fmt.Printf("  assets    built in (%d files, %d KiB)\n", files, bytes/1024)
+	} else {
+		fmt.Printf("  assets    none built in\n")
+	}
+
+	// Then each root, named individually rather than as one yes/no: the four are extracted by
+	// separate passes of tools/extract_all.py, and a half-extracted directory somebody pointed
+	// a flag at is a real state rather than a hypothetical one (docs/IMPROVEMENTS.md 5.2).
+	artFS, artName := o.artRoot()
+	soundFS, soundName := o.soundRoot()
+	housesFS, housesName := o.housesRoot()
+	houseArtFS, houseArtName := o.houseArtRoot()
 	for _, t := range []struct {
-		what string
-		path string
+		what  string
+		flag  string
+		ok    bool
+		where string
 	}{
-		{"art", filepath.Join(o.artDir, "manifest.json")},
-		{"sound", filepath.Join(o.sounds, "manifest.tsv")},
-		{"houses", o.houses},
+		{"art", "art", assetfs.Exists(artFS, "manifest.json"), artName},
+		{"sound", "sounds", assetfs.Exists(soundFS, "manifest.tsv"), soundName},
+		{"houses", "houses", assetfs.IsDir(housesFS, "."), housesName},
+		{"houseart", "houseart", assetfs.IsDir(houseArtFS, "."), houseArtName},
 	} {
-		state := "missing -- `make assets` rebuilds it"
-		if _, err := os.Stat(t.path); err == nil {
-			state = "found"
+		switch {
+		case t.where == "":
+			fmt.Printf("  %-9s none -- name a directory with -%s\n", t.what, t.flag)
+		case t.ok:
+			fmt.Printf("  %-9s found (%s)\n", t.what, t.where)
+		default:
+			fmt.Printf("  %-9s missing (%s) -- `make assets` rebuilds it\n", t.what, t.where)
 		}
-		fmt.Printf("  %-9s %s (%s)\n", t.what, state, t.path)
 	}
 }
 
 func parseFlags() (*options, error) {
-	o := &options{}
+	o := &options{tree: assets.Tree()}
 	flag.StringVar(&o.house, "house", "", "play this house at once instead of showing the title screen (name or path; default "+defaultHouse+" for -frames/-bench/-dump)")
-	flag.StringVar(&o.houses, "houses", "assets/extracted/houses", "directory to search for houses")
-	flag.StringVar(&o.artDir, "art", "assets/extracted/art", "extracted application art tree")
-	flag.StringVar(&o.houseArt, "houseart", "assets/extracted/houseart", "extracted per-house resource forks")
+	flag.StringVar(&o.houses, "houses", "", "directory to search for houses instead of the ones built in")
+	flag.StringVar(&o.artDir, "art", "", "extracted application art tree to use instead of the one built in")
+	flag.StringVar(&o.houseArt, "houseart", "", "extracted per-house resource forks to use instead of the ones built in")
 	flag.IntVar(&o.roomNum, "room", -1, "start in this room number instead of the house's first")
 	flag.IntVar(&o.neighbors, "neighbors", 9, "how much of the house to compose around the player: 1, 3 or 9")
 	flag.IntVar(&o.scale, "scale", 1, "integer nearest-neighbour magnification of the 640x480 image")
@@ -190,13 +234,13 @@ func parseFlags() (*options, error) {
 	flag.BoolVar(&o.resume, "resume", false, "with -house, resume its saved game instead of starting a new one")
 
 	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
-	flag.StringVar(&o.sounds, "sounds", "assets/extracted/sound", "directory of extracted sound assets")
+	flag.StringVar(&o.sounds, "sounds", "", "directory of extracted sound assets to use instead of the ones built in")
 	flag.BoolVar(&o.music, "music", true, "play the score as well as the effects")
 	flag.IntVar(&o.volume, "volume", 7, "output volume, 0 to 7; 0 is silence and also stops the score")
 	flag.StringVar(&o.audioOut, "audio", "", "external player to pipe the mix to, or \"list\" for what this machine has")
 	flag.StringVar(&o.wav, "wav", "", "write the mix to this WAV file")
 
-	flag.BoolVar(&o.showVersion, "version", false, "print the build, the compiled-in backend and whether the assets are extracted, then exit")
+	flag.BoolVar(&o.showVersion, "version", false, "print the build, the compiled-in backend and where the assets are coming from, then exit")
 	flag.Parse()
 
 	// Before every other check, because -version has to work on a machine where nothing
@@ -295,7 +339,8 @@ func run() error {
 
 // runShell is the ordinary one: a window, a title screen, and games started from it.
 func runShell(o *options, p *prefs.Prefs, canSave bool) error {
-	lib, err := shell.Discover(o.houses)
+	housesFS, housesName := o.housesRoot()
+	lib, err := shell.Discover(housesFS, housesName)
 	if err != nil {
 		// **Not fatal.** A missing or empty houses directory is what a fresh clone
 		// has, and the useful place to say so is the screen the player is looking at
@@ -327,7 +372,7 @@ func runShell(o *options, p *prefs.Prefs, canSave bool) error {
 	// there is not an error -- houses are files and files get moved -- so it falls back
 	// to the shipped default and says what happened.
 	if p.House != "" && !sh.Select(p.House) {
-		fmt.Fprintf(os.Stderr, "glidergo: %s is not in %s any more\n", p.House, o.houses)
+		fmt.Fprintf(os.Stderr, "glidergo: %s is not in %s any more\n", p.House, housesName)
 		sh.Select(defaultHouse)
 	} else if p.House == "" {
 		sh.Select(defaultHouse)
@@ -359,18 +404,20 @@ func playDirect(o *options, p *prefs.Prefs) error {
 	if name == "" {
 		name = defaultHouse
 	}
-	path := housePath(o, name)
-	name = houseName(path)
+	ref, err := resolveHouse(o, name)
+	if err != nil {
+		return err
+	}
 
 	a := newApp(o, p, false)
-	if err := a.openWindow("gliderGo -- " + name); err != nil {
+	if err := a.openWindow("gliderGo -- " + ref.Name); err != nil {
 		return err
 	}
 	defer a.close()
 	if err := a.openAudio(); err != nil {
 		return err
 	}
-	if _, err := a.play(name, path, o.two, o.resume); err != nil {
+	if _, err := a.play(ref, o.two, o.resume); err != nil {
 		return err
 	}
 	return a.artErr
@@ -384,16 +431,18 @@ func playDirect(o *options, p *prefs.Prefs) error {
 // (-frames with -dump); this is the same idea for the part of the program that is not
 // the game.
 func shot(o *options, p *prefs.Prefs) error {
-	lib, err := shell.Discover(o.houses)
+	housesFS, housesName := o.housesRoot()
+	lib, err := shell.Discover(housesFS, housesName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 	}
 
+	artFS, _ := o.artRoot()
 	view := render.DefaultView()
 	scr := render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
 	host := shell.Host{
 		Screen:  scr,
-		Assets:  render.NewAssets(o.artDir),
+		Assets:  render.NewAssets(artFS),
 		Present: func() {},
 		Poll:    func() []platform.Event { return nil },
 		Play: func(shell.Choice) (shell.Outcome, error) {
@@ -419,7 +468,9 @@ func shot(o *options, p *prefs.Prefs) error {
 		return err
 	}
 	if o.house != "" {
-		sh.Select(houseName(housePath(o, o.house)))
+		// The name, not the file: -shot never opens a house, and houseName answers for a
+		// path, a file name and a bare name alike.
+		sh.Select(houseName(o.house))
 	} else {
 		sh.Select(defaultHouse)
 	}
@@ -454,6 +505,8 @@ func shot(o *options, p *prefs.Prefs) error {
 func (a *app) shellHost() shell.Host {
 	view := render.DefaultView()
 	scr := render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
+	artFS, _ := a.o.artRoot()
+	housesFS, _ := a.o.housesRoot()
 
 	// dead is how a failed present reaches a shell that has no error path: the next
 	// poll reports the window closed, which is true, and the shell stops. A void hook
@@ -485,7 +538,7 @@ func (a *app) shellHost() shell.Host {
 		// The application's art, with no house resource fork open. The shell's chrome
 		// is the application's even when a house redefines the same PICT ids: see
 		// render.Assets.UI.
-		Assets: render.NewAssets(a.o.artDir),
+		Assets: render.NewAssets(artFS),
 
 		Present: func() {
 			scr.ToBGRX(a.fb.Pix, a.fb.Stride)
@@ -518,7 +571,10 @@ func (a *app) shellHost() shell.Host {
 			// coming out of one channel is the one thing here a player could hear
 			// going wrong. music.go has the whole trade.
 			a.stopTitleMusic()
-			out, err := a.play(c.House.Name, c.House.Path, c.TwoPlayer, c.Resume)
+			// The library's own filesystem, not the picked house's Path: Path is a
+			// message ("built-in:houses/Titanic.house" for a house inside the
+			// executable) and Rel is what opens the file. See shell.House.
+			out, err := a.play(libraryHouse(housesFS, c.House), c.TwoPlayer, c.Resume)
 			a.startTitleMusic()
 			return out, err
 		},
@@ -579,33 +635,86 @@ func (a *app) shellHost() shell.Host {
 // Odds and ends
 // ---------------------------------------------------------------------------
 
-// housePath turns whatever -house was given into a path. A name is looked up in the
-// houses directory; anything with a separator or an extension in it is taken as a
-// path, so a house sitting anywhere on the disk can be played without moving it.
+// houseRef is one house and where to read it from.
 //
-// The extension test needs the fallback below, because `-house Titanic.house` is what
-// somebody who has just run `ls assets/extracted/houses` will type, and it has an
-// extension and no separator -- so the rule above resolved it against the working
-// directory and the game said `open Titanic.house: no such file or directory` while the
-// file sat where it was always going to be. A name with a separator in it is still taken
-// at its word: there the player has said where to look.
-func housePath(o *options, name string) string {
-	if strings.ContainsRune(name, filepath.Separator) {
-		return name
+// FS and Rel are the pair that opens the file: the houses root -- a directory, or the copy
+// built into this executable -- and the name within it. FS nil means Path is a file on this
+// machine and nothing but Path opens it, which is the case a player who typed a path is in.
+//
+// Name is the house's name, its file name without the extension, and it is not decoration:
+// the high-score side-car, the saved game and the house's own 'snd ' resources are all keyed
+// on it, so two copies of Slumberland in two directories share a score board on purpose.
+type houseRef struct {
+	Name string
+	FS   fs.FS
+	Rel  string
+	Path string // what a message calls it; a real path only when FS is nil
+}
+
+// open reads the house.
+func (r houseRef) open() (*house.House, error) {
+	if r.FS == nil {
+		return house.LoadFile(r.Path)
 	}
+	return house.LoadFS(r.FS, r.Rel)
+}
+
+// peek reads its 866-byte header and no rooms.
+func (r houseRef) peek() (*house.Summary, error) {
+	if r.FS == nil {
+		return house.PeekFile(r.Path)
+	}
+	return house.PeekFS(r.FS, r.Rel)
+}
+
+// libraryHouse is a house the picker listed, in the library's own filesystem.
+func libraryHouse(fsys fs.FS, h shell.House) houseRef {
+	return houseRef{Name: h.Name, FS: fsys, Rel: h.Rel, Path: h.Path}
+}
+
+// diskHouse is a house named by a path on this machine: no filesystem, so nothing but the path
+// opens it, and the name is the path's own.
+func diskHouse(path string) houseRef {
+	return houseRef{Name: houseName(path), Path: path}
+}
+
+// resolveHouse turns whatever -house was given into one of those. A name is looked up in the
+// houses root; anything with a separator or an extension in it is taken as a path, so a house
+// sitting anywhere on the disk can be played without moving it.
+//
+// The extension test needs the fallback below, because `-house Titanic.house` is what somebody
+// who has just listed the houses will type, and it has an extension and no separator -- so the
+// rule above resolved it against the working directory and the game said `open Titanic.house:
+// no such file or directory` while the file sat where it was always going to be. A name with a
+// separator in it is still taken at its word: there the player has said where to look.
+func resolveHouse(o *options, name string) (houseRef, error) {
+	if strings.ContainsRune(name, filepath.Separator) {
+		return diskHouse(name), nil
+	}
+
+	fsys, label := o.housesRoot()
 	if filepath.Ext(name) != "" {
 		if _, err := os.Stat(name); err == nil {
-			return name
+			return diskHouse(name), nil
 		}
-		inHouses := filepath.Join(o.houses, name)
-		if _, err := os.Stat(inHouses); err == nil {
-			return inHouses
+		if assetfs.Exists(fsys, name) {
+			return houseRef{Name: houseName(name), FS: fsys, Rel: name,
+				Path: assetfs.Name(label, name)}, nil
 		}
-		// Neither exists. Report the path the player named rather than the one they did
-		// not, so the error names something they can go and look for.
-		return name
+		// Neither. Report the path the player named rather than the one they did not, so
+		// the error names something they can go and look for.
+		return diskHouse(name), nil
 	}
-	return filepath.Join(o.houses, name+".house")
+
+	if fsys == nil {
+		// No houses root at all: every flag was empty and this build carries no assets.
+		// Saying so beats `open Slumberland.house: no such file or directory`, which sends
+		// the reader looking in the working directory for a file that was never there.
+		return houseRef{}, fmt.Errorf("no houses to look for %s in: this build has none "+
+			"built in, so -houses has to name a directory", name)
+	}
+	rel := name + ".house"
+	return houseRef{Name: name, FS: fsys, Rel: rel, Path: assetfs.Name(label, rel)}, nil
 }
 
 // houseName is the house's name: its file name without the extension. houseType has

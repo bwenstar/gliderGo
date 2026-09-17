@@ -430,7 +430,7 @@ func TestHouseThatSniffsButWillNotLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lib, err := Discover(root)
+	lib, err := Discover(os.DirFS(root), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +441,7 @@ func TestHouseThatSniffsButWillNotLoad(t *testing.T) {
 	f := &fake{scr: render.NewSurface(screenWide, screenTall), script: [][]platform.Event{key(platform.KeyN)}}
 	h := f.host()
 	h.Play = func(c Choice) (Outcome, error) {
-		_, err := house.LoadFile(c.House.Path)
+		_, err := lib.Open(c.House)
 		return Outcome{}, err
 	}
 	s, err := New(h, lib)

@@ -26,9 +26,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
 	"github.com/bwenstar/gliderGo/internal/game"
 	"github.com/bwenstar/gliderGo/internal/game/player"
@@ -212,7 +212,8 @@ func (a *app) savedGame(h shell.House) (saved.Info, error) {
 	// one header. A house that will not peek is not reported here: the row's job is to say
 	// whether there is a game to resume, and a house that cannot be read at all is a
 	// problem the moment it is *played*, with a better message than this row has room for.
-	sum, perr := house.PeekFile(h.Path)
+	housesFS, _ := a.o.housesRoot()
+	sum, perr := libraryHouse(housesFS, h).peek()
 	if perr != nil || !sum.HasGame {
 		return saved.Info{}, err
 	}
@@ -292,12 +293,17 @@ func (a *app) openAudio() error {
 	if !o.sound {
 		return nil
 	}
-	bank, err := audio.LoadBank(o.sounds)
+	soundFS, soundName := o.soundRoot()
+	bank, err := audio.LoadBank(soundFS)
 	if err != nil {
-		// assets/extracted/sound is committed, so the usual cause is a bad -sounds
-		// path or a `make clean-assets`; `make assets` puts the tree back. The game
-		// is fully playable without it.
-		fmt.Fprintf(os.Stderr, "glidergo: no sound: %v\n", err)
+		// The bank is normally the one inside the executable, so the usual cause is a bad
+		// -sounds path; in a working tree it is a `make clean-assets` that `make assets`
+		// puts back. The game is fully playable without it.
+		if soundName == "" {
+			fmt.Fprintf(os.Stderr, "glidergo: no sound: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "glidergo: no sound from %s: %v\n", soundName, err)
+		}
 		return nil
 	}
 
@@ -373,15 +379,16 @@ func (a *app) bindAudio(w *game.World, name string) {
 // range, the saved game does not belong to this house -- and the shell shows it and stays
 // up, because the player's next move is to choose a different house
 // (docs/IMPROVEMENTS.md 2.33).
-func (a *app) play(name, path string, two, resume bool) (shell.Outcome, error) {
+func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 	o := a.o
+	name := ref.Name
 
-	h, err := house.LoadFile(path)
+	h, err := ref.open()
 	if err != nil {
 		return shell.Outcome{}, err
 	}
 	if len(h.Rooms) == 0 {
-		return shell.Outcome{}, fmt.Errorf("%s: house has no rooms", path)
+		return shell.Outcome{}, fmt.Errorf("%s: house has no rooms", ref.Path)
 	}
 
 	// The saved game, read and validated before anything is built.
@@ -412,14 +419,16 @@ func (a *app) play(name, path string, two, resume bool) (shell.Outcome, error) {
 		h.FirstRoom = int16(o.roomNum)
 	}
 
-	assets := render.NewAssets(o.artDir)
+	artFS, _ := o.artRoot()
+	assets := render.NewAssets(artFS)
 	// The house's own resource fork shadows the application's for as long as the
 	// house is open, which is what HouseIO.c does. Without it every custom
 	// background in the house falls back to PICT 2000 and half the shipped houses
 	// look wrong.
-	fork := filepath.Join(o.houseArt, name)
-	if st, err := os.Stat(fork); err == nil && st.IsDir() {
-		assets.OpenHouseResFork(fork)
+	houseArtFS, houseArtName := o.houseArtRoot()
+	fork := assetfs.Name(houseArtName, name)
+	if assetfs.IsDir(houseArtFS, name) {
+		assets.OpenHouseResFork(fork, assetfs.Sub(houseArtFS, name))
 	} else if !o.quiet {
 		fmt.Fprintf(os.Stderr, "glidergo: no extracted resource fork at %s; custom art will fall back\n", fork)
 	}

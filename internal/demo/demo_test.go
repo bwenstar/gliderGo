@@ -120,7 +120,7 @@ func TestShippedLoaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	shipped, err := LoadShipped(assetRoot)
+	shipped, err := LoadShipped(os.DirFS(assetRoot))
 	if err != nil {
 		t.Fatalf("LoadShipped: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestShippedLoaders(t *testing.T) {
 
 	// A missing file comes back as the filesystem's own error, because the shell's attract
 	// mode tests it with os.IsNotExist and carries on without a demo.
-	if _, err := LoadShipped(filepath.Join(t.TempDir(), "nothing")); !os.IsNotExist(err) {
+	if _, err := LoadShipped(os.DirFS(filepath.Join(t.TempDir(), "nothing"))); !os.IsNotExist(err) {
 		t.Errorf("LoadShipped of an empty tree: %v, want a not-exist error", err)
 	}
 }

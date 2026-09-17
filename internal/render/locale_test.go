@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,11 +29,11 @@ const (
 	goldenFile = "testdata/locale_golden.txt"
 )
 
-// requireAssets skips rather than fails when the extracted art is absent. The
-// art is derived from a copyrighted 1994 application and is not in the
-// repository; `make assets` produces it. Everything in this file that needs a
-// pixel therefore has to be skippable, and everything that does not need one is
-// deliberately kept out of that set.
+// requireAssets skips rather than fails when the extracted art is absent. The tree is committed,
+// so an ordinary checkout has it; what this guards against is `make clean-assets`, and a tree
+// left half-written by an interrupted run of the extractor. Everything in this file that needs a
+// pixel therefore has to be skippable, and everything that does not need one is deliberately
+// kept out of that set.
 func requireAssets(t *testing.T, sub string) string {
 	t.Helper()
 	dir := filepath.Join(assetRoot, sub)
@@ -40,6 +41,22 @@ func requireAssets(t *testing.T, sub string) string {
 		t.Skipf("no extracted assets at %s (run `make assets`)", dir)
 	}
 	return dir
+}
+
+// dirFS is an asset root in the shape the loaders take it: a directory read as a filesystem.
+//
+// These tests read the working copy of assets/extracted and not the copy built into the
+// executables, deliberately. An edit to an asset is in the working copy, so a test that read the
+// archive would be checking last week's pixels; it is also why nothing under internal/ imports
+// the assets package.
+//
+// An empty dir gives a nil FS, which is what "no art tree" looks like to the loader -- the state
+// several tests below are about.
+func dirFS(dir string) fs.FS {
+	if dir == "" {
+		return nil
+	}
+	return os.DirFS(dir)
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +232,7 @@ func testHouse() *house.House {
 // would show up in the golden hashes as an unexplainable pixel change.
 func TestRoomQueries(t *testing.T) {
 	h := testHouse()
-	s := NewScene(DefaultView(), NewAssets(""), h)
+	s := NewScene(DefaultView(), NewAssets(nil), h)
 	s.RoomNumber = 1 // "centre", floor 1 suite 10
 
 	t.Run("GetRoomNumber", func(t *testing.T) {
@@ -381,7 +398,7 @@ func TestRoomQueries(t *testing.T) {
 // would show if its RedAlert were removed.
 func TestDrawLocaleWithoutArt(t *testing.T) {
 	h := testHouse()
-	s := NewScene(DefaultView(), NewAssets(filepath.Join(t.TempDir(), "absent")), h)
+	s := NewScene(DefaultView(), NewAssets(dirFS(filepath.Join(t.TempDir(), "absent"))), h)
 	s.RoomNumber = 1 // "centre": a panelled room with no light sources
 	s.DrawLocale()
 
@@ -455,10 +472,10 @@ func TestComposeEveryRoom(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
-		assets := NewAssets(artDir)
+		assets := NewAssets(dirFS(artDir))
 		fork := filepath.Join(forkRoot, name)
 		if st, err := os.Stat(fork); err == nil && st.IsDir() {
-			assets.OpenHouseResFork(fork)
+			assets.OpenHouseResFork(fork, dirFS(fork))
 		}
 		s := NewScene(DefaultView(), assets, h)
 		s.Clock = clock

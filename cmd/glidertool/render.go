@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/render"
 )
@@ -24,8 +25,8 @@ import (
 func renderCmd(args []string) error {
 	fs := flag.NewFlagSet(prog+" render", flag.ContinueOnError)
 	var (
-		artDir    = fs.String("art", "assets/extracted/art", "extracted application art tree")
-		houseDir  = fs.String("houseart", "assets/extracted/houseart", "extracted per-house resource forks")
+		artDir    = fs.String("art", "", "extracted application art tree to use instead of the one built in")
+		houseDir  = fs.String("houseart", "", "extracted per-house resource forks to use instead of the ones built in")
 		roomNum   = fs.Int("room", -1, "room number to centre on (default: the house's first room)")
 		at        = fs.String("at", "", "room to centre on as floor,suite (overrides -room)")
 		neighbors = fs.Int("neighbors", 9, "how much of the surrounding house to compose: 1, 3 or 9")
@@ -66,13 +67,20 @@ func renderCmd(args []string) error {
 		return err
 	}
 
-	assets := render.NewAssets(*artDir)
+	artFS, _ := assetRoot(*artDir, "art")
+	assets := render.NewAssets(artFS)
 	// The house's own resource fork goes in front of the application's, for as
 	// long as the house is open, exactly as HouseIO.c does it. Without this a
 	// house's custom backgrounds all fall back to PICT 2000.
-	fork := filepath.Join(*houseDir, strings.TrimSuffix(filepath.Base(path), ".house"))
-	if st, err := os.Stat(fork); err == nil && st.IsDir() {
-		assets.OpenHouseResFork(fork)
+	//
+	// The house is named by a path here rather than by a name in a library, so the fork is
+	// looked up by that path's base name -- which is what the house is called, on disk and in
+	// the built-in tree alike.
+	houseArtFS, houseArtName := assetRoot(*houseDir, "houseart")
+	name := strings.TrimSuffix(filepath.Base(path), ".house")
+	fork := assetfs.Name(houseArtName, name)
+	if assetfs.IsDir(houseArtFS, name) {
+		assets.OpenHouseResFork(fork, assetfs.Sub(houseArtFS, name))
 	} else if !*quiet {
 		fmt.Fprintf(os.Stderr, "%s: no extracted resource fork at %s; custom art will fall back\n", prog, fork)
 	}

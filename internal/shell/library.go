@@ -33,8 +33,7 @@ package shell
 import (
 	"errors"
 	"io/fs"
-	"os"
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 
@@ -49,6 +48,12 @@ import (
 // house name it is reading the file's (see cmd/glidergo, and HouseIO.c's
 // thisHouseName). Rel is the path relative to the library root and is what
 // distinguishes two houses that share a name.
+//
+// **Rel and not Path is what opens the file**, against the Library's own FS. Path is
+// Rel with the library's label in front of it and exists for messages: it is a real
+// path when the library is a directory and reads "built-in:houses/Titanic.house" when
+// the houses are the ones inside the executable, which is not something to hand to
+// os.Open.
 type House struct {
 	Name   string
 	Rel    string
@@ -70,11 +75,18 @@ type Skip struct {
 }
 
 // Library is a directory tree's worth of houses, sorted.
+//
+// FS is where they are and is what a caller loads one from -- house.LoadFS(lib.FS,
+// h.Rel). Root is what to call that place on a terminal.
 type Library struct {
 	Root    string
+	FS      fs.FS
 	Houses  []House
 	Skipped []Skip
 }
+
+// Open reads one of the listed houses.
+func (l *Library) Open(h House) (*house.House, error) { return house.LoadFS(l.FS, h.Rel) }
 
 // DemoHouse is the file name the original's attract mode looks for, verbatim
 // (SelectHouse.c:641). demoHouseIndex is -1 when it is absent, which is the one
@@ -89,31 +101,33 @@ const DemoHouse = "Demo House"
 // report useless.
 var houseExts = map[string]bool{"": true, ".house": true, ".glh": true}
 
-// Discover walks a directory tree and returns every house in it.
+// Discover walks a filesystem and returns every house in it.
 //
-// A tree rather than a single directory because the port will have more than one
-// source of houses -- the extracted originals, the new houses of Stage 2, and
-// whatever the player drops in -- and because a directory is the obvious way to
-// group them. Hidden directories are skipped, and so is the walk's own error on
-// any single entry: one unreadable file in a tree of houses is not a reason to
-// have no house list.
-func Discover(root string) (*Library, error) {
-	lib := &Library{Root: root}
-	if root == "" {
+// A tree rather than a single directory because the port has more than one source of
+// houses -- the 22 inside the executable, the new houses of Stage 2, and whatever the
+// player drops in -- and because a directory is the obvious way to group them. Hidden
+// directories are skipped, and so is the walk's own error on any single entry: one
+// unreadable file in a tree of houses is not a reason to have no house list.
+//
+// fsys is the houses root: assets.Tree() sub "houses" for the built-in set, os.DirFS of
+// whatever -houses named otherwise. label is for messages and for House.Path.
+func Discover(fsys fs.FS, label string) (*Library, error) {
+	lib := &Library{Root: label, FS: fsys}
+	if fsys == nil {
 		return lib, errors.New("shell: no houses directory")
 	}
-	if st, err := os.Stat(root); err != nil {
+	if st, err := fs.Stat(fsys, "."); err != nil {
 		return lib, err
 	} else if !st.IsDir() {
-		return lib, errors.New("shell: " + root + " is not a directory")
+		return lib, errors.New("shell: " + label + " is not a directory")
 	}
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // an unreadable entry, not an unreadable tree
 		}
 		if d.IsDir() {
-			if path != root && strings.HasPrefix(d.Name(), ".") {
+			if rel != "." && strings.HasPrefix(d.Name(), ".") {
 				return fs.SkipDir
 			}
 			return nil
@@ -121,23 +135,19 @@ func Discover(root string) (*Library, error) {
 		if !d.Type().IsRegular() || strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
-		if !houseExts[strings.ToLower(filepath.Ext(d.Name()))] {
+		if !houseExts[strings.ToLower(path.Ext(d.Name()))] {
 			return nil
 		}
-		sum, err := house.PeekFile(path)
+		sum, err := house.PeekFS(fsys, rel)
 		if err != nil {
-			lib.Skipped = append(lib.Skipped, Skip{Path: path, Why: err})
+			lib.Skipped = append(lib.Skipped, Skip{Path: path.Join(label, rel), Why: err})
 			return nil
 		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			rel = path
-		}
-		name := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		name := strings.TrimSuffix(d.Name(), path.Ext(d.Name()))
 		lib.Houses = append(lib.Houses, House{
 			Name:   name,
 			Rel:    rel,
-			Path:   path,
+			Path:   path.Join(label, rel),
 			Rooms:  sum.NRooms,
 			Locked: !sum.Unlocked,
 			Demo:   name == DemoHouse,

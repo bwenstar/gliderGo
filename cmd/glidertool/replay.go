@@ -26,10 +26,10 @@ func replayCmd(args []string) error {
 	fs := flag.NewFlagSet(prog+" replay", flag.ContinueOnError)
 	var (
 		houseName = fs.String("house", "", "house name or path (overrides the script)")
-		houseDir  = fs.String("houses", "assets/extracted/houses", "directory of extracted houses")
-		artDir    = fs.String("art", "assets/extracted/art", "extracted application art tree")
-		houseArt  = fs.String("houseart", "assets/extracted/houseart", "extracted per-house resource forks")
-		soundDir  = fs.String("sounds", "assets/extracted/sound", "extracted sound bank")
+		houseDir  = fs.String("houses", "", "directory to search for houses instead of the ones built in")
+		artDir    = fs.String("art", "", "extracted application art tree to use instead of the one built in")
+		houseArt  = fs.String("houseart", "", "extracted per-house resource forks to use instead of the ones built in")
+		soundDir  = fs.String("sounds", "", "extracted sound bank to use instead of the one built in")
 		sound     = fs.Bool("sound", true, "mix the sound; -sound=false replays in silence")
 		music     = fs.Bool("music", true, "play the music (needs sound)")
 		wav       = fs.String("wav", "", "write the mix to this WAV file")
@@ -155,8 +155,11 @@ machine with no sound card is the only way to hear what a replay sounded like:
 	}
 	// The directories always come from the flags, because they describe this machine
 	// rather than the run. A script mailed in by a player names a house, not a path on
-	// the reporter's disk.
+	// the reporter's disk. Each one that is empty -- which is all four unless somebody typed
+	// otherwise -- resolves against the tree built into this executable, so the same script
+	// replays the same way on a machine that has never run the extractor.
 	s.HouseDir, s.ArtDir, s.HouseArtDir, s.SoundDir = *houseDir, *artDir, *houseArt, *soundDir
+	s.Tree = builtinTree()
 
 	// A directed sentence rather than fs.Usage(): the caller knows what a replay is and has
 	// left out one thing, so fifteen flag descriptions bury the answer.
@@ -191,9 +194,11 @@ machine with no sound card is the only way to hear what a replay sounded like:
 	// The note goes to stderr because stdout is the trace, and it is worth printing: "the sound
 	// column is empty" and "this machine has no sounds extracted" look identical in the output
 	// otherwise, and the first is a bug while the second is a Makefile target.
-	if s.Sound && !set["sound"] && !audio.HasBank(*soundDir) {
+	soundFS, soundName := assetRoot(*soundDir, "sound")
+	if s.Sound && !set["sound"] && !audio.HasBank(soundFS) {
 		s.Sound = false
-		fmt.Fprintf(os.Stderr, "%s: no sound bank in %s; replaying in silence (make assets, or -sounds dir)\n", prog, *soundDir)
+		fmt.Fprintf(os.Stderr, "%s: no sound bank in %s; replaying in silence (make assets, or -sounds dir)\n",
+			prog, soundName)
 	}
 
 	// -wav is not exclusive with anything: the mix goes to the file and to the digest at the
@@ -211,8 +216,8 @@ machine with no sound card is the only way to hear what a replay sounded like:
 			switch {
 			case set["sound"]:
 				why = "-sound=false"
-			case !audio.HasBank(*soundDir):
-				why = "there is no sound bank in " + *soundDir
+			case !audio.HasBank(soundFS):
+				why = "there is no sound bank in " + soundName
 			}
 			return fmt.Errorf("-wav has nothing to write: the sound is off (%s)", why)
 		}

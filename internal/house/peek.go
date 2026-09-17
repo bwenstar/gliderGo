@@ -37,9 +37,12 @@ package house
 // rather than a file that silently vanished from the list.
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 // Summary is what a house picker can learn from a house's header alone: enough to
@@ -78,9 +81,25 @@ type Summary struct {
 // houses directory, "866 + 348*40 = 14786 bytes of rooms in a 500-byte file" for
 // a truncated download.
 func PeekFile(path string) (*Summary, error) {
-	f, err := os.Open(path)
+	return peek(os.DirFS(filepath.Dir(path)), filepath.Base(path), path)
+}
+
+// PeekFS is PeekFile against a filesystem: one house out of the copy built into the
+// executable, or out of a directory somebody named. name is a slash-separated path
+// within fsys and is what the Summary and any error call the file.
+func PeekFS(fsys fs.FS, name string) (*Summary, error) {
+	return peek(fsys, name, name)
+}
+
+// peek is both of the above. label is what a message calls the file, which is the
+// path the caller gave rather than the name within fsys -- PeekFile("/houses/x.house")
+// opens "x.house" in a filesystem rooted at /houses and still has to say
+// "/houses/x.house" when it turns out not to be a house.
+func peek(fsys fs.FS, name, label string) (*Summary, error) {
+	path := label
+	f, err := fsys.Open(name)
 	if err != nil {
-		return nil, err
+		return nil, relabel(err, name, label)
 	}
 	defer f.Close()
 
@@ -129,4 +148,21 @@ func PeekFile(path string) (*Summary, error) {
 		HasGame:   h.HasGame != 0,
 		Game:      h.SavedGame,
 	}, nil
+}
+
+// relabel puts the caller's own name back into a filesystem error.
+//
+// os.DirFS trims the directory it was rooted at out of the PathError it returns, which
+// is right for a caller that thinks in names within a filesystem and wrong for
+// PeekFile, whose caller handed over a whole path and should be told about that path.
+// The wrapped error is untouched, so errors.Is against fs.ErrNotExist still answers.
+func relabel(err error, name, label string) error {
+	if name == label {
+		return err
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) && pe.Path == name {
+		pe.Path = label
+	}
+	return err
 }

@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"sync"
 
 	"github.com/bwenstar/gliderGo/internal/house"
@@ -26,16 +25,23 @@ import (
 // draw helpers are void, exactly as the original's are, and a missing resource
 // there ends in RedAlert. Err() is the equivalent, to be checked once after a
 // composition rather than at every blit.
+// The tree arrives as an fs.FS and not as a directory name, which is what lets the
+// same loader read the copy built into the executable and a directory somebody
+// pointed the game at, with no branch in here to say which (assets/assets.go, and
+// internal/assetfs for the choice). A nil FS is "there is no art", which is a state
+// the shell is built to survive -- see UI.
 type Assets struct {
-	root string
+	fsys fs.FS
 
 	mu    sync.Mutex
 	cache map[string]*Surface
 	err   error
 
-	// houseDir is the open house's extracted resource fork, or "" for none.
-	// Its PICTs shadow the application's; see housepict.go.
-	houseDir string
+	// houseFS is the open house's extracted resource fork, or nil for none, and
+	// houseLabel names it for cache keys and messages. Its PICTs shadow the
+	// application's; see housepict.go.
+	houseFS    fs.FS
+	houseLabel string
 
 	// approx counts pixels that had to be colour-matched instead of mapped
 	// exactly. Only the 24 house pictures with their own ColorTable can raise
@@ -103,10 +109,11 @@ var miscNames = map[int16]string{3957: "manhole_thru_floor"}
 // extracted lands here rather than failing.
 const kFallbackBackground = 2000
 
-// NewAssets returns a loader rooted at an extracted-art directory, typically
-// assets/extracted/art. Nothing is read until something is asked for.
-func NewAssets(root string) *Assets {
-	return &Assets{root: root, cache: make(map[string]*Surface)}
+// NewAssets returns a loader over an extracted-art tree: the built-in one
+// (assets.Tree() sub "art"), or os.DirFS of a directory somebody named. Nothing is
+// read until something is asked for, and a nil FS is a loader with no art in it.
+func NewAssets(fsys fs.FS) *Assets {
+	return &Assets{fsys: fsys, cache: make(map[string]*Surface)}
 }
 
 // Err returns the first load failure, if any. It stays set once set.
@@ -211,7 +218,10 @@ func (a *Assets) Background(pictID int16) *Surface {
 // of it.
 func (a *Assets) UI(pictID int16) *Surface {
 	rel := fmt.Sprintf("ui/%d.png", pictID)
-	if _, err := os.Stat(filepath.Join(a.root, rel)); err != nil {
+	if a.fsys == nil {
+		return nil
+	}
+	if _, err := fs.Stat(a.fsys, rel); err != nil {
 		return nil
 	}
 	return a.load(rel)
@@ -267,7 +277,10 @@ func (a *Assets) load(rel string) *Surface {
 	}
 	a.mu.Unlock()
 
-	f, err := os.Open(filepath.Join(a.root, rel))
+	if a.fsys == nil {
+		return a.fail(fmt.Errorf("render: no art tree to read %s from", rel))
+	}
+	f, err := a.fsys.Open(rel)
 	if err != nil {
 		return a.fail(fmt.Errorf("render: %w", err))
 	}

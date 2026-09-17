@@ -49,7 +49,7 @@ func writePlate(t *testing.T, dir string, id int16, w, h int) {
 // print an asset error after every game on a build with no extracted art -- which is
 // the supported first-run state, not a fault.
 func TestUIMissingPlateIsNotAnError(t *testing.T) {
-	a := NewAssets(t.TempDir())
+	a := NewAssets(dirFS(t.TempDir()))
 	if got := a.UI(1000); got != nil {
 		t.Errorf("UI(1000) returned a %dx%d surface from an empty tree", got.W, got.H)
 	}
@@ -60,7 +60,7 @@ func TestUIMissingPlateIsNotAnError(t *testing.T) {
 	// A root that is not there at all takes the same path, because that is what
 	// `-art /nonexistent` and a fresh clone both look like. make headless renders the
 	// shell that way on purpose.
-	b := NewAssets(filepath.Join(t.TempDir(), "no", "such", "tree"))
+	b := NewAssets(dirFS(filepath.Join(t.TempDir(), "no", "such", "tree")))
 	if got := b.UI(1000); got != nil {
 		t.Error("a missing art root returned a surface")
 	}
@@ -81,7 +81,7 @@ func TestUIReturnsThePlateThatIsThere(t *testing.T) {
 	root := t.TempDir()
 	writePlate(t, filepath.Join(root, "ui"), 1000, 8, 5)
 
-	a := NewAssets(root)
+	a := NewAssets(dirFS(root))
 	s := a.UI(1000)
 	if s == nil {
 		t.Fatalf("UI(1000) is nil with the plate present: %v", a.Err())
@@ -118,7 +118,7 @@ func TestUIBrokenPlateRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a := NewAssets(root)
+	a := NewAssets(dirFS(root))
 	if got := a.UI(1000); got != nil {
 		t.Error("UI returned a surface for a file that is not a PNG")
 	}
@@ -151,8 +151,8 @@ func TestUIIgnoresTheOpenHouseFork(t *testing.T) {
 	fork := t.TempDir()
 	writePlate(t, filepath.Join(fork, "pict"), 2000, 40, 40)
 
-	a := NewAssets(app)
-	a.OpenHouseResFork(fork)
+	a := NewAssets(dirFS(app))
+	a.OpenHouseResFork(fork, dirFS(fork))
 
 	// Pict honours the fork: this is the control, and without it the test below would
 	// pass just as well on a broken fixture.
@@ -202,7 +202,7 @@ func TestPlatePrefersTheOpenHouseAndStaysSilent(t *testing.T) {
 	fork := t.TempDir()
 	writePlate(t, filepath.Join(fork, "pict"), 1015, 40, 40)
 
-	a := NewAssets(app)
+	a := NewAssets(dirFS(app))
 
 	// Closed: the application's, which is what a house with no 1015 of its own gets and
 	// what nineteen of the twenty shipped houses get.
@@ -215,7 +215,7 @@ func TestPlatePrefersTheOpenHouseAndStaysSilent(t *testing.T) {
 	}
 
 	// Open: the house's, which is Teddy World's case.
-	a.OpenHouseResFork(fork)
+	a.OpenHouseResFork(fork, dirFS(fork))
 	if s := a.Plate(1015); s == nil {
 		t.Fatalf("Plate(1015) is nil with the fork open: %v", a.Err())
 	} else if s.W != 40 || s.H != 40 {
@@ -297,7 +297,7 @@ func TestMaskedPlateAppliesTheCompanionPlate(t *testing.T) {
 		return 1
 	})
 
-	a := NewAssets(app)
+	a := NewAssets(dirFS(app))
 	s := a.MaskedPlate(1994)
 	if s == nil {
 		t.Fatalf("MaskedPlate(1994) is nil with both plates present: %v", a.Err())
@@ -336,7 +336,7 @@ func TestMaskedPlateIsPlateForAnUnpairedID(t *testing.T) {
 	app := t.TempDir()
 	writePlate(t, filepath.Join(app, "ui"), 1015, 8, 5)
 
-	a := NewAssets(app)
+	a := NewAssets(dirFS(app))
 	if got, want := a.MaskedPlate(1015), a.Plate(1015); got != want {
 		t.Errorf("MaskedPlate(1015) = %v, want the identical surface Plate returns %v", got, want)
 	}
@@ -351,7 +351,7 @@ func TestMaskedPlateWithoutItsMaskIsTheOpaqueArt(t *testing.T) {
 	app := t.TempDir()
 	writePlate(t, filepath.Join(app, "ui"), 1994, 8, 4)
 
-	a := NewAssets(app)
+	a := NewAssets(dirFS(app))
 	s := a.MaskedPlate(1994)
 	if s == nil {
 		t.Fatalf("MaskedPlate(1994) is nil with the art present and no mask: %v", a.Err())
@@ -374,7 +374,7 @@ func TestMaskedPlateTreatsAShortMaskAsTransparent(t *testing.T) {
 	writePlateFunc(t, ui, 1992, 8, 4, func(int, int) uint8 { return Yellow })
 	writePlateFunc(t, ui, 1991, 8, 2, func(int, int) uint8 { return 1 })
 
-	a := NewAssets(app)
+	a := NewAssets(dirFS(app))
 	s := a.MaskedPlate(1992)
 	if s == nil {
 		t.Fatalf("MaskedPlate(1992) is nil: %v", a.Err())
@@ -398,9 +398,9 @@ func TestMaskedPlateResolvesEachIDThroughTheForkSeparately(t *testing.T) {
 	fork := t.TempDir()
 	writePlateFunc(t, filepath.Join(fork, "pict"), 1992, 8, 4, func(int, int) uint8 { return QDCyan })
 
-	a := NewAssets(app)
+	a := NewAssets(dirFS(app))
 	a.MaskedPlate(1992) // fork closed first, so a leaking cache would be caught below
-	a.OpenHouseResFork(fork)
+	a.OpenHouseResFork(fork, dirFS(fork))
 
 	s := a.MaskedPlate(1992)
 	if s == nil {
@@ -423,7 +423,7 @@ func TestMaskedPlateResolvesEachIDThroughTheForkSeparately(t *testing.T) {
 		}
 		return White8
 	})
-	a.OpenHouseResFork(fork2)
+	a.OpenHouseResFork(fork2, dirFS(fork2))
 	s2 := a.MaskedPlate(1992)
 	if s2 == nil {
 		t.Fatalf("MaskedPlate(1992) is nil with the second fork open: %v", a.Err())
@@ -442,7 +442,7 @@ func TestMaskedPlateResolvesEachIDThroughTheForkSeparately(t *testing.T) {
 // general -- and for the high-score plaque the two happen to agree exactly, which is worth
 // knowing when a screenshot of it is compared against a colour-keyed one.
 func TestTheThreeShippedMaskPairsAreMeasured(t *testing.T) {
-	a := NewAssets(requireAssets(t, "art"))
+	a := NewAssets(dirFS(requireAssets(t, "art")))
 
 	for _, c := range []struct {
 		art, mask                       int16
@@ -494,8 +494,8 @@ func TestPlateBrokenHousePlateRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a := NewAssets(t.TempDir())
-	a.OpenHouseResFork(fork)
+	a := NewAssets(dirFS(t.TempDir()))
+	a.OpenHouseResFork(fork, dirFS(fork))
 
 	if got := a.Plate(1015); got != nil {
 		t.Error("Plate returned a surface for a file that is not a PNG")

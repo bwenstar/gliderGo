@@ -13,23 +13,37 @@
 # bench step is deliberately continue-on-error for that reason.
 #
 # WHAT THIS DOES NOT DO. Releases are release.yml's job, not this one, and the split is
-# deliberate: this workflow runs on every branch push and pull request, and release.yml runs on
+# deliberate: this workflow runs on pushes to main and on pull requests, and release.yml runs on
 # `v*` tags -- which this one does not match, so tagging deliberately does not fire the whole CI
 # matrix twice. The cross-compiled binaries uploaded here are for inspection only; the packaged,
-# checksummed archives come from release.yml. There is still no installer, and an installed copy
-# still looks for its assets at a repo-relative path (docs/IMPROVEMENTS.md 5.3), which is why a
-# release archive ships its own asset tree and has to be run from its own directory.
+# checksummed archives come from release.yml. There is still no installer, and there no longer
+# needs to be one for the game to be playable from a download: every executable carries its own
+# assets (assets/assets.go), so a binary out of the artifact below runs from wherever it is put.
 
 name: CI
 
+# `push` is the default branch only, deliberately. With `branches: ["**"]` every push to a branch
+# that has a pull request open ran this whole matrix twice over the same commit -- once for the
+# push and once for the pull_request -- and the concurrency group below cannot collapse those two,
+# because their refs differ (refs/heads/x against refs/pull/N/merge). Work on a branch is covered
+# by opening the pull request; a branch with no pull request is covered by workflow_dispatch, which
+# takes a ref.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# One run per ref: a second push to the same branch cancels the first rather than queueing behind
+# it, since nobody wants the results of the commit they have already replaced. Cancelling is safe
+# here in a way it would not be in release.yml -- this workflow publishes nothing, so an
+# interrupted run leaves nothing half-done.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # Both are the repo's defaults, restated so a CI log shows them. gliderGo has no
@@ -82,8 +96,15 @@ jobs:
       #
       # This step exists because a checkout that silently lost the assets would still pass:
       # make's guards would skip the asset-dependent steps and `check` would go green. Refuse.
+      #
+      # Both copies are named. extracted.zip is the one compiled into every binary, and a build
+      # without it fails on its own (the Makefile's `embedded` guard) -- naming it here says which
+      # file is missing rather than which target stopped. extracted/ is the working tree the pixel
+      # corpus and the house round-trip read by path, and the one `make assets-check` re-extracts
+      # against. `go test ./assets`, inside `make check`, is what proves the two agree.
       - name: Refuse a checkout that is missing its assets
         run: |
+          test -s assets/extracted.zip
           test -s assets/extracted/art/manifest.json
           test -s assets/extracted/sound/manifest.tsv
           ls assets/extracted/houses/*.house >/dev/null
@@ -156,9 +177,9 @@ jobs:
       - run: make cross
 
       # Thirteen binaries: glidergo and glidertool for each of the six cross targets, plus the
-      # host's cgo glidergo as `-x11`. Inspection copies, not a release -- they are unpackaged,
-      # unchecksummed and carry no assets, so they cannot be played from the download. That is
-      # release.yml's job, and it runs on `v*` tags.
+      # host's cgo glidergo as `-x11`. Each one carries its own assets and would play from the
+      # download, but they are inspection copies and not a release: unpackaged, unchecksummed, no
+      # licence and no note saying which of them can draw. That is release.yml's job, on `v*` tags.
       - uses: actions/upload-artifact@v4
         with:
           name: cross-binaries
@@ -219,8 +240,9 @@ jobs:
       #
       # -frames bounds the run so it cannot hang waiting for a quit event that no automated
       # session will ever send; timeout-minutes is the belt to that braces. The bench needs a
-      # house, which the committed assets provide, and it must run from the repo root because the
-      # asset flags default to repo-relative paths.
+      # house and finds one inside the .exe it just built, so this is also where a house is loaded
+      # out of the embedded archive on Windows and played -- `go test ./assets` above only proves
+      # the archive opens there.
       - name: On-screen bench, the first run of the win32 backend (best effort)
         if: matrix.os == 'windows-latest'
         continue-on-error: true

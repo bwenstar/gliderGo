@@ -2535,54 +2535,108 @@ Four consequences, and only the first is currently handled:
   design.
 - **Two `make assets` at once** — a developer in one terminal, an editor's build task in
   another — interleave silently.
+- **New, and this one is a mitigation rather than a consequence.** `make assets` now packs
+  `assets/extracted.zip` from the tree as its last step (5.3), and `go test ./assets` compares the
+  two file by file. A half-written or half-repacked tree is therefore a *test failure* naming the
+  file whose length disagrees, which is the first tripwire this entry has ever had that fires on
+  contents rather than on emptiness.
 
 The fix is the ordinary one: extract into `assets/.extracted.tmp-$$`, `os.replace` the finished
 tree into place, and take a lock file for the duration so the second run waits or refuses. It is
 maybe thirty lines in `extract_all.py` and it wants doing before a release pipeline exists, since
 a pipeline is precisely a place where two jobs share a checkout.
 
-### 5.3 An installed copy still looks for its assets beside the binary — **decision needed, before packaging**
+### 5.3 An installed copy looked for its assets beside the binary — **DONE, embedded; the assets are inside every executable**
 
-Every asset path in the port resolves relative to the working directory or to a flag:
-`assets/extracted/art`, `assets/extracted/houses`, `-art`, `-houses`. That is correct for a
-development tree and wrong for anything installed — a `/usr/bin/glidergo` run from a home
-directory finds nothing, and the first-run screen it draws instead (`first-run.png`, which
-`make headless` renders precisely so nobody has to guess) is at least honest about it.
+The entry used to say every asset path resolved against the working directory (`assets/extracted/art`,
+`assets/extracted/houses`, and the two others), which was right for a development tree and wrong
+for anything a player downloads: a `glidergo` copied to `~/bin` found nothing and drew the
+first-run screen instead. It recommended a search path — the executable's directory, then
+`/usr/share/glidergo`, then `$XDG_DATA_HOME/glidergo` — and kept a 3 MB binary.
 
-The decision is not technical, it is a layout: **where** do the assets go — `/usr/share/glidergo`,
-`$XDG_DATA_HOME/glidergo` alongside the scores, or inside the binary with `embed`? §1.2 used to
-block this and no longer does: the assets ship, so an installed copy carries them rather than
-extracting from the player's own copy of the game.
+**The decision taken was the other one: `//go:embed`, no search path, nothing beside the binary.**
+The reason is the audience. A search path is the right answer for something a distribution
+packages, and gliderGo is a game somebody downloads from a Releases page, unzips into whatever
+directory their browser chose, and double-clicks. Every step of a search path is a step that can
+find the wrong copy or none, and "it must be run from the directory you unpacked" is an
+instruction a player should never have to read.
 
-`embed` deserves a note because it is now the tempting answer and it is not free: 15.5 MB welded
-into every binary, six cross-built targets, and `go:embed` cannot reach outside its own package
-tree, so `assets/extracted/` would have to move or be mirrored. A search path — the executable's
-directory, then `/usr/share/glidergo`, then `$XDG_DATA_HOME/glidergo`, then the current
-directory — is a dozen lines and keeps one 3 MB binary. That is the recommendation when
-packaging happens; it is written down here rather than implemented because it wants the
-release-pipeline decisions in 5.4 alongside it.
+**What it looks like.** `assets/extracted.zip` (11.3 MB, 1,877 files) is committed beside the tree
+and compiled into every executable by `assets/assets.go`. Both binaries carry it — `glidertool`
+renders houses and replays recordings, so a tool with no assets in an archive with no assets is
+useless. Four things made it fall out cleanly rather than needing a plumbing rewrite:
+
+- `*zip.Reader` is an `fs.FS`, so the loaders needed one change each: take an `fs.FS` from the
+  caller instead of opening paths. Nothing under `internal/` knows the built-in copy exists, which
+  is also why `go test ./internal/...` links none of these 11 MB.
+- `internal/assetfs` holds the resolution rule in one place: an empty flag means the copy built
+  into this binary; a named directory *replaces* that root. `-version` prints which of the two
+  each root came from, so a bug report says it.
+- `internal/assetpack` holds the packing and the comparison, and `tools/packassets` is the only
+  thing that runs it. The packer must not import `assets` — that package embeds the archive it is
+  about to write — which is the whole reason the logic is not simply in `assets`.
+- The pack is deterministic: names sorted, every timestamp fixed at 1994-10-01 UTC, no mode bits,
+  no directory entries. `make assets-zip` twice over produces the same bytes, so the committed
+  archive is not a source of spurious diffs.
+
+**The trap that decided the shape, and it is worth knowing.** `go:embed` accepts only names that
+are valid module file paths, which rules out an apostrophe — and three of the shipped houses have
+one: `Castle o' the Air`, `Nemo's Market`, `Rainbow's End`. A pattern that *names* such a file
+fails the build, which is survivable. A pattern that names its **directory** skips it in silence:
+120 files and 350,674 bytes, three houses and three houses' worth of custom art, gone from the
+game with nothing anywhere to say so. A zip has no such rule, and the 1994 names survive
+byte for byte inside it. `assets.TestApostropheNamesSurvived` is the tripwire, and it deliberately
+does not skip when the tree is absent, because its subject is the bytes in the binary.
+
+**What it costs, stated plainly.** A binary went from about 3.6 MB to 14.9 MB. A release archive
+holds two of them, so the same 11.3 MB ships twice in it and the archives went from about 15 MB to
+about 26 MB each — already-compressed data, so `tar -z` and `zip` cannot help. The repository now
+carries the assets twice as well (the 16.3 MB tree plus the 11.3 MB archive of it), which took the
+tracked total from 68.6 MB to 79.9 MB. Three ways to spend that back, none of them urgent, all of
+them deferred on purpose:
+
+- **Ship one binary.** Folding `glidertool` into `glidergo` as a subcommand, or leaving it out of
+  release archives entirely, halves every download at a stroke. It is the cheapest of the three
+  and the one that changes what a release contains, so it wants deciding with 5.4 rather than here.
+- **Keep only the archive in git** and unpack it on demand. `make assets-check`, the fidelity
+  corpus and the house round-trip name files by path, so this means teaching those three to read
+  the archive or to unpack into a scratch tree. Saves 11.3 MB of repository and buys a `git diff`
+  over `assets/extracted` that nobody can read.
+- **Union the roots** instead of replacing them, so `-art some/dir` could override one PNG and
+  inherit the rest from the built-in copy. Today it replaces, which is the honest simple rule and
+  the one whose failure mode is obvious. The union is what a modding story would want; there is no
+  modding story yet.
+
+**What did not change.** The four flags still take a directory, and pointing one at nothing still
+draws the first-run screen (`make headless` renders it via `-art /nonexistent`, which is now the
+only way to reach it). `make assets` still re-derives the tree from `GliderPRO/` and now repacks
+the archive after it. And the Makefile grew an `embedded` guard: every build target refuses to
+build without `assets/extracted.zip` rather than producing an executable that comes up empty.
 
 ### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`; no tag has been pushed yet**
 
 `.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
-list as future work: `make cross` plus the host's cgo build, six archives each carrying its own
-copy of `assets/extracted` at the relative path the binaries look for, a `SHA256SUMS` manifest,
+list as future work: `make cross` plus the host's cgo build, six archives of two binaries each
+with their assets inside them (5.3), a `SHA256SUMS` manifest,
 `README.md`, `CHANGELOG.md`, `LICENSE` and upstream's own README and licence in every one, and a
 `gh release create` that runs only on a tag push. `VERSION` is passed explicitly rather than left
 to `git describe`, so a build is stamped with the tag it came from instead of a bare short hash.
 
 Three things about it are worth knowing before trusting it.
 
-**It runs its own tests.** `ci.yml` triggers on `push: branches` and `pull_request`, and a tag
+**It runs its own tests.** `ci.yml` triggers on a push to `main` and on `pull_request`, and a tag
 push is neither, so tagging fires no CI at all. Without the `verify` job at the top of
 `release.yml` a release would ship binaries that no suite had ever seen.
 
 **It has never executed.** Same reason as `ci.yml`: the machine it was written on cannot reach
 github.com. What is verified is everything below the GitHub line — the packaging step was
-extracted from the YAML and run verbatim against a real `make cross` tree, all six archives
-build and pass `sha256sum -c`, and the `linux-amd64` one was unpacked and played at 30 fps with
-sound from its own root. What is unverified is action versions, runner package names and `gh`'s
-behaviour. The `workflow_dispatch` entry exists to rehearse the build half without publishing.
+extracted from the YAML and run verbatim against a real `make cross` tree, twice, once before the
+assets moved into the binaries and once after; all six archives build and pass `sha256sum -c`, and
+the `linux-amd64` one was unpacked and played with sound — before 5.3 from its own root, and after
+it from a directory holding the binary and nothing else, 300 on-screen frames of Slumberland out of
+the copy inside itself. What is unverified is action versions, runner package names and
+`gh`'s behaviour. The `workflow_dispatch` entry exists to rehearse the build half without
+publishing.
 
 **Five of the six archives cannot draw** (§5.5), which is a packaging problem as much as a
 backend one. They are named `-headless`, and their `HOW-TO-RUN.txt` does not tell the reader to
@@ -2591,9 +2645,11 @@ condition without `-frames`, so that would spin on an invisible title screen unt
 gives two commands that terminate and produce something instead, and both were run from an
 unpacked archive before being written down.
 
-§5.3 remains the reason an archive has to be self-contained and run from its own root, and it is
-still open. Also still open, and the one thing a release cannot fix: §1.2's reading of the
-licence the 1994 content is shipped under.
+§5.3 used to be the reason an archive had to carry an asset tree and be run from its own root; it
+is closed, so an archive is now two binaries and five documents, and `HOW-TO-RUN.txt` no longer
+tells anybody where to stand. Two things a release still cannot fix: §1.2's reading of the licence
+the 1994 content is shipped under, and the fact that the same 11.3 MB rides in both binaries of
+every archive (§5.3's first deferred item).
 
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; the CI matrix is the first attempt, and there is now a Windows backend riding on it**
 
@@ -2747,10 +2803,11 @@ alone for a stated reason rather than missed.
   so the citations cannot simply be repointed at the committed spec — closing this properly means
   giving the surviving decisions numbers in a committed file. Deferred; noted here so the dead
   reference is a known one.
-- **The asset flags still default to paths relative to the working directory** (`-art
-  assets/extracted/art`, and three more). Already owned by 5.3, which is about the packaged case;
-  what the audit adds is that `-version` now reports whether each tree was found, so the failure
-  is at least legible from a bug report.
+- ~~**The asset flags still default to paths relative to the working directory** (`-art
+  assets/extracted/art`, and three more).~~ **Closed by 5.3.** All four now default to empty,
+  meaning the copy inside the executable, and a directory only comes into it when somebody names
+  one. `-version` still reports where each root came from, which is what makes the override legible
+  from a bug report.
 - **Audio still shells out to an external player on Linux and has no sink at all elsewhere.**
   Already 2.48. The audit's only addition is that `-version` prints the backend, so a report from
   a null-backend build is identifiable as one.

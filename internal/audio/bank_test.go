@@ -27,15 +27,19 @@ const (
 
 // requireBank loads the extracted bank or skips.
 //
-// Skips rather than fails, like every other asset-dependent test in the port:
-// assets/extracted is gitignored because it is derived from a copyrighted 1994 application, so
-// a bare checkout has no sounds and `go test ./...` must still pass on one.
+// Skips rather than fails, like every other asset-dependent test in the port: `make
+// clean-assets` and an interrupted extraction both leave a tree with no sounds in it, and
+// `go test ./...` must still pass on one.
+//
+// The bank is read from the working copy as a directory, not from the copy built into the
+// executables. Nothing under internal/ knows the built-in tree exists -- the loaders take an
+// fs.FS and this is the one that means "the assets a developer is editing".
 func requireBank(t *testing.T) *Bank {
 	t.Helper()
 	if _, err := os.Stat(filepath.Join(soundDir, "manifest.tsv")); err != nil {
 		t.Skipf("no extracted sounds at %s (run `make assets`)", soundDir)
 	}
-	b, err := LoadBank(soundDir)
+	b, err := LoadBank(os.DirFS(soundDir))
 	if err != nil {
 		t.Fatalf("LoadBank: %v", err)
 	}
@@ -152,7 +156,7 @@ func TestHouseSampleRatesVary(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("no extracted house sounds at %s (run `make assets`)", path)
 	}
-	rows, err := readManifest(path)
+	rows, err := readManifest(os.DirFS(soundDir), "houses/manifest.tsv")
 	if err != nil {
 		t.Fatalf("readManifest: %v", err)
 	}
@@ -424,7 +428,7 @@ func requireManifest(t *testing.T) []map[string]string {
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("no extracted sounds at %s (run `make assets`)", soundDir)
 	}
-	rows, err := readManifest(path)
+	rows, err := readManifest(os.DirFS(soundDir), "manifest.tsv")
 	if err != nil {
 		t.Fatalf("readManifest: %v", err)
 	}

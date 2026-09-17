@@ -57,7 +57,7 @@ func testLibrary(t *testing.T) (root string, lib *Library) {
 	}())
 	write(t, filepath.Join(root, "tiny.house"), make([]byte, 100))
 
-	lib, err := Discover(root)
+	lib, err := Discover(os.DirFS(root), root)
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
@@ -137,15 +137,18 @@ func TestDiscoverIgnoresHiddenAndForeignFiles(t *testing.T) {
 }
 
 func TestDiscoverBadRoot(t *testing.T) {
-	if _, err := Discover(""); err == nil {
-		t.Error("an empty root should be an error")
+	// No filesystem at all, which is what a build with no houses inside it and no -houses
+	// flag hands over. It has to be an error rather than an empty list, because "this build
+	// has no houses" and "your directory has none in it" are two different things to say.
+	if _, err := Discover(nil, ""); err == nil {
+		t.Error("no houses filesystem should be an error")
 	}
-	if _, err := Discover(filepath.Join(t.TempDir(), "nope")); err == nil {
+	if _, err := Discover(os.DirFS(filepath.Join(t.TempDir(), "nope")), "nope"); err == nil {
 		t.Error("a missing root should be an error")
 	}
 	f := filepath.Join(t.TempDir(), "afile")
 	write(t, f, []byte("x"))
-	if _, err := Discover(f); err == nil {
+	if _, err := Discover(os.DirFS(f), f); err == nil {
 		t.Error("a root that is a file should be an error")
 	}
 }
@@ -196,7 +199,7 @@ func TestSameNameInTwoDirectories(t *testing.T) {
 	write(t, filepath.Join(root, "a", "Demo House"), houseBytes(t, 1))
 	write(t, filepath.Join(root, "b", "Demo House"), houseBytes(t, 2))
 
-	lib, err := Discover(root)
+	lib, err := Discover(os.DirFS(root), root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -302,6 +303,24 @@ func LoadFile(path string) (*House, error) {
 	h, err := Load(b)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return h, nil
+}
+
+// LoadFS is LoadFile against a filesystem: one house out of the copy built into the
+// executable, or out of a directory somebody named. name is a slash-separated path
+// within fsys and is what any error calls the house.
+func LoadFS(fsys fs.FS, name string) (*House, error) {
+	if fsys == nil {
+		return nil, fmt.Errorf("%s: no houses to read it from", name)
+	}
+	b, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return nil, err
+	}
+	h, err := Load(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	return h, nil
 }

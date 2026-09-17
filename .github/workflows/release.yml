@@ -11,17 +11,19 @@
 # run artifact and cannot create a Release from any ref, including a tag.
 #
 # WHAT A RELEASE ARCHIVE CONTAINS, AND WHY IT IS SHAPED THIS WAY.
-# The binary looks for its assets at the *relative* paths assets/extracted/art,
-# .../houses, .../houseart and .../sound -- see cmd/glidergo/main.go's flag defaults. Nothing
-# resolves a path relative to the executable (os.Executable is not called anywhere), so an
-# archive has to carry its own asset tree and be run from its own root:
+# Two binaries and the documents a stranger needs, and nothing else. The assets are inside the
+# executables: assets/extracted.zip is compiled in by //go:embed (assets/assets.go), so the art,
+# the sounds and all 22 houses travel in the binary itself and the working directory means
+# nothing.
 #
 #     tar xzf glidergo-v1.0.0-linux-amd64.tar.gz
-#     cd glidergo-v1.0.0-linux-amd64
-#     ./glidergo
+#     ./glidergo-v1.0.0-linux-amd64/glidergo
 #
-# Running ./glidergo from anywhere else fails to find its houses. That is docs/IMPROVEMENTS.md
-# 5.3, still open; when it is fixed this comment and the release notes below should shrink.
+# from anywhere at all. The -art, -houses, -houseart and -sound flags still take a directory, for
+# a player who wants to run edited art; empty, which is the default, means the copy built in.
+# Archives used to carry a copy of assets/extracted/ and had to be run from their own root; that
+# was docs/IMPROVEMENTS.md 5.3, now closed. The cost is that both binaries carry the same 11 MiB,
+# so an archive is bigger than it was even though it holds fewer files.
 #
 # WHICH BUILDS CAN ACTUALLY DRAW. Three of the six: linux/amd64 through X11, and both windows
 # targets through GDI. The linux one is built with cgo against libX11; the windows ones need no
@@ -100,11 +102,16 @@ jobs:
       - name: Report the environment
         run: make doctor
 
-      # A checkout that silently lost its assets would still pass `make check`: the Makefile's
-      # guards skip the asset-dependent targets and the whole thing goes green. For a release
-      # that is the difference between shipping a game and shipping an empty window. Refuse.
+      # There are two committed copies of the assets and this job needs both. extracted.zip is
+      # what goes into the binaries, so a build without it is an empty window -- the Makefile's
+      # `embedded` guard refuses that, and so does this, earlier and with the archive named.
+      # extracted/ is the working tree, which is what `make assets-check` re-extracts against and
+      # what the pixel corpus and the house round-trip read by path; lose it and those targets
+      # skip, `make check` goes green, and nothing has compared a pixel. `go test ./assets`,
+      # inside `make check`, is what proves the two copies still hold the same bytes.
       - name: Refuse a checkout that is missing its assets
         run: |
+          test -s assets/extracted.zip
           test -s assets/extracted/art/manifest.json
           test -s assets/extracted/sound/manifest.tsv
           ls assets/extracted/houses/*.house >/dev/null
@@ -121,7 +128,7 @@ jobs:
         run: xvfb-run -a -s '-screen 0 640x480x24' make bench
 
   # ---------------------------------------------------------------------------
-  # Build every target, package each with its own copy of the assets, checksum the lot.
+  # Build every target, package each one, checksum the lot.
   #
   # One job rather than a matrix: `make cross` already builds all seven binaries on one Linux
   # runner in seconds, and a matrix would mean seven upload/download round trips to reassemble
@@ -195,11 +202,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Building $version"
 
-      - name: Refuse a checkout that is missing its assets
-        run: |
-          test -s assets/extracted/art/manifest.json
-          test -s assets/extracted/sound/manifest.tsv
-          ls assets/extracted/houses/*.house >/dev/null
+      # This job needs only the archive: it packages binaries, and the binaries are the assets.
+      # `make cross` refuses without it too (the Makefile's `embedded` target), but a named
+      # failure here is a clearer thing to read in a release log than a build that stopped.
+      - name: Refuse a checkout that is missing the archive the binaries embed
+        run: test -s assets/extracted.zip
 
       # Writes bin/cross/glidergo-$os-$arch[.exe] and glidertool-$os-$arch[.exe] for the six
       # CGO_ENABLED=0 targets, plus bin/cross/glidergo-linux-amd64-x11 for the host's own cgo
@@ -210,8 +217,25 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
         run: make cross VERSION="$VERSION"
 
-      # Package one directory per target, each self-contained: binaries at the root, the asset
-      # tree at the relative path the binaries look for, and the documents a stranger needs.
+      # The claim every archive below rests on, tested rather than asserted: one binary, alone in
+      # an empty directory, with no asset tree anywhere near it and a working directory that means
+      # nothing. `-version` reports what it found and `-shot` makes it actually decode the art and
+      # composite a screen, which is the difference between "the archive opened" and "the game is
+      # in there". The CGO_ENABLED=0 build is the one used because it needs no libX11 and `-shot`
+      # needs no display; both are true of the x11 build as well, but this way the step tests the
+      # binary that has the least beside it.
+      - name: Prove a binary needs no files beside it
+        run: |
+          set -euo pipefail
+          empty="$(mktemp -d)"
+          cp bin/cross/glidergo-linux-amd64 "$empty/glidergo"
+          cd "$empty"
+          ./glidergo -version
+          ./glidergo -shot title.png
+          test -s title.png
+
+      # Package one directory per target: the two binaries at the root and the documents a
+      # stranger needs. No asset tree -- see the header.
       #
       # linux/amd64 gets the cgo x11 binary rather than the CGO_ENABLED=0 one, so the archive a
       # Linux player downloads is the playable one. The two windows archives are playable from
@@ -250,10 +274,6 @@ jobs:
 
             cp "bin/cross/glidergo-${target}${binsuf}${exe}"  "$stage/glidergo${exe}"
             cp "bin/cross/glidertool-${target}${exe}"         "$stage/glidertool${exe}"
-
-            # The asset tree at exactly the relative path the flag defaults name.
-            mkdir -p "$stage/assets"
-            cp -r assets/extracted "$stage/assets/extracted"
 
             # The README's nine links into docs/ would every one of them 404 inside an archive
             # that carries no docs/ -- three of them the screenshots at the very top, which is
@@ -315,7 +335,8 @@ jobs:
                   Plays 300 frames of a house, writes each one into frames/ as a PNG,
                   and reports the score it reached.
 
-          Either way, run it from this directory: it looks for assets/extracted beside itself.
+          Neither one needs any file beside it. The art, the sounds and all 22 houses are inside
+          the binary, so glidergo can be moved anywhere and run from any directory.
 
           The linux-amd64 and windows archives do draw. On Linux arm64, building from source on
           the machine itself gives you the X11 backend -- this archive is headless only because
@@ -327,10 +348,10 @@ jobs:
 
               ${cmd}
 
-          Double-clicking glidergo.exe in Explorer works too -- Explorer starts a program in its
-          own directory, which is what matters here, because the game looks for assets/extracted
-          beside itself. A console window opens alongside the game; that is where it says which
-          house it loaded and what it could not find.
+          Double-clicking glidergo.exe in Explorer works too, and so does copying it wherever you
+          keep programs: everything the game needs -- the art, the sounds, all 22 houses -- is
+          inside the .exe, which is why it is 15 MB. A console window opens alongside the game;
+          that is where it says which house it loaded and what it could not find.
 
           TWO THINGS TO EXPECT ON WINDOWS.
 
@@ -350,7 +371,10 @@ jobs:
 
               ${cmd}
 
-          It must be run from this directory: it looks for assets/extracted alongside itself.
+          It needs no files beside it. The art, the sounds and all 22 houses are inside the
+          binary, which is why it is 15 MB, so you can copy glidergo to ~/bin or /usr/local/bin
+          and run it from anywhere. Linux needs libX11 at run time -- libx11-6, which every
+          desktop install already has -- and a 24- or 32-bit display.
           TXT
             fi
 
@@ -359,11 +383,16 @@ jobs:
               sed -i 's/$/\r/' "$stage/HOW-TO-RUN.txt"
             fi
 
-            # Every archive is verified to contain the three things that make it playable
-            # before it is sealed. A `cp` that silently did nothing would otherwise ship.
+            # Every archive is verified to hold a binary with its assets in it before it is
+            # sealed. A stale bin/cross/ or a `cp` that silently did nothing would otherwise ship.
+            #
+            # Grepping an executable is the check that works for all six targets: zip stores its
+            # member names uncompressed, so the built-in tree's own filenames are literal bytes in
+            # every one of these binaries, including the windows and darwin builds this runner
+            # cannot execute. The step above already ran the linux one for real.
             test -x "$stage/glidergo${exe}"
-            ls "$stage/assets/extracted/houses/"*.house >/dev/null
-            test -s "$stage/assets/extracted/sound/manifest.tsv"
+            grep -qa "houses/Demo House.house" "$stage/glidergo${exe}"
+            grep -qa "sound/manifest.tsv"      "$stage/glidergo${exe}"
 
             # And that the link rewrite above actually fired. A README whose sed silently missed
             # ships broken images to every downloader, which is exactly the kind of failure
@@ -434,8 +463,9 @@ jobs:
         run: |
           set -euo pipefail
           cat > notes.md <<'HEADER'
-          A Go port of Glider PRO, John Calhoun's 1994 Macintosh game. Each archive is
-          self-contained: the binaries, the original art and sounds, and all 22 houses.
+          A Go port of Glider PRO, John Calhoun's 1994 Macintosh game. One file, nothing to
+          install: the original art, the sounds and all 22 houses are inside the binary, which
+          is why it is 15 MB.
 
           ### Which one do I want?
 
@@ -465,18 +495,25 @@ jobs:
 
           ### Running it
 
-          Unpack, then run it **from the directory you unpacked**, because it looks for
-          `assets/extracted` beside itself:
+          Unpack it and run it, from wherever you like:
 
           ```
           tar xzf glidergo-VERSION-linux-amd64.tar.gz
-          cd glidergo-VERSION-linux-amd64
-          ./glidergo
+          ./glidergo-VERSION-linux-amd64/glidergo
           ```
 
-          On Windows, unzip and either double-click `glidergo.exe` or run `.\glidergo.exe`
-          from a shell opened in that folder. Each archive has a `HOW-TO-RUN.txt` saying the
-          same thing.
+          Copy `glidergo` to `~/bin` and it still works — there is no asset directory to keep
+          beside it, no install step and no config to write. On Windows, unzip and either
+          double-click `glidergo.exe` or run `.\glidergo.exe`. Each archive has a
+          `HOW-TO-RUN.txt` saying the same thing.
+
+          `glidergo -version` lists what the binary is carrying. If you would rather play
+          edited art or your own houses, `-art`, `-houses`, `-houseart` and `-sound` each take
+          a directory and replace the built-in copy.
+
+          High scores and saved games go to `~/.local/share/glidergo` on Linux and
+          `%AppData%\glidergo` on Windows rather than next to the binary, so they survive you
+          replacing it with the next release.
 
           Linux needs libX11 at run time (`libx11-6`, present on any desktop install) and a
           24- or 32-bit display. Windows needs nothing at all — no runtime, no redistributable.

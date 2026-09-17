@@ -337,7 +337,7 @@ func TestSavingAndGivingUpFromThePause(t *testing.T) {
 			pauseKey := a.p.Pause()
 			win.onPoll = func(f *fakeWin) { f.held[pauseKey] = f.pass < 2 }
 
-			out, err := a.play("Slumberland", path, false, false)
+			out, err := a.play(diskHouse(path), false, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -399,7 +399,7 @@ func TestGivingUpWithNowhereToSave(t *testing.T) {
 	pauseKey := a.p.Pause()
 	win.onPoll = func(f *fakeWin) { f.held[pauseKey] = f.pass < 2 }
 
-	out, err := a.play("Slumberland", path, false, false)
+	out, err := a.play(diskHouse(path), false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +429,7 @@ func TestResumeStartsFromTheSavedGame(t *testing.T) {
 	// frame or two -- long enough for NewGame to have read the save and not long enough for
 	// the glider to reach anything that would change the score.
 	a, _ = playApp(t, savesDir)
-	out, err := a.play("Slumberland", path, false, true)
+	out, err := a.play(diskHouse(path), false, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +438,7 @@ func TestResumeStartsFromTheSavedGame(t *testing.T) {
 	}
 
 	a, _ = playApp(t, savesDir)
-	out, err = a.play("Slumberland", path, false, false)
+	out, err = a.play(diskHouse(path), false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,7 +457,7 @@ func TestResumeRefusalsHappenBeforeTheGameStarts(t *testing.T) {
 
 	// Nothing to resume.
 	a, win := playApp(t, savesDir)
-	if _, err := a.play("Slumberland", path, false, true); err == nil {
+	if _, err := a.play(diskHouse(path), false, true); err == nil {
 		t.Error("a resume with no saved game started a game")
 	} else if !strings.Contains(err.Error(), "no saved game to resume") {
 		t.Errorf("%v", err)
@@ -478,7 +478,7 @@ func TestResumeRefusalsHappenBeforeTheGameStarts(t *testing.T) {
 	if err := a.saves.Save(sg); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.play("Slumberland", path, false, true); err == nil {
+	if _, err := a.play(diskHouse(path), false, true); err == nil {
 		t.Error("a save from before the house was edited was resumed")
 	} else if !strings.Contains(err.Error(), "has been modified") {
 		t.Errorf("%v", err)

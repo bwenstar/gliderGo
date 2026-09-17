@@ -22,15 +22,17 @@ scripts/env.sh
 scripts/local-source.sh
 
 # Build output. /bin/ is what the Makefile writes (binaries, cross builds, screenshots).
-# /dist/ is nothing yet: there is no release pipeline (docs/IMPROVEMENTS.md 5.4), and the
-# line is here so that the first person to build a tarball does not commit it by accident.
+# /dist/ is where .github/workflows/release.yml stages and packs its six archives; nothing
+# local writes it, and the line is here so that rehearsing that step by hand -- which is how
+# it is tested, since the workflow cannot run from here -- does not commit 150 MB of tarballs.
 /bin/
 /dist/
 *.test
 *.out
 
-# assets/extracted/ IS committed: the game plays from a clone with no extraction step and
-# no copy of the original. What is not committed is one intermediate.
+# assets/extracted/ IS committed, and so is assets/extracted.zip, the copy of it that every
+# binary embeds: the game plays from a clone with no extraction step and from a downloaded
+# executable with no files beside it. What is not committed is one intermediate.
 #
 # houses/*.rsrc are the per-house resource forks that tools/extract_house_art.py decodes into
 # houseart/. 24 MB of the 46 MB the extractor writes, read by nothing at run time, and

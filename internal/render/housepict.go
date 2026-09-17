@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"os"
-	"path/filepath"
+	"io/fs"
+	"path"
 
 	"github.com/bwenstar/gliderGo/internal/house"
 )
@@ -38,20 +38,26 @@ import (
 // touches is counted, so the approximation is reported rather than silent.
 
 // OpenHouseResFork puts a house's own PICT resources in front of the
-// application's, for as long as that house is open. dir is the house's directory
-// under assets/extracted/houseart -- houseart/<house>, holding pict/<id>.png.
+// application's, for as long as that house is open. fsys is one house's extracted
+// fork -- the houseart/<house> subtree, holding pict/<id>.png and bnds/<id>.bin --
+// and label names it for cache keys and messages.
 //
-// An empty dir, or a house with no extracted fork, is not an error: houses may
+// A nil fsys, or a house with no extracted fork, is not an error: houses may
 // legitimately carry no PICTs of their own, and every lookup then falls straight
 // through to the application art.
-func (a *Assets) OpenHouseResFork(dir string) {
+//
+// The label has to be distinct per house and is otherwise free. Two houses can
+// number a background 2000 and mean two different pictures, and the cache is one map
+// for the whole loader, so it is the label that keeps them apart. Callers pass the
+// house's name.
+func (a *Assets) OpenHouseResFork(label string, fsys fs.FS) {
 	a.mu.Lock()
-	a.houseDir = dir
+	a.houseFS, a.houseLabel = fsys, label
 	a.mu.Unlock()
 }
 
 // CloseHouseResFork drops the house's fork off the chain again.
-func (a *Assets) CloseHouseResFork() { a.OpenHouseResFork("") }
+func (a *Assets) CloseHouseResFork() { a.OpenHouseResFork("", nil) }
 
 // Approximations is how many pixels have been colour-matched rather than
 // mapped exactly, across every house picture loaded so far. It is zero for 895
@@ -72,15 +78,8 @@ func (a *Assets) Approximations() int {
 // 10000 (ObjectRects.c:216). Every other caller in the original would RedAlert,
 // and the callers here record the error themselves.
 func (a *Assets) Pict(id int16) *Surface {
-	a.mu.Lock()
-	dir := a.houseDir
-	a.mu.Unlock()
-
-	if dir != "" {
-		p := filepath.Join(dir, "pict", fmt.Sprintf("%d.png", id))
-		if _, err := os.Stat(p); err == nil {
-			return a.loadHousePict(p)
-		}
+	if s, ok := a.forkPict(id); ok {
+		return s
 	}
 	rel, ok := appPictPath(id)
 	if !ok {
@@ -108,17 +107,29 @@ func (a *Assets) Pict(id int16) *Surface {
 //     instead (internal/game/pause.go), which is docs/IMPROVEMENTS.md 2.6 again: the
 //     absence of a decoration is not the absence of a game.
 func (a *Assets) Plate(id int16) *Surface {
-	a.mu.Lock()
-	dir := a.houseDir
-	a.mu.Unlock()
-
-	if dir != "" {
-		p := filepath.Join(dir, "pict", fmt.Sprintf("%d.png", id))
-		if _, err := os.Stat(p); err == nil {
-			return a.loadHousePict(p)
-		}
+	if s, ok := a.forkPict(id); ok {
+		return s
 	}
 	return a.UI(id)
+}
+
+// forkPict is the first half of both lookups: the open house's PICT id, if it has
+// one. The bool distinguishes "the house has this id" from "the house has it and it
+// would not decode", which is a recorded error and not a reason to fall back to the
+// application's art -- the same distinction load makes.
+func (a *Assets) forkPict(id int16) (*Surface, bool) {
+	a.mu.Lock()
+	fsys, label := a.houseFS, a.houseLabel
+	a.mu.Unlock()
+
+	if fsys == nil {
+		return nil, false
+	}
+	rel := path.Join("pict", fmt.Sprintf("%d.png", id))
+	if _, err := fs.Stat(fsys, rel); err != nil {
+		return nil, false
+	}
+	return a.loadHousePict(fsys, label, rel), true
 }
 
 // uiMaskPairs is the whole of the "one plate is another plate's mask" convention
@@ -193,7 +204,7 @@ func (a *Assets) MaskedPlate(id int16) *Surface {
 	// what the two Plate lookups depend on: the same id resolves to different art
 	// with a different house open.
 	a.mu.Lock()
-	key := fmt.Sprintf("masked:%d@%s", id, a.houseDir)
+	key := fmt.Sprintf("masked:%d@%s", id, a.houseLabel)
 	if s, ok := a.cache[key]; ok {
 		a.mu.Unlock()
 		return s
@@ -236,12 +247,12 @@ func (a *Assets) MaskedPlate(id int16) *Surface {
 // GetOriginalBounding's answer is then 0, meaning closed on all four sides.
 func (a *Assets) Bnds(id int16) (Rect, bool) {
 	a.mu.Lock()
-	dir := a.houseDir
+	fsys := a.houseFS
 	a.mu.Unlock()
-	if dir == "" {
+	if fsys == nil {
 		return Rect{}, false
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, "bnds", fmt.Sprintf("%d.bin", id)))
+	raw, err := fs.ReadFile(fsys, path.Join("bnds", fmt.Sprintf("%d.bin", id)))
 	if err != nil || len(raw) < 8 {
 		// Not an error. The original's GetResource returns nil here and
 		// GetOriginalBounding raises a yellow alert only if a PICT of the same id
@@ -306,8 +317,8 @@ func init() {
 // loadHousePict decodes one house PICT, which the extractor wrote as RGB with no
 // alpha. The surface comes back fully opaque (Mask nil): the caller picks
 // SrcCopy or Transparent, as the original does.
-func (a *Assets) loadHousePict(path string) *Surface {
-	key := "abs:" + path
+func (a *Assets) loadHousePict(fsys fs.FS, label, rel string) *Surface {
+	key := "fork:" + label + "/" + rel
 	a.mu.Lock()
 	if s, ok := a.cache[key]; ok {
 		a.mu.Unlock()
@@ -315,18 +326,19 @@ func (a *Assets) loadHousePict(path string) *Surface {
 	}
 	a.mu.Unlock()
 
-	f, err := os.Open(path)
+	where := key[len("fork:"):]
+	f, err := fsys.Open(rel)
 	if err != nil {
 		return a.fail(fmt.Errorf("render: %w", err))
 	}
 	defer f.Close()
 	img, err := png.Decode(f)
 	if err != nil {
-		return a.fail(fmt.Errorf("render: decoding %s: %w", path, err))
+		return a.fail(fmt.Errorf("render: decoding %s: %w", where, err))
 	}
 	s, approx, err := opaqueSurfaceFromImage(img)
 	if err != nil {
-		return a.fail(fmt.Errorf("render: %s: %w", path, err))
+		return a.fail(fmt.Errorf("render: %s: %w", where, err))
 	}
 
 	a.mu.Lock()

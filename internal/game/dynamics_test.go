@@ -1090,7 +1090,7 @@ func TestOnlyTheSevenAppliancesTrackThePlayOrigin(t *testing.T) {
 		h := oneRoomHouse(house.ObjectIsEmpty)
 		v := render.DefaultView()
 		v.OriginH, v.OriginV = originH, originV
-		w := NewWorld(h, render.NewScene(v, render.NewAssets(""), h), 1)
+		w := NewWorld(h, render.NewScene(v, render.NewAssets(nil), h), 1)
 		if got := w.AddDynamicObject(what, testWhere, typicalObject(what),
 			testRoom, testSlot, true); got != 0 {
 			t.Fatalf("type %#x: AddDynamicObject = %d, want 0", what, got)

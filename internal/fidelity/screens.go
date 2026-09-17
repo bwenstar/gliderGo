@@ -18,8 +18,9 @@ package fidelity
 import (
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 
+	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/prefs"
 	"github.com/bwenstar/gliderGo/internal/render"
@@ -39,12 +40,27 @@ const refVersion = "fidelity"
 // highlights it, the board is its -- so it is pinned rather than left to whatever
 // Library.Discover happened to sort first.
 type ScreensOpts struct {
+	// ArtDir and HouseDir are directories to read, and empty means the copy of that root
+	// built into the executable -- assetfs's rule, and replay.Script's. This package's own
+	// test names the working tree, because the assets a developer is editing are there and
+	// no test binary carries a built-in copy.
 	ArtDir   string
 	HouseDir string
-	House    string
+
+	// Tree is the built-in asset tree an empty root above resolves against, or nil.
+	Tree fs.FS
+
+	House string
 
 	// Screens to record, in order. Nil means DefaultScreens.
 	Screens []string
+}
+
+// roots resolves the two asset roots this package reads, with the labels its messages use.
+func (o ScreensOpts) roots() (art fs.FS, artName string, houses fs.FS, housesName string) {
+	art, artName = assetfs.Root(o.Tree, o.ArtDir, "art")
+	houses, housesName = assetfs.Root(o.Tree, o.HouseDir, "houses")
+	return art, artName, houses, housesName
 }
 
 // RecordScreens composes each screen and hashes it.
@@ -69,7 +85,8 @@ func RecordScreens(o ScreensOpts) (*Reference, error) {
 	// The house count is in the header because the picker draws a list of them: extracting a
 	// seventh house is a legitimate reason for the `houses` row to change, and without this
 	// line that change looks like a layout regression.
-	lib, err := shell.Discover(o.HouseDir)
+	_, _, housesFS, housesName := o.roots()
+	lib, err := shell.Discover(housesFS, housesName)
 	if err != nil {
 		return nil, err
 	}
@@ -98,22 +115,26 @@ func RecordScreens(o ScreensOpts) (*Reference, error) {
 //   - Present does nothing and Poll returns no events: one Draw is the whole recording, so
 //     there is no frame after this one for an event to affect.
 func Screen(o ScreensOpts, name string) (*render.Surface, error) {
-	lib, err := shell.Discover(o.HouseDir)
+	artFS, artName, housesFS, housesName := o.roots()
+	lib, err := shell.Discover(housesFS, housesName)
 	if err != nil {
 		return nil, err
 	}
 	if len(lib.Houses) == 0 {
-		return nil, fmt.Errorf("fidelity: no houses in %s", o.HouseDir)
+		return nil, fmt.Errorf("fidelity: no houses in %s", housesName)
 	}
-	if _, err := os.Stat(o.ArtDir); err != nil {
-		return nil, fmt.Errorf("fidelity: no art in %s: %w", o.ArtDir, err)
+	if !assetfs.IsDir(artFS, ".") {
+		if artName == "" {
+			return nil, errors.New("fidelity: no art tree: name a directory or build with one")
+		}
+		return nil, fmt.Errorf("fidelity: no art in %s", artName)
 	}
 
 	view := render.DefaultView()
 	scr := render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
 	host := shell.Host{
 		Screen:  scr,
-		Assets:  render.NewAssets(o.ArtDir),
+		Assets:  render.NewAssets(artFS),
 		Present: func() {},
 		Poll:    func() []platform.Event { return nil },
 		Play: func(shell.Choice) (shell.Outcome, error) {
@@ -131,7 +152,7 @@ func Screen(o ScreensOpts, name string) (*render.Surface, error) {
 		return nil, err
 	}
 	if o.House != "" && !sh.Select(o.House) {
-		return nil, fmt.Errorf("fidelity: %s is not in %s", o.House, o.HouseDir)
+		return nil, fmt.Errorf("fidelity: %s is not in %s", o.House, housesName)
 	}
 	if err := sh.Show(name); err != nil {
 		return nil, err

@@ -111,7 +111,7 @@ func TestScoreboardTwoOffsets(t *testing.T) {
 func TestScoreboardSurfaces(t *testing.T) {
 	art := requireAssets(t, "art")
 	v := DefaultView()
-	a := NewAssets(art)
+	a := NewAssets(dirFS(art))
 	s := NewScoreboard(v, a)
 	if err := a.Err(); err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestScoreboardSurfaces(t *testing.T) {
 func TestBadgeBlankCellsAreIdentical(t *testing.T) {
 	art := requireAssets(t, "art")
 	v := DefaultView()
-	a := NewAssets(art)
+	a := NewAssets(dirFS(art))
 	sheet := a.Strip("badge")
 	if err := a.Err(); err != nil {
 		t.Fatal(err)

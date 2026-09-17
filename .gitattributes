@@ -50,3 +50,11 @@ assets/extracted/**   binary
 assets/extracted/manifest.json         diff
 assets/extracted/art/manifest.json     diff
 assets/extracted/sound/manifest.tsv    diff
+
+# assets/extracted.zip is that same tree packed for //go:embed -- the copy every executable
+# carries, so that a downloaded binary needs no files beside it. Generated, binary, and never
+# merged: two branches that both ran `make assets-zip` have two archives of the same bytes and
+# there is nothing to reconcile between them. `make assets-zip` is how it is regenerated and
+# `go test ./assets` is what proves it matches the tree.
+assets/extracted.zip  linguist-generated
+assets/extracted.zip  binary

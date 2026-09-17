@@ -75,15 +75,17 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
 	"github.com/bwenstar/gliderGo/internal/demo"
 	"github.com/bwenstar/gliderGo/internal/game"
@@ -109,12 +111,25 @@ type Script struct {
 	// House is a house name (looked up in HouseDir) or a path ending in ".house".
 	House string
 
-	// The four asset roots. Empty means the defaults below, which are the layout
-	// `make assets` produces and the one cmd/glidergo defaults to.
+	// The four asset roots, each a directory on this machine. **Empty means the copy
+	// built into the executable**, which is what Tree carries and what every release
+	// binary runs from; a run that names a directory reads that instead. See
+	// internal/assetfs.
 	HouseDir    string
 	ArtDir      string
 	HouseArtDir string
 	SoundDir    string
+
+	// Tree is the built-in asset tree -- assets.Tree(), from a command that was built
+	// with one -- and is what an empty root above resolves against. It is nil in a test
+	// or a library caller, which then has to name the directories it wants; that is
+	// deliberate, and it is why no package under internal/ imports 15 MiB of PNGs it
+	// would only read in one of the two commands.
+	//
+	// It is not part of the text script format: a script says which directories to read,
+	// and whether there is a built-in tree behind them is a property of the binary
+	// running it. Parse leaves it nil for its caller to fill in.
+	Tree fs.FS
 
 	Seed      int32 // the random stream; 0 is a legal seed here, unlike in cmd/glidergo
 	Frames    int   // how many simulated frames to run before quitting
@@ -208,19 +223,18 @@ type Hold struct {
 
 // NewScript returns a runnable script for a house with every default filled in.
 func NewScript(houseName string, frames int) *Script {
+	// The four asset roots are left empty, which means the built-in tree: a caller with one
+	// sets Tree and needs no paths at all, and a caller without one -- a test, or somebody
+	// working on the extractor -- names the directories it wants.
 	return &Script{
-		House:       houseName,
-		HouseDir:    "assets/extracted/houses",
-		ArtDir:      "assets/extracted/art",
-		HouseArtDir: "assets/extracted/houseart",
-		SoundDir:    "assets/extracted/sound",
-		Frames:      frames,
-		Neighbors:   9,
-		Clock:       DefaultClock,
-		Room:        -1,
-		Facing:      1,
-		Sound:       true,
-		Music:       true,
+		House:     houseName,
+		Frames:    frames,
+		Neighbors: 9,
+		Clock:     DefaultClock,
+		Room:      -1,
+		Facing:    1,
+		Sound:     true,
+		Music:     true,
 	}
 }
 
@@ -568,6 +582,26 @@ func copyInto(dst, src *render.Surface) *render.Surface {
 	return dst
 }
 
+// loadDemo reads the script's demo stream: a path on this machine, or -- if there is nothing
+// there and the script has a built-in tree -- the same path read out of that tree.
+//
+// The fallback exists because `-demo assets/extracted/res/demo/128.bin` is the path every
+// example and every doc gives, and a release archive holds no assets/extracted directory to
+// point it at. Disk is tried first, so a copy somebody is editing still wins, and a path that
+// is neither on disk nor in the tree reports the disk error -- the one that names what the
+// caller actually asked for.
+func loadDemo(s *Script) (demo.Stream, error) {
+	stream, err := demo.Load(s.Demo)
+	if err == nil || s.Tree == nil || !errors.Is(err, fs.ErrNotExist) {
+		return stream, err
+	}
+	rel := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(s.Demo)), "assets/extracted/")
+	if inTree, treeErr := demo.LoadFS(s.Tree, rel); treeErr == nil {
+		return inTree, nil
+	}
+	return nil, err
+}
+
 // Run plays a script and returns its trace. The audio is mixed and hashed and then discarded,
 // which is what a test wants; RunTo is how a caller keeps it.
 func Run(s *Script) (*Result, error) { return RunWatching(s, nil, nil) }
@@ -627,27 +661,36 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 				"GetDemoInput in its one-player arm)")
 		}
 		var err error
-		if stream, err = demo.Load(s.Demo); err != nil {
+		if stream, err = loadDemo(s); err != nil {
 			return nil, err
 		}
 	}
 
-	path := s.House
-	if filepath.Ext(path) != ".house" {
-		path = filepath.Join(s.HouseDir, path+".house")
+	// The three asset roots this function needs, resolved once: a directory the script
+	// named, or the built-in tree. The sound root is resolved where the bank is loaded.
+	artFS, _ := assetfs.Root(s.Tree, s.ArtDir, "art")
+	houseArtFS, _ := assetfs.Root(s.Tree, s.HouseArtDir, "houseart")
+	housesFS, _ := assetfs.Root(s.Tree, s.HouseDir, "houses")
+
+	// A house is a name -- looked up in the houses root, wherever that is -- or a path on
+	// this machine ending in ".house", which is how a house nobody has installed yet gets
+	// replayed for a bug report.
+	var h *house.House
+	var err error
+	name := s.House
+	if filepath.Ext(s.House) == ".house" {
+		name = strings.TrimSuffix(filepath.Base(s.House), ".house")
+		h, err = house.LoadFile(s.House)
+	} else {
+		h, err = house.LoadFS(housesFS, name+".house")
 	}
-	h, err := house.LoadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	name := strings.TrimSuffix(filepath.Base(path), ".house")
 
-	assets := render.NewAssets(s.ArtDir)
-	if s.HouseArtDir != "" {
-		fork := filepath.Join(s.HouseArtDir, name)
-		if st, err := os.Stat(fork); err == nil && st.IsDir() {
-			assets.OpenHouseResFork(fork)
-		}
+	assets := render.NewAssets(artFS)
+	if assetfs.IsDir(houseArtFS, name) {
+		assets.OpenHouseResFork(name, assetfs.Sub(houseArtFS, name))
 	}
 
 	scene := render.NewScene(render.DefaultView(), assets, h)
@@ -706,11 +749,8 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 	var pump *audio.Pump
 	var mixHash *audio.Digest
 	if s.Sound {
-		dir := s.SoundDir
-		if dir == "" {
-			dir = "assets/extracted/sound"
-		}
-		bank, err := audio.LoadBank(dir)
+		soundFS, _ := assetfs.Root(s.Tree, s.SoundDir, "sound")
+		bank, err := audio.LoadBank(soundFS)
 		if err != nil {
 			return nil, err
 		}

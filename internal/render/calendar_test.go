@@ -73,7 +73,7 @@ func TestDrawCalendarMonth(t *testing.T) {
 	at := Rect{Top: 100, Left: 100, Bottom: 192, Right: 163}
 
 	draw := func(clock time.Time) *Surface {
-		s := NewScene(DefaultView(), NewAssets(artDir), testHouse())
+		s := NewScene(DefaultView(), NewAssets(dirFS(artDir)), testHouse())
 		s.Clock = clock
 		s.DrawCalendar(at)
 		if err := s.A.Err(); err != nil {
@@ -87,7 +87,7 @@ func TestDrawCalendarMonth(t *testing.T) {
 
 	want := NewSurface(got.W, got.H)
 	want.Fill(want.Bounds(), White8)
-	art := NewAssets(artDir).Pict(kCalendarPictID)
+	art := NewAssets(dirFS(artDir)).Pict(kCalendarPictID)
 	if art == nil {
 		t.Fatal("no calendar picture")
 	}
@@ -188,7 +188,7 @@ func decodeStringList(t *testing.T, b []byte) []string {
 // text by a pixel.
 func TestCalendarIsOnePixelNarrowerThanItsCentring(t *testing.T) {
 	artDir := requireAssets(t, "art")
-	art := NewAssets(artDir).Pict(kCalendarPictID)
+	art := NewAssets(dirFS(artDir)).Pict(kCalendarPictID)
 	if art == nil {
 		t.Fatal("no calendar picture")
 	}

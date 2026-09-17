@@ -55,8 +55,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
-	"path/filepath"
 )
 
 // RecordSize is `sizeof(demoType)`: four bytes of frame, a key and the padding byte.
@@ -194,14 +194,28 @@ func Load(path string) (Stream, error) {
 	return s, nil
 }
 
+// LoadFS reads a stream out of a filesystem: the copy built into the executable, or a
+// directory somebody named.
+func LoadFS(fsys fs.FS, name string) (Stream, error) {
+	b, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return nil, err
+	}
+	s, err := Decode(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
+	return s, nil
+}
+
 // LoadShipped reads `'demo'` 128 out of an extracted asset tree.
 //
-// root is the assets/extracted directory. A missing file is returned as it comes from the
-// filesystem, so a caller can test it with os.IsNotExist and carry on without a demo -- which
-// is what a tree with the assets removed has, and what the shell's attract mode has to
-// survive.
-func LoadShipped(root string) (Stream, error) {
-	return Load(filepath.Join(root, ShippedPath))
+// tree is the assets/extracted directory, or the built-in copy of it. A missing file is
+// returned as it comes from the filesystem, so a caller can test it with errors.Is against
+// fs.ErrNotExist and carry on without a demo -- which is what a tree with the assets removed
+// has, and what the shell's attract mode has to survive.
+func LoadShipped(tree fs.FS) (Stream, error) {
+	return LoadFS(tree, ShippedPath)
 }
 
 // Encode writes the stream in the original's on-disk form.

@@ -33,9 +33,17 @@ so there is no extraction step before playing and no copy of Glider PRO to find.
 re-runs it (~70 s, needs python3); `make assets-check` re-extracts to a temp tree and proves
 the committed copy is byte-for-byte identical.
 
+`assets/extracted.zip` is that same tree packed for `go:embed`, and it is the copy every
+executable carries — which is why a build of this repository runs from any directory and needs
+no files beside it. `make assets` repacks it, `make assets-zip` packs it on its own, and
+`go test ./assets` is what proves it still matches the tree. Every build target refuses if it
+is missing rather than producing a game with no art in it.
+
 `make check` also passes on a tree with the assets **removed** and with **no** display —
-verified. The asset-dependent steps skip with a message and the closing summary lists what it
-could not verify, so a green run never overclaims. `make doctor` reports what your machine has
+verified. Fewer steps skip in that state than used to: anything that goes through a binary
+(`headless`, `audio`, `smoke`) reads the copy inside it, and what skips is the two targets that
+name files by path, the house round-trip and the pixel corpus. The skips print a message and the
+closing summary lists what it could not verify, so a green run never overclaims. `make doctor` reports what your machine has
 and is missing. `libx11-dev` is the one requirement that is not optional: `vet` and `test`
 compile the X11 backend whenever cgo is on, so without its pkg-config metadata `make check`
 fails with an error from pkg-config. `make headless` is the build that needs neither it nor a
@@ -310,6 +318,7 @@ gliderGo/
 ├── tools/                  # asset-extraction and probe scripts (python3)
 │   └── extract_all.py      #   the driver: `make assets` -> assets/extracted/
 ├── assets/extracted/       # committed game data: 1,877 files, 15.5 MB, rebuilt in ~70 s
+├── assets/extracted.zip    #   the same tree packed for go:embed -- inside every binary
 ├── scripts/                # bootstrap-dev-env.sh, env.sh (generated, gitignored)
 ├── .github/workflows/      # public CI -- see the caveat at the top of ci.yml
 └── .toolchain/             # gitignored: sysroot + deb cache

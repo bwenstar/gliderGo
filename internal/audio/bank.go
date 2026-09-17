@@ -25,6 +25,10 @@ package audio
 // once. Only ever one of those is in memory: LoadTriggerSound owns a single slot and frees it on
 // every room change. See LoadHouse.
 //
+// The tree arrives as an fs.FS rather than as a directory name, so one loader reads both the
+// copy built into the executable and a directory somebody named on the command line. See
+// assets/assets.go and internal/assetfs.
+//
 // ---------------------------------------------------------------------------
 // The loop points are ignored, and the samples prove it is right to ignore them
 // ---------------------------------------------------------------------------
@@ -61,9 +65,10 @@ package audio
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io/fs"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -235,10 +240,10 @@ type Bank struct {
 	// House is whose Triggers those are, for reports.
 	House string
 
-	dir string
+	fsys fs.FS
 }
 
-// LoadBank reads the extracted sound tree: dir/manifest.tsv and the .pcm files beside it.
+// LoadBank reads the extracted sound tree: manifest.tsv and the .pcm files beside it.
 //
 // It is InitSound's LoadBufferSounds plus InitMusic's LoadMusicSounds, and it has their
 // failure behaviour: **any missing sample is an error for the whole bank**. The C returns
@@ -247,15 +252,18 @@ type Bank struct {
 // to load. A half-loaded bank is not a state the original has, so it is not one the port
 // invents; a caller that wants to play anyway wants a silent Engine, which is what nil gives
 // it.
-func LoadBank(dir string) (*Bank, error) {
-	b := &Bank{Triggers: map[int16]*Sound{}, dir: dir}
+func LoadBank(fsys fs.FS) (*Bank, error) {
+	if fsys == nil {
+		return nil, errors.New("audio: no sound tree")
+	}
+	b := &Bank{Triggers: map[int16]*Sound{}, fsys: fsys}
 
-	rows, err := readManifest(filepath.Join(dir, "manifest.tsv"))
+	rows, err := readManifest(fsys, "manifest.tsv")
 	if err != nil {
 		return nil, err
 	}
 	for _, r := range rows {
-		snd, err := b.load(dir, r)
+		snd, err := b.load(".", r)
 		if err != nil {
 			return nil, err
 		}
@@ -278,18 +286,18 @@ func LoadBank(dir string) (*Bank, error) {
 	// from a Glider PRO Lite fork, which shipped without the score.
 	for i := int16(0); i < TriggerSlot; i++ {
 		if b.Effects[i] == nil {
-			return nil, fmt.Errorf("audio: %s: no sound for slot %d ('snd ' %d)", dir, i, BaseSoundID+i)
+			return nil, fmt.Errorf("audio: no sound for slot %d ('snd ' %d)", i, BaseSoundID+i)
 		}
 	}
 	for i := 0; i < MaxMusic; i++ {
 		if b.Music[i] == nil {
-			return nil, fmt.Errorf("audio: %s: no music for piece %d ('snd ' %d)", dir, i, BaseMusicID+i)
+			return nil, fmt.Errorf("audio: no music for piece %d ('snd ' %d)", i, BaseMusicID+i)
 		}
 	}
 	return b, nil
 }
 
-// HasBank reports whether dir looks like an extracted sound tree.
+// HasBank reports whether fsys looks like an extracted sound tree.
 //
 // It exists for the callers whose sound is on by *default* rather than by request -- the game
 // and `glidertool replay` -- so that they can degrade to silence on a checkout where `make
@@ -297,8 +305,11 @@ func LoadBank(dir string) (*Bank, error) {
 // validation: it says a manifest is there, and LoadBank still decides whether the tree behind
 // it is complete. The distinction is the point. A caller that asked for sound and cannot have it
 // gets LoadBank's error, which names the missing file; a caller that never asked gets silence.
-func HasBank(dir string) bool {
-	st, err := os.Stat(filepath.Join(dir, "manifest.tsv"))
+func HasBank(fsys fs.FS) bool {
+	if fsys == nil {
+		return false
+	}
+	st, err := fs.Stat(fsys, "manifest.tsv")
 	return err == nil && !st.IsDir()
 }
 
@@ -317,10 +328,9 @@ func (b *Bank) LoadHouse(name string) error {
 	b.Triggers = map[int16]*Sound{}
 	b.House = name
 
-	hd := filepath.Join(b.dir, "houses")
-	rows, err := readManifest(filepath.Join(hd, "manifest.tsv"))
+	rows, err := readManifest(b.fsys, "houses/manifest.tsv")
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return err
@@ -329,7 +339,7 @@ func (b *Bank) LoadHouse(name string) error {
 		if r["house"] != name || (r["status"] != "" && r["status"] != "ok") {
 			continue
 		}
-		snd, err := b.load(hd, r)
+		snd, err := b.load("houses", r)
 		if err != nil {
 			return err
 		}
@@ -401,7 +411,7 @@ func (b *Bank) load(dir string, r map[string]string) (*Sound, error) {
 	if err != nil {
 		return nil, fmt.Errorf("audio: %s: bad id %q", name, r["id"])
 	}
-	data, err := os.ReadFile(filepath.Join(dir, name))
+	data, err := fs.ReadFile(b.fsys, path.Join(dir, name))
 	if err != nil {
 		return nil, err
 	}
@@ -426,8 +436,8 @@ func (b *Bank) load(dir string, r map[string]string) (*Sound, error) {
 // By name and not by position, because the two manifests do not have the same columns -- the
 // per-house one carries `house` and `status` and drops `rate_fixed` -- and because the
 // extractor is free to add a column without breaking a loader that asks for what it needs.
-func readManifest(path string) ([]map[string]string, error) {
-	f, err := os.Open(path)
+func readManifest(fsys fs.FS, name string) ([]map[string]string, error) {
+	f, err := fsys.Open(name)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +470,7 @@ func readManifest(path string) ([]map[string]string, error) {
 		return nil, err
 	}
 	if head == nil {
-		return nil, fmt.Errorf("audio: %s: empty manifest", path)
+		return nil, fmt.Errorf("audio: %s: empty manifest", name)
 	}
 	return rows, nil
 }
