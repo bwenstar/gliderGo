@@ -135,16 +135,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # For the last row of `make cross` only: the host's own cgo build, which is the one Linux
+      # binary in the artifact that can draw. That row is skipped rather than failed when x11
+      # pkg-config metadata is absent, so without this step whether `glidergo-linux-amd64-x11`
+      # appears at all depends on what the runner image happens to ship -- and its absence is a
+      # quiet one. Somebody downloading the artifact would get `glidergo-linux-amd64`, the
+      # CGO_ENABLED=0 build, and find a game that runs and shows nothing. The twelve
+      # cross-compiled binaries need none of this.
+      - name: Install C dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libx11-dev
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: false
       - run: make cross
+
+      # Thirteen binaries: glidergo and glidertool for each of the six cross targets, plus the
+      # host's cgo glidergo as `-x11`. Inspection copies, not a release -- they are unpackaged,
+      # unchecksummed and carry no assets, so they cannot be played from the download. That is
+      # release.yml's job, and it runs on `v*` tags.
       - uses: actions/upload-artifact@v4
         with:
           name: cross-binaries
           path: bin/cross/
           retention-days: 7
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # Windows and macOS, natively. Two different jobs wearing one matrix.
