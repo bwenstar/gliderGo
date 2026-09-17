@@ -2,9 +2,9 @@
 
 **Canonical consolidated reference for the `gliderGo` port.**
 
-Subject: Glider PRO by John Calhoun / Casady & Greene, GPLv2 source release, vendored at
-`GliderPRO/`. The source tree calls itself 1.0.4
-(`GliderPRO/Sources/Main.c:3`); the shipped resource fork says **1.1.2**. See §2.
+Subject: Glider PRO by John Calhoun / Casady & Greene, GPLv2 source release. The source tree
+calls itself 1.0.4 (`GliderPRO/Sources/Main.c:3`); the shipped resource fork says **1.1.2**.
+See §2.
 
 ---
 
@@ -23,9 +23,30 @@ section that specifies it in full. Nothing here is a design proposal: the port's
 implementation plan is a separate document (`docs/PLAN.md`). The only forward-looking section
 is §19, the **fidelity contract**, which states which original behaviours are non-negotiable.
 
+### Where the citations point
+
+Roughly 9,500 citations in this file and in `docs/analysis/` name a path under
+`GliderPRO/Sources/` or `GliderPRO/Headers/`. **Those files are not in this repository.** They
+are John Calhoun's C, and gliderGo ships only the data it decodes into `assets/extracted/`, not
+his source. Every citation resolves against upstream, pinned:
+
+```bash
+git clone https://github.com/softdorothy/glider_pro /tmp/glider_pro
+git -C /tmp/glider_pro checkout 94fed96e0b4c810a6ac861e5d4b14d625a5a1c31
+cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers GliderPRO/
+```
+
+`94fed96` is the commit every line number in these documents was taken against, and the tree
+that was read is byte-for-byte that commit's — 137 files, verified by `diff -r`. Both copied
+directories are gitignored, so this leaves the working tree clean. Do it and the citations
+below become checkable; skip it and they are provenance you cannot follow. What remains
+vendored under `GliderPRO/` is the data the extractors read — `Glider PRO.r`, `Houses/`, the
+upstream `README.md` and its licence — so citations naming *those* four resolve in a bare
+checkout.
+
 Three global reading rules that apply to every citation in this file and in every analysis doc:
 
-1. **Line numbers are into the LF-normalised copy.** Every `.c`/`.h` under `GliderPRO/` uses
+1. **Line numbers are into the LF-normalised copy.** Every `.c`/`.h` in that upstream tree uses
    classic-Mac CR-only line endings. Normalise before citing:
    `tr '\r' '\n' < GliderPRO/Sources/Player.c`. Recipe:
    `docs/analysis/unresolved-format-decisions.md` §6.1.

@@ -72,11 +72,24 @@ def load_palette(resdir):
 
 
 def house_forks(housedir):
+    if not os.path.isdir(housedir):
+        return []
     return [(f[:-5], os.path.join(housedir, f))
             for f in sorted(os.listdir(housedir)) if f.endswith(".rsrc")]
 
 
 def run(resdir, housedir, outdir):
+    # houses/*.rsrc is a gitignored intermediate that `make assets` regenerates. Run this
+    # script on a clean checkout and there is nothing to read, and writing the empty result
+    # would truncate the committed manifest from 160 KB to one line -- a silent loss that
+    # looks like success. Refuse instead: nothing to do is not the same as no houses.
+    forks = house_forks(housedir)
+    if not forks:
+        raise SystemExit(
+            "extract_house_art: no *.rsrc in %s -- run `make assets` first, which writes\n"
+            "them, or `git checkout -- assets/extracted` if you only wanted the committed art."
+            % housedir)
+
     pal = load_palette(resdir)
     palset = set(pal)
 
@@ -85,7 +98,7 @@ def run(resdir, housedir, outdir):
     total_pict = total_bnds = 0
     offpalette = []
 
-    for stem, path in house_forks(housedir):
+    for stem, path in forks:
         with open(path, "rb") as fh:
             res = fh.read()
         fork = PH.parse_resource_fork(res)

@@ -28,9 +28,11 @@ GliderPRO/Houses/*.mov        binary
 *.wav                         binary
 *.house                       binary
 
-# GliderPRO/ is 1994 C by another author, vendored as reference and never compiled here.
-# Without this, a forge's language statistics describe the original rather than the port, and
-# its diffs are dominated by files no change to gliderGo will ever touch.
+# GliderPRO/ is another author's 1994 material, vendored as reference and never compiled here.
+# Only the data remains -- the C source is not redistributed, see README.md -- but the rule
+# still earns its place: without it a forge's language statistics describe `Glider PRO.r`
+# rather than the port, and its diffs are dominated by files no change to gliderGo will touch.
+# It also covers Sources/ and Headers/ if someone drops upstream 94fed96's copies back in.
 GliderPRO/** linguist-vendored
 
 # The fidelity corpus is generated: reference PNGs and hash tables written by

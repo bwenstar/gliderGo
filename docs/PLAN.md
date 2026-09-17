@@ -1,8 +1,9 @@
 # gliderGo — implementation plan
 
 **What this is:** a Go port and remaster of *Glider PRO* (1994, John Calhoun,
-Casady & Greene; source released under GPLv2 -- the tree says 1.0.4, the resource fork says 1.1.2). The original C source is vendored
-read-only in `GliderPRO/`.
+Casady & Greene; source released under GPLv2 -- the tree says 1.0.4, the resource fork says 1.1.2). The original's *data* is vendored
+read-only in `GliderPRO/`; its C source is not redistributed here, and `docs/ORIGINAL_GAME.md`
+pins the upstream commit every citation resolves against.
 
 **Read these first:**
 - `docs/ORIGINAL_GAME.md` — what the original actually does (the consolidated source of truth)
@@ -11,7 +12,7 @@ read-only in `GliderPRO/`.
 
 ---
 
-## 1. Goals, in the owner's words and in order
+## 1. Goals, as stated and in order
 
 1. **Stage 1** — recreate the game as `gliderGo` in Go: "basically a ported or remastered
    version… behave exactly the same as the original however just newer." Linux first,
@@ -32,16 +33,16 @@ read-only in `GliderPRO/`.
 
 ---
 
-## 2. Decisions taken (confirmed with the owner 2026-09-10)
+## 2. Decisions taken (confirmed 2026-09-10)
 
 | Decision | Choice | Consequence for the build |
 |---|---|---|
 | **Multiplayer model** | **Race, separate worlds.** Each machine simulates only its own glider; the network carries progress (room, score, lives, alive/dead). | No lockstep, no rollback, no desync class of bug. ~20 bytes/s. Ships as its own stage without destabilising the engine. |
 | **Assets** | **Extract the 1994 originals** from `GliderPRO/Glider PRO.r` into PNG + PCM. | Needs a from-scratch QuickDraw PICT decoder and `'snd '` decoder in Python (nothing is downloadable). Buys pixel-exact fidelity and makes frame-diff testing meaningful. |
 | **Level data** | **Read the original binary houses byte-exactly; author new houses in a text format** that compiles to the same in-memory model. | Two loaders, one runtime `House` type. The 22 shipped houses stay the source of truth for themselves; new levels are diffable in git. |
-| **Stage order** | Faithful port → new levels → multiplayer → editor/platforms. | Matches the owner's stated order and puts the riskiest fidelity work first, while the engine is small enough to change. |
+| **Stage order** | Faithful port → new levels → multiplayer → editor/platforms. | Matches the stated order and puts the riskiest fidelity work first, while the engine is small enough to change. |
 | **Engine** | None. Standard library + our own `internal/platform` port layer. | Forced by the network (no Go module proxy, no reachable GitHub — `docs/DEV_ENVIRONMENT.md` §3), and a good fit: the original is a fixed-resolution software blitter. |
-| **Language** | Go 1.23.12, obtained rootlessly from a container image. | The owner's first choice was available after all, so no fallback language is needed. |
+| **Language** | Go 1.23.12, obtained rootlessly from a container image. | The first choice was available after all, so no fallback language is needed. |
 
 ---
 
@@ -691,7 +692,7 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
 
 **1.7 The shell** ✅ *done*
 - Splash, menus, house selection, preferences, scoreboard, game over.
-- **High scores** (owner-requested, and the original had them): a **10-row board per house**,
+- **High scores** (wanted for the port, and the original had them): a **10-row board per house**,
   each row `{name, score, timestamp, roomsVisited}` plus the house's `banner` — the original's
   292-byte `scoresType` at house offset 528 (`docs/analysis/scoring.md` §7.2).
   **Stored in our own per-house file, not in the house.** The original wrote the board back
@@ -1340,5 +1341,6 @@ contains; its output is annotated with the `docs/analysis/house-format.md` secti
 explain each field.
 
 Then read `docs/ORIGINAL_GAME.md` for the game, and the relevant `docs/analysis/*.md`
-for whatever subsystem you are about to touch. The original C is in `GliderPRO/` and is
-read-only — remember the CR-only line endings (`tr '\r' '\n'`).
+for whatever subsystem you are about to touch. The original C is not in this repository; the
+three lines that fetch it to the paths the docs cite are in `README.md` under *Working on the
+original source* — and remember the CR-only line endings (`tr '\r' '\n'`).

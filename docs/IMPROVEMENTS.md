@@ -37,7 +37,7 @@ Note for anyone tempted to relicense later: upstream's grant is GPLv2 **only**. 
 no "or later" clause, so gliderGo cannot be moved to GPLv3 and cannot take GPLv3-only
 dependencies.
 
-### 1.2 The art, the sounds and the 22 houses are on a different footing from the code — **settled by the project owner: ship them. Route (a), decided 2026-09-16**
+### 1.2 The art, the sounds and the 22 houses are on a different footing from the code — **settled: ship them. Route (a), decided 2026-09-16**
 
 `GliderPRO/README.md` says, exactly: *"The **source** for Glider PRO is released under the
 GNU General Public License 2."* It says source. It does not say assets. And the same file
@@ -74,9 +74,9 @@ no worse than what the copyright holder already does. Shipping the **decoded** a
 further step: a new distribution of that art, in a new form, by someone who is not the rights
 holder.
 
-**That step has been taken deliberately.** On 2026-09-16 the project owner directed that
-gliderGo work with no reference to the original game's source and that the assets be included,
-which is route (a) below plus its natural conclusion: `assets/extracted/` is committed (15.5 MB,
+**That step has been taken deliberately.** The decision taken on 2026-09-16 is that gliderGo
+works with no reference to the original game's source and that the assets are included, which is
+route (a) below plus its natural conclusion: `assets/extracted/` is committed (15.5 MB,
 1,877 files), so a clone plays with no extraction step, no python3 and no copy of Glider PRO.
 The reasoning is upstream's own precedent — the copyright holder distributes the same bytes in
 the same repository, in encoded form — and the practical fact that a game whose first
@@ -86,6 +86,16 @@ What that decision does *not* do is answer the licence question, and it makes ro
 more rather than less: an explicit grant from John Calhoun would move gliderGo from "no worse
 than upstream" to "unambiguously licensed", and it is the only route that does. It is also the
 one thing here that cannot be done from this machine.
+
+**On 2026-09-17 the 1994 C source stopped being redistributed here.**
+Sources/, Headers/, `Prefix.h`, the two CodeWarrior project files and `CarbonLib` were removed —
+96 files. Note carefully that this *reduces* what the repository redistributes but does not
+improve the position this item is about, and arguably narrows the argument above: what was
+removed is the part upstream's grant covers beyond doubt, and what remains is the art, the
+sounds and the 22 houses, which is the part it does not mention. The "no worse than what the
+copyright holder already does" reasoning still holds for those, because the 41 files kept are
+byte-for-byte upstream's, in upstream's layout. Route (c) remains open and remains the only
+route that settles anything.
 
 **This item used to claim the architecture was already right by accident. It was wrong, and
 the correction matters more than the original claim did.** What it said was that `.gitignore`
@@ -2617,8 +2627,8 @@ anyone (5.5), the public dependency path remains untested from here (5.1), and w
 developer's clone, which is the only thing gliderGo currently ships.
 
 **Follow-on, same stage.** The audit's answer to "will the original source be needed for the
-assets?" was *no, because it is vendored* — which is true and was not the point. The project
-owner's answer was to remove the question: commit the decoded assets, so the first command after
+assets?" was *no, because it is vendored* — which is true and was not the point. The answer taken
+instead was to remove the question: commit the decoded assets, so the first command after
 `git clone` is `make run`. That is 1.2's route (a) and it retires the extraction step from the
 quick start entirely.
 

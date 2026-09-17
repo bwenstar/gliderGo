@@ -290,11 +290,11 @@ so we have ~9× headroom on the display path even before MIT-SHM. Rendering is n
 
 ```
 gliderGo/
-├── GliderPRO/              # the original 1994 source, unmodified, vendored as reference
-│   ├── Sources/  *.c       # CR-only line endings! see note below
-│   ├── Headers/  *.h
+├── GliderPRO/              # the original's DATA, unmodified, vendored as the extractors' input
 │   ├── Glider PRO.r        # 15 MB derez'ed resource fork: all art, sound, dialogs
-│   └── Houses/  *.binhex   # the original levels (BinHex 4.0 of resource forks)
+│   ├── Houses/  *.binhex   # the original levels (BinHex 4.0 of resource forks)
+│   ├── Sources/  *.c       # NOT in the repo: gitignored, drop upstream's in -- see below
+│   └── Headers/  *.h       # NOT in the repo: likewise
 ├── docs/
 │   ├── DEV_ENVIRONMENT.md  # this file
 │   ├── ORIGINAL_GAME.md    # consolidated source of truth for the original's behaviour
@@ -317,18 +317,32 @@ gliderGo/
 
 ### Working with the original source — read this before grepping
 
-`GliderPRO/Sources/*.c` and `GliderPRO/Headers/*.h` are **classic Mac text files with
-CR-only line endings**. `wc -l` reports `0`, and editors/tools see one enormous line.
-Always convert before reading:
+**The 1994 C is not in this repository**; only the data the extractors read is. `docs/` cites
+that C about 9,500 times anyway, because the citations are the receipts for the transcription,
+so they are pinned to an upstream commit. To make them resolve:
+
+```bash
+git clone https://github.com/softdorothy/glider_pro /tmp/glider_pro
+git -C /tmp/glider_pro checkout 94fed96e0b4c810a6ac861e5d4b14d625a5a1c31
+cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers GliderPRO/
+```
+
+`GliderPRO/Sources/` and `GliderPRO/Headers/` are gitignored, so this leaves the tree clean.
+`94fed96` is the commit every line number in `docs/` was taken against. Nothing in the build
+needs it: `make check` and `make assets-check` both pass without it.
+
+Once you have it: `Sources/*.c` and `Headers/*.h` are **classic Mac text files with CR-only
+line endings**. `wc -l` reports `0`, and editors/tools see one enormous line. Always convert
+before reading:
 
 ```bash
 tr '\r' '\n' < "GliderPRO/Sources/Player.c" > /tmp/Player.c
 ```
 
-`GliderPRO/Glider PRO.r` is the exception — it uses LF (199,843 lines).
+`GliderPRO/Glider PRO.r` is the exception — it uses LF (199,843 lines) — and it *is* vendored.
 
-The vendored `GliderPRO/.git` directory is gitignored so the original history stays
-available locally without becoming a submodule.
+`GliderPRO/upstream.git` is gitignored too, so the original history can stay available locally
+without becoming a submodule.
 
 ---
 

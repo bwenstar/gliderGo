@@ -362,7 +362,8 @@ assets:
 # houses/*.rsrc is excluded because it is deliberately not committed -- see .gitignore.
 assets-check:
 	@rm -rf $(OUT)/glidergo-assets-check
-	@python3 tools/extract_all.py --out $(OUT)/glidergo-assets-check >/dev/null 2>&1
+	@python3 tools/extract_all.py --out $(OUT)/glidergo-assets-check >/dev/null \
+		|| { echo "assets-check: the extractor failed (its error is above)"; exit 1; }
 	@diff -r -x '*.rsrc' $(ASSETS) $(OUT)/glidergo-assets-check \
 		&& echo "assets: the committed tree is byte-for-byte what tools/extract_all.py produces"
 

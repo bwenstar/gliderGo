@@ -294,7 +294,9 @@ func TestEveryImportIsTheStandardLibraryOrThisModule(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch {
-			// GliderPRO is the vendored 1994 C source, read-only and full of no Go.
+			// GliderPRO is the original's vendored 1994 data, read-only and full of no
+			// Go. Skipped by name rather than by contents so that it stays skipped if
+			// someone drops upstream's Sources/ and Headers/ in to chase a citation.
 			case d.Name() == "GliderPRO":
 				return fs.SkipDir
 			// Generated or transient trees: extracted assets, build output, the toolchain

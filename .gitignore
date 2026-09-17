@@ -1,6 +1,14 @@
 # The vendored original keeps its upstream history locally, but we do not nest a repo.
 GliderPRO/upstream.git/
 
+# John Calhoun's 1994 C is NOT redistributed here -- only the data the extractors read.
+# But docs/ cites it about 9,500 times at these exact paths, so anyone checking a citation
+# drops upstream 94fed96's Sources/ and Headers/ in here (see README.md, "Working on the
+# original source") and the references resolve. Ignored so that doing so leaves the tree
+# clean instead of showing 92 untracked files.
+GliderPRO/Sources/
+GliderPRO/Headers/
+
 # Rootless toolchain: Go lives in ~/.local/opt/go, C libs are unpacked here on demand.
 .toolchain/
 

@@ -25,8 +25,9 @@ it shipped.
 
 Casady & Greene published it; Calhoun later released the source under the GPLv2, which is the
 only reason this port can exist. Upstream is
-[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro), and it is vendored here
-unmodified under `GliderPRO/` as the reference every line of the port was written against.
+[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro), pinned at commit `94fed96`
+— the reference every line of the port was written against. His C is not redistributed here;
+what is vendored under `GliderPRO/` is the game data the extractors read.
 
 ## What this is
 
@@ -211,7 +212,7 @@ carries.
 
 | Path | What it is |
 |---|---|
-| `GliderPRO/` | The original 1994 C source, vendored read-only. Includes `Glider PRO.r`, the whole resource fork, and all 22 houses. |
+| `GliderPRO/` | The original's *data*, vendored read-only: `Glider PRO.r` — the whole resource fork — and all 22 houses. The 1994 C itself is not here; see below. |
 | `assets/extracted/` | The same data decoded and committed, so a clone plays. Output, but output that ships. |
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
@@ -225,19 +226,33 @@ carries.
 
 ## Working on the original source
 
-`GliderPRO/Sources/*.c` and `Headers/*.h` are classic Mac text with **CR-only line endings**, so
-`wc -l` says `0` and most tools see one enormous line:
+The 1994 C is not in this repository. `docs/` cites it about 9,500 times all the same, because
+those citations are the receipts for the transcription — so they are pinned to a commit rather
+than to a copy:
+
+```bash
+git clone https://github.com/softdorothy/glider_pro /tmp/glider_pro
+git -C /tmp/glider_pro checkout 94fed96e0b4c810a6ac861e5d4b14d625a5a1c31
+cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers GliderPRO/
+```
+
+That puts them where the docs say they are, so every `GliderPRO/Sources/...:line` reference
+resolves; both directories are gitignored, so your tree stays clean. `94fed96` is the commit
+the port was written against, and the tree that was read was
+byte-for-byte that commit's, verified by `diff -r` over all 137 files. Nothing in the build,
+the tests or the game needs it — `make check` and `make assets-check` both pass without it.
+
+One trap once you have it: `Sources/*.c` and `Headers/*.h` are classic Mac text with **CR-only
+line endings**, so `wc -l` says `0` and most tools see one enormous line. Line numbers in the
+docs are into the LF-normalised copy:
 
 ```bash
 tr '\r' '\n' < "GliderPRO/Sources/Player.c" > /tmp/Player.c
 ```
 
-`GliderPRO/Glider PRO.r` is the exception and uses LF.
-
-What is vendored is the upstream files, not the upstream history — `GliderPRO/` is a plain
-directory, byte-identical to upstream at the commit it was taken from. If you want the commits,
-clone them yourself into `GliderPRO/upstream.git`, which is gitignored precisely so that a local
-mirror can live there without becoming a submodule. Nothing in the build reads it.
+`Glider PRO.r` is the exception and uses LF. It, the 22 houses, and upstream's own `README.md`
+and licence *are* vendored here, unmodified — they are what `tools/` decodes into
+`assets/extracted/`, and `make assets-check` proves the committed tree is exactly their output.
 
 ## Licence
 
@@ -253,8 +268,9 @@ One caveat, stated plainly because it is the last thing standing between this an
 someone else can rely on: **the assets are not the source.** That grant is about code. The houses
 are credited to five other authors, and two PICT resources derive from illustrations by John R.
 Neill (*Ozma of Oz*) and Winsor McCay (*Little Nemo*). This repository redistributes all of it,
-twice over — `GliderPRO/` whole and `assets/extracted/` decoded — on the reasoning that upstream
-publishes the same files in the same layout. That reading is defensible and it is not confirmed;
+twice over — `GliderPRO/`'s resource fork and houses byte-for-byte as upstream ships them, and
+`assets/extracted/` decoded from those — on the reasoning that upstream publishes the same files
+in the same layout. That reading is defensible and it is not confirmed;
 nobody has asked John Calhoun. [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2 lays out the
 choice and says where it stands.
 
