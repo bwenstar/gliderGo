@@ -59,6 +59,16 @@ After that, a pure-Go Windows backend with no cgo (Stage 4), the house editor th
 - [CHANGELOG.md](CHANGELOG.md) — what each stage actually landed
 - [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) — the honest list of what is still wrong or missing
 
+## Getting a build
+
+Every `v*` tag packages six archives and attaches them to a GitHub Release with a `SHA256SUMS`
+beside them. Each one is self-contained — binaries, the 1994 art and sounds, all 22 houses — and
+has to be run from the directory you unpack it into, because it looks for `assets/extracted`
+there. Only `linux-amd64` can draw to a screen; the other five are marked `headless` and explain
+themselves in the archive.
+
+If the Releases page has nothing you want, building it is four seconds after the clone.
+
 ## Building
 
 Go 1.23 or newer, and one system package:

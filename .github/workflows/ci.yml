@@ -8,10 +8,13 @@
 # the depth-24 requirement the x11 backend imposes was confirmed against a nested X server.
 # Expect the first push to need a correction or two, most likely in an action version.
 #
-# WHAT THIS DOES NOT DO. There is no release job: no tagged builds, no artifacts published, no
-# installer. Cross-compiled binaries are uploaded for inspection only. Packaging needs decisions
-# that have not been made yet -- where an installed copy looks for its assets is still repo-
-# relative, and the asset-licence question is open. See docs/IMPROVEMENTS.md.
+# WHAT THIS DOES NOT DO. Releases are release.yml's job, not this one, and the split is
+# deliberate: this workflow runs on every branch push and pull request, and release.yml runs on
+# `v*` tags -- which this one does not match, so tagging deliberately does not fire the whole CI
+# matrix twice. The cross-compiled binaries uploaded here are for inspection only; the packaged,
+# checksummed archives come from release.yml. There is still no installer, and an installed copy
+# still looks for its assets at a repo-relative path (docs/IMPROVEMENTS.md 5.3), which is why a
+# release archive ships its own asset tree and has to be run from its own directory.
 
 name: CI
 

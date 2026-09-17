@@ -2545,20 +2545,38 @@ directory — is a dozen lines and keeps one 3 MB binary. That is the recommenda
 packaging happens; it is written down here rather than implemented because it wants the
 release-pipeline decisions in 5.4 alongside it.
 
-### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **planned, end of Stage 1 at the earliest**
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`; no tag has been pushed yet**
 
-`.github/workflows/ci.yml` builds, tests and cross-compiles, and uploads the cross-built
-binaries as inspection artifacts with a seven-day retention. It has no tag trigger, no release
-job, no installer and no checksums, and the header says so rather than leaving it to be
-discovered. That is on purpose: publishing is blocked on 5.3 and on §1.2, and a half-considered
-release job is worse than none because it produces downloadable binaries that cannot find their
-own assets.
+`.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
+list as future work: `make cross` plus the host's cgo build, six archives each carrying its own
+copy of `assets/extracted` at the relative path the binaries look for, a `SHA256SUMS` manifest,
+`README.md`, `CHANGELOG.md`, `LICENSE` and upstream's own README and licence in every one, and a
+`gh release create` that runs only on a tag push. `VERSION` is passed explicitly rather than left
+to `git describe`, so a build is stamped with the tag it came from instead of a bare short hash.
 
-What a release job eventually needs, so the list exists: a tag trigger, `make cross` plus the
-native cgo Linux build, a `sha256sum` manifest, a `CHANGELOG.md` (§1.3), and the licence and
-credits files inside every archive — the last of those being a GPLv2 obligation rather than a
-courtesy. Note also that `VERSION` comes from `git describe --tags --always --dirty`, and this
-repository has no tags at all yet, so every build so far is stamped with a bare short hash.
+Three things about it are worth knowing before trusting it.
+
+**It runs its own tests.** `ci.yml` triggers on `push: branches` and `pull_request`, and a tag
+push is neither, so tagging fires no CI at all. Without the `verify` job at the top of
+`release.yml` a release would ship binaries that no suite had ever seen.
+
+**It has never executed.** Same reason as `ci.yml`: the machine it was written on cannot reach
+github.com. What is verified is everything below the GitHub line — the packaging step was
+extracted from the YAML and run verbatim against a real `make cross` tree, all six archives
+build and pass `sha256sum -c`, and the `linux-amd64` one was unpacked and played at 30 fps with
+sound from its own root. What is unverified is action versions, runner package names and `gh`'s
+behaviour. The `workflow_dispatch` entry exists to rehearse the build half without publishing.
+
+**Five of the six archives cannot draw** (§5.5), which is a packaging problem as much as a
+backend one. They are named `-headless`, and their `HOW-TO-RUN.txt` does not tell the reader to
+run the bare binary: the null backend delivers no quit event and the shell loop has no exit
+condition without `-frames`, so that would spin on an invisible title screen until Ctrl-C. It
+gives two commands that terminate and produce something instead, and both were run from an
+unpacked archive before being written down.
+
+§5.3 remains the reason an archive has to be self-contained and run from its own root, and it is
+still open. Also still open, and the one thing a release cannot fix: §1.2's reading of the
+licence the 1994 content is shipped under.
 
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; the CI matrix is the first attempt**
 

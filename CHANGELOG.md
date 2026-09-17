@@ -15,6 +15,50 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A release pipeline (2026-09-17)
+
+- `.github/workflows/release.yml`: a `v*` tag runs the test suite, cross-compiles every target,
+  packages six archives with a `SHA256SUMS`, and creates the GitHub Release. This is
+  `docs/IMPROVEMENTS.md` 5.4, which had been open since Stage 0.
+- The `verify` job is not redundant with `ci.yml`, and the reason is worth writing down: `ci.yml`
+  triggers on `push: branches` and `pull_request`, and **a tag push is neither**. Without it,
+  tagging would run no tests at all and a release would ship binaries no suite had ever seen.
+- Each archive carries its own copy of `assets/extracted` at the relative path the binaries look
+  for, because they look for it relative to the working directory and not to themselves (5.3, still
+  open). So an archive is self-contained and has to be run from its own root, and its
+  `HOW-TO-RUN.txt` says so.
+- Five of the six cannot draw, so they are named `-headless` rather than left to disappoint
+  somebody. Their `HOW-TO-RUN.txt` deliberately does not tell the reader to run the bare binary:
+  the null backend delivers no quit event and the shell loop has no exit condition without
+  `-frames`, so that spins on an invisible title screen until Ctrl-C. It gives two commands that
+  terminate and produce something — a `-shot` PNG, and 300 frames of a house dumped as PNGs — and
+  both were run from an unpacked archive before being written down.
+- The dispatch input reaches the shell through `env:` rather than `${{ }}`, and is then narrowed to
+  an anchored `^v[0-9][A-Za-z0-9.+_-]*$`. `${{ }}` is textual substitution performed before bash
+  sees the script, so the obvious spelling executes whatever a quote in that input contains, in the
+  job that builds what gets published. Verified by feeding the resolver an apostrophe, a `;`, a
+  `$(id)`, a space, a slash and an embedded newline: six refusals, and the newline case also closes
+  a `$GITHUB_OUTPUT` key injection.
+- `publish` is gated on the push event as well as on the tag, because the dispatch ref picker
+  accepts a tag: a tag-only gate would let a manual run publish a release named after the tag while
+  every asset in it was named after the dispatch input. It also takes its version from the build
+  job's output rather than deriving a second one, so the release cannot advertise a filename it did
+  not attach. Both halves are kept — either alone closes the hole.
+- Attach-if-it-exists rather than create-or-die, because publishing through the Releases UI creates
+  the tag, which fires the workflow, which would then build for half an hour and refuse to attach
+  what it built.
+- The README's nine links into `docs/` are rewritten to absolute URLs pinned at the built commit
+  when it is copied into an archive — three of them are the screenshots at the top, and an archive
+  carries no `docs/`. Shipping 9.2 MB of development notes six times over was the alternative.
+- The notes' checksum command is `sha256sum --ignore-missing -c`, because `SHA256SUMS` lists all
+  six archives and almost nobody downloads six: the plain form reports the five absent ones as
+  `FAILED open or read` and exits non-zero, which reads exactly like a corrupt download.
+- It has never run — same airgapped host as `ci.yml`, and it says so at the top. Everything below
+  the GitHub line is verified: the packaging step was extracted from the YAML and run verbatim
+  against a real `make cross` tree, all six archives pass `sha256sum -c`, and the `linux-amd64` one
+  was unpacked and played 300 frames at 30 fps with sound and the right version string from its own
+  root.
+
 ### Only the original's data is vendored (2026-09-17)
 
 - John Calhoun's 1994 C is no longer redistributed here. `GliderPRO/Sources/` (67 files),
@@ -229,7 +273,8 @@ this file first:
 - **The 1994 art, sounds and houses ship under the GPLv2 the source release carries** (1.2), which
   is a defensible reading of that release and not a cleared one — nobody has asked John Calhoun.
   Shipping the content is decided; confirming it is not.
-- No release pipeline: no tags, no packaged builds, no installer (5.4).
+- The release pipeline exists but has never run, and nothing is tagged yet, so a build still
+  reports a bare short hash as its version (5.4). There is no installer either.
 - Only Linux/X11 can draw. Windows is Stage 4, macOS Stage 6; everything else compiles and runs
   headless (5.5).
 - An installed copy still looks for its assets beside the binary (5.3).
