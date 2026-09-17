@@ -36,6 +36,12 @@ versioning yet, because nothing has been versioned.
   with the bootstrap script about where a toolchain was installed. Set that variable for the
   bootstrap and `make` would previously have built with a different Go than the one it had just
   installed.
+- `README.md` rewritten for a stranger arriving from a search rather than for whoever wrote it:
+  it now opens on Glider PRO and John Calhoun before it opens on Go, carries three screenshots of
+  the port's own output, and says what it is up to in three lines instead of a forty-line
+  paragraph. Half the length, every practical fact kept, and the per-sentence justification of
+  design decisions moved to where it belongs — `docs/IMPROVEMENTS.md` and the packages' own
+  comments.
 - Verified the way a stranger would meet it: cloned the repository into a scratch directory,
   removed the remote, and ran `make check` under `env -i` with nothing but `HOME`, `PATH` and a
   Go — green, with the summary correctly listing the on-screen blit as not exercised because

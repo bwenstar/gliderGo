@@ -1,198 +1,107 @@
 # gliderGo
 
-A Go port and remaster of **Glider PRO** — the 1994 Macintosh game by John Calhoun,
-published by Casady & Greene, whose source was later released under the GPLv2.
+A port of **Glider PRO** — John Calhoun's 1994 Macintosh game about flying a paper aeroplane
+around somebody's house — to Go, for Linux. It ships with the original's art, sounds, music and
+all 22 of its houses, so there is nothing to download and no copy of the old game to find. Clone
+it and `make run`.
 
-(The source tree calls itself 1.0.4, but its resource fork says **1.1.2** and it is really a
-later Carbon work-in-progress. `docs/ORIGINAL_GAME.md` §2 has the evidence.)
+![The title screen](docs/screenshots/title.png)
 
-You are a paper glider. You ride the air from furnace vents, dodge the household hazards of
-a very large house, and try to get further than you did last time.
+## The game
 
-> **Status: in development — the game is playable, and it now has a title screen.**
-> Complete: Stage 0 (foundations, environment, source archaeology), **1.1** asset
-> extraction (the 1994 art, sound, houses and movies), **1.2** house loading (all 22
-> original houses read, written and round-tripped byte-for-byte), **1.3** room rendering
-> (all 4,070 rooms compose in the original's draw order), **1.4** player physics (the
-> 24-mode glider state machine, integer integrator, input, hit box and room boundaries),
-> **1.5** objects, collision and room transitions — the largest stage in the project, about
-> 9,100 lines of C, specified in
-> [docs/analysis/stage-15-spec.md](docs/analysis/stage-15-spec.md) and delivered in six
-> sub-stages (117 object types, 19,849 hot spots, bands, grease, switches, rewards and the
-> six animated families) — and **1.6** audio (three effect channels with the original's
-> priority policy, the music score on a fourth, and a replay that records what it sounded
-> like), **1.7a** the way in (the splash screen, the menu, the house picker and the
-> About box — `glidergo` with no arguments is now a game you start rather than a house you
-> name), **1.7b** preferences and a real pause (a settings screen, all eight key bindings
-> rebindable, a native config file, and Tab or Escape pausing with the original's placards),
-> and **1.7c** high scores (both entry dialogs, the board on screen, and a per-house
-> side-car so a new score is recorded without rewriting a 1994 house file) with the credits
-> screen the port owed its contributors, **1.7d** the in-game overlays and game over (the
-> house's own banner, the stars-remaining panel, the win and loss animations, and the music on
-> the title screen), and **1.8** the fidelity pass — a checked-in corpus of per-frame pixel
-> hashes, the 1994 attract mode replaying through this port's own physics, the Toolbox random
-> stream verified draw by draw against the documented algorithm, and the twenty-row fidelity
-> contract audited row by row in
-> [docs/ORIGINAL_GAME.md](docs/ORIGINAL_GAME.md) §19.1 — twenty citations and five written
-> exceptions, so "the port is faithful" is a claim you can check rather than take — and
-> **1.9** local two-player: two gliders in one room on one keyboard, sharing one inventory,
-> one sound throttle and four mortals, with the original's three different answers to "who
-> leaves the room" pinned in tests (a wall refuses the second glider *audibly*, a
-> transporter refuses it in total silence and only if it is standing in the very same
-> transporter, and the manhole does not race at all), and **1.10** saved games — `S` while
-> paused saves, the title screen's "Open Saved Game…" row and `-resume` start it again, and the
-> file is `game2Type` from offset 6 on, so the live save shipped inside Titanic.house in 1995 can
-> be resumed. That last part is the whole of the difficulty: **every** saved-game path in the 1994
-> source is dead code, and the original's own validation would have refused every game its own
-> writer produced.
->
-> Also done, between 1.9 and 1.10: **the public build path** — the port was developed against one
-> airgapped software mirror, and it now builds from a system Go, that mirror, or `go.dev`, with the
-> airgapped path unchanged. A clone with nothing but Go 1.23 and `libx11-dev` reaches a green
-> `make check`, and **the game's data is committed**, so `make run` plays without an extraction
-> step or a copy of the original.
->
-> Stage 1 is done. Next: **Stage 2**, new houses — a house editor's worth of authored levels,
-> selectable alongside the originals. See [docs/PLAN.md](docs/PLAN.md), and
-> [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) for what still stands between this and a
-> release someone else could play.
+You are a paper glider. Furnace vents and air ducts push you up; the moment you leave one you
+start sinking. That is the whole idea, and everything else in Glider PRO exists to make crossing
+one more room harder than the last — fans, candles, toasters that fire toast at you, rubber
+bands, cats, clocks, the lot.
 
----
+![Demo House explains itself](docs/screenshots/air-vents.png)
 
-## Quick start
+There are 22 houses in the box and 4,070 rooms between them. The largest, Teddy World, is 531
+rooms on its own. Calhoun wrote some of them; most are by Jonathan Chin, Ward Hartenstein, Steve
+Sullivan, Shawn Brenneman and Kim Money, who were still building levels for this thing well after
+it shipped.
 
-If you have Go 1.23 or newer, there is nothing to bootstrap and nothing to download —
-gliderGo is standard library only, which `internal/module` asserts offline:
+![The house picker](docs/screenshots/house-picker.png)
+
+Casady & Greene published it; Calhoun later released the source under the GPLv2, which is the
+only reason this port can exist. Upstream is
+[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro), and it is vendored here
+unmodified under `GliderPRO/` as the reference every line of the port was written against.
+
+## What this is
+
+A transcription, not a remake. The physics are the original's integer arithmetic ported out of
+`Player.c` a case at a time. Rooms compose in the original's draw order, including two of its
+drawing bugs, kept on purpose. The random number generator is the Mac Toolbox's, reimplemented so
+its draws come out in the same order. Where the port does behave differently, the reason is
+written down in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) rather than left for you to find.
+
+It is standard-library Go with no third-party modules at all — no game engine, no SDL binding, no
+audio library. There is no `go.sum` here because there is nothing to lock, and a test asserts it
+stays that way.
+
+Linux/X11 is the only thing that draws so far. Windows, macOS and arm64 cross-compile and run
+headless, which is most of the port but none of the window.
+
+## Where it is up to
+
+**Stage 1 is done.** The game plays start to finish on all 22 houses, with sound, the title
+screen and house picker, settings, high scores, saved games, both endings, and two-player on one
+keyboard.
+
+Next is Stage 2, new houses in the spirit of the originals and selectable alongside them, and
+then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
+After that, a pure-Go Windows backend with no cgo (Stage 4), the house editor the original had
+(Stage 5), and macOS and possibly mobile (Stage 6).
+
+- [docs/PLAN.md](docs/PLAN.md) — the staged plan and the decisions behind it
+- [CHANGELOG.md](CHANGELOG.md) — what each stage actually landed
+- [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) — the honest list of what is still wrong or missing
+
+## Building
+
+Go 1.23 or newer, and one system package:
 
 ```bash
-sudo apt-get install -y build-essential pkg-config libx11-dev   # other distros: docs/DEV_ENVIRONMENT.md §2
+sudo apt-get install -y build-essential pkg-config libx11-dev
 git clone https://github.com/bwenstar/gliderGo && cd gliderGo
-make run                          # window at the original's 640x480
-make check                        # fmt, vet, test, build, headless, audio, pixels, cross-build (+ bench)
+make run
 ```
 
-Two commands and one system package. **The 1994 art, sounds, music and all 22 houses are in
-this repository** — decoded, in `assets/extracted/`, ready to load. There is no extraction
-step, no asset download, no data file to find: you do not need a copy of Glider PRO, a
-Macintosh, a network, or even python3 to play.
+The 1994 data is committed, decoded, under `assets/extracted/` — art, sounds, music and every
+house. No extraction step, no asset download, no network, and you do not need python3 to play.
+(`make assets` re-derives that tree from `GliderPRO/` if you are working on the extractors, and
+`make assets-check` proves the committed copy is byte-for-byte what they produce.)
 
-`make assets` re-derives that tree from `GliderPRO/` in about 70 s and `make assets-check`
-proves the committed copy is byte-for-byte what the extractor produces. Both are for working on
-the pipeline; playing needs neither. `make doctor` reports what your machine has and is missing.
-
-`libx11-dev` is the one hard requirement rather than a nicety: `vet` and `test` compile the X11
-backend whenever cgo is on, so without its pkg-config metadata `make check` fails with an error
-from pkg-config. `make headless` is the build that needs neither it nor a display.
-
-If you have no Go, or no internet:
+`libx11-dev` is a hard requirement rather than a nicety: cgo compiles the X11 backend during
+`vet` and `test`, so without its pkg-config file even `make check` fails. `make headless` is the
+build that needs neither it nor a display.
 
 ```bash
-./scripts/bootstrap-dev-env.sh    # picks a dependency source, says which, installs Go 1.23
-. scripts/env.sh                  # PATH, GOROOT, GOPROXY=off, GOTOOLCHAIN=local
-make check
+make check      # fmt, vet, tests, build, headless, audio, pixel corpus, cross-compile
+make doctor     # what your machine has and what it is missing
+make help       # every target, one line each
 ```
 
-The bootstrap resolves from a Go already on `PATH`, `go.dev`, or a private mirror you describe
-in an optional gitignored `scripts/local-source.sh` — `--dry-run` shows exactly what it would
-fetch from where without touching anything, and `GLIDERGO_GO_TARBALL=…` skips the network
-entirely. See [docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1.
+Run those from the repository root — every default path is relative to it. If you have no Go,
+`./scripts/bootstrap-dev-env.sh` installs one into your home directory without root; see
+[docs/DEV_ENVIRONMENT.md](docs/DEV_ENVIRONMENT.md) §1 for that and §2 for other distributions.
 
-The rest of the Makefile:
-
-```bash
-make run ARGS='-version'          # the build, its backend, and whether the assets are there
-make run ARGS='-scale 2'          # 2x nearest-neighbour magnification
-make houses                       # round-trip every original house through the codec
-make audio                        # replay 600 frames to /tmp/glidergo-audio.wav
-make fidelity                     # hash every frame's pixels against the checked-in corpus
-make cross                        # compile every target a release would ship
-make help                         # every target, with a line each
-```
-
-Run these from the repository root: every default path in the Makefile and in the game's own
-flags is relative to it. `make check` needs neither a display nor a network; `make run` and
-`make bench` need an X display, and `make check` runs the on-screen bench only when `DISPLAY`
-is set and there is a house to fly in.
-
-Reading the 1994 level data:
-
-```bash
-make glidertool
-bin/glidertool house info assets/extracted/houses/*.house   # 22 houses, 4,070 rooms
-bin/glidertool house rooms "assets/extracted/houses/Demo House.house"
-bin/glidertool house dump  "assets/extracted/houses/Demo House.house" | less
-bin/glidertool types                                        # the 117 object types
-```
-
-`house dump` prints a house as annotated text; `house build` turns that text back into a
-1994-compatible binary, byte-for-byte with `-residue`. That is how new houses will be
-authored and how houses are diffed in git.
-
-Looking at the 1994 pixels:
-
-```bash
-bin/glidertool render -scale 2 -o /tmp/room.png "assets/extracted/houses/Demo House.house"
-bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
-```
-
-`render` composes a room the way the game does — nine local rooms, the original's object draw
-order, the original's two port bugs — and writes it out as a PNG. It is how the renderer was
-checked by eye, and `-all` over a whole house is the quickest way to notice that something has
-gone missing.
-
-Hearing the 1994 sounds:
-
-```bash
-make run ARGS='-audio list'                                 # which players this machine has
-make run ARGS='-volume 3'                                   # 0..7, the original's range
-make run ARGS='-sound=false'                                # the original's dontLoadSounds
-bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
-```
-
-There is no audio driver in here and there is not meant to be: the mix is written to
-`pw-play`, `paplay`, `aplay`, `ffplay` or `play`, whichever the machine has, as raw PCM on
-stdin. That keeps the port free of cgo and of every dependency this airgapped network cannot
-reach, at the cost of the player's own buffer latency — and it is the one part of the audio
-path that Windows will need replaced
-([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48). With no player installed, or on a build
-host with no sound card at all, `-wav` writes the samples to a file instead; the developer
-machine this was written on has no sound card, so that path is the one under test.
-
-Replaying the 1994 attract mode:
-
-```bash
-bin/glidertool demo info -stats assets/extracted/res/demo/128.bin   # what is in the stream
-bin/glidertool demo dump        assets/extracted/res/demo/128.bin | head -30
-bin/glidertool replay -house "Demo House" -frames 3500 \
-    -demo assets/extracted/res/demo/128.bin
-```
-
-The `'demo'` resource is 1,117 keystrokes — six bytes each, keyed to frame numbers — recorded
-in 1994 by somebody flying "Demo House" for about two minutes. Replaying it drives the port's
-own physics from a real 1994 session, which is the strictest determinism test in here. It also
-does not yet finish: the glider dies in the start room 573 records in, and that gap is the
-sharpest fidelity target the project has ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.18).
-
-The build needs no network access at run time and no third-party Go modules —
-see [why](docs/DEV_ENVIRONMENT.md#4-the-constraint-that-produced-this-architecture-no-obtainable-go-game-engine).
-`internal/module` turns that into a test: it parses `go.mod` and every import in the tree, so
-an import hidden behind a build tag this host never compiles is still caught.
+There is no audio driver in here on purpose. The mix is piped as raw PCM to whichever of
+`pw-play`, `paplay`, `aplay`, `ffplay` or `play` your machine has; `-audio list` shows which were
+found, `-volume 0..7` is the original's range, and with no player at all the game runs silently.
 
 ## Controls
 
-The title screen is keyboard-only, because the game is: `internal/platform` reports no
-pointer, and the only mouse in Glider PRO was in its editor.
+Keyboard only, because Glider PRO was: the only mouse in the original was in its level editor.
 
 | Title screen | |
 |---|---|
-| `↑` `↓` | move the cursor |
-| `Return` | choose |
+| `↑` `↓` `Return` | move the cursor, choose |
 | `N` / `2` | one-player / two-player game |
+| `L` | load a house — `←` `→` page, a letter jumps, `Return` plays |
 | `O` | open the selected house's saved game |
-| `L` | load a house — `↑` `↓` move, `←` `→` page, a letter jumps, `Return` plays, `Space` selects |
-| `H` | the selected house's high scores |
-| `S` | settings |
-| `A` | about — and `C` from there for the credits |
+| `H` / `S` / `A` | high scores / settings / about (`C` from there for the credits) |
 | `Q` or `Esc` | quit |
 
 | In a game | Player one | Player two |
@@ -201,191 +110,123 @@ pointer, and the only mouse in Glider PRO was in its editor.
 | throw a rubber band | `↑` | `W` |
 | use the battery | `↓` | `S` |
 | pause | `Tab` or `Esc` | |
-| save a paused game | `S` | |
-| give up a paused game | `Q` | |
-| give up a glider waiting in limbo | `Delete` | |
+| save, or give up, a paused game | `S`, `Q` | |
+| give up a glider stuck in limbo | `Delete` | |
 
-All eight of the movement keys are the player's — the eight rows above are only the defaults
-this build ships. Four of them had to change: player two was on Control, Command, Option and
-Shift (`InterfaceInit.c:148-151`), which a modern window manager takes before the game sees
-it. The bindings were per-glider data from 1.1 for that reason, and the settings screen is
-where they are edited ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.3).
+All eight movement keys are rebindable from the settings screen. Four of them had to change from
+the 1994 defaults: player two was on Control, Command, Option and Shift, which a modern window
+manager takes before the game ever sees them.
 
-The bottom three rows are the port's own and are **not** bindable, because each stands in for
-something a 1994 Macintosh had and this does not:
+The last four rows are the port's own and are deliberately not bindable, because each stands in
+for something a 1994 Macintosh had and this does not. `Tab` pauses, as the original did, and
+`Esc` pauses as well so that the key a stranger reaches for costs them nothing. `Q` from the
+pause gives up and asks first — Command-Q was a chord nobody hit by accident and a bare `Q` is
+one letter from the controls. `S` from the pause saves, which is where the original's save lived.
+`Delete` is the original's own key for abandoning a glider in limbo. Closing the window quits
+from anywhere.
 
-- **`Tab` pauses**, as the original does (`isEscPauseKey` is false at `Main.c:184`), and the
-  settings screen offers `Esc` instead — but `Esc` pauses either way. It used to end the game
-  outright, one keystroke and no prompt, which is worse than the original, where giving up
-  meant going to a menu. Now the key a stranger reaches for costs them nothing, and the way
-  out is written on the screen they land on (2.7).
-- **`Q` gives up a paused game** and hands the title screen back. The original's Command-Q is
-  a chord the window manager owns on every platform this builds for; both pause placards
-  still read "or Cmd-Q to Quit the game", so the port prints its own line under them. It asks
-  first, with the two buttons alert 1041 had — `Y` saves the game before ending it, `N` does not
-  — and the pause key is a third answer that alert did not have, because Command-Q was a chord
-  nobody hits by accident and a bare `Q` is one letter from the controls.
-- **`S` saves a paused game**, which is where the original's own save lived
-  (`DoCommandKey`, `Input.c:55-63`). Offered only from the pause, and only when there is one
-  glider and somewhere to write it — the hint row under the placard names the key when it would
-  work and stays quiet when it would not.
-- **`Delete`** abandons a glider waiting in limbo, which is the original's own key for it. It is
-  player one's key in the original, and that matters more than it looks: see below.
+## Two players, one keyboard
 
-Closing the window ends the program, from anywhere.
+Press `2`. Both gliders share the room and almost everything in it — one battery charge, one roll
+of foil, one bundle of rubber bands, and four lives between them rather than two each. Whoever
+leaves a room first picks the exit and the other has to follow. The original has three different
+answers to what happens when it cannot:
 
-### Two players, one keyboard
+- through a **wall, ceiling, floor or the stairs**, the follower is refused audibly and bounced
+  back the way it came;
+- through a **transporter, mailbox or duct**, it is refused in total silence, and only if it is
+  standing in the very same one — so two gliders in two different transporters will wait for each
+  other forever, and `Delete`, at the cost of a life, is the only way out;
+- through the **manhole** there is no check at all. Both go.
 
-`2` from the title screen. Both gliders are in the same room and share almost everything — one
-battery charge, one roll of foil, one bundle of rubber bands, one sound throttle, and four
-mortals between them rather than two each. Whichever glider leaves the room first chooses the
-exit; the other has to follow, and the original has three different answers to what happens when
-it cannot:
+That is transcribed rather than designed, and `internal/game/twoplayer_test.go` pins it. The one
+consequence worth an escape hatch is the deadlock: `Delete` is player one's key, so player two
+cannot break it. Setting `"player2_give_up": true` gives them the key as well.
 
-- Through a **wall, ceiling, floor or the stairs**, a glider whose partner left by a different
-  route is refused *audibly* — a thump, and it is bounced back the way it came.
-- Through a **transporter, mailbox or duct** it is refused in complete silence, and the test is
-  stricter than it looks: the follower must be standing in *the very same* transporter, not
-  merely another one of the same kind. Two gliders in two transporters in one room therefore
-  wait for each other forever, and `Delete` — costing a mortal — is the only way out.
-- Through the **manhole** there is no test at all. Both gliders go.
+## Settings, scores and saves
 
-All of that is the original's behaviour, transcribed rather than designed, and it is what
-`internal/game/twoplayer_test.go` pins. The one thing this port will change on request is the
-last consequence of it: because `Delete` is player one's key, player two cannot break the
-deadlock, so `"player2_give_up": true` in the settings file gives them the key as well. It is
-off by default like every other entry in the `fixes` block
-([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.23).
+Settings are one JSON file in `~/.config/glidergo/prefs.json`, written when the settings screen
+closes rather than at quit. A hand-edited or truncated one is repaired and complained about, not
+refused.
 
-### Settings
+There is a `fixes` block in that file which is deliberately not on any screen: four switches,
+each correcting a genuine bug in the 1994 code — a mirror that blinks a candle flame out, a
+mirror that draws the wrong player, a stray sparkle in the corner of a room, and
+`player2_give_up`. All four default to off, because off is what the original did and what the
+pixel corpus is recorded against.
 
-`S` from the title screen: the eight bindings, which key pauses, how much of the house is
-composed around the player, the window magnification, the volume, and whether the score
-plays. `←` `→` change a value, `Return` rebinds one key, `R` resets everything to this
-build's defaults, `Esc` saves and goes back. A rebind is checked by the same `prefs.Validate`
-that repairs a hand-edited file, so a collision is reported on the status line rather than
-silently kept.
+High scores are per house, ten to a board, and **sorted on rooms visited before points** — worth
+knowing before you optimise for the wrong number. Twenty of the 22 houses still carry their
+authors' own playtesting from 1995: `Ozma` is top of thirteen boards, and the best run in the box
+is 108 rooms and 47,000 points through ImagineHouse PRO II on 1995-07-03. New scores go beside
+them in `~/.local/share/glidergo/<house>.scores`; the house files themselves are never written
+to, since rewriting 185 KB of 1994 binary to save 292 bytes is one power cut away from losing a
+house.
 
-Settings live in one JSON file in the platform's config directory
-(`$XDG_CONFIG_HOME/glidergo/prefs.json`, or `~/.config/glidergo/prefs.json`; `GLIDERGO_CONFIG`
-overrides it), and are saved when the screen closes rather than at quit, so a crash cannot
-lose them. The original's five-pane Options dialog had nineteen more fields that were about a
-Macintosh rather than about the game — screen-depth switching, colour-table fades, the
-editor's window positions — and `internal/prefs/legacy.go` lists every one with the reason it
-was dropped.
+Saved games work from the pause with `S`, and `O` or `-resume` picks one up: the room, the score,
+the gliders left, what you were carrying, and every switch you had thrown anywhere in the house.
 
-A few things are in the file and not on the screen, on purpose. The `fixes` block is four
-switches that each correct a bug in the 1994 code — a mirror that blinks a candle flame out, a
-mirror that draws the wrong player, a sparkle in the corner of the room, and `player2_give_up`
-above. All four default to **off**, which is to say the original's behaviour, because that is
-what the fidelity corpus is recorded against; a player has no way to judge them and anyone who
-wants them has the file. Each one is argued in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md)
-(2.19, 2.20, 2.39 and 2.23).
+Two of the shipped houses have a game saved inside them from 1995 — Titanic at room 104 with
+4,700 points, ImagineHouse PRO II at room 45 with 5,900 — and those load too, which took some
+doing. Every saved-game path in the 1994 source is dead code: the writer's body is commented out,
+the reader returns false on its first live statement, and the validation that survives compares
+the wrong timestamp, so it would have rejected every file its own writer produced. The four
+decisions the reconstruction needed are numbered in `internal/house/savedgame.go`.
 
-```bash
-make run ARGS='-prefs /tmp/test.json'   # use this file instead of the config directory's
-make run ARGS='-prefs none'             # this build's defaults; reads and writes nothing
-bin/glidergo -import-prefs "/path/to/Glider Prefs"   # convert a 1994 226-byte prefs file
-```
+Each of these can be pointed elsewhere or turned off — `-prefs`, `-scores`, `-saves`, each taking
+a path or `none`. `-import-prefs` converts a 1994 226-byte `Glider Prefs` file.
 
-`-import-prefs` refuses to overwrite an existing settings file: it runs before any window
-opens, so there is nobody to ask. The four measurement modes — `-shot`, `-frames`, `-bench`
-and `-dump` — ignore the config directory for the same reason `make check` has to give the
-same answer on every machine (2.53); pass `-prefs <file>` to override even them.
+## How faithful is it?
 
-### High scores
+A test suite rather than a promise:
 
-Every house carries a board of ten: a name, a score, how many rooms were visited, and a date
-nothing has ever drawn. Twenty of the 22 shipped houses arrive with theirs filled in, and what
-is on them is the authors' own playtesting — most of it between June and September 1995, `Ozma`
-on top of thirteen boards, `Paul` on top of the two of them Jonathan Chin signs as Paul Finn, and the best
-run in the box 108 rooms and 47,000 points through ImagineHouse PRO II on 1995-07-03. `H`
-on the title screen shows the selected house's board, which is one more way in than the original
-had: there, the only route to that screen was to earn a place on it.
+- `internal/fidelity` holds a hash of every frame's pixels for a set of scripted runs, plus
+  reference PNGs. Move a pixel and the hashes move; regenerating them is deliberate and shows up
+  in the diff.
+- The 1994 attract-mode demo — 1,117 recorded keystrokes of somebody flying Demo House for about
+  two minutes — replays through this port's own physics. It does not finish yet: the glider dies
+  573 records in, and closing that gap is the sharpest target the project has.
+- The twenty-row fidelity contract in [docs/ORIGINAL_GAME.md](docs/ORIGINAL_GAME.md) §19.1 is
+  audited row by row, with a citation into the C for each and five written exceptions.
 
-A score that beats the tenth row asks for a name; first place also gets to change the banner
-across the bottom of the board. **The board is sorted on rooms visited before points**, which is
-the original's order and is worth knowing before you optimise for score.
+## glidertool
 
-New scores go in a file of their own, one per house, in the platform's data directory
-(`$XDG_DATA_HOME/glidergo/<house>.scores`, or `~/.local/share/glidergo/`). The house files
-themselves are never written to: they are your own copy of a 1994 game, a board is 292 bytes
-inside as much as 185 KB, and a whole-file rewrite to save 292 bytes is one power cut from a
-destroyed house.
+The workshop for the 1994 data. `make glidertool`, then:
 
 ```bash
-make run ARGS='-scores /tmp/boards'   # keep the boards here instead
-make run ARGS='-scores none'          # play and record nothing
+bin/glidertool house info assets/extracted/houses/*.house    # 22 houses, 4,070 rooms
+bin/glidertool house dump "assets/extracted/houses/Demo House.house" | less
+bin/glidertool house build my-house.txt -o my-house.house    # and back again, byte for byte
+bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
+bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
+bin/glidertool types                                         # the 117 object types
 ```
 
-A hand-edited or truncated board is repaired rather than refused: you get a playable board and
-one line on stderr per thing that had to be worked around.
-
-### Saved games
-
-`S` while paused saves. `O` on the title screen, or `-resume` on the command line, starts it
-again — the room, the score, the gliders you have left, the bands and batteries you are carrying,
-the mode the glider was in, and every switch you had thrown in every room of the house.
-
-```bash
-bin/glidergo -house Titanic -resume           # straight into a saved game, no title screen
-bin/glidergo -resume                          # Slumberland's, like every other -house default
-make run ARGS='-saves /tmp/saves'             # keep them here instead
-make run ARGS='-saves none'                   # play and save nothing
-```
-
-`-resume` is refused, before a window opens, alongside `-two` (a save holds one glider) and
-`-room` (a save names its own room) — either combination would silently ignore half of what the
-command line asked for.
-
-Saves live one per house beside the score boards (`$XDG_DATA_HOME/glidergo/saves/`), and the
-newer one wins. The original's dialogue would have let you keep twenty of one house under twenty
-names; keying them by house instead makes resuming a keystroke rather than a file browser, and it
-is a real loss, recorded in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) rather than pretended
-away.
-
-**Two of the shipped houses carry a game saved in 1995**, and `O` will open those too: Titanic in
-room 104 with 4,700 points and two gliders left, and ImagineHouse PRO II in room 45 with 5,900
-and five. Nobody has ever resumed them.
-Every saved-game path in the 1994 source is dead code — the writer's body commented out, the
-reader's first live statement a `return false`, the menu item that would have called it commented
-out too — so this is a reconstruction of a format that shipped inside 22 files and was never once
-read back. The four decisions it needed are numbered S1–S4 in
-`internal/house/savedgame.go`, and the one that mattered is that the original stamped a save with
-the *clock* while the gate that validates it compares the *house's* timestamp: its own checks
-would have refused every game its own writer produced.
+`house dump` and `house build` are how new houses will be authored and how a house shows up in a
+diff. `render` composes a room the way the game does and writes a PNG, which is how the renderer
+got checked by eye. `replay` runs a scripted session headlessly, which is what a useful bug report
+carries.
 
 ## What is in here
 
 | Path | What it is |
 |---|---|
-| `GliderPRO/` | The original 1994 C source, vendored **read-only** as the reference. Includes `Glider PRO.r` (the whole resource fork: 538 resources, every sprite and sound) and `Houses/` (the 22 shipped levels, 4,070 rooms). |
-| `docs/ORIGINAL_GAME.md` | Consolidated source of truth for how the original behaves. **Read this first.** |
-| `docs/analysis/` | 29 per-subsystem, byte-level specs reverse-documented from the C (130k lines). The detailed authority. |
-| `docs/PLAN.md` | The staged implementation plan and the decisions behind it. |
-| `docs/IMPROVEMENTS.md` | Everything a public release needs that fidelity does not, numbered, each with the reason it is not done yet. |
-| `CHANGELOG.md` | One section per stage, each naming the commit that closed it. |
-| `docs/DEV_ENVIRONMENT.md` | How to build here, what this airgapped network can reach, and the measured performance baseline. |
-| `internal/platform/` | The port layer: a 640×480 software framebuffer, backends for X11 (cgo/Xlib) and headless (PNG/WAV). |
-| `internal/house/` | The house model and its two codecs: the 1994 binary format (byte-exact both ways) and a line-oriented text format meant to be written by hand and read in a diff. |
-| `internal/render/` | The room composition: an 8-bit indexed surface with the game's own 256-colour palette, the sprite atlas, and `DrawLocale`'s draw order object for object. Indexed rather than RGBA because the original's shadows OR palette *indices* together. |
-| `internal/replay/`, `internal/fidelity/` | The determinism harness. A script — house, seed, start point, keystroke timeline — replays headlessly to a trace with one line per frame, and `internal/fidelity` hashes the pixels of every one of those frames against a corpus checked in beside it. So a bug report is a file that reproduces on any machine, and a change that moves a pixel says which frame it moved. |
-| `internal/demo/` | The attract-mode input stream: six-byte `{frame, key, padding}` records, a playback cursor, and a recorder. The 1994 resource is 1,117 keystrokes of somebody flying "Demo House", and replaying it through the port's own physics is the strictest determinism test here — a script can name one with `demo`. |
-| `cmd/glidertool/` | `house dump` / `build` / `check` / `info` / `rooms`, `render` (compose a room to PNG), `replay` (headless run from a script), `demo info` / `dump` / `check` and the `types` reference table. |
-| `tools/` | Python asset extractors, standard library only: BinHex, Rez, QuickDraw PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. `extract_all.py` is the driver (`make assets`); the `probe_*.py` scripts are inspection CLIs for the same formats. |
-| `assets/extracted/` | **The game's data, committed.** The 1994 art, sounds, music, 22 houses and movies, decoded and ready to load, so a clone plays without an extraction step. It is still *output*: `make assets` regenerates it from `GliderPRO/` in ~70 s and `make assets-check` proves the committed copy is byte-for-byte identical. |
-
-## Planned scope
-
-1. **Stage 1** — the game, behaving exactly like the original, on Linux.
-2. **Stage 2** — new houses in the spirit of the originals, selectable alongside the original set.
-3. **Stage 3** — 2-player over the network: one machine hosts, another joins, furthest on one life wins.
-4. **Stage 4+** — Windows (pure-Go backend, no cgo), a house editor, then macOS and possibly mobile.
+| `GliderPRO/` | The original 1994 C source, vendored read-only. Includes `Glider PRO.r`, the whole resource fork, and all 22 houses. |
+| `assets/extracted/` | The same data decoded and committed, so a clone plays. Output, but output that ships. |
+| `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
+| `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
+| `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
+| `internal/platform/` | 640×480 software framebuffer, X11 (cgo) and headless (PNG/WAV) backends. |
+| `internal/replay/`, `internal/fidelity/` | The determinism harness and the pixel corpus. |
+| `cmd/glidergo`, `cmd/glidertool` | The game, and the tool above. |
+| `tools/` | The asset extractors: BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. Standard-library python3. |
+| `docs/ORIGINAL_GAME.md` | How the original behaves. Read this one first. |
+| `docs/analysis/` | 29 byte-level specs reverse-documented from the C. The detailed authority. |
 
 ## Working on the original source
 
-`GliderPRO/Sources/*.c` and `GliderPRO/Headers/*.h` are classic Mac text files with
-**CR-only line endings**, so `wc -l` reports `0` and most tools see one enormous line:
+`GliderPRO/Sources/*.c` and `Headers/*.h` are classic Mac text with **CR-only line endings**, so
+`wc -l` says `0` and most tools see one enormous line:
 
 ```bash
 tr '\r' '\n' < "GliderPRO/Sources/Player.c" > /tmp/Player.c
@@ -393,42 +234,29 @@ tr '\r' '\n' < "GliderPRO/Sources/Player.c" > /tmp/Player.c
 
 `GliderPRO/Glider PRO.r` is the exception and uses LF.
 
-The vendored tree is the upstream files, not the upstream history: `GliderPRO/` is a plain
-directory, byte-identical to
-[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro) at the commit it was taken
-from, and no clone of gliderGo carries the original's commits. If you want them, clone upstream
-yourself (`git clone --bare https://github.com/softdorothy/glider_pro GliderPRO/upstream.git` —
-that path is gitignored precisely so a local mirror can live there without becoming a
-submodule). Nothing in the build reads it; only `docs/analysis/` cites it.
+What is vendored is the upstream files, not the upstream history — `GliderPRO/` is a plain
+directory, byte-identical to upstream at the commit it was taken from. If you want the commits,
+clone them yourself into `GliderPRO/upstream.git`, which is gitignored precisely so that a local
+mirror can live there without becoming a submodule. Nothing in the build reads it.
 
 ## Licence
 
-**GPLv2** — see [LICENSE](LICENSE). Copyright © 2026 the gliderGo authors, for the port;
-the original game is copyright John Calhoun.
+**GPLv2** — see [LICENSE](LICENSE). The port is © 2026 the gliderGo authors; the original game is
+© John Calhoun.
 
-`GliderPRO/README.md` states the grant exactly: *"The source for Glider PRO is released
-under the GNU General Public License 2 as published by the Free Software Foundation."*
-There is no "or (at your option) any later version" clause, so this is GPLv2-**only**, not
-GPLv2-or-later. gliderGo is transcribed from that source function by function and is
-unambiguously a derivative work, so it carries the same licence.
+Upstream's grant is exact and has no "or any later version" clause, so this is GPLv2-**only**:
+*"The source for Glider PRO is released under the GNU General Public License 2 as published by
+the Free Software Foundation."* gliderGo is transcribed from that source function by function, is
+unambiguously a derivative work, and carries the same licence.
 
-Original game by **John Calhoun**, published by Casady & Greene. Upstream source:
-[softdorothy/glider_pro](https://github.com/softdorothy/glider_pro).
+One caveat, stated plainly because it is the last thing standing between this and a release
+someone else can rely on: **the assets are not the source.** That grant is about code. The houses
+are credited to five other authors, and two PICT resources derive from illustrations by John R.
+Neill (*Ozma of Oz*) and Winsor McCay (*Little Nemo*). This repository redistributes all of it,
+twice over — `GliderPRO/` whole and `assets/extracted/` decoded — on the reasoning that upstream
+publishes the same files in the same layout. That reading is defensible and it is not confirmed;
+nobody has asked John Calhoun. [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2 lays out the
+choice and says where it stands.
 
-**The assets are not the source, and the distinction matters for a release.** Upstream's
-grant, quoted above, is about the source. The 22 shipped houses are credited to five other
-authors — Jonathan Chin, Ward Hartenstein, Steve Sullivan, Shawn Brenneman and Kim Money — and
-two PICT resources derive from illustrations by John R. Neill (*Ozma of Oz*) and Winsor McCay
-(*Little Nemo*).
-
-**And this repository does redistribute all of it**, because `GliderPRO/` is vendored whole:
-`Glider PRO.r` is the entire 15 MB resource fork, every sprite and sound included, and
-`GliderPRO/Houses/` holds all 22 houses and 15 movies. That is deliberate — it is upstream's
-own layout, and it is why a clone plays with no network and no copy of the game. Since the
-decoded assets are committed too, the repository carries the 1994 content twice: `GliderPRO/`
-is 50.7 MB of encoded originals and `assets/extracted/` is 15.5 MB decoded from them.
-
-Whether that redistribution is licensed is the open question, and it is the one thing between
-this port and a public release: see [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) §1.2, which
-lays out the choice — keep vendoring on upstream's precedent, or strip those paths from release
-archives and fetch them separately — and says plainly that it has not been made yet.
+Original game by **John Calhoun**, published by Casady & Greene. Screenshots above are this
+port's own output, from `make headless`.
