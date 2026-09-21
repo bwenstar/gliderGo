@@ -78,10 +78,6 @@ const (
 	kUserStructureRange = 3300
 )
 
-// kNumUndergroundFloors is the bias in a packed floor/suite link value: floor 0
-// in a house file is eight storeys below ground (GliderDefines.h:508).
-const kNumUndergroundFloors = 8
-
 // The five flame-like animation tables and the dynamic-object table, with the
 // caps from GliderDefines.h:255-265. Every entry in the first five also holds a
 // savedMaps slot, so these caps and kMaxSavedMaps interact.
@@ -1303,13 +1299,13 @@ func (s *Scene) GetNeighborRoomNumber(which int) int16 {
 // GetRoomNumber is Room.c:737-760: the index of the room at a floor and suite, or
 // kRoomIsEmpty. A linear search, as in the original -- houses top out at a few
 // hundred rooms and this runs nine times per composition.
+//
+// Delegated to internal/house for the same reason as ExtractFloorSuite: the two are
+// used together, and the search's one subtlety -- that it does not skip deleted rooms,
+// which decides what a link to the -100 sentinel resolves to -- must be the same
+// subtlety everywhere.
 func (s *Scene) GetRoomNumber(floor, suite int16) int16 {
-	for i := range s.H.Rooms {
-		if s.H.Rooms[i].Floor == floor && s.H.Rooms[i].Suite == suite {
-			return int16(i)
-		}
-	}
-	return kRoomIsEmpty
+	return s.H.RoomNumber(floor, suite)
 }
 
 // IsRoomAStructure is Room.c:763-812: does this room have a floor and a ceiling?
@@ -1460,14 +1456,13 @@ func (s *Scene) GetObjectState(room int16, object int16) bool {
 
 // ExtractFloorSuite is Link.c:39-53: unpack a link's floor and suite.
 //
-// The two fields share one short, and houses before version 2.0 packed them the
-// other way round. Both orders are still read, because the shipped houses include
-// both.
+// The arithmetic lives in internal/house, which owns the file format and can be
+// asked about a house with no Scene around it -- the linter needs exactly that. This
+// stays as the name the rest of this package calls, because the alternative is
+// spelling a version-dependent bit-packing out twice and having two chances to get it
+// wrong.
 func (s *Scene) ExtractFloorSuite(combo int16) (floor, suite int16) {
-	if s.H.Version < 0x0200 {
-		return combo/100 - kNumUndergroundFloors, combo % 100
-	}
-	return combo%100 - kNumUndergroundFloors, combo / 100
+	return s.H.ExtractFloorSuite(combo)
 }
 
 // ---------------------------------------------------------------------------

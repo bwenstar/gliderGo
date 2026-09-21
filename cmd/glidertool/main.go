@@ -9,6 +9,8 @@
 //	glidertool house dump -residue -o d.txt d.house # byte-exact text (forensics)
 //	glidertool house build -o new.house new.txt    # text -> binary
 //	glidertool house check assets/extracted/houses/*.house
+//	glidertool house lint  -min warn new.house     # will it play as authored?
+//	glidertool house checks                        # what every lint check means
 //	glidertool house info  assets/extracted/houses/*.house
 //	glidertool house rooms Demo.house
 //	glidertool render -scale 2 -o room.png Demo.house
@@ -77,6 +79,8 @@ usage: %s <command> [flags] [file...]
   house dump  [-residue] [-o out] <house>   print a house in the text format
   house build [-o out] <text|->             assemble a text house into binary
   house check <house>...                    load, round-trip and sanity-check
+  house lint  [flags] <house>...            report what will not play as authored
+  house checks                              every lint check, with what it means
   house info  <house>...                    one summary line per house
   house rooms [-objects] <house>            per-room table
   render      [flags] <house>               compose a room to PNG, as the game does

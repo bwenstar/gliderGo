@@ -17,6 +17,65 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A house linter, calibrated against the 22 houses it has to tolerate (2026-09-21)
+
+Stage 2 authors new houses, and the first thing that needs to exist is something that reads a house
+and says what will not work. `glidertool house lint` is that; `glidertool house checks` prints the
+table of what each finding means. Twenty-nine checks at three severities, covering the links (a
+transporter whose destination room does not exist, a link to an object slot that is empty or past
+the 24 a room holds, a transit object with no destination at all), the staircases (a floor with no
+room on it, a destination with no counterpart to arrive on), the art (a background, a `kCustomPict`
+or a `tiles[]` column that resolves to nothing), the sounds, and the header arithmetic. `-min`
+chooses what prints, `-check` filters to named checks, `-fail` turns the worst finding into an exit
+status, and `-no-assets` skips the art and sound checks while saying in the report that it did.
+
+The interesting work was not the checks, it was the severities. `house lint` is only worth putting in
+CI if the exit code means something, and it is only trustworthy if it tells the truth about the
+originals — so each check was written, run over all 22 shipped houses, and then argued down to the
+level those houses justify. The corpus produces 634 notes, 48 warnings and exactly **one** error.
+189 dangling links cannot be errors when the 1994 houses carry that many. Slumberland's inescapable
+basement is the original's design (see `acafec7`), so a staircase with nothing to arrive on cannot be
+an error either. The one error is the out-of-range object slot in CD Demo House room 72 that
+`docs/analysis/` has documented since Stage 1.
+
+**One check turned out to be blaming the author for a bug of ours.** `sound-id` fires when a
+`kSoundTrigger` names a `snd ` resource the house does not carry, and it found 20. Checking them
+against the sound manifest row by row split them 13 / 7: thirteen real ones (In The Mirror names
+`snd ` 10000 twice; Teddy World names `snd ` 3000 eleven times and ships no `snd ` resources at all),
+and seven that are the five MACE 6:1 resources gliderGo's extractor cannot decode
+(`docs/IMPROVEMENTS.md` 2.49, open since Stage 1). Telling an author their sound is missing when it is
+sitting in their resource fork and played fine in 1994 is worse than saying nothing, so that is now a
+separate check, `sound-unreadable`, whose text says out loud that the gap is ours. Both findings also
+say the part that matters more than the silence: a trigger whose sound fails to load gets **no hot
+spot at all**, so it cannot be touched, and a house using one as a signpost has lost the signpost.
+
+Two checks were deliberately not written, with the reasons recorded in `docs/IMPROVEMENTS.md` 4.1.
+Static reachability — "can the player get from the first room to a star" — would be guesswork,
+because `Room.Openings` is a dead field in all 4,070 rooms and the real openings are computed at run
+time; reachability belongs to Stage 2's scripted playthrough, which answers it by playing. And
+"objects outside their room" needs `GetObjectRect`'s per-type geometry, which lives in
+`internal/render` where `internal/house` cannot reach it.
+
+The catalogue is held to the code rather than maintained beside it.
+`internal/house/lintcatalogue_test.go` parses `lint.go`'s syntax tree, collects every `l.add` call
+site's check id and severity, and requires that the table lists exactly the ids the code can emit
+and declares for each the worst severity any call site uses. A behavioural test would only have
+proved the ids it happened to trigger exist.
+
+Three repairs fell out of writing it. `internal/render` had its own copies of `ExtractFloorSuite`
+and `GetRoomNumber`; they delegate to `internal/house` now, and the dead `kNumUndergroundFloors`
+beside them is gone. `internal/game`'s link predicates and `internal/house`'s are pinned to each
+other across all 144 object codes by `internal/game/linkagreement_test.go`, so the transcription can
+keep its `Objects.c` comments and the map can keep its lookup without the two drifting. And two
+documents claimed every shipped house has at least one `kStar` — Fun House has none, which is
+precisely why `no-stars` is a warning rather than an error.
+
+Also written down: the pre-2.0 link packing cannot express suite 100 or above, because the version-1
+layout puts the suite in the low two decimal digits. It is not just unreachable, it *collides* —
+`MergeFloorSuite(-7, 100)` and `MergeFloorSuite(-6, 0)` are the same `short` — which is very likely
+why version 2.0 swapped the two fields. `docs/analysis/house-format.md` §7.2 and a test that asserts
+the collision rather than avoiding it.
+
 ### The Windows backend has been run by somebody (2026-09-21)
 
 Every release so far shipped two Windows archives under a caveat in bold: *"the Windows code has

@@ -15,7 +15,7 @@ import (
 func houseCmd(args []string) error {
 	if len(args) == 0 {
 		usage(os.Stderr)
-		return fmt.Errorf("house needs a subcommand: dump, build, check, info or rooms")
+		return fmt.Errorf("house needs a subcommand: dump, build, check, lint, checks, info or rooms")
 	}
 	switch args[0] {
 	case "dump":
@@ -24,6 +24,10 @@ func houseCmd(args []string) error {
 		return houseBuild(args[1:])
 	case "check":
 		return houseCheck(args[1:])
+	case "lint":
+		return houseLint(args[1:])
+	case "checks":
+		return houseLintChecks(args[1:])
 	case "info":
 		return houseInfo(args[1:])
 	case "rooms":

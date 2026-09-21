@@ -1231,7 +1231,10 @@ that, and what it left open.
 ### Stage 2 — new houses
 
 - Text house format (`levels/*.house.txt`) + compiler + validator, sharing the original's
-  legality rules (`docs/analysis/house-format.md`).
+  legality rules (`docs/analysis/house-format.md`). **DONE:** the format and both directions
+  are `glidertool house dump` / `house build` from Stage 1, and the validator is
+  `glidertool house lint` — 29 checks, calibrated so the 22 shipped houses produce one error
+  between them, with `house checks` as the lookup table (`docs/IMPROVEMENTS.md` 4.1).
 - A level-set concept: **Original** (the 22 shipped houses) and **New** (ours), chosen in
   the house-selection UI.
 - New houses designed against the quantitative profile of the originals in

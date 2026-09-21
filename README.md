@@ -248,6 +248,8 @@ The workshop for the 1994 data. `make glidertool`, then:
 bin/glidertool house info assets/extracted/houses/*.house    # 22 houses, 4,070 rooms
 bin/glidertool house dump "assets/extracted/houses/Demo House.house" | less
 bin/glidertool house build my-house.txt -o my-house.house    # and back again, byte for byte
+bin/glidertool house lint my-house.house                     # will it play as authored?
+bin/glidertool house checks                                  # what each lint check means
 bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
 bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
 bin/glidertool types                                         # the 117 object types
@@ -257,6 +259,16 @@ bin/glidertool types                                         # the 117 object ty
 diff. `render` composes a room the way the game does and writes a PNG, which is how the renderer
 got checked by eye. `replay` runs a scripted session headlessly, which is what a useful bug report
 carries.
+
+`house lint` is the other half of authoring. `house check` asks whether the file survived both
+codecs; `house lint` asks whether the house will *play* — a transporter whose link points at a room
+that does not exist, a staircase with nothing to arrive on, a sound trigger naming a `snd ` the
+house does not carry. None of those is a crash in the original: the player simply cannot get out of
+the room, which is exactly why it is worth catching before anybody plays it. Twenty-nine checks at
+three severities, `-fail warn` for a CI step, and `house checks` prints the table so a finding can
+be looked up. Run over the 22 shipped houses it reports 634 notes, 48 warnings and one error, and
+that is the calibration: the originals have to lint clean enough for the exit code to mean
+something.
 
 ## What is in here
 

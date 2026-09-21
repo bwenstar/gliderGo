@@ -245,6 +245,14 @@ type Bank struct {
 	// house fail to get a hot spot at all. See game/hotspots.go's loadTriggerSound.
 	Triggers map[int16]*Sound
 
+	// Unreadable is the sounds the house does carry that this port cannot decode, by
+	// ID, holding the extractor's reason. It exists so that a tool can tell the two
+	// kinds of silence apart: an ID missing from both maps is an authoring mistake the
+	// original punished identically, while an ID in here played fine in 1994 and is
+	// silent only because of a gap on our side (all five are MACE 6:1). The game does
+	// not consult it -- Trigger answering nil is the C's behaviour either way.
+	Unreadable map[int16]string
+
 	// House is whose Triggers those are, for reports.
 	House string
 
@@ -326,14 +334,16 @@ func HasBank(fsys fs.FS) bool {
 // GetResource finds first.
 //
 // A house with no sounds is not an error and neither is a missing directory. Nine of the
-// twenty-two shipped houses have no custom sounds at all, and in five resources across four of
+// twenty-two shipped houses have no custom sounds at all, and in five resources across three of
 // the other thirteen the sound is present but MACE 6:1 compressed and so unreadable -- the
 // extractor marks such a row `status` other than `ok` and this skips it, which lands in exactly
 // the C's behaviour: GetResource returns nil, LoadTriggerSound returns -1, and the sound trigger
 // silently gets no hot spot. Demo House's only sound is one of the five, so twelve houses arrive
-// here with anything to load.
+// here with anything to load. The five are recorded in Unreadable rather than dropped, because
+// a report that cannot tell them from a sound the house never had would blame the wrong party.
 func (b *Bank) LoadHouse(name string) error {
 	b.Triggers = map[int16]*Sound{}
+	b.Unreadable = map[int16]string{}
 	b.House = name
 
 	rows, err := readManifest(b.fsys, "houses/manifest.tsv")
@@ -344,7 +354,11 @@ func (b *Bank) LoadHouse(name string) error {
 		return err
 	}
 	for _, r := range rows {
-		if r["house"] != name || (r["status"] != "" && r["status"] != "ok") {
+		if r["house"] != name {
+			continue
+		}
+		if st := r["status"]; st != "" && st != "ok" {
+			b.Unreadable[int16(atoiOr(r["id"], 0))] = st
 			continue
 		}
 		snd, err := b.load("houses", r)
@@ -364,6 +378,16 @@ func (b *Bank) Trigger(id int16) *Sound {
 		return nil
 	}
 	return b.Triggers[id]
+}
+
+// WhyUnreadable is why an ID the house carries did not become a Trigger, or "" if the house
+// carries no such resource. Trigger returning nil answers "there is no sound here", which is
+// all the game needs; this answers "and whose fault that is", which is what a report needs.
+func (b *Bank) WhyUnreadable(id int16) string {
+	if b == nil {
+		return ""
+	}
+	return b.Unreadable[id]
 }
 
 // Effect is theSoundData[slot], range-checked. Out of range answers nil rather than

@@ -501,11 +501,23 @@ what is actually missing. While there: the original has one volume, set from the
 control panel. A release needs at least effects and music separately, and a mute that
 survives a restart.
 
-### 2.14 A house whose custom trigger sound fails to load is silently silent — **planned, 1.6**
+### 2.14 A house whose custom trigger sound fails to load is silently silent — **the linter half DONE, 2.0; the in-game log is still open**
 
 A house can carry its own 'snd ' resources for triggers. If one fails to load the original
 plays nothing and says nothing, so a house author gets no signal that their sound is
 broken. The house linter (4.1) should report it, and the game should log it once.
+
+**2.0 did the linter half, and found that the silence has two causes that must not be reported
+the same way.** `house lint` reports `sound-id` when the house names a `snd ` it does not carry
+— 13 across the corpus, all real — and `sound-unreadable` when the house does carry it and
+gliderGo cannot decode it (2.49). Both findings say the thing this entry had wrong: the failure
+is worse than "silent". `LoadTriggerSound` failing makes `CreateActiveRects` compose the room
+with no hot spot at all, so the trigger cannot be *touched*, and a house that used one as a
+signpost has lost the signpost rather than its sound.
+
+The in-game log is still open, and is smaller than it was: the author-facing signal now exists,
+so what remains is one line on `stderr` for a player whose bug report says a trigger does
+nothing.
 
 ### 2.15 Leaving a game requires a physical key release — **DONE, 1.7b**
 
@@ -1642,7 +1654,7 @@ Four things about it are worth knowing:
 
 CoreAudio at Stage 6 is the same problem again, and the seam is now in place for it.
 
-### 2.49 Five house sounds ship as silence — **note; blocked on data, and 4.1's linter should say so**
+### 2.49 Five house sounds ship as silence — **the linter says so as of 2.0; the decoder is still blocked on data**
 
 Five of the 63 `'snd '` resources in the shipped houses are MACE 6:1 compressed (`cmpSH`,
 `compressionID` 4): `CD Demo House` 3007 "Door Chime", `Demo House` 3011 "Meow",
@@ -1662,6 +1674,25 @@ Stage 2 houses, not in Stage 1. What is owed sooner is that the Stage 2 linter (
 "custom trigger sounds that do not load" on its list from 2.14, and these five are the corpus it
 should be tested against: a house author whose sound is silently dropped should be told at build
 time, not by playing the room.
+
+**2.0 paid that debt, and these five are the reason the check is two checks.** Writing `sound-id`
+— "the house names a `snd ` it does not carry" — produced 20 findings over the corpus, and
+splitting them against `assets/extracted/sound/houses/manifest.tsv` showed that 7 of the 20 were
+these five resources rather than anything an author did. Reporting those as an authoring defect
+would be worse than not reporting them at all, because the author would go looking for a mistake
+they did not make. So the linter has `sound-unreadable` as a separate check whose text says out
+loud that this one is ours and that the sound played on a 1994 Mac, `audio.Bank.Unreadable` carries
+the extractor's `status` column through so a tool can tell the two apart, and `house.SoundStatus`
+has three answers rather than two. The remaining 13 `sound-id` findings are all genuine: In The
+Mirror names `snd ` 10000 twice, and Teddy World names `snd ` 3000 eleven times while carrying no
+`snd ` resources at all.
+
+What is left here is only the decoder. MACE 6:1 is a published fixed-rate ADPCM and would live in
+`tools/probe_snd.py` rather than in the game, which reads PCM out of the extracted tree and should
+stay a consumer of it. The cost is not the decoder: `make assets-check` holds the extracted tree
+byte-for-byte, so closing this is a decoder *plus* a regenerated and re-reviewed asset commit, to
+buy five effects in three houses nobody has complained about. Worth doing before a 1.0; not worth
+doing in front of Stage 2's own content.
 
 ---
 
@@ -2245,7 +2276,7 @@ trap. Stage 1's contract is the 1994 behaviour, and this *is* the 1994 behaviour
 
 ## 4. Tooling and content
 
-### 4.1 A house linter — **planned, Stage 2**
+### 4.1 A house linter — **DONE, 2.0**
 
 `glidertool house check` already round-trips and sanity-checks a house. Stage 2 authors new
 houses, and the failure modes it should catch first are the ones the shipped houses
@@ -2254,6 +2285,62 @@ objects that are linked from nowhere, destination rooms with no staircase to arr
 and (2.14) custom trigger sounds that do not load. A house that fails to link is not a
 crash in the original — the player just cannot get out of the room — which is precisely
 why a linter is worth more than a runtime check.
+
+**`internal/house/lint.go`, `glidertool house lint` and `glidertool house checks`.** Twenty-nine
+checks at three severities, and the severities are the part that took the work. The 22 shipped
+houses produce 634 notes, 48 warnings and **one** error between them, and that shape is the
+design rather than an accident: a released game has to lint the originals clean enough that a
+`-fail error` step is worth putting in CI, while still saying the true thing about each defect.
+So the calibration went the other way round from the usual — the checks were written first, run
+over the corpus, and then each class was argued down to the severity the *originals* justify.
+189 dangling links across the corpus cannot be errors. Slumberland's inescapable basement is the
+original's design (commit `acafec7`), so `stairs-unpaired` cannot be an error either.
+
+Three things are worth keeping from the writing of it:
+
+- **`sound-id` started out blaming the author for a bug of ours.** The check fires when a
+  `kSoundTrigger` names a `snd ` the house does not carry, and it found 20. Splitting them
+  against `assets/extracted/sound/houses/manifest.tsv` row by row gave 13 real ones (In The
+  Mirror names `snd ` 10000 twice; Teddy World names `snd ` 3000 eleven times and carries no
+  `snd ` resources at all) and 7 that are gliderGo's fault — the five MACE 6:1 resources our
+  extractor skips, across three houses, which 2.49 has been carrying as a note since 1.6. A
+  linter that reports the second kind as an authoring defect is worse than one that does not
+  report it, because the author will go looking for a mistake they did not make. Hence
+  `SoundStatus` with three answers instead of a boolean, `audio.Bank.Unreadable` to carry the
+  extractor's `status` column through, and `sound-unreadable` as a separate check whose text says
+  out loud that this one is ours.
+- **What the finding says matters more than that it fires.** `sound-id` does not say "missing
+  sound". It says that `LoadTriggerSound` looks only in the house's own resources and never the
+  application's (`Sound.c:265-303`), and that `CreateActiveRects` then composes the room with
+  **no hot spot at all** — so the trigger is not merely silent, it cannot be touched. That is a
+  different bug report from the one an author would otherwise file, and it is three lines of
+  comment rather than a day of theirs.
+- **The catalogue is held to the code by an AST test.** `LintChecks()` is what `house checks`
+  prints and the only place a reader can look up an id they have just seen. A hand-maintained
+  list like that rots silently the first time somebody adds a check, so
+  `internal/house/lintcatalogue_test.go` parses `lint.go`, collects every `l.add` call site's
+  severity identifier and id literal, and requires the two directions to match *and* the
+  declared severity to be the worst any call site uses. A behavioural test would only have
+  proved the ids it happened to trigger exist; this proves there are no others. It cost one
+  call site its `sev` variable — the dangling-link branch is now two literal `l.add` calls
+  sharing a `const` format string — which is a fair price for the guarantee.
+
+**Two checks were considered and deliberately not written.** *Static reachability* — "can the
+player get from the first room to a star" — is tempting and would be wrong: `Room.Openings` is a
+dead field (0 in all 4,070 rooms) and the real openings are computed at run time by
+`DetermineRoomOpenings`, so anything static would be guessing at the geometry. Reachability
+belongs to Stage 2's other acceptance criterion, the scripted headless playthrough, which
+answers it by actually playing. *Objects outside their room* — the `ForceRectInRect` clamp in
+`GetObjectRect` — is deferred because those per-type rects live in `internal/render`, which
+`internal/house` cannot import; it wants either a callback like `PictSize` or to live in the
+renderer, and neither is worth doing before a new house needs it.
+
+Two smaller repairs fell out of the corpus run. `internal/render` had its own copies of
+`ExtractFloorSuite` and `GetRoomNumber`; they now delegate to `internal/house`, and the dead
+`kNumUndergroundFloors` beside them is gone. And `internal/game`'s link predicates and
+`internal/house`'s are now pinned to each other by `internal/game/linkagreement_test.go`, which
+walks all 144 object codes rather than trusting two lists to stay in step — the transcription
+keeps its `Objects.c` comments, the map keeps its lookup, and neither can drift.
 
 ### 4.2 A bug-report format, so that a released game can be debugged — **DONE, 1.5b**
 
@@ -3150,6 +3237,13 @@ alone for a stated reason rather than missed.
 | The author email in all 42 commits' metadata is a personal address — a leak that no content grep could have found, since it is in the objects rather than the files | 1.10c | this stage |
 | Four commit *messages* named the mirror by product name, found by grepping `git log` rather than the tree, which is the same class of leak one level out | 1.10c | this stage |
 | The Makefile reads `GLIDERGO_TOOLCHAIN_DIR` rather than hard-coding `~/.local/opt`, so it cannot disagree with the bootstrap about which Go was just installed | 1.10c | this stage |
+| 4.1 `internal/house/lint.go`, `glidertool house lint` and `glidertool house checks`: 29 checks, severities argued down against the 22 shipped houses until they produce 634/48/**1** | 2.0 | this stage |
+| 2.14 (the linter half) and 2.49 (the reporting half) — `sound-id` split from `sound-unreadable`, so the 7 findings that are gliderGo's MACE gap do not read as 7 authoring mistakes | 2.0 | this stage |
+| `internal/house/lintcatalogue_test.go` reads `lint.go`'s AST, so a check cannot ship without a row in the table a report sends the reader to | 2.0 | this stage |
+| `internal/game/linkagreement_test.go`: the two "which objects carry a link" implementations pinned to each other over all 144 object codes, so the `Objects.c` transcription and the linter's map cannot drift | 2.0 | this stage |
+| `internal/render`'s duplicate `ExtractFloorSuite`/`GetRoomNumber` deleted in favour of `internal/house`'s, and the dead `kNumUndergroundFloors` beside them | 2.0 | this stage |
+| The pre-2.0 link packing cannot express suite ≥ 100 — it *collides* — written into `house-format.md` §7.2 and asserted rather than avoided | 2.0 | this stage |
+| Two documents claimed every shipped house has a `kStar`; Fun House has none, which is why `no-stars` is a warning | 2.0 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

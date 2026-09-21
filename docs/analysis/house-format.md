@@ -2335,6 +2335,16 @@ Consequences of the `% 100` field width:
 - For **version 1** the *suite* occupies the low two digits, so a version-1 house
   can only address suites 0..99. Suites 100..127 are unreachable by link in
   version 1. This is precisely why the migration in Part 11 exists.
+
+  It is not merely that they are unreachable: under the version-1 packing the two
+  encodings *collide*, because a suite of 100 carries into the floor digits.
+  `MergeFloorSuite(-7, 100)` and `MergeFloorSuite(-6, 0)` are the same `where`, so
+  a version-1 link cannot even be written unambiguously for suite ≥ 100. The port
+  pins both halves in `internal/house`'s `TestMergeFloorSuiteRoundTrips`: the
+  round trip holds for every floor in [−7, 56] against suites 0..99 under both
+  packings, and the collision above is asserted rather than avoided, so that
+  anybody tempted to "fix" the version-1 inverse finds out why it cannot be fixed.
+  This is the most likely reason 2.0 swapped the two fields.
 - The **encoding is lossy for illegal input**: a `floor + 8` of 100 or more would
   overflow into the suite digits. Validation's floor range check prevents it.
 
@@ -3414,7 +3424,12 @@ warning (`GliderPRO/Sources/HouseLegal.c:1203`) because the house would be
 unwinnable. It is also the source of `numStarsRemaining`
 (`GliderPRO/Sources/Play.c:314`).
 
-Observed: 69 `kStar` objects total; every shipped house has at least one.
+Observed: 69 `kStar` objects total, spread over 21 of the 22 houses. **Fun House
+has none**, so the original's own validator would flag it in red — see
+`docs/analysis/original-houses.md` §4.8. That single house is why `glidertool
+house lint`'s `no-stars` check is a warning and not an error: a linter that
+rejected a shipped house would be wrong about the corpus rather than about the
+house.
 
 ## 10.12 Summary of what the format actually guarantees
 
