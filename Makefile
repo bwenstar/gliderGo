@@ -229,8 +229,9 @@ cross-windows: embedded
 #
 # A green windows row is a weaker claim than a green linux/amd64 +cgo one, and worth saying
 # plainly: it means the win32 backend compiles and vets for that architecture, not that it has
-# ever opened a window. Nothing on this airgapped Linux host can run it. The first execution
-# is ci.yml's `native` job on windows-latest; see internal/platform/win32/win32.go's own note.
+# ever opened a window. Nothing on this airgapped Linux host can run it. amd64 has been run
+# elsewhere -- on a Windows Server 2025 desktop, see docs/windows-first-run.md -- and arm64 has
+# not been run at all, which is why only the amd64 row says so below.
 #
 # linux/arm64 is built with CGO_ENABLED=0 for a different reason: cgo there needs an aarch64
 # cross-compiler, and without one the build dies inside runtime/cgo with
@@ -247,7 +248,8 @@ cross: embedded
 	@mkdir -p $(BIN)/cross
 	@fail=0; for t in $(CROSS_TARGETS); do \
 		os=$${t%%/*}; arch=$${t##*/}; ext=""; be="null backend"; \
-		[ "$$os" = windows ] && { ext=".exe"; be="win32 backend (never run here)"; }; \
+		[ "$$os" = windows ] && { ext=".exe"; be="win32 backend (run on Server 2025)"; }; \
+		[ "$$t" = windows/arm64 ] && be="win32 backend (never run on arm64)"; \
 		out=$(BIN)/cross/glidergo-$$os-$$arch$$ext; \
 		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(GAMEFLAGS)' -o $$out ./cmd/glidergo 2>&1; then \
 			printf '  %-22s %8s KiB  %s\n' "$$os/$$arch" "$$(( $$(wc -c < $$out) / 1024 ))" "$$be"; \

@@ -4,14 +4,24 @@ package audio
 
 // The native Windows output: winmm's waveOut, so an unzipped .exe makes a noise on its own.
 //
-// HONEST CAVEAT, READ FIRST. This file has never run, for the reason internal/platform/win32 says
-// at the same length: it was written on an airgapped Linux host with no Windows to test on.
-// `GOOS=windows go build` and `go vet` pass for amd64 and arm64, the two struct layouts and the
-// error table are unit-tested on Linux (see waveout.go, which carries no build tag for exactly that
-// reason), and every call below is one of seven with a documented MMRESULT that is checked. What is
-// unverified is everything that talks to the device. Expect the first run to need a correction, and
-// note that there are two ways out if it does: `-audio ffplay` still takes the external-player path
-// (sink.go), and `-wav out.wav` still writes a file.
+// HONEST CAVEAT, READ FIRST. This file was written on an airgapped Linux host with no Windows to
+// test on, for the reason internal/platform/win32 gives at the same length, and it still cannot be
+// exercised from there. `GOOS=windows go build` and `go vet` pass for amd64 and arm64, the two
+// struct layouts and the error table are unit-tested on Linux (see waveout.go, which carries no
+// build tag for exactly that reason), and every call below is one of seven with a documented
+// MMRESULT that is checked.
+//
+// It has been run, once, on Windows Server 2025 (amd64) against a real output device: `-audio list`
+// found waveout, the sink opened, and across the four runs that used the device rather than a WAV
+// file the game asked it for 73 sounds and it played 73, refusing none. docs/windows-first-run.md
+// is the write-up.
+//
+// Two things that run did not settle. It was one device on one machine, so a driver that refuses
+// this format is still an open question -- `-audio ffplay` takes the external-player path (sink.go)
+// and `-wav out.wav` writes a file, so there are two ways out. And the drop counter is not a fault
+// when the game runs unpaced: `-bench` mixes far faster than 22 kHz, so a bench log reporting tens
+// of thousands of samples dropped by waveout is the sink doing its job. A *paced* run that drops
+// anything is the thing to look at.
 //
 // WHY THIS EXISTS. sink.go pipes the mix to a command-line player because that is the right answer
 // on Linux and needs no driver. Windows ships none of the five, so a player who downloaded a

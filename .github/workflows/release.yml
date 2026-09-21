@@ -32,13 +32,15 @@
 # for the build-tag complements), which runs the whole game but shows nothing on screen, and those
 # archives are named `-headless` so nobody downloads one expecting to play. macOS is stage 6.
 #
-# The two windows archives carry a caveat the linux one does not, and it belongs in the release
-# notes rather than in a bug report: neither that backend nor the sound behind it has ever been
-# executed. Both were written on an airgapped Linux host with no Windows to run them on, both
-# compile and vet for amd64 and arm64, and ci.yml's `native` job on windows-latest is the first
-# thing that runs their tests. What is no longer a gap is sound itself: internal/audio has a native
-# waveOut driver, so an unzipped .exe plays without FFmpeg or anything else installed, and
-# `-audio ffplay` is the way round it if the driver misbehaves (docs/IMPROVEMENTS.md 2.48).
+# The windows archives used to carry a caveat the linux one did not -- that neither the backend nor
+# the sound behind it had ever been executed. For windows-amd64 that is no longer true: it has been
+# run on Windows Server 2025 on a real interactive desktop, and the window's pixels matched a
+# Linux-rendered frame exactly (docs/windows-first-run.md). windows-arm64 keeps the caveat, because
+# the machine that ran the tests was x86-64 and nothing here has an ARM64 Windows to try. What is
+# also no longer a gap is sound: internal/audio has a native waveOut driver, so an unzipped .exe
+# plays without FFmpeg or anything else installed, and `-audio ffplay` is the way round it if the
+# driver misbehaves (docs/IMPROVEMENTS.md 2.48). The release notes below say all of this in the
+# reader's terms rather than the maintainer's.
 
 name: Release
 
@@ -296,8 +298,8 @@ jobs:
 
             # How to actually start it, next to the thing you just unpacked. Written for the
             # only reader who matters here: somebody who has this archive open and does not
-            # know that three of the six cannot draw, or that one of the three that can has
-            # never been run by anybody.
+            # know that three of the six cannot draw, or that one of the three that can
+            # (windows-arm64) has never been run on a machine of its own architecture.
             #
             # A headless archive must NOT tell its reader to run the bare binary. The null
             # backend delivers no quit event, and without -frames the shell loop has no exit
@@ -473,7 +475,8 @@ jobs:
           | Archive | Plays on screen? |
           |---|---|
           | `linux-amd64` | **Yes** — X11 backend, built against libX11. |
-          | `windows-amd64`, `windows-arm64` | **Yes** — GDI backend, new here. Read the caveat below. |
+          | `windows-amd64` | **Yes** — GDI backend, and it has been watched doing it. |
+          | `windows-arm64` | **Yes** — the same GDI backend, but never run on an ARM64 machine. |
           | anything marked `headless` | No. It runs the whole game but draws nothing yet. |
 
           macOS is stage 6. The headless builds are still useful: they run houses, take `-shot`
@@ -483,12 +486,24 @@ jobs:
 
           Two things, both honest rather than apologetic.
 
-          **The Windows code has never been run.** The window, the keyboard and the sound were
-          all written on an offline Linux machine with no Windows to test on. They compile for
-          x86-64 and ARM64, the keyboard, scaling and audio ABI are unit-tested, and CI
-          compiles and tests them on a Windows runner — but until you start it, nobody has
-          watched it draw a frame or heard it play a note. If it misbehaves, a bug report with
-          the console output in it is genuinely useful.
+          **The x86-64 Windows build has been run, on Windows Server 2025 (build 26100).** For
+          the first releases it had not been, and this section said so: the window, the keyboard
+          and the sound were all written on an offline Linux machine with no Windows to test on.
+          It has since been run on a real interactive desktop — 4,320 frames of *Slumberland*
+          across six runs, the paced one holding 29.9 fps against the original's 30.07 target.
+          The `waveOut` driver found a device and played every sound it asked for, 0 refused.
+          The strongest result is that the six title screens the game renders came out
+          **byte-identical** to the same version's output on Linux, and so did the window
+          itself: a screenshot of the running game matches a Linux-rendered frame exactly,
+          pixel for pixel.
+
+          What that run did **not** cover, in order of how soon you will hit it: playing with a
+          keyboard, touching the window, and the ARM64 build. It was driven by `-frames`, so
+          nobody has yet steered a glider through a house on Windows by hand —
+          `internal/platform/win32/keys.go` is still the least-exercised file here — and nothing
+          resized, minimised or closed the window either. If any of that misbehaves, a bug report
+          with the console output in it is genuinely useful. `docs/windows-first-run.md` in the
+          source tree is the full write-up, including the hashes and how to reproduce them.
 
           **Sound needs nothing installed.** The game carries its own `waveOut` driver and
           talks to Windows' audio directly — no FFmpeg, no redistributable. `-audio list` shows

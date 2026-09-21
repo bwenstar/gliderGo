@@ -2664,6 +2664,38 @@ Left as a note: the same three steps would help the `check` job, which runs the 
 against a literal. A vet-style check that flags a path literal containing `/` in the same expression
 as a `filepath` call would cover the class instead of the two instances.
 
+### 4.11 `-wav` is clocked by wall time, so audio cannot be compared across machines the way pixels can — **note; found by the first Windows run**
+
+The first run of the Windows build produced a paced `-wav` capture that differed from the Linux one
+in about 124,000 byte positions, which reads like a platform regression and is not one. Two *Linux*
+runs of the identical command differ from each other in about 122,000. Same magnitude, same cause —
+and those two counts are themselves not repeatable, which is the whole of the finding.
+
+The cause is that `internal/audio`'s mixer is clocked by real time rather than by frames. Under
+`-bench` that is visible in the summary line: the same 900-frame command produced 0.9 s of audio on
+one machine and 0.5 s on another, because the capture is as long as the run *took*, not as long as
+the run represents. A paced run is frame-locked in total length — 600 frames gives 19.9–20.0 s
+every time, three measured runs landing on 887,420, 887,970 and 888,060 bytes — but the sample at
+which each sound starts still depends on where the pacer happened to be when the mixer asked, so
+two captures are never byte-equal.
+
+Why it matters beyond tidiness: `-shot` renders are byte-identical across operating systems and
+architectures, which is what makes them a regression check a stranger can run and CI can diff — the
+first Windows run leaned entirely on that property. Audio has no equivalent, so there is no cheap
+way to notice that a platform's sink has started resampling, mixing at the wrong rate, or dropping
+a channel. The `sound -- N requests, N played` counters catch a refusal but say nothing about what
+came out.
+
+The fix is to clock the mixer off the frame counter: advance it by exactly `rate/30.07` samples per
+frame rather than by elapsed time, with the device consuming from a buffer that is allowed to run
+ahead. That makes `-wav` a function of (house, seed, frame count) alone, which is reproducible, and
+lets `make check` carry a hash of one the way `internal/fidelity` carries pixel hashes. It does not
+change what a player hears, because a paced run already produces a frame-locked length; it changes
+whether the file is the same file twice.
+
+Not started. The counters and the clipping figures are worth keeping either way — they are what
+distinguished "the device refused this" from "the mix was too loud" during the Windows run.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -2843,7 +2875,7 @@ tells anybody where to stand. Two things a release still cannot fix: §1.2's rea
 the 1994 content is shipped under, and the fact that the same 11.3 MB rides in both binaries of
 every archive (§5.3's first deferred item).
 
-### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; the CI matrix is the first attempt, and there is now a Windows backend riding on it**
+### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; windows/amd64 is now run as well as compiled, macOS and windows/arm64 are still compile-only**
 
 `make cross` builds `windows/amd64`, `windows/arm64`, `darwin/amd64`, `darwin/arm64`,
 `linux/arm64` and `linux/amd64` in about four seconds, and it is worth being precise about what
@@ -2860,11 +2892,17 @@ OS.
 The windows rows are a different case since the win32 backend landed: they carry a real backend
 even at `CGO_ENABLED=0`, so a green build there means the Windows window code compiles for that
 architecture. That is a stronger claim than "the portable part compiles" and a much weaker one
-than "it works". **Nothing on this machine can execute it.** The backend was written here, on an
-airgapped Linux host, and the first execution of `internal/platform/win32` in existence is
-`ci.yml`'s `native` job.
+than "it works". **Nothing on this machine can execute it**, and the backend was written here, on
+an airgapped Linux host, against nothing but the documentation.
 
-That job is the whole of the verification story for Windows, so it is worth knowing exactly what
+It has since been executed elsewhere, on a real Windows Server 2025 desktop, and `windows/amd64`
+is no longer a compile-only claim: the window opened, the blit put pixels on a screen that match a
+Linux-rendered frame exactly, and the `waveOut` sink played every sound it was given.
+`docs/windows-first-run.md` is the write-up and states the three gaps it left — no key was ever
+pressed, nothing touched the window, and `windows/arm64` still has never run anywhere. For that
+row, and for both darwin rows, every word above still holds.
+
+CI remains the *automated* half of the verification story, so it is worth knowing exactly what
 it does: `go build`, `go vet` and `go test ./...` on `windows-latest` and `macos-latest`; then, on
 Windows only, `glidergo -version` and `glidergo -frames 300 -bench`, which opens a real window and
 pushes 300 frames through `StretchDIBits`. The bench is `continue-on-error` on purpose — a hosted

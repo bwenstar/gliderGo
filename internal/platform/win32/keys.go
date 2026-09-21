@@ -13,8 +13,10 @@ package win32
 // keys_test.go holds the VK table against platform's own key list so a key added to the enum
 // cannot quietly go unmapped on Windows.
 //
-// What is left in win32.go, and therefore unverified until this runs on a real Windows machine,
-// is window creation, the message pump and the blit. See that file's own note.
+// Window creation, the message pump and the blit live in win32.go, and those have since been run on
+// a real Windows machine and checked against Linux pixel for pixel. This file's own subject has
+// not: that run was driven by -frames, so no key was ever pressed, and these two tables remain the
+// least-exercised code in the package on the platform they exist for. See win32.go's note.
 
 import "github.com/bwenstar/gliderGo/internal/platform"
 

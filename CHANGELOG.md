@@ -2,9 +2,11 @@
 
 All notable changes to gliderGo, newest first.
 
-There are no releases and no tags yet, so everything below is under `Unreleased`. The version a
-build reports is `git describe --tags --always --dirty`, which with no tags resolves to a bare
-short hash — see `docs/IMPROVEMENTS.md` 5.4, which owns tagging and the release pipeline.
+`v0.1.0` and `v0.1.1` have been tagged and published, but this file has not yet been split into
+version sections, so everything below is still under `Unreleased` — the entries are the work, and
+which tag happened to carry it is in `git log`. The version a build reports is `git describe
+--tags --always --dirty`. See `docs/IMPROVEMENTS.md` 5.4, which owns tagging and the release
+pipeline.
 
 Because Stage 1's whole goal was *"behave exactly the same as the original, only newer"*, this
 file records stages rather than features, each naming the commit that closed it. Where the port
@@ -14,6 +16,48 @@ knowingly departs from 1994 the entry says so and points at the numbered item in
 versioning yet, because nothing has been versioned.
 
 ## Unreleased
+
+### The Windows backend has been run by somebody (2026-09-21)
+
+Every release so far shipped two Windows archives under a caveat in bold: *"the Windows code has
+never been run."* It was true. `internal/platform/win32/` and `internal/audio/waveout_windows.go`
+were written on an offline Linux machine with no Windows on it, and CI compiling them on a runner is
+not the same claim. That caveat is now retired for `windows/amd64`, and kept for `windows/arm64`.
+
+`v0.1.1`'s own `windows-amd64` binary was run on a Windows Server 2025 desktop (build 26100): six
+`-shot` renders, five unpaced bench runs, and one paced 600-frame run that held 29.9 fps against the
+original's 30.07 target. 4,320 frames in total, from a directory containing nothing but the `.exe`.
+
+The result worth the entry is that the pixels are **byte-identical to Linux's**, and that this was
+checked on the actual desktop and not only in a file. All six title-screen renders hash the same on
+both platforms. More to the point, a screenshot taken by the operating system off the running
+window, cropped to its client area, is an exact pixel-for-pixel match for a frame the Linux build
+renders — which is the only way to prove the blit happened, because `Present` deliberately does not
+check what `StretchDIBits` returns, so a clean exit and a good frame rate are equally consistent
+with a window that never painted. Sound: `-audio list` found `waveout`, and across the four runs
+that used the device rather than a WAV file the game asked for 73 sounds and the driver played 73,
+refusing none.
+
+Two things that looked like platform bugs and were not, both written up rather than quietly
+dropped. The harness's last step checked for files in `%AppData%\glidergo` and found none, which
+was the harness being wrong and not Windows: `-house` with `-frames` goes through `playDirect`,
+whose own comment says it saves nothing, and a Linux run with a fresh `HOME` creates nothing
+either. That branch of `internal/datadir` was then exercised properly with `-import-prefs`, which
+did create `…\AppData\Roaming\glidergo\prefs.json`. And the Windows and Linux `-wav` captures
+differ in about 124,000 byte positions — but two *Linux* runs of the identical command differ from
+each other in about 122,000, so it is the mixer's wall-clock timing rather than anything about the
+platform, and neither count is repeatable twice running. A frame-locked
+mixer clock would make `-wav` reproducible enough for CI to diff audio the way it already diffs
+pixels; that is now `docs/IMPROVEMENTS.md` 4.11.
+
+What it did not cover, because the release notes now point at this: no key was ever pressed, so
+`internal/platform/win32/keys.go` is still the least-exercised file in the package on the platform
+it exists for; nothing touched the window itself (no resize, focus change or close); and
+`windows/arm64` has never executed at all. `docs/windows-first-run.md` is the full write-up, with
+the six hashes and the commands to reproduce them. The honest-caveat headers in `win32.go`,
+`keys.go` and `waveout_windows.go`, the release-note block in `.github/workflows/release.yml`, the
+archive table, the `Makefile`'s per-target labels and the README all now say what is true instead
+of what was true.
 
 ### The test suite had learned to spell paths the way Linux spells them (2026-09-21)
 

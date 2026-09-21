@@ -46,12 +46,12 @@ lines of cgo against Xlib, and Windows is pure `syscall` — no cgo, no redistri
 install. macOS and cross-compiled arm64 still run headless, which is most of the port but none of
 the window.
 
-The Windows half comes with a caveat that is worth stating plainly rather than in a footnote: it
-was written on an offline Linux machine that cannot run it, so its window creation, message pump
-and blit had never been executed by anybody at the point of writing. CI compiles and benches it on
-a Windows runner; a person running it is still the real test. The same is true of its sound, which
-is now a `waveOut` driver in the binary rather than a missing feature — see the audio note further
-down for what to do if it misbehaves.
+The Windows half was written on an offline Linux machine that cannot run it, which is worth stating
+plainly rather than in a footnote. It has since been run: 4,320 frames on a Windows Server 2025
+desktop, and the pixels its window put on that screen match a Linux-rendered frame exactly, pixel
+for pixel — [docs/windows-first-run.md](docs/windows-first-run.md) is the write-up, including the
+three things it did not cover. Two of those are worth knowing before you file a bug: nobody has
+played it with a keyboard yet, and `windows/arm64` has still never run at all.
 
 ## Where it is up to
 
@@ -135,9 +135,12 @@ range, `-audio waveout` or `-audio aplay` insists on one output, and `-wav out.w
 to a file whether or not anything is playing it. With no output at all the game runs silently rather
 than refusing to start.
 
-The Windows sink has the same caveat as the Windows backend: it compiles, its ABI is unit-tested,
-and it has never been run by anybody. If it misbehaves, `-audio ffplay` takes the external-player
-road instead ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48).
+The Windows sink has been run, on a Windows Server 2025 desktop: it found the machine's output
+device, took every sound the game asked it to play and refused none
+([docs/windows-first-run.md](docs/windows-first-run.md)). That was one machine with one sound card,
+so if it misbehaves on yours, `-audio ffplay` takes the external-player road instead
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.48) and `-wav out.wav` writes the mix to a file so
+you can hear what you should have heard.
 
 ## Controls
 

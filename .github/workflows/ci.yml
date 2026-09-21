@@ -1,19 +1,31 @@
 # gliderGo CI, for the public GitHub path.
 #
-# HONEST CAVEAT, READ FIRST. This file has never run. It was written on the airgapped host the
-# port is being developed on, which cannot reach github.com, so nothing below is verified end to
-# end -- not the action versions, not the runner package names, not xvfb. What *is* verified is
-# every command it invokes: `make check` was run here on a fresh no-asset tree with DISPLAY
-# unset and passed, `make cross` builds all six cross targets plus the host's own cgo build, and
-# the depth-24 requirement the x11 backend imposes was confirmed against a nested X server.
-# Expect the first push to need a correction or two, most likely in an action version.
+# HONEST CAVEAT, READ FIRST. This file was written on the airgapped host the port is being
+# developed on, which cannot reach github.com, so it is authored blind: nothing below can be
+# verified end to end from here -- not the action versions, not the runner package names, not
+# xvfb. What *is* verified is every command it invokes: `make check` was run here on a fresh
+# no-asset tree with DISPLAY unset and passed, `make cross` builds all six cross targets plus the
+# host's own cgo build, and the depth-24 requirement the x11 backend imposes was confirmed against
+# a nested X server.
+#
+# It has run on GitHub since, and the prediction above held: the first push needed two
+# corrections. The action versions had to move off Node 20 (checkout v4 -> v5, setup-go v5 -> v6),
+# and windows-latest failed `go test ./...` on two tests that had spelled a path the way Linux
+# spells one. Both are fixed. Whether the current run is green is not visible from this host, so
+# this comment does not claim it.
 #
 # The `native` job's Windows half is the exception to "verified locally": nothing here can run a
-# Windows binary, so that job is the first execution of internal/platform/win32 and of the waveOut
-# audio sink in existence. Its bench step is deliberately continue-on-error for that reason. Its
-# `go test` step is not, because internal/audio's Windows tests were written to be safe on a runner
-# with no sound card: they load winmm and resolve its entry points, which either works or is a real
-# defect worth a red X.
+# Windows binary. It used to be the first execution of internal/platform/win32 and of the waveOut
+# audio sink in existence; that is no longer so -- both have since been run on a Windows Server 2025
+# desktop, which is written up in docs/windows-first-run.md -- but this job is still the only thing
+# that runs them on every push, and it remains the first place a Windows regression shows up.
+#
+# Its bench step is deliberately continue-on-error, and the reason has narrowed rather than gone
+# away: a hosted runner's agent runs as a service, so what that step exercises is the no-visible-
+# desktop case, which is exactly the one the manual run could not cover. A failure there is a log
+# worth reading, not a red X on an unrelated pull request. Its `go test` step is not best-effort,
+# because internal/audio's Windows tests were written to be safe on a runner with no sound card:
+# they load winmm and resolve its entry points, which either works or is a real defect.
 #
 # WHAT THIS DOES NOT DO. Releases are release.yml's job, not this one, and the split is
 # deliberate: this workflow runs on pushes to main and on pull requests, and release.yml runs on
@@ -199,9 +211,11 @@ jobs:
   #
   # On Windows it is more than that, and it is the most important job in this file. The win32
   # backend and the waveOut audio sink were written on an airgapped Linux host with no Windows to
-  # run them on, so THIS is where they are compiled by a Windows toolchain for the first time and,
-  # in the test and bench steps, executed at all for the first time. See the caveats those two
-  # files carry: internal/platform/win32/win32.go and internal/audio/waveout_windows.go.
+  # run them on, so this is where a Windows toolchain compiles them and where their tests run on
+  # every push. They have been executed on a real desktop once, by hand, which is what closed the
+  # "never run" caveat -- see docs/windows-first-run.md and the notes in
+  # internal/platform/win32/win32.go and internal/audio/waveout_windows.go -- but that was one
+  # machine on one afternoon, and this job is what keeps it true.
   #
   # `make` is not installed on windows-latest, so these steps call go and python directly
   # rather than through the Makefile.
@@ -281,15 +295,22 @@ jobs:
           name: go-test-log-${{ matrix.os }}
           path: go-test-${{ matrix.os }}.log
 
-      # The first time the win32 backend runs anywhere: build the game, open a real window and
-      # push 300 frames through StretchDIBits. Everything before this step only proves it
-      # compiles.
+      # Build the game, open a real window and push 300 frames through StretchDIBits. Everything
+      # before this step only proves it compiles.
       #
       # Best-effort on purpose, and the reason is not timidity. A hosted Windows runner is not a
       # desktop -- the agent runs as a service, so whether CreateWindowExW and a window DC behave
       # as they do in front of a logged-in user is exactly the sort of thing that cannot be
-      # settled from here. If this step fails, the interesting thing is its log, not a red X on a
-      # pull request that has nothing to do with Windows. If it *passes*, the backend has drawn.
+      # settled from here. The logged-in case has been settled separately and by hand
+      # (docs/windows-first-run.md); this step is the other one, and the two are genuinely
+      # different code paths in Windows rather than the same test run twice. If it fails, the
+      # interesting thing is its log, not a red X on a pull request that has nothing to do with
+      # Windows.
+      #
+      # Note that a pass here does NOT prove pixels reached a screen: Present deliberately does
+      # not check StretchDIBits' return value (see its comment in internal/platform/win32), so a
+      # frame rate is reported whether or not anything was drawn. Proving that took a screenshot,
+      # which is what the manual run did.
       #
       # -frames bounds the run so it cannot hang waiting for a quit event that no automated
       # session will ever send; timeout-minutes is the belt to that braces. The bench needs a
@@ -301,7 +322,7 @@ jobs:
       # opposite would be: it is the path a player on a machine without one takes, so the log
       # should show the game reporting no output and playing on rather than refusing to start.
       # `-audio list` before it is the cheap version of the same question, printed on its own line.
-      - name: On-screen bench, the first run of the win32 backend (best effort)
+      - name: On-screen bench, the win32 backend in a service session (best effort)
         if: matrix.os == 'windows-latest'
         continue-on-error: true
         timeout-minutes: 5

@@ -2,15 +2,23 @@
 
 // Package win32 is the Windows backend: a window and a keyboard, in pure Go.
 //
-// HONEST CAVEAT, READ FIRST. This file has never run. It was written on the airgapped Linux host
-// the port is being developed on, which has no Windows toolchain to test with and no Windows to
-// test on. `GOOS=windows go build` and `go vet` pass for amd64 and arm64, the two pure pieces are
-// unit-tested on Linux (see keys.go, which carries no build tag for exactly that reason), and the
-// nearest-neighbour expansion below is platform.Expand -- the same function the x11 backend uses,
-// tested at every scale and benchmarked. What is unverified is everything that talks to Windows:
-// the window creation, the message pump and the blit. Expect the first run to need a correction.
-// ci.yml's `native` job on windows-latest is the first thing that will compile it, and a person
-// running a release archive is the first thing that will see it.
+// HONEST CAVEAT, READ FIRST. This file was written on the airgapped Linux host the port is being
+// developed on, which has no Windows toolchain to test with and no Windows to test on. It is still
+// authored blind and still cannot be exercised from there: `GOOS=windows go build` and `go vet`
+// pass for amd64 and arm64, the two pure pieces are unit-tested on Linux (see keys.go, which
+// carries no build tag for exactly that reason), and the nearest-neighbour expansion below is
+// platform.Expand -- the same function the x11 backend uses, tested at every scale and benchmarked.
+//
+// It has been run, once, elsewhere: Windows Server 2025 (build 26100, amd64) on a real interactive
+// desktop, 4,320 frames across six runs, and the pixels it put in its window were compared against
+// the frames the same version renders on Linux and matched exactly. Window creation, the message
+// pump, the blit and the scaled blit all work. docs/windows-first-run.md is the write-up.
+//
+// What that does NOT cover, and what a reader should still distrust: keyboard input, because the
+// run was driven by -frames and nobody pressed a key; arm64, which no machine here or there can
+// run; and everything about a window the player interacts with -- resizing, focus loss, dragging,
+// closing. ci.yml's `native` job compiles it on every push and benches it in a service session,
+// which is a different case from a logged-in desktop and deliberately best-effort.
 //
 // No cgo and no dependencies, which is not a preference: the build host has no Go module proxy
 // and no reachable GitHub, so go-sdl2, Ebitengine and golang.org/x/sys are simply unobtainable
