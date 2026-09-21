@@ -2544,6 +2544,63 @@ is above the both-keys test, and a held band key records a code every frame alth
 first fires. So a recorded-then-replayed session is not guaranteed to reproduce the session — it
 is guaranteed to reproduce *itself*, which is what a determinism test needs.
 
+### 4.9 The compiler is allowed to fuse a multiply and an add, and two of ours were fused on arm64 only — **DONE for the three sites found; the standing check is a note**
+
+4.5 gave a bug report the vocabulary to say "these two machines drew different pixels". This is the
+first thing found that could actually make them, and it was found by looking rather than by a
+failure, which is the part worth writing down.
+
+The Go spec permits an implementation to evaluate `a*b + c` with a single fused instruction, keeping
+the full product and rounding once, where separate operations round twice. It is not a bug and
+there is no flag that turns it off: it is explicitly allowed, and the only thing that forbids it is
+an explicit conversion of the intermediate value. amd64 codegen does not take the licence. arm64
+does, and `macos-latest` is arm64, so the CI matrix is the first place this port has ever been
+compiled by a backend that uses it.
+
+Three sites had it, and `GOOS=darwin GOARCH=arm64 go build -gcflags=-S ./... | grep FMADD` is how
+they were found — grep the assembly, not the source, because the source is where the fusion is
+*invisible*:
+
+- `internal/render/surface.go`, `FillPolyPatOrGray`: the scanline crossing, `aH + t*(bH-aH)`, twice
+  (the compiler unrolled it). The result is then `ceil`ed to a pixel column, so a last-bit
+  difference on a crossing that lands exactly on a boundary moves a whole column — `ceil(5.0)` is
+  5 and `ceil(5.000000000000001)` is 6. Four callers in `objectdraw.go` draw furniture shadows into
+  the background of nearly every room in the game, so an affected polygon would differ in every
+  screenshot of that room for the rest of the run.
+- `internal/audio/bank.go`, `stepFor`: `rateHz*RateDen/RateNum*FixedOne + 0.5`, truncated to a
+  16.16 step. A rate on a boundary would resample by one 65536th on an Apple Silicon Mac and not
+  on an x86 one, and every mixed sample after it would differ.
+
+Both are fixed, and differently on purpose. The polygon fill is now exact integer arithmetic: the
+vertices are integers and the row centre `y+0.5` doubles to an odd integer, so the crossing is a
+rational with a small numerator and denominator and the `ceil` is an integer division — there is no
+rounding left to disagree about, on any architecture, for ever. `stepFor` keeps its float64 and
+gains a conversion around the product, which forces the intermediate rounding and forbids the
+fusion; that is the cheap fix, and it is the right one where the value is a one-off at load time
+rather than a per-pixel inner loop.
+
+**What this was not.** It was not the cause of the CI failure that prompted the look, and saying so
+is the point of this paragraph. arm64 was emulated here by patching each site to call `math.FMA`
+explicitly and running the pixel and audio suites — `internal/fidelity`, `internal/render`,
+`internal/game`, `internal/shell`, `internal/audio`, `internal/replay` — and every golden matched.
+A 90-million-edge sweep over integer vertices confirms the arithmetic genuinely diverges (1,235,147
+crossings land in a different column under FMA), so the hazard is real; it is simply that no
+polygon any shipped house draws, and no sample rate any shipped sound carries, sits on one of those
+boundaries. The defect was latent, not active.
+
+Which is exactly why it was worth fixing anyway. A golden-hashing test suite that is only
+*accidentally* architecture-independent cannot tell anybody that it is: the next vertex a new house
+introduces, or the next edit to that inner loop, turns a latent difference into a wrong screenshot
+that reproduces on one developer's machine and not another's — and 4.5's report would faithfully
+record two different digests with nothing to explain them.
+
+The open half is the standing check. Nothing stops the next float multiply-add from appearing, and
+the grep above is a one-liner: a `make fma-check` that fails when `GOOS=darwin GOARCH=arm64`
+assembly contains an `FMADD` outside a deliberate allow-list would keep the property instead of
+re-establishing it by hand. It is left as a note rather than written now because the allow-list is
+empty today and a check with an empty allow-list is indistinguishable from a grep, and because the
+honest place for it is beside 4.5's cross-machine digest rather than bolted onto `make check`.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path

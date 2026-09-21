@@ -15,6 +15,33 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Arithmetic that cannot differ between an x86 and an Apple Silicon machine (2026-09-21)
+
+Two functions computed a float `a*b + c`, which the Go spec lets a compiler fuse into one
+instruction that rounds once instead of twice. amd64 codegen does not take that licence; arm64 does,
+and `macos-latest` is arm64, so the CI matrix is the first arm64 toolchain this port has met.
+
+- `FillPolyPatOrGray`'s scanline crossing is now exact integer arithmetic. The vertices are integers
+  and the row centre `y+0.5` doubles to an odd integer, so the crossing is a small rational and the
+  rounding to a pixel column is an integer division. `ceilHalf(float64) int` becomes
+  `ceilDiv(n, den int64) int64`. This matters because the crossing is then `ceil`ed: a last-bit
+  difference on a boundary moves an entire column, and four callers in `objectdraw.go` draw furniture
+  shadows into the background of nearly every room in the game.
+- `audio.stepFor` keeps its float64 and gains a conversion around the product, which forces the
+  intermediate rounding. A sample rate on a boundary would otherwise resample by one 65536th on one
+  architecture and not the other, and every mixed sample after it would differ.
+
+No golden changed, and that is deliberate rather than lucky-sounding: arm64 was emulated by patching
+each site to call `math.FMA` and re-running the pixel and audio suites, and every digest matched. So
+this was a latent difference, not an active one — worth closing because a suite that hashes pixels
+and audio bytes should be architecture-independent *by construction*, not by the accident that no
+shipped house draws a polygon on a boundary. `docs/IMPROVEMENTS.md` 4.9 records the finding, the
+`GOOS=darwin GOARCH=arm64 go build -gcflags=-S | grep FMADD` recipe that found it, and the standing
+check that is still a note.
+
+Also in CI: every action reference is bumped past the Node 20 runtime that GitHub has deprecated —
+`checkout@v5`, `setup-go@v6`, `upload-artifact@v5`, `download-artifact@v5`.
+
 ### Slumberland's basement is a trap on purpose (2026-09-18)
 
 A player went down the stairs in Slumberland and could not get back up, and asked whether the port

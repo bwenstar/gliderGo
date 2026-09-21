@@ -268,6 +268,18 @@ func (s *Surface) FillPatOrGray(r Rect, idx uint8) {
 // sampling each row at its centre (y+0.5) gives spans with exact integer
 // endpoints. The fill rule is even-odd, which for these simple closed outlines
 // is the same as any other.
+//
+// The scanline arithmetic is done in integers, and that is not a micro
+// optimisation: it is the only way this function answers the same thing on every
+// machine. Written with float64 -- `aH + t*(bH-aH)` -- it invites the compiler to
+// contract the multiply and add into one FMA, which the Go spec explicitly
+// permits and which arm64 codegen does take. FMA rounds once where the separate
+// operations round twice, so the two differ in the last bit, and a crossing one
+// ULP either side of a pixel boundary paints a column that the other does not:
+// `ceilHalf` turns 5.0 into column 5 and 5.000000000000001 into column 6. The
+// vertices are integers and y+0.5 doubles to an odd integer, so the exact
+// crossing is a rational with a small numerator and denominator -- computable
+// with no rounding at all. See docs/IMPROVEMENTS.md 4.9.
 func (s *Surface) FillPolyPatOrGray(pts []Pt, idx uint8) {
 	if len(pts) < 3 {
 		return
@@ -287,13 +299,17 @@ func (s *Surface) FillPolyPatOrGray(pts []Pt, idx uint8) {
 	if maxY > s.H {
 		maxY = s.H
 	}
-	var xs []float64
+	// The pixel column each crossing falls in, rather than the crossing itself.
+	// Folding ceilHalf in here is what lets the whole row be integers, and it
+	// changes no span: ceil is monotonic, so ordering the columns orders them the
+	// same way the crossings were ordered, and two crossings that ceil to one
+	// column bound an empty span either way round.
+	var xs []int
 	for y := minY; y < maxY; y++ {
-		yc := float64(y) + 0.5
 		xs = xs[:0]
 		for i := range pts {
 			a, b := pts[i], pts[(i+1)%len(pts)]
-			ay, by := float64(a.V), float64(b.V)
+			ay, by := int(a.V), int(b.V)
 			if ay == by {
 				continue
 			}
@@ -301,11 +317,22 @@ func (s *Surface) FillPolyPatOrGray(pts []Pt, idx uint8) {
 			if lo > hi {
 				lo, hi = hi, lo
 			}
-			if yc < lo || yc >= hi {
+			// The row centre y+0.5 lies in [lo, hi) exactly when y does, both
+			// bounds being integers: y+0.5 >= lo iff y >= lo, and y+0.5 < hi iff
+			// y < hi.
+			if y < lo || y >= hi {
 				continue
 			}
-			t := (yc - ay) / (by - ay)
-			xs = append(xs, float64(a.H)+t*float64(b.H-a.H))
+			// The crossing is aH + (yc-ay)*(bH-aH)/(by-ay). Doubling clears the
+			// half from yc and leaves an exact rational: numerator 2y+1-2ay times
+			// the run, over twice the rise. int64 because an off-screen vertex can
+			// be five figures and the product then outgrows a 32-bit int.
+			num := int64(2*y+1-2*ay) * int64(int(b.H)-int(a.H))
+			den := int64(2 * (by - ay))
+			if den < 0 {
+				num, den = -num, -den
+			}
+			xs = append(xs, int(a.H)+int(ceilDiv(num, den)))
 		}
 		if len(xs) < 2 {
 			continue
@@ -319,8 +346,8 @@ func (s *Surface) FillPolyPatOrGray(pts []Pt, idx uint8) {
 		}
 		row := y * s.W
 		for i := 0; i+1 < len(xs); i += 2 {
-			sx := ceilHalf(xs[i])
-			ex := ceilHalf(xs[i+1])
+			sx := xs[i]
+			ex := xs[i+1]
 			if sx < 0 {
 				sx = 0
 			}
@@ -338,14 +365,19 @@ func (s *Surface) FillPolyPatOrGray(pts []Pt, idx uint8) {
 	}
 }
 
-// ceilHalf maps a crossing at x to the first pixel column whose centre (x+0.5)
-// is at or past it.
-func ceilHalf(x float64) int {
-	n := int(x)
-	if float64(n) < x {
-		n++
+// ceilDiv is n/den rounded up, for den > 0, which is what maps a crossing to the
+// first pixel column whose centre is at or past it: the integer form of the
+// ceilHalf this file used to apply to a float64 crossing.
+//
+// Go's integer division truncates towards zero, so the remainder carries the
+// sign of the numerator and only a positive one means the quotient was rounded
+// down: ceilDiv(-7, 2) is -3, which is ceil(-3.5), and ceilDiv(7, 2) is 4.
+func ceilDiv(n, den int64) int64 {
+	q := n / den
+	if n%den > 0 {
+		q++
 	}
-	return n
+	return q
 }
 
 // CopyMode selects between the three CopyBits/CopyMask behaviours the static

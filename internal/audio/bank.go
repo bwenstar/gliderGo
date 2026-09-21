@@ -185,11 +185,19 @@ const FixedOne = 1 << 16
 //
 // A rate of zero -- a manifest with no rate column, or a Sound built by hand in a test -- is the
 // Macintosh rate, because that is what every sound the game shipped with is.
+//
+// The conversion around the product is deliberate and must stay. Written `x*FixedOne + 0.5` the
+// compiler may contract the multiply and the add into one FMA -- the Go spec allows it, arm64
+// codegen takes it -- and an FMA rounds once where the two operations round twice. That is a
+// last-bit difference in a value this function then truncates, so a rate sitting on a boundary
+// would step by one 65536th more on an Apple Silicon Mac than on an x86 one, and every mixed
+// sample after it would differ. An explicit float64 conversion forces the intermediate rounding
+// and forbids the fusion. See docs/IMPROVEMENTS.md 4.9.
 func stepFor(rateHz float64) int64 {
 	if rateHz <= 0 {
 		return FixedOne
 	}
-	return int64(rateHz*RateDen/RateNum*FixedOne + 0.5)
+	return int64(float64(rateHz*RateDen/RateNum*FixedOne) + 0.5)
 }
 
 // Frames is the sample's length. It is the byte length, the sound being 8-bit mono, and it

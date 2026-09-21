@@ -64,7 +64,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # libx11-dev is the one hard requirement, and it is a hard one: without its pkg-config
       # metadata `make check` FAILS -- `vet` and `test` compile internal/platform/backend, which
@@ -84,7 +84,7 @@ jobs:
       # go-version-file keeps one source of truth: go.mod's `go` directive, which
       # scripts/bootstrap-dev-env.sh also reads. cache: false is not an optimisation choice --
       # setup-go's cache wants a go.sum to key on, and there is none to have.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false
@@ -126,7 +126,7 @@ jobs:
 
       - name: Upload the shell screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: shell-screens
           path: ${{ runner.temp }}/glidergo-shell
@@ -146,7 +146,7 @@ jobs:
   assets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Verify the committed assets are what the extractor produces
         run: make assets-check OUT="$RUNNER_TEMP"
 
@@ -158,7 +158,7 @@ jobs:
   cross:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # For the last row of `make cross` only: the host's own cgo build, which is the one Linux
       # binary in the artifact that can draw. That row is skipped rather than failed when x11
@@ -173,7 +173,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config libx11-dev
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false
@@ -183,7 +183,7 @@ jobs:
       # host's cgo glidergo as `-x11`. Each one carries its own assets and would play from the
       # download, but they are inspection copies and not a release: unpackaged, unchecksummed, no
       # licence and no note saying which of them can draw. That is release.yml's job, on `v*` tags.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: cross-binaries
           path: bin/cross/
@@ -213,8 +213,8 @@ jobs:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false

@@ -30,6 +30,13 @@ scripts/local-source.sh
 *.test
 *.out
 
+# `go build ./...` -- which is what .github/workflows/ci.yml runs and what anyone reaching for
+# the toolchain directly will type -- drops one executable per main package into the working
+# directory rather than into /bin/. Ignored so that the first thing a new contributor does
+# does not leave two untracked 14 MB files behind.
+/glidergo
+/glidertool
+
 # assets/extracted/ IS committed, and so is assets/extracted.zip, the copy of it that every
 # binary embeds: the game plays from a clone with no extraction step and from a downloaded
 # executable with no files beside it. What is not committed is one intermediate.
