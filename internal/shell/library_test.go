@@ -90,7 +90,13 @@ func TestDiscoverFindsHousesInSortOrder(t *testing.T) {
 	if lib.Houses[0].Demo {
 		t.Errorf("aardvark should not be flagged as the demo house")
 	}
-	if lib.Houses[2].Rel != filepath.Join("sub", "Nested.glh") {
+	// Rel is an fs.FS name, not a path for the host operating system, so it is
+	// slash-separated everywhere: fs.WalkDir builds each name with path.Join and Discover
+	// keeps what it was given. That is not an accident to be smoothed over with
+	// filepath.Join here -- os.DirFS refuses to open a name containing a backslash
+	// (internal/filepathlite.localize), so a Rel with one in it would be a house nobody
+	// could load on Windows. The literal is the contract.
+	if lib.Houses[2].Rel != "sub/Nested.glh" {
 		t.Errorf("Nested's Rel is %q, want sub/Nested.glh", lib.Houses[2].Rel)
 	}
 }

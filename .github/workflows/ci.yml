@@ -236,7 +236,50 @@ jobs:
       # run here too, best-effort: a platform-specific path or newline bug in it is plausible
       # and is a real finding for docs/IMPROVEMENTS.md rather than a reason to hide the step.
       # It writes to a temp tree so it cannot dirty the checked-out assets.
-      - run: go test ./...
+      #
+      # bash rather than the runner's default shell, which is PowerShell on Windows, and an
+      # explicit pipefail: a PowerShell pipeline reports the exit status of the last command in
+      # it, so `go test | tee` there would report tee's success and turn a failing test suite
+      # green. Actions' bash already runs with -eo pipefail; saying so is cheap and makes the
+      # step readable without knowing that.
+      - name: go test
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee "go-test-${{ matrix.os }}.log"
+
+      # Only when the step above went red. `go test` names the failing test and prints its
+      # message without -v, so the information was always there -- but it was there in a job log
+      # that has to be opened before it expires, and the first Windows failure on this matrix had
+      # to be diagnosed from an exit code and nothing else because the log was gone by the time
+      # anyone looked. This copies the FAIL lines onto the job's summary page, which renders in a
+      # browser with no gh and no download, and keeps the whole transcript as an artifact for the
+      # cases where the failure is not in a line matching this grep.
+      #
+      # Neither step makes the suite tolerate failure: there is no continue-on-error here, and a
+      # red test step still fails the job.
+      - name: Put the failing tests on the job summary
+        if: failure()
+        shell: bash
+        run: |
+          log="go-test-${{ matrix.os }}.log"
+          [ -f "$log" ] || exit 0
+          # The test's own message lines are indented and start "file.go:NN:", which is what
+          # actually says why it failed; the FAIL/panic lines only say that it did.
+          fails=$(grep -E '^(--- FAIL|FAIL|panic:|fatal error:)|^[[:space:]]+[A-Za-z0-9_-]+\.go:[0-9]+:' "$log" | head -n 100 || true)
+          [ -n "$fails" ] || fails='(nothing matched: the run died before any test reported. The full log is in the go-test-log artifact on this run.)'
+          {
+            printf '## `go test ./...` failed on %s\n\n' '${{ matrix.os }}'
+            printf 'Full transcript: the **go-test-log-%s** artifact on this run.\n\n' '${{ matrix.os }}'
+            printf '```\n%s\n```\n' "$fails"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the test log
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: go-test-log-${{ matrix.os }}
+          path: go-test-${{ matrix.os }}.log
 
       # The first time the win32 backend runs anywhere: build the game, open a real window and
       # push 300 frames through StretchDIBits. Everything before this step only proves it

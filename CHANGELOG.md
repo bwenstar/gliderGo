@@ -15,6 +15,31 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The test suite had learned to spell paths the way Linux spells them (2026-09-21)
+
+The first CI run on a machine that was not the development host failed, in the only job that had
+never run anywhere before: `go test ./...` on `windows-latest`. `go build` and `go vet` passed on the
+same runner.
+
+Two tests were responsible, both with the same defect and neither depending on anything about the
+runner. `internal/scores` set `GLIDERGO_CONFIG` to `/tmp/glider-portable` and compared it against a
+directory that had been through `filepath.Join`, whose `Clean` rewrites every slash as a backslash on
+Windows — so the test failed over its separators rather than over the thing it was checking. And
+`internal/shell` expected `House.Rel` to equal `filepath.Join("sub", "Nested.glh")`, when `Rel` is an
+`io/fs` name that `fs.WalkDir` builds with `path.Join` and is slash-separated everywhere; the
+assertion's own error message had said `want sub/Nested.glh` all along. The production code was
+correct in both cases. See `docs/IMPROVEMENTS.md` 4.10.
+
+Folded in: `internal/audio`'s waveOut test wrote twelve frames into a queue eight deep and asserted
+none were dropped, which was only true when the pump goroutine won a race. It now writes exactly
+`waveDepth` frames, which cannot drop and still forces the device to hand a block back. That test
+skips without an output device, so it was never the CI failure — it was the next one, on the first
+real Windows desktop to run the suite.
+
+Also: a failing `go test` in that job now puts the `FAIL` lines on the run's summary page and keeps
+the full transcript as an artifact, because this failure had to be diagnosed from an exit code and an
+expired log. The step is still allowed to fail the job.
+
 ### Arithmetic that cannot differ between an x86 and an Apple Silicon machine (2026-09-21)
 
 Two functions computed a float `a*b + c`, which the Go spec lets a compiler fuse into one

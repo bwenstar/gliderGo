@@ -88,9 +88,19 @@ func TestWaveOutPlaysSilence(t *testing.T) {
 		t.Fatalf("openWaveOut: %v", err)
 	}
 
-	// Twelve frames is 400 ms of audio through eight blocks, so every block is used and at least
-	// four are reused after the device has finished with them.
-	const frames = 12
+	// One Write of one frame is one queue entry is one device block -- SamplesPerFrame is well
+	// under waveBlockSamples, so Write never splits it -- and waveDepth of them may be waiting
+	// for the pump at once. Writing exactly that many is the longest burst whose outcome does
+	// not depend on whether the pump goroutine gets scheduled during the loop: they all fit the
+	// channel even if it does not run at all, so nothing can be dropped. Writing more (this said
+	// twelve, and claimed in a comment that the queue was deeper than the test was long, which
+	// it never was) makes the assertions below a bet on the scheduler.
+	//
+	// Eight still does the job the burst is here for. Open leaves only waveBlocks - wavePrefill
+	// idle blocks, so the last three of these cannot go out until the device has finished with
+	// an earlier one and acquire has taken it back -- which is the part of the sink a test that
+	// wrote at frame rate would never reach, and now reaches every time instead of usually.
+	const frames = waveDepth
 	silence := make([]int16, SamplesPerFrame)
 	for i := 0; i < frames; i++ {
 		if err := w.Write(silence); err != nil {
@@ -110,7 +120,8 @@ func TestWaveOutPlaysSilence(t *testing.T) {
 		t.Errorf("Samples = %d, want %d", got, want)
 	}
 	if got := w.Dropped(); got != 0 {
-		t.Errorf("Dropped = %d, want 0: the queue is deeper than this test is long", got)
+		t.Errorf("Dropped = %d, want 0: the burst above is exactly as long as the queue is "+
+			"deep, so the only way to drop a block is to have stopped accepting them", got)
 	}
 	// Underruns are the machine's business, not the sink's: a runner that loses the goroutine to
 	// a scheduler hiccup mid-test really did leave the device idle. Logged, never failed.

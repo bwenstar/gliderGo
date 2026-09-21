@@ -58,14 +58,25 @@ func TestDirHonoursTheOverridesInOrder(t *testing.T) {
 // two packages agree about that variable, so if prefs ever stops honouring it the mismatch
 // is a failure here rather than settings in one place and scores in another.
 func TestDirAndPrefsAgreeAboutGLIDERGO_CONFIG(t *testing.T) {
+	// The root has to be spelled the way the host operating system spells one, because the
+	// two sides of this comparison reach it by different routes: prefs.Dir hands the
+	// variable back exactly as it was set, while scores.Dir puts it through filepath.Join,
+	// whose Clean rewrites every forward slash as a backslash on Windows (see the last
+	// paragraph of path/filepath.Clean's documentation). A "/tmp/..." literal therefore
+	// compares "/tmp/glider-portable" against "\tmp\glider-portable\scores" there and the
+	// test fails for its separators rather than for anything the two packages disagree
+	// about. FromSlash is the identity on Linux and macOS, so this reads the same on all
+	// three.
+	root := filepath.FromSlash("/tmp/glider-portable")
+
 	t.Setenv("GLIDERGO_DATA", "")
-	t.Setenv("GLIDERGO_CONFIG", "/tmp/glider-portable")
+	t.Setenv("GLIDERGO_CONFIG", root)
 
 	pd, err := prefs.Dir()
 	if err != nil {
 		t.Fatalf("prefs.Dir: %v", err)
 	}
-	if pd != "/tmp/glider-portable" {
+	if pd != root {
 		t.Fatalf("prefs.Dir() = %q; it no longer uses GLIDERGO_CONFIG verbatim, so "+
 			"scores.Dir is deriving its path from the wrong root", pd)
 	}
@@ -73,8 +84,8 @@ func TestDirAndPrefsAgreeAboutGLIDERGO_CONFIG(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dir: %v", err)
 	}
-	if !strings.HasPrefix(sd, pd+string(filepath.Separator)) {
-		t.Errorf("scores go to %q, which is not inside the configured %q", sd, pd)
+	if !strings.HasPrefix(sd, root+string(filepath.Separator)) {
+		t.Errorf("scores go to %q, which is not inside the configured %q", sd, root)
 	}
 }
 

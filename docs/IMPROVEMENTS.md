@@ -2603,6 +2603,69 @@ honest place for it is beside 4.5's cross-machine digest rather than bolted onto
 
 ---
 
+### 4.10 Two tests spelled a path the way Linux spells one and asserted it was universal — **DONE; the CI half is done too**
+
+The first CI run on a machine that was not this one went red, and it went red in the one job that
+had never executed anywhere: `go test ./...` on `windows-latest`. `go build` and `go vet` passed on
+the same runner, and the failure was reported as `Process completed with exit code 1` and nothing
+else, because a step that fails without `continue-on-error` skips every step after it and the job
+log had expired before anyone opened it.
+
+Two tests could not pass there, and neither depended on anything about the runner — no audio
+device, no path length, no scheduler, no Defender. Both are the same mistake: a path literal
+written the way this host writes one, compared against a value that the standard library spells
+differently on Windows.
+
+`internal/scores/store_test.go` set `GLIDERGO_CONFIG` to `/tmp/glider-portable` and then checked
+that the scores directory was inside it. The two sides of that comparison arrive by different
+routes. `prefs.Dir` hands the variable back verbatim, so its side keeps the forward slashes;
+`scores.Dir` goes through `datadir.Dir`, which returns `filepath.Join(d, sub)`, and the last thing
+`filepath.Clean` does is replace every slash with the platform separator (its own documentation says
+so). So on Windows the test compared `\tmp\glider-portable\scores` against a prefix of
+`/tmp/glider-portable\` and failed — for its separators, not for anything the two packages disagreed
+about. The fix is one line: derive the root with `filepath.FromSlash`, which is the identity here and
+on macOS, and compare against that one value. Both occurrences of the literal had to move together,
+because fixing only the `t.Setenv` would have relocated the failure to the verbatim check two lines
+down.
+
+`internal/shell/library_test.go` asserted `House.Rel == filepath.Join("sub", "Nested.glh")`. `Rel` is
+an `io/fs` name, not a host path: `Discover` gets it from `fs.WalkDir`, which composes every name
+with `path.Join`, and `internal/shell/library.go` does not reference `filepath` once. So `Rel` is
+slash-separated on every platform and the expectation had to be the literal `"sub/Nested.glh"` — as
+the `t.Errorf` on the next line had been saying all along, which is the tell that the `filepath.Join`
+was a slip rather than a decision. Worth being explicit about the direction of this fix, because the
+other direction is tempting and wrong: localising `Rel` inside `Discover` would produce a name
+`os.DirFS` refuses to open, since `os.dirFS.join` rejects any name containing a backslash. A house
+whose `Rel` had one in it would be a house nobody on Windows could load.
+
+Neither of these is a bug in the game; both are bugs in tests, and the production code was right in
+both places. That is the useful thing about them. They are the first evidence that the test suite had
+absorbed an assumption about its host, and the reason a cross-platform matrix earns its cost even
+when the port itself is clean.
+
+Two follow-ons were folded in. `internal/audio/waveout_windows_test.go` burst twelve one-frame
+writes into a queue `waveDepth = 8` deep and asserted nothing was dropped, with a comment claiming
+the queue was deeper than the test was long — which it never was. It only passed when the pump
+goroutine happened to drain four blocks mid-burst. It is now `const frames = waveDepth`, which fits
+the channel even if the pump never runs at all, and still exceeds the `waveBlocks - wavePrefill`
+blocks that are idle at open, so it forces `acquire` to reclaim every time instead of usually. That
+test skips on any machine without an output device, so it was never the CI failure; it would have
+been the first failure anybody saw on a real Windows desktop.
+
+And the diagnosis itself was the other finding. An exit code with no log is not a bug report, so the
+`native` job now tees the run to a file, copies the `FAIL` lines and their `file.go:NN:` messages
+onto the job's summary page, and keeps the whole transcript as an artifact — all three only `if:
+failure()`. The summary page renders in a browser with nothing installed, which matters when the
+person who has to read it does not have `gh`. Deliberately *not* done: making the step
+`continue-on-error`. The step being red is the entire signal.
+
+Left as a note: the same three steps would help the `check` job, which runs the much larger
+`make check`, and the sweep that found these two only covered comparisons written as `!=`/`==`
+against a literal. A vet-style check that flags a path literal containing `/` in the same expression
+as a `filepath` call would cover the class instead of the two instances.
+
+---
+
 ## 5. Getting off this machine: the build, the package and the public path
 
 Everything above is about the game. This section is about the fact that the game is being

@@ -30,6 +30,11 @@ scripts/local-source.sh
 *.test
 *.out
 
+# The native job in .github/workflows/ci.yml tees `go test ./...` here so that a failure survives
+# as an artifact instead of only as an exit code. Same reason as /dist/: rehearsing the step by
+# hand is how it gets tested, and that should not leave a log to commit.
+/go-test-*.log
+
 # `go build ./...` -- which is what .github/workflows/ci.yml runs and what anyone reaching for
 # the toolchain directly will type -- drops one executable per main package into the working
 # directory rather than into /bin/. Ignored so that the first thing a new contributor does
