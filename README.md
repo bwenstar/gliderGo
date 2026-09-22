@@ -148,7 +148,7 @@ On Windows there is no equivalent line, because there is nothing to install: `go
 Linux, and `make cross` builds every target a release ships.
 
 ```bash
-make check      # fmt, vet, tests, build, headless, audio, pixel corpus, cross-compile
+make check      # fmt, vet, tests, build, headless, audio, pixel corpus, cross-compile, these docs
 make doctor     # what your machine has and what it is missing
 make help       # every target, one line each
 ```
@@ -355,7 +355,7 @@ worth having: measuring Open House is how that miss was found in the first place
 | `internal/citations/` | The check that every pointer into the 1994 C resolves. See `docs/CITATIONS.md`. |
 | the other eleven | `internal/prefs/`, `internal/scores/`, `internal/saved/`, `internal/demo/`, `internal/credits/`, `internal/project/`, `internal/datadir/`, `internal/assetfs/`, `internal/assetpack/`, `internal/cliargs/`, `internal/module/` — one job each, and each opens with a package comment saying which. |
 | `cmd/glidergo`, `cmd/glidertool` | The game, and the tool above. |
-| `tools/` | The asset extractors: BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. Standard-library python3. |
+| `tools/` | The asset extractors — BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers — in standard-library python3; and two Go commands `make` runs, `packassets` for the archives the binaries embed and `docscheck` for the command lines this document and `CONTRIBUTING.md` tell you to run. `make tools` lists them all. |
 | `docs/ORIGINAL_GAME.md` | How the original behaves. Read this one first. |
 | `docs/analysis/` | 29 byte-level specs reverse-documented from the C. The detailed authority. |
 | `docs/CITATIONS.md` | What a citation into the 1994 C means here, how to make one resolve, and what the checker does and does not promise. |

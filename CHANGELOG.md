@@ -17,6 +17,46 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### `make check` now runs the command lines the documents tell you to run (2026-09-22)
+
+A documented command that does not work is the most expensive wrong sentence in a repository: it is
+the one a newcomer meets in their first five minutes, and the only evidence they have about whether
+the rest is worth reading. This project had nine such defects, every one found by a person typing a
+line into a shell — including a command offered by `glidertool replay`'s own usage text that answered
+`no house to replay`, which had been wrong for six stages. Nothing checked the documents.
+
+`make docs-check` does, and it is part of `make check`. `tools/docscheck` finds the 38 command lines
+in the `bash` fences of `README.md` and `CONTRIBUTING.md`, runs the 19 that can run unattended, and
+prints the rest with a sentence each saying why not:
+
+```
+   292  ok     0.00s  bin/glidertool house build -o my-house.house my-house.txt
+   296  ok     0.76s  bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
+
+not run -- 19 lines, and why
+  README.md:132  make run
+      opens a window and plays until the player quits; -shot and -frames are the headless forms
+
+docscheck: 19 of 38 documented command lines ran, and all of them worked
+```
+
+Each line runs in its own `bash -o pipefail -c`, in a scratch directory of symlinks to the
+repository — so relative paths resolve, a documented `-o` cannot leave a file in your working tree,
+and `.git` is deliberately not reachable. Each gets two minutes, because one of the nine defects was
+a hang and a check that inherits a hang never ends.
+
+The half that will still be working in a year is the bookkeeping. A documented line that no rule
+classifies fails, and a rule for a line no document gives any more fails too — a stale rule reads
+exactly like coverage and is none. Both are `go test ./tools/docscheck`, which needs no binaries, no
+assets and no display, so adding a command to the README tells you so from the test suite you were
+already running.
+
+On the way in it caught two stale sentences (`CONTRIBUTING.md`'s copy of what `make check` runs, and
+`README.md`'s claim that `tools/` is python3 only), and `CONTRIBUTING.md`'s five-line house-authoring
+walkthrough was run end to end for the first time. `make help` now lists `all` and `smoke`, which it
+had always skipped. `docs/IMPROVEMENTS.md` 4.13 has the reasoning, including what is still not
+covered and why.
+
 ### Flags can now come after the file names, which is where people put them (2026-09-22)
 
 Go's `flag` package stops at the first argument that is not a flag. For `go test ./... -run X` that is

@@ -87,9 +87,10 @@ export GOPROXY
 export GOTOOLCHAIN
 
 .PHONY: all build glidertool houses levels levels-zip run bench smoke headless audio fidelity \
-	test vet fmt fmt-check check check-caveats clean clean-assets cross cross-windows assets \
+	test vet fmt fmt-check check check-caveats docs-check clean clean-assets cross cross-windows assets \
 	assets-zip assets-check embedded tools doctor help
 
+## all: compile both binaries -- the default target, so `make` on its own does this
 all: build glidertool
 
 # embedded guards the assets every build needs, as opposed to the ones only a run needs.
@@ -198,6 +199,8 @@ run: build
 bench: build
 	$(BIN)/glidergo -frames 300 -bench
 
+## smoke: the on-screen bench `check` runs, skipped with a note when DISPLAY is unset
+#
 # smoke is bench for `check`: the on-screen run is the only part of this Makefile
 # that needs a display, and `check` has to pass over SSH and in CI, so a missing
 # DISPLAY is reported and skipped rather than failing the build. `make bench`
@@ -396,6 +399,26 @@ fmt-check:
 		echo "fmt-check: clean"; \
 	fi
 
+## docs-check: run the command lines README.md and CONTRIBUTING.md tell people to run
+#
+# The documents make claims like any other part of this repository, and until this target they
+# were the only claims nothing checked. docs/IMPROVEMENTS.md 4.13 is a list of defects in them --
+# a command in replay's own usage text that could not run, a `glidergo <house>` that was silently
+# ignored, two sentences about a build that were wrong in opposite directions -- and every one was
+# found by a person typing a line into a shell.
+#
+# tools/docscheck reads every ```bash fence in both documents, runs what can be run unattended in
+# a scratch directory of symlinks, and prints what it did not run and why: the same bargain
+# `check-caveats` makes for the rest of this file. A documented line that no rule classifies is a
+# failure, which is how the target keeps up with the documents rather than falling behind them.
+#
+# Both binaries, because the documented lines name `bin/glidergo` and `bin/glidertool` by path.
+# In `check` it sits after `fidelity` rather than beside `glidertool`, and that is deliberate: if
+# the house round-trip is broken, `houses` should be the target that says so -- not a README line
+# failing for a reason the README has nothing to do with.
+docs-check: build glidertool
+	$(GO) run ./tools/docscheck
+
 ## check: everything CI would do; adds an on-screen bench when there is a display
 #
 # `embedded` leads, ahead of even fmt-check, and only for the error message. Both archives are
@@ -404,7 +427,7 @@ fmt-check:
 # nor how to get it back. Asking the guard first means the first thing printed is the sentence with
 # the `git checkout --` in it. Prerequisites are made left to right, which this list already
 # depends on elsewhere (build before the targets that run the binary).
-check: embedded fmt-check vet test build glidertool houses levels headless audio fidelity cross smoke
+check: embedded fmt-check vet test build glidertool houses levels headless audio fidelity docs-check cross smoke
 	@echo
 	@echo "gliderGo: check passed"
 	@$(MAKE) --no-print-directory check-caveats

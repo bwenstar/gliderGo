@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; the flag ordering DONE, 2.4; the rest filed below**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; four more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines); the rest filed below**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3017,8 +3017,10 @@ remaining gaps it names — nobody has played it with a keyboard, `windows/arm64
 both still true. The `never run` lines in `CHANGELOG.md` are history and stay as written.
 
 **Still open, in rough order of who they cost.** Each is a claim or a command, and each is cheap.
-The first was closed in 2.4 and its bullet is kept below with the amendment that closed it, because
-what it cost is the part worth remembering:
+Four were closed in 2.4 — the flag ordering, the `docs-check` target, `CONTRIBUTING.md`'s
+walkthrough (whose bullet is half 5.4's and stays open for that half) and the Makefile's two help
+lines — and their bullets are kept below with the amendments that closed them, because what each one
+cost is the part worth remembering:
 
 - **`glidertool <sub> file -flag` does not work**, because Go's `flag` package stops at the first
   non-flag argument, and several documented lines put the file first. A `partitionArgs` in
@@ -3078,11 +3080,92 @@ what it cost is the part worth remembering:
   command lines — the ones in fenced blocks that begin with `bin/glidergo`, `bin/glidertool` or
   `make` — would have caught three of the four. The hard part is that some of them need a display
   and some write files, so it wants a marked subset rather than a scraper.
+
+  *(2.4, **DONE**. `make docs-check` runs `tools/docscheck`, and it is in `make check` between
+  `fidelity` and `cross`. It finds **38** command lines in `README.md` and `CONTRIBUTING.md`, runs
+  **19** of them in 1.2 seconds, and prints the other nineteen with a sentence each saying why not —
+  the same bargain `check-caveats` already makes for the rest of the suite.*
+
+  *The marked-subset-versus-scraper question turned out to be a false choice, and the answer is
+  both: scrape to **find** the lines, a table to **decide** about each one. What the marking cannot
+  be is a mark in the document, because that is a notation in prose a reader has to step over, and
+  it puts the reason in the one place there is no room to say it. The reasons are the good part —
+  "opens a window and plays until the player quits", "rewrites the committed pixel corpus, which is
+  the thing the corpus exists to stop happening by accident" — and they live beside the rule, in Go,
+  where they are printed under the line they are about.*
+
+  *The recogniser is **every non-empty, non-comment line inside a `bash` fence**, and not the three
+  prefixes this bullet proposed, because a prefix list is a list that can be silently incomplete.
+  `tr '\r' '\n' < GliderPRO/Sources/Player.c` and `go test ./internal/fidelity -update` are
+  documented instructions as much as any `make` line is; a reader who runs them is following the
+  page exactly as written, and a check built from three prefixes would neither run them nor say that
+  it had not. The fence tag was already the marker this bullet wanted: every `bash` block in both
+  documents holds commands and nothing else, and every block of sample output is fenced without a
+  tag. That convention was kept by hand for six stages. It is load-bearing now, and
+  `TestSampleOutputIsNotMistakenForACommand` is what holds it.*
+
+  *Both directions are checked, and the second is what decides whether this is still a check in a
+  year. A documented line no rule names fails — that is how the table keeps up with the documents. A
+  rule no documented line names **also** fails, because a rule left behind by a reworded command
+  reads exactly like coverage and is none: the line it was written for shows up as unclassified,
+  while the orphan sits there looking like a considered decision. Both halves are `go test
+  ./tools/docscheck` as well as the target, deliberately — they need no binaries, no assets and no
+  display, so the person who adds a line to the README hears about it from the test suite they were
+  already running, and the failure prints the two spellings and the file to put one in.*
+
+  *Three smaller decisions, each of which was a bug in the first draft. The lines run in a scratch
+  directory of symlinks to the repository's top level, so `assets/extracted/houses/*.house` resolves
+  while `house build -o my-house.house` cannot leave a stray file in a working tree — `make check`
+  has to stay something that can be run on a dirty branch. `.git` is deliberately not among the
+  symlinks: a check with a writable path to the repository's own history is a check that can lose
+  work, and all the exclusion costs is that `make` inside the scratch tree computes its version as
+  `dev`. And every line gets two minutes, which is not about speed — the nineteen take 1.2 seconds
+  between them — but because one of the four defects above **was a hang**, and a check that inherits
+  a hang has inherited the worst version of it: a `make check` that never ends.*
+
+  *What it found on its first run: nothing, which is the expected answer and not a disappointment.
+  2.1 fixed these same lines by hand a stage ago; what this buys is that the next four are found by
+  a machine instead. It did catch two stale sentences on the way in — `CONTRIBUTING.md`'s prose copy
+  of `check`'s prerequisite list, which goes out of date every time that list changes and did again
+  here, and `README.md`'s `tools/` row, which still described the directory as standard-library
+  python3 after two Go commands had moved in.*
+
+  *What it still does not cover, stated because a check's caveats are the part that gets forgotten:
+  `make run` and `glidergo -levels assets/levels` open a window and play until somebody quits, so
+  both are skipped and `make smoke` is what exercises the blit path; `house dump ... | less` runs,
+  but under a pipe `less` is `cat`, so what is checked is the dump and the exit status and not the
+  pager; and the two `git clone` lines have never been run by anybody on this host, which has no
+  network at all. Nineteen of thirty-eight is the honest number, and the target prints it.)*
 - **`release.yml`'s `sed` and `CONTRIBUTING.md`'s walkthrough are still unrun.** 5.4 owns the first;
   the second is the "your first patch" section, whose steps have never been performed end to end by
   anybody, which is the same class of defect as the four above and the one most likely to be met.
+
+  *(2.4: the walkthrough half is **DONE**, 5.4 still owns the `sed`. The five `glidertool` lines
+  under `CONTRIBUTING.md`'s "Houses" heading were run end to end for the first time — dump
+  Slumberland to text, build it back, lint it, print the check catalogue, measure it against the
+  small tier — and all five work: the round trip reports `383 rooms, 2996 objects, 134150 bytes`,
+  the lint ends on the dangling-link note and the wrong-background warning that the 22 originals are
+  calibrated to allow, and `stats` says 210 of 383 rooms are reachable from `Welcome…`. They are not
+  left as a one-off: `docs-check` above runs all five on every `make check`, which is the point of
+  having built it.*
+
+  *Two notes for whoever reads this bullet next. This one named a section that does not exist — there
+  is no "your first patch" heading in `CONTRIBUTING.md`; the walkthrough is under "Houses", and a
+  pointer into our own documents that does not resolve is exactly what 4.12 sweeps for elsewhere. And
+  the three lines under "A house that ships" are still not run by `docs-check`, for reasons that are
+  covered rather than skipped: `make levels` is a target `make check` runs itself, `make levels-zip`
+  rewrites a committed archive and `go test ./assets` is what checks its claim, and the third opens a
+  window.)*
 - **The Makefile's `## ` help lines skip `smoke` and `all`**, so `make help` lists neither, and
   `smoke` is in `make check`. Two lines.
+
+  *(2.4, **DONE**, and it was two lines. `all` says it is the default target, because `make` on its
+  own is the first command `CONTRIBUTING.md` gives and nothing said what it did; `smoke` says it is
+  skipped with a note when `DISPLAY` is unset, which is the thing a reader of a green CI log needs to
+  know about it. Worth pairing with the bullet above: `make help` is now itself a checked command
+  line, and `make tools` lists the Go commands by `tools/*/main.go`, so `docscheck` appeared there
+  without being named — which is the sort of thing that only works if the list is derived rather than
+  written down.)*
 - **`cross`'s caveats are not guarded on `GOOS`**, so a macOS reader is told what a Linux build
   cannot do. Same for the Windows and macOS gate commands, which name Linux paths.
 - **`project.Releases` has no caller.** It is the one constant in `internal/project` that nothing
