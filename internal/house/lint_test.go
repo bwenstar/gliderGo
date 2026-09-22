@@ -17,6 +17,7 @@ package house
 // the arithmetic is wrong, not the number.
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"testing"
@@ -53,7 +54,37 @@ func testRoom(name string, floor, suite int16, objs ...Object) Room {
 // every test house carries to keep no-stars out of the way.
 func star() Object { return Object{What: codeStar} }
 
-func plain(name string) Object { return Object{What: mustCode(name)} }
+func plain(name string) Object { return anchored(Object{What: mustCode(name)}) }
+
+// anchored moves an object to the coordinates the original's editor would have given
+// it, for the types that have one (fixedTops and fixedLefts). Without it every fixture
+// here would raise object-top, because a zero-valued Object sits at v 0 and the
+// original puts a staircase at 28 -- and then every "exactly one finding" assertion in
+// this file would be asserting something else. It is also the honest fixture: the
+// synthetic half is supposed to build a house the 1994 editor could have written and
+// then break one thing in it.
+//
+// The anchor is written into Data directly rather than through one of the nine SetX
+// methods, for the reason Object.TopLeft exists: all nine variants begin with the same
+// two shorts, vertical then horizontal, so this is the one field that can be set
+// without knowing which variant the code selects.
+func anchored(o Object) Object {
+	if want, ok := fixedTops[o.What]; ok {
+		binary.BigEndian.PutUint16(o.Data[0:], uint16(want.at))
+	}
+	if want, ok := fixedLefts[o.What]; ok {
+		binary.BigEndian.PutUint16(o.Data[2:], uint16(want.at))
+	}
+	return o
+}
+
+// atPoint is anchored's opposite: it puts an object exactly where the test says,
+// including where the original never would. Same two shorts, same reason.
+func atPoint(o Object, v, h int16) Object {
+	binary.BigEndian.PutUint16(o.Data[0:], uint16(v))
+	binary.BigEndian.PutUint16(o.Data[2:], uint16(h))
+	return o
+}
 
 // bgRoom is testRoom with a background, and with the identity tiling rather than
 // testRoom's all-zeroes -- tiles[] of 0 0 0 0 0 0 0 0 is a legal permutation that
@@ -75,13 +106,13 @@ func bgRoom(name string, bg, floor, suite int16, objs ...Object) Room {
 func transportTo(name string, where int16, who byte) Object {
 	o := Object{What: mustCode(name)}
 	o.SetTransport(Transport{Where: where, Who: who})
-	return o
+	return anchored(o)
 }
 
 func switchTo(name string, where int16, who byte) Object {
 	o := Object{What: mustCode(name)}
 	o.SetSwitch(Switch{Where: where, Who: who})
-	return o
+	return anchored(o)
 }
 
 // fullOptions supplies both predicates so that no check is skipped. The art tree
@@ -504,6 +535,118 @@ func TestLintMounting(t *testing.T) {
 			}
 			if tc.about != "" && !strings.Contains(got[0].Message, tc.about) {
 				t.Errorf("message does not mention %q: %s", tc.about, got[0].Message)
+			}
+		})
+	}
+}
+
+// TestLintObjectAnchor exercises the two checks that compare an object's stored
+// coordinates against the constants the original's editor writes.
+//
+// Every row here is a house the 1994 editor could not have produced, which is what makes
+// them worth reporting and also why none of them can be found in the corpus: the
+// synthetic half of this file is the only place these checks can ever fire. The rows
+// with an empty `want` are the ones doing the harder work -- they pin the constants
+// themselves, so a transcription error in fixedTops or fixedLefts fails here rather than
+// warning about all 22 shipped houses.
+func TestLintObjectAnchor(t *testing.T) {
+	tests := []struct {
+		name  string
+		obj   string
+		v, h  int16
+		want  string
+		about string
+	}{
+		// Right where the original puts them. Nine of the 24 codes, chosen to cover
+		// every distinct constant a single object can be checked against alone.
+		{"floor vent on the floor", "kFloorVent", 305, 100, "", ""},
+		{"ceiling vent on the ceiling", "kCeilingVent", 8, 100, "", ""},
+		{"sewer blower where ObjectAdd puts it", "kSewerBlower", 292, 100, "", ""},
+		{"greco vent where ObjectAdd puts it", "kGrecoVent", 303, 100, "", ""},
+		{"ceiling light on the ceiling", "kCeilingLight", 4, 100, "", ""},
+		{"hip lamp standing up", "kHipLamp", 23, 100, "", ""},
+		{"deco lamp standing up", "kDecoLamp", 91, 100, "", ""},
+		{"flourescent tube", "kFlourescent", 12, 100, "", ""},
+		{"track light", "kTrackLight", 5, 100, "", ""},
+
+		// And moved. 105 pixels is a plausible drag; one pixel is the likelier slip in
+		// a hand-written house, and is the same finding, because the rule is a constant
+		// and not a neighbourhood.
+		{"floor vent lifted off the floor", "kFloorVent", 200, 100,
+			"warn/object-top=1", "kFloorVentTop (GliderDefines.h:467)"},
+		{"floor vent one pixel out", "kFloorVent", 306, 100,
+			"warn/object-top=1", "1 pixel below"},
+		{"ceiling light on the floor", "kCeilingLight", 300, 100,
+			"warn/object-top=1", "296 pixels below"},
+		// The confusion this check is most likely to catch in a hand-edited house: two
+		// constants 11 pixels apart, for two objects that look alike in a palette.
+		{"sewer blower at the grate's height", "kSewerBlower", 303, 100,
+			"warn/object-top=1", "kSewerBlowerTop (ObjectAdd.c:23)"},
+
+		// A type in neither table, at coordinates that would be wrong for a vent. The
+		// check has to stay silent here: a table lamp sits on whatever furniture the
+		// author put under it, which is why DragObject gives it both deltas.
+		{"table lamp anywhere at all", "kTableLamp", 250, 137, "", ""},
+
+		// Doors and windows, which are the only objects checked on both axes. v is
+		// fixed at 0 for both kinds of door and 64 for both kinds of window, so each
+		// row has to be right about v before it says anything about h.
+		{"interior door against the left wall", "kDoorInLf", 0, 0, "", ""},
+		{"interior door against the right wall", "kDoorInRt", 0, 368, "", ""},
+		{"exterior door against the right wall", "kDoorExRt", 0, 496, "", ""},
+		{"interior window against the left wall", "kWindowInLf", 64, 0, "", ""},
+		{"exterior window against the right wall", "kWindowExRt", 64, 496, "", ""},
+		{"door standing in the middle of the room", "kDoorInLf", 0, 200,
+			"warn/object-left=1", "kDoorInLfLeft (GliderDefines.h:484)"},
+		{"right-hand door on the left", "kDoorInRt", 0, 0,
+			"warn/object-left=1", "368 pixels left of"},
+		// 492 is kWindowInRtLeft, four pixels from this one's 496. The two window
+		// families are different widths, which is the whole reason there are four
+		// constants and not two.
+		{"exterior window at the interior window's left", "kWindowExRt", 64, 492,
+			"warn/object-left=1", "4 pixels left of"},
+		// Both axes at once, from one object, because the two checks are independent.
+		{"door dragged down and inwards", "kDoorExRt", 30, 100,
+			"warn/object-left=1 warn/object-top=1", "396 pixels left of"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := testHouse(testRoom("Somewhere", 0, 0,
+				star(), atPoint(plain(tc.obj), tc.v, tc.h)))
+			got := h.Lint(fullOptions())
+			if checkIDs(got) != tc.want {
+				t.Fatalf("got %q, want %q\n%s", checkIDs(got), tc.want, findingLines(got))
+			}
+			if tc.about != "" && !strings.Contains(findingLines(got), tc.about) {
+				t.Errorf("no finding mentions %q:\n%s", tc.about, findingLines(got))
+			}
+		})
+	}
+}
+
+// TestLintObjectAnchorFloorTransStray covers the one value the check has to forgive, and
+// the reason it has to: 43 shipped kFloorTrans objects are at v 300 rather than
+// kFloorTransTop's 302, because the repair that would have moved them is unreachable in
+// the original (docs/IMPROVEMENTS.md 4.27). Its own test, because it is the one row in
+// this file that is about 1994's bug rather than about the rule.
+func TestLintObjectAnchorFloorTransStray(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		v    int16
+		want string
+	}{
+		{"at kFloorTransTop", 302, "note/link-unlinked=1"},
+		{"at the 300 that 43 shipped objects sit at", 300, "note/link-unlinked=1"},
+		{"at neither", 250, "note/link-unlinked=1 warn/object-top=1"},
+		// One pixel from the forgiven value is not forgiven. The exemption is a value,
+		// not a tolerance, because 300 is a bug's fingerprint and 299 is nobody's.
+		{"one pixel from the stray", 299, "note/link-unlinked=1 warn/object-top=1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o := atPoint(transportTo("kFloorTrans", UnlinkedWhere, UnlinkedWho), tc.v, 100)
+			h := testHouse(testRoom("Somewhere", 0, 0, star(), o))
+			if got := checkIDs(h.Lint(fullOptions())); got != tc.want {
+				t.Errorf("v %d: got %q, want %q", tc.v, got, tc.want)
 			}
 		})
 	}

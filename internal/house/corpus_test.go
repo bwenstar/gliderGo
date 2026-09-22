@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -525,5 +526,88 @@ func TestCorpusRoomInvariants(t *testing.T) {
 	if visited[0] != 3634 || visited[1] != 436 {
 		t.Errorf("visited distribution is %v, house-format.md 6.2 says 3634 zeros / 436 ones",
 			visited)
+	}
+}
+
+// TestCorpusFixedAnchors is the evidence for the object-top and object-left checks: the
+// constants in fixedTops and fixedLefts are transcribed from the C, and this is what
+// says the C was read correctly.
+//
+// It is the stronger half of the pair. The unit tests in lint_test.go prove the checks
+// fire, but they assert against the same table they are testing, so a mis-transcribed
+// constant would pass them both. Here the numbers come from 22 files nobody involved
+// can edit.
+//
+// 4,041 placements of the 24 vertically fixed types, 3,998 exactly at their constant.
+// The 43 exceptions are all one type, one value, and three houses -- see
+// floorTransStrayTop and docs/IMPROVEMENTS.md 4.27 for why they are the original's bug
+// and not the authors'.
+func TestCorpusFixedAnchors(t *testing.T) {
+	tops, lefts := 0, 0
+	seen := map[int16]int{}
+	strays := map[string]int{}
+	for _, c := range loadCorpus(t) {
+		for i := range c.house.Rooms {
+			for slot := range c.house.Rooms[i].Objects {
+				o := c.house.Rooms[i].Objects[slot]
+				if o.IsEmpty() || o.Group() == GroupNone {
+					continue
+				}
+				if want, ok := fixedTops[o.What]; ok {
+					tops++
+					seen[o.What]++
+					switch v := o.TopLeft().V; v {
+					case want.at:
+					case floorTransStrayTop:
+						strays[fmt.Sprintf("%s %s", c.stem, ObjectName(o.What))]++
+					default:
+						t.Errorf("%s room %d (%q) slot %d: %s is at v %d, %s is %d",
+							c.stem, i, c.house.Rooms[i].Name.Text(), slot,
+							ObjectName(o.What), v, want.c, want.at)
+					}
+				}
+				if want, ok := fixedLefts[o.What]; ok {
+					lefts++
+					if h := o.TopLeft().H; h != want.at {
+						t.Errorf("%s room %d (%q) slot %d: %s is at h %d, %s is %d",
+							c.stem, i, c.house.Rooms[i].Name.Text(), slot,
+							ObjectName(o.What), h, want.c, want.at)
+					}
+				}
+			}
+		}
+	}
+
+	if tops != 4041 || lefts != 167 {
+		t.Errorf("%d vertically fixed and %d horizontally fixed placements, "+
+			"expected 4041 and 167", tops, lefts)
+	}
+
+	// The exceptions, pinned by house as well as by count. Named houses rather than a
+	// total because "43 somewhere" would survive a loader change that moved them.
+	wantStrays := map[string]int{
+		"Leviathan kFloorTrans":     5,
+		"Rainbow's End kFloorTrans": 1,
+		"Slumberland kFloorTrans":   37,
+	}
+	if !reflect.DeepEqual(strays, wantStrays) {
+		t.Errorf("objects at floorTransStrayTop are %v, expected %v", strays, wantStrays)
+	}
+
+	// Every row of the table has to be exercised by some shipped house. A row naming a
+	// type no house places would be a constant nothing has ever checked, which is the
+	// state this test exists to prevent -- and a row whose object name was mistyped
+	// would resolve to a different code and show up here as a zero.
+	for code := range fixedTops {
+		if seen[code] == 0 {
+			t.Errorf("fixedTops has a row for %s and no shipped house places one, so "+
+				"its constant is unverified", ObjectName(code))
+		}
+	}
+	for code := range fixedLefts {
+		if _, ok := fixedTops[code]; !ok {
+			t.Errorf("fixedLefts has a row for %s that fixedTops does not; the eight "+
+				"doors and windows are fixed on both axes", ObjectName(code))
+		}
 	}
 }

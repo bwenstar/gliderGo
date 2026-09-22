@@ -4066,7 +4066,7 @@ check uses. Every one of those twelve types sits at one v in 1,458 `kFloorVent`,
 so on down — so a vent at v 200 in an ordinary room is floating art, and nothing in the toolchain says
 so. That is the more likely authoring mistake and it is *not* what these checks catch.
 
-### 4.23 Twelve object types occupy exactly one vertical coordinate in all 4,070 shipped rooms, and nothing in the toolchain knows it — **note; found by measuring 4.22, 2.4**
+### 4.23 Twelve object types occupy exactly one vertical coordinate in all 4,070 shipped rooms, and nothing in the toolchain knows it — **note; found by measuring 4.22, 2.4; both blockers answered and DONE, 2.4 — the rule is 24 types wide, one of the two questions was answered wrongly here, and a second rule came out of it**
 
 4.22's census produced a fact it did not need and could not use. Across all 22 houses, every placement
 of each of these is at one `v` and no other — not clustered, not mostly, **one value**:
@@ -4122,6 +4122,93 @@ ships, two things need finding:
 Until then the honest status is a note with the numbers in it. **Severity if it ships:** warn, by the
 rule 4.21 made explicit — zero corpus exceptions means no shipped house is made to fail, and an object
 drawn floating is something a player sees.
+
+*(4.23, **DONE**, 2.4. Both questions above are answered, and the answers are better than the note
+expected in one direction and wrong in the other. `object-top` and `object-left` ship in
+`internal/house/lint.go`, with `fixedTops`, `fixedLefts`, `TestLintObjectAnchor`,
+`TestLintObjectAnchorFloorTransStray` and `TestCorpusFixedAnchors`.*
+
+***1. There is no floor line.** The question assumed one constant that seven bottom edges agree on.
+There are **nineteen**, one per object type, and the census values are not "nearly" those constants —
+each is exactly its own. `GliderDefines.h:467-481` carries thirteen, `:483-494` four more, and
+`ObjectAdd.c:19-23` defines the last two locally in the only file that uses them, which is a fair
+summary of how much of 1994's geometry is editor-side rather than engine-side. So the table in
+`fixedTops` is a transcription with a per-row citation, not a measurement — which is what 4.21 asked
+for. `internal/render/view_test.go:16` naming `kFloorVentTop 305` was right about the value and was
+reading it out of the render code's own history; the constant it half-remembered is
+`GliderDefines.h:467`.*
+
+***2. Yes, three ways over — and "`HouseLegal.c` does not do it" above is wrong.** The editor enforces
+this at creation, during editing, and on save.*
+
+- ***Creation.** `AddNewObject` assigns the constant (`ObjectAdd.c:99-110`, `:128-131`, `:311`, `:341`,
+  `:355`, `:374-440`, `:517-564`). One type is missed: `kSewerGrate` has no branch in the `if`/`else`
+  chain at `:99-110` at all, so a fresh one keeps whatever the empty slot held. It is invisible in
+  practice because the function ends by calling `KeepObjectLegal` (`ObjectAdd.c:774`), which repairs
+  exactly that type — 1994 covering for itself two hundred lines apart.*
+- ***Editing.** `DragObject` moves these types **horizontally only**: their case arms add `deltaH` to
+  `topLeft.h` and simply do not mention `topLeft.v` (`ObjectEdit.c:565-573`, `:632-645`, `:668-674`).
+  This is the one the note guessed at, and the contrast is two arms away in the same `switch` and the
+  same union member — `kLeftFan`, `kRightFan`, the five flames, `kInvisBlower` and `kLiftArea` get both
+  deltas (`:575-586`), and so do `kTableLamp`, `kLightBulb` and `kInvisLight` (`:676-681`). The three
+  the note named as "the evidence the rule is real" are, in the C, the three cases that take `deltaV`.
+  The census and the source agree line for line.*
+- ***Save.** `KeepObjectLegal` **rewrites** a wrong `v` back to its constant for four types
+  (`HouseLegal.c:115-137`), and runs from `CheckHouseForProblems` on every `WriteHouse`
+  (`HouseIO.c:470`). The note's claim that `HouseLegal.c` does not do it was made from a search for a
+  floor line rather than for the type names, which is how a negative finding usually goes wrong.*
+
+*So the check does restate a tool's behaviour, exactly as the note predicted it might, and that is the
+argument **for** shipping it rather than against: gliderGo's houses are not written by that tool. They
+are typed into `levels/*.house.txt` with the coordinate spelled out — `object 2 kFloorVent at 305 120`
+— and `make levels` lints with `-fail warn`, so from now on a typo in that column fails the build
+instead of shipping a vent hanging in the air. Verified by doing it: changing one `305` to `300` makes
+`make levels` exit 1 with the finding. Both of the port's houses pass unchanged.*
+
+***Severity: warn, as predicted, but now argued from the ladder rather than from the count.** The
+ladder in `lint.go` reserves error for a house the loader has to repair or range-check before it can be
+played at all. A wrong `v` needs no repair: the room loads, `GetObjectRect` uses the stored coordinates,
+the art composes, the lift column comes from the object's own `distance`. And it is not a note, because
+the result is in the way rather than merely untidy. Middle rung.*
+
+***The rule is twice as wide as the census suggested.** 24 types, not twelve, because 4.22's census only
+covered the objects that mount against a surface. Beyond the twelve: `kUpStairs` and `kDownStairs` at
+`kStairsTop` 28, `kCeilingTrans` at 6, `kFloorTrans` at 302, the four doors at 0 and the four windows at
+64. That is 4,041 placements rather than 2,839, and 3,998 of them are at their constant exactly.*
+
+***And a second rule fell out of it.** The four doors and four windows have named **horizontal**
+constants too — `kDoorInRtLeft` 368, `kWindowExLfLeft` 0 and six siblings
+(`GliderDefines.h:484-494`) — and `KeepObjectLegal` snaps a dragged one to the nearer wall on every
+save, rewriting `what` to match the side it chose, so dragging a left door across the room turns it into
+a right door (`HouseLegal.c:310-369`). All 167 shipped doors and windows are at their constant. That is
+`object-left`, shipping in the same commit: a door is one of a room's exits, so it belongs against a
+wall and nowhere between. Both repairs — this one and the four vertical ones — neglect to set
+`KeepObjectLegal`'s `unchanged` flag, so the original could silently move your door and report the house
+as untouched.*
+
+***The 43 exceptions are a 1994 bug, filed as 4.27.** 43 of the 244 shipped `kFloorTrans` objects are at
+`v` 300 rather than 302 — 37 in Slumberland, 5 in Leviathan, 1 in Rainbow's End — because the repair
+that would have normalised them is unreachable. `object-top` accepts 300 for that type and only that
+type, as a value rather than a tolerance; 299 still warns.*
+
+***Five types left out, and one pair, both for stated reasons.** `kCounter`, `kDresser`, `kManhole`,
+`kMousehole` and `kFireplace` are just as immovable — their `DragObject` arms are `h`-only too — but the
+original names their **bottom** (`kCounterBottom` 304, `kDresserBottom` 293, `kManholeSits` 322,
+`kMouseholeBottom` 295, `kFireplaceBottom` 297), and a bottom becomes a top only by subtracting the
+height of the artwork, which `internal/house` cannot see: it reads house files, and the sprite rects
+live in `internal/render`. Putting the five differences in as literals would turn a table of citations
+back into a table of measurements. `kBalloon`, `kCopterLf` and `kCopterRt` are `h`-only as well
+(`ObjectEdit.c:701-705`) and are left out for a different reason: nothing repairs them, and
+`AddDynamicObject` overwrites the vertical position at run time regardless of what the file says —
+`kBalloonStart` for the balloon (`Dynamics3.c:395`), `kCopterStart` for the two helicopters (`:417`). A
+stored coordinate with no consequence is nothing to report.*
+
+***One thing this changed that was not the subject.** Every synthetic fixture in `lint_test.go` placed
+its objects at `v` 0, so the new check fired 98 times across 37 subtests the moment it was wired in. The
+fixtures were fixed rather than the check exempted: `plain`, `transportTo` and `switchTo` now run their
+object through `anchored`, which puts it where the 1994 editor would have. That is what the file's own
+header says the synthetic half is for — "the smallest house Lint has nothing to say about, and then
+break exactly one thing in it" — and 37 of those houses had quietly stopped being that.)*
 
 ---
 
@@ -4313,6 +4400,68 @@ excuses, and a rules table that is ninety per cent excuses is exactly what
 `TestMostOfTheDocumentedLinesAreActuallyRun` exists to catch — a check can be made to look thorough
 by widening its subject until it covers nothing. Revisit if that document ever grows commands a
 machine can run; the list is one line.
+
+---
+
+### 4.27 A repair in the 1994 editor is unreachable, and 43 objects in three shipped houses are where it would have moved them — **found and DONE as far as this port can take it, 2.4; the bug is the original's and the accommodation is ours**
+
+`KeepObjectLegal` is the original's per-object repair pass: it forces an object's rectangle inside the
+room, snaps furniture to the tile grid, and — for four object types — rewrites a wrong vertical
+coordinate back to the constant the type is supposed to sit at (`HouseLegal.c:115-137`). Three of the
+four work. The fourth never runs.
+
+```c
+switch (theObject->what)
+{
+    case kFloorVent:
+    case kCeilingVent:
+    ...                                   /* sixteen cases, HouseLegal.c:75-90 */
+    case kLiftArea:
+    ...
+    if ((theObject->what == kFloorVent) && ...)     /* :115  reachable */
+    if ((theObject->what == kFloorBlower) && ...)   /* :120  reachable */
+    if ((theObject->what == kSewerGrate) && ...)    /* :126  reachable */
+    if ((theObject->what == kFloorTrans) && ...)    /* :132  kFloorTrans is not one of the sixteen */
+```
+
+`kFloorTrans` is not in that case list. It is handled thirteen arms later, in the block for the `data.d`
+transports (`HouseLegal.c:282-385`), which repairs doors, windows and `kInvisTrans` and says nothing
+about `v`. So the branch at `:132-137` is dead code: a floor transporter's vertical coordinate is never
+repaired, by this or by anything else.
+
+**The corpus shows the consequence.** 43 of the 244 shipped `kFloorTrans` objects sit at `v` 300 rather
+than `kFloorTransTop`'s 302 — 37 in Slumberland, 5 in Leviathan, 1 in Rainbow's End. Every other one of
+the 24 vertically fixed types is at its constant in all 4,041 placements (4.23). These 43 are the only
+exceptions in the whole census, and they are exactly the type whose repair does not run.
+
+Where the 300 came from is not knowable from here, and the honest answer is that it does not matter:
+`AddNewObject` does write 302 (`ObjectAdd.c:341`), so these were moved afterwards by something —
+an early build, a version of `DragObject` that took `deltaV`, or a house converted from Glider 4.0 —
+and with the repair dead, nothing put them back. A two-pixel error nobody could see is how dead code
+stays dead for thirty-one years.
+
+**Had it been reachable it would have been wrong anyway**, which is worth recording because it is the
+more interesting half. The branch writes through `theObject->data.a` — the blower variant — and
+`kFloorTrans` is a `data.d` transport. `topLeft` aliases harmlessly, since all nine variants begin with
+the same two shorts. `distance` does not: `data.a.distance` and `data.d.tall` are the same two bytes, so
+the `data.a.distance += 2` at `:136` would have grown the transporter's *height* by 2 as a side effect of
+moving it. That the three live repairs make the same adjustment to a real `distance` — the length of an
+updraught's lift column — is at least coherent for them, since the object itself has just moved; for the
+transporter it would have been two bytes of collateral damage from a line that was aiming at a different
+variant. It fires once per out-of-place object, not on every save, because the repair that triggers it
+also removes its own trigger.
+
+**What this port does.** `object-top` accepts 300 for `kFloorTrans` and only for `kFloorTrans`, as a
+value and not a tolerance — 299 warns, 301 warns. The exemption is a named constant,
+`floorTransStrayTop`, with this section cited beside it, because a bare `|| got == 300` in a comparison
+is indistinguishable from the bug it is accommodating. `TestCorpusFixedAnchors` pins the 43 by house, so
+a loader change that moved them shows up here rather than as a silent shift in a count.
+
+**Not fixed, and deliberately so.** The port could normalise all 43 to 302 on load and be rid of the
+special case. It will not: `docs/analysis/house-format.md` and this repository's whole approach treat a
+shipped house as the specification, and 302 in Slumberland's rooms is not what Slumberland contains. The
+alternative — quietly rewriting 43 objects in 3 of the 22 houses to make one linter rule tidier — is the
+kind of helpfulness `TestCorpusNonCompacted` exists to forbid.
 
 ---
 

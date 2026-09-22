@@ -143,6 +143,7 @@ func (h *House) RoomNumber(floor, suite int16) int16 {
 var (
 	codeUpStairs     = mustCode("kUpStairs")
 	codeDownStairs   = mustCode("kDownStairs")
+	codeFloorTrans   = mustCode("kFloorTrans")
 	codeSoundTrigger = mustCode("kSoundTrigger")
 	codeStar         = mustCode("kStar")
 	codeCustomPict   = mustCode("kCustomPict")
@@ -194,7 +195,137 @@ var (
 
 	ceilingMounted = codeSet("kCeilingVent", "kCeilingBlower", "kCeilingLight",
 		"kFlourescent", "kTrackLight")
+
+	// The 24 object types whose vertical coordinate is not a coordinate at all: the
+	// original's editor writes a compile-time constant into `topLeft.v` and offers an
+	// author no way to change it. A floor vent is on the floor because 305 is in a
+	// header file, not because somebody dragged it there.
+	//
+	// Three mechanisms hold it, which is why the corpus has no exceptions but the one
+	// noted below. AddNewObject assigns the constant at creation (ObjectAdd.c:99-110,
+	// :128-131, :311, :341, :355, :374-440, :517-564). DragObject then moves these
+	// types **horizontally only**: their case arms add deltaH to topLeft.h and simply
+	// do not mention topLeft.v (ObjectEdit.c:565-573, :632-645, :668-674). The contrast
+	// is two arms away in the same switch and the same union member -- kLeftFan,
+	// kRightFan, the five flames, kInvisBlower and kLiftArea get both deltas
+	// (ObjectEdit.c:575-586), and so do kLightBulb, kTableLamp and kInvisLight
+	// (:676-681), because a table lamp sits on whatever furniture the author put under
+	// it. And KeepObjectLegal *repairs* three of the 24 on top of that, rewriting a
+	// wrong v back to its constant (HouseLegal.c:115-131), from AddNewObject
+	// (ObjectAdd.c:774), from DragObject (ObjectEdit.c:747) and from
+	// CheckHouseForProblems on every save (HouseIO.c:470). A fourth repair is written
+	// and unreachable, which is the one exception in the corpus -- floorTransStrayTop
+	// below is that whole story.
+	//
+	// So this check restates a tool's behaviour, which is exactly why it is worth
+	// having: gliderGo's own house files are not written by that tool, and nothing else
+	// in this port would notice.
+	//
+	// Eight of the 24 have their horizontal coordinate nailed down by name as well;
+	// that is fixedLefts, below.
+	//
+	// **What is left out, and why.** kCounter, kDresser, kManhole, kMousehole and
+	// kFireplace are just as immovable vertically -- their arms are h-only too
+	// (ObjectEdit.c:606-611, :739-743) -- but the original names their *bottom*
+	// (kCounterBottom 304, kDresserBottom 293, kManholeSits 322, kMouseholeBottom 295,
+	// kFireplaceBottom 297), and a bottom becomes a top only by subtracting the height
+	// of the artwork. This package cannot see the artwork: it reads house files, and the
+	// sprite rects live in internal/render. Putting the five differences in here as
+	// literals would turn a table of citations into a table of measurements, which is the
+	// thing this check is for.
+	//
+	// kBalloon, kCopterLf and kCopterRt are h-only as well (ObjectEdit.c:701-705)
+	// and are left out for a different reason: they are created wherever the click was,
+	// no repair constrains them, and AddDynamicObject overwrites the vertical position
+	// at run time regardless of what the file says -- kBalloonStart for the balloon
+	// (Dynamics3.c:395) and kCopterStart for the two helicopters (Dynamics3.c:417). A
+	// stored v with no consequence is nothing to report.
+	fixedTops = map[int16]fixedCoord{
+		mustCode("kFloorVent"):     {305, "kFloorVentTop (GliderDefines.h:467)"},
+		mustCode("kCeilingVent"):   {8, "kCeilingVentTop (GliderDefines.h:468)"},
+		mustCode("kFloorBlower"):   {304, "kFloorBlowerTop (GliderDefines.h:469)"},
+		mustCode("kCeilingBlower"): {5, "kCeilingBlowerTop (GliderDefines.h:470)"},
+		mustCode("kSewerGrate"):    {303, "kSewerGrateTop (GliderDefines.h:471)"},
+		mustCode("kCeilingTrans"):  {6, "kCeilingTransTop (GliderDefines.h:472)"},
+		mustCode("kFloorTrans"):    {302, "kFloorTransTop (GliderDefines.h:473)"},
+		mustCode("kUpStairs"):      {28, "kStairsTop (GliderDefines.h:474)"},
+		mustCode("kDownStairs"):    {28, "kStairsTop (GliderDefines.h:474)"},
+		mustCode("kCeilingLight"):  {4, "kCeilingLightTop (GliderDefines.h:477)"},
+		mustCode("kHipLamp"):       {23, "kHipLampTop (GliderDefines.h:478)"},
+		mustCode("kDecoLamp"):      {91, "kDecoLampTop (GliderDefines.h:479)"},
+		mustCode("kFlourescent"):   {12, "kFlourescentTop (GliderDefines.h:480)"},
+		mustCode("kTrackLight"):    {5, "kTrackLightTop (GliderDefines.h:481)"},
+		mustCode("kDoorInLf"):      {0, "kDoorInTop (GliderDefines.h:483)"},
+		mustCode("kDoorInRt"):      {0, "kDoorInTop (GliderDefines.h:483)"},
+		mustCode("kDoorExLf"):      {0, "kDoorExTop (GliderDefines.h:486)"},
+		mustCode("kDoorExRt"):      {0, "kDoorExTop (GliderDefines.h:486)"},
+		mustCode("kWindowInLf"):    {64, "kWindowInTop (GliderDefines.h:489)"},
+		mustCode("kWindowInRt"):    {64, "kWindowInTop (GliderDefines.h:489)"},
+		mustCode("kWindowExLf"):    {64, "kWindowExTop (GliderDefines.h:492)"},
+		mustCode("kWindowExRt"):    {64, "kWindowExTop (GliderDefines.h:492)"},
+
+		// The two the header does not carry. ObjectAdd.c defines them locally, at the
+		// top of the only file that uses them, which is a fair summary of how much of
+		// 1994's geometry is editor-side.
+		mustCode("kGrecoVent"):   {303, "kGrecoVentTop (ObjectAdd.c:22)"},
+		mustCode("kSewerBlower"): {292, "kSewerBlowerTop (ObjectAdd.c:23)"},
+	}
+
+	// The four doors and four windows, which are the only objects in the game whose
+	// *horizontal* position is a constant too. They are not decoration: a room's door
+	// is one of its exits, so it belongs against one wall or the other and nowhere
+	// between.
+	//
+	// The mechanism is not the same as fixedTops' and is worth the distinction.
+	// DragObject *does* move these eight horizontally (ObjectEdit.c:632-645) -- it is
+	// the one axis they are free on -- and then KeepObjectLegal puts them back:
+	// whichever half of the room the object's midpoint ended up in decides the answer,
+	// the coordinate is rewritten to that side's constant, and `what` is rewritten to
+	// match, so dragging a left door across the room turns it into a right door
+	// (HouseLegal.c:310-369). The repair runs on every save (HouseIO.c:470), so `what`
+	// and h always agree in a file the 1994 editor wrote -- which is what makes one
+	// constant per code the right table here rather than two constants per pair.
+	//
+	// The corpus keeps it exactly: 167 door and window placements, 167 at the constant.
+	// One oddity for whoever reads the C next -- neither this repair nor the three in
+	// fixedTops set KeepObjectLegal's `unchanged` flag, so the original could silently
+	// move your door and report the house as untouched.
+	fixedLefts = map[int16]fixedCoord{
+		mustCode("kDoorInLf"):   {0, "kDoorInLfLeft (GliderDefines.h:484)"},
+		mustCode("kDoorInRt"):   {368, "kDoorInRtLeft (GliderDefines.h:485)"},
+		mustCode("kDoorExLf"):   {0, "kDoorExLfLeft (GliderDefines.h:487)"},
+		mustCode("kDoorExRt"):   {496, "kDoorExRtLeft (GliderDefines.h:488)"},
+		mustCode("kWindowInLf"): {0, "kWindowInLfLeft (GliderDefines.h:490)"},
+		mustCode("kWindowInRt"): {492, "kWindowInRtLeft (GliderDefines.h:491)"},
+		mustCode("kWindowExLf"): {0, "kWindowExLfLeft (GliderDefines.h:493)"},
+		mustCode("kWindowExRt"): {496, "kWindowExRtLeft (GliderDefines.h:494)"},
+	}
 )
+
+// fixedCoord is one row of either table above: the coordinate, and the C constant that
+// is the reason for it. The constant's name goes into the diagnostic rather than staying
+// in this file, because "302 is wrong, 300 is right" is not a thing an author can go and
+// check and "kFloorTransTop" is.
+type fixedCoord struct {
+	at int16  // the coordinate: v in fixedTops, h in fixedLefts
+	c  string // the C constant that names it, with its line
+}
+
+// floorTransStrayTop is the second value fixedTops has to accept, and the only one.
+//
+// 43 of the corpus's 244 kFloorTrans objects are at v 300 rather than 302 -- 37 in
+// Slumberland, 5 in Leviathan, 1 in Rainbow's End -- and the reason is a bug in the
+// original that docs/IMPROVEMENTS.md 4.27 sets out: the repair that would have
+// normalised them is unreachable. KeepObjectLegal's kFloorTrans branch
+// (HouseLegal.c:132-137) sits inside a case block whose case list (HouseLegal.c:75-90)
+// does not name kFloorTrans, so it never executes; the type is handled thirteen arms
+// later, in the block for `data.d` transports (HouseLegal.c:282-385), which repairs
+// doors and windows and kInvisTrans and says nothing about v.
+//
+// Accepting 300 is therefore not a corpus exemption for its own sake. It is what the
+// original actually does, and a linter that fired on 43 shipped objects would be
+// reporting the 1994 bug as the author's mistake.
+const floorTransStrayTop = 300
 
 // The built-in background range: ids the application's own resource fork supplies,
 // as against FirstUserBackground and up, which the house file carries itself
@@ -669,6 +800,7 @@ func (l *linter) room(i int) {
 		}
 
 		l.mounting(i, rm, slot, o)
+		l.anchor(i, slot, o)
 		l.link(i, slot, o)
 	}
 
@@ -817,6 +949,66 @@ func (l *linter) mounting(i int, rm *Room, slot int, o Object) {
 // ---------------------------------------------------------------------------
 // Object-level checks
 // ---------------------------------------------------------------------------
+
+// anchor reports an object standing somewhere the original's editor could not have put
+// it. The two tables and their enforcement mechanisms are documented on fixedTops and
+// fixedLefts; this is only the comparison.
+//
+// Warn, on both axes, by the ladder at the top of this file. A wrong coordinate is not
+// an error: the loader needs no repair to read the room, GetObjectRect places every
+// object at the coordinates it stores (ObjectRects.c:32-273) and the art composes, so
+// the house plays. It is not a note either, because the result is visible and in the
+// way -- a staircase whose top step is 28 pixels from where an arriving glider is
+// placed, or a door standing in the middle of the floor. That is the middle rung:
+// something a player can walk into.
+//
+// 3,998 of the corpus's 4,041 placements of these types are at their vertical constant
+// exactly, and the other 43 are the kFloorTrans case floorTransStrayTop exists for.
+// All 167 doors and windows are at their horizontal one. So no shipped house is made to
+// warn by either half, which is the calibration this file's header demands.
+func (l *linter) anchor(room, slot int, o Object) {
+	if want, ok := fixedTops[o.What]; ok {
+		if got := o.TopLeft().V; got != want.at &&
+			!(o.What == codeFloorTrans && got == floorTransStrayTop) {
+			l.add(SeverityWarn, "object-top", room, slot,
+				"%s is at v %d and the original places it at %d, always: %s is a "+
+					"compile-time constant, AddNewObject writes it, and DragObject moves "+
+					"this type horizontally only (ObjectEdit.c:565-573, :632-645, "+
+					":668-674). So no 1994 editor produced this value. The object draws "+
+					"where it is stored, %s where every other one of its kind in every "+
+					"shipped house sits",
+				ObjectName(o.What), got, want.at, want.c, offsetBy(got-want.at, "below", "above"))
+		}
+	}
+	if want, ok := fixedLefts[o.What]; ok {
+		if got := o.TopLeft().H; got != want.at {
+			l.add(SeverityWarn, "object-left", room, slot,
+				"%s is at h %d and belongs at %d: %s is a compile-time constant, and "+
+					"KeepObjectLegal snaps a door or window to the nearer wall on every "+
+					"save, rewriting `what` to match the side it chose "+
+					"(HouseLegal.c:310-369). So this is a doorway %s the wall it is the "+
+					"doorway through, and the original would have moved it",
+				ObjectName(o.What), got, want.at, want.c,
+				offsetBy(got-want.at, "right of", "left of"))
+		}
+	}
+}
+
+// offsetBy renders a signed difference as a distance and a direction, because "22
+// pixels right of" is a thing an author can look for on screen and "h is 390, want 368"
+// is arithmetic they have to do themselves. The singular is spelled because a one-pixel
+// slip is the most likely kind and "1 pixels" in a diagnostic reads like a bug in the
+// tool rather than in the house.
+func offsetBy(d int16, positive, negative string) string {
+	dir := positive
+	if d < 0 {
+		d, dir = -d, negative
+	}
+	if d == 1 {
+		return "1 pixel " + dir
+	}
+	return fmt.Sprintf("%d pixels %s", d, dir)
+}
 
 // link is the check the whole file exists for: the five ways a stored link can fail
 // to be a link, in the order they stop mattering.
@@ -1057,6 +1249,8 @@ func LintChecks() []LintCheck {
 		{"no-rooms", SeverityError, "the house has no rooms at all"},
 		{"no-stars", SeverityWarn, "no kStar anywhere, so the house cannot be won"},
 		{"num-objects", SeverityNote, "numObjects disagrees with the live slot count"},
+		{"object-left", SeverityWarn, "a door or window that is not against either wall"},
+		{"object-top", SeverityWarn, "an object at a v the original's editor could not produce"},
 		{"room-count", SeverityError, "the header's nRooms disagrees with the file length"},
 		{"sound-id", SeverityWarn, "a kSoundTrigger naming a sound the house does not carry"},
 		{"sound-trigger-crowded", SeverityWarn, "more than one kSoundTrigger in a room, which holds one"},

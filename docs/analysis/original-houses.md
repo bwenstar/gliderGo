@@ -4459,6 +4459,15 @@ A one-room house would be `866 + 348 = 1214` bytes.
   `snd ` resources at all.
 - **Do not place `kTV` without a `.mov`.** Four houses do (California or Bust!,
   In The Mirror, Metropolis, The Asylum Pro).
+- **Do not choose the vertical coordinate of a vent, a light, a staircase, a
+  transporter, a door or a window.** For 24 object types it is a `#define` and not a
+  position — a floor vent is at `v` 305 because `kFloorVentTop` is 305
+  (`GliderDefines.h:467-481`, `:483-494`, `ObjectAdd.c:19-23`) — and the editor writes
+  it for you three separate ways. 3998 of 4041 shipped placements are at their
+  constant exactly; the 43 that are not are one 1994 bug, in 11.12. The four doors and
+  four windows have named *horizontal* constants too, so each belongs against one wall
+  or the other and nowhere between: all 167 shipped ones are. gliderGo reports both as
+  `object-top` and `object-left`.
 - **Do not leave rooms named "Untitled Room"** (53 shipped rooms in 4 houses).
 - **Do not create rooms that are unreachable from `firstRoom`.** 15 of 22 houses
   have some, and Fun House reaches only 5 of its 43 rooms under the static model.
@@ -4659,6 +4668,31 @@ entirely on its 9 `'bnds'` resources.
 | `wardBitSet` (`flags` bit 0) | false in all 22 |
 | BinHex CRCs | all 66 (22 header + 22 data + 22 resource) verify |
 | `kCustomPict` resolution | all 4782 placements resolve to a `PICT` in the *same* house's fork; none fall through to the app's placeholder `PICT` 10000 |
+
+### 11.12 43 floor transporters are 2 pixels low, because the repair for them is dead code
+
+24 object types store a vertical coordinate that the editor never lets an author choose: it is a
+`#define`, written at creation by `AddNewObject`, left alone by `DragObject` (whose case arms for these
+types add `deltaH` and do not mention `deltaV`), and rewritten on save by `KeepObjectLegal` for four of
+them. Across all 22 houses that holds in **3998 of 4041** placements — exactly, not approximately.
+
+The 43 exceptions are all `kFloorTrans`, all at `v` **300** where `kFloorTransTop`
+(`GliderDefines.h:473`) is **302**, and all in three houses: **Slumberland 37, Leviathan 5, Rainbow's
+End 1**. The other 201 floor transporters are at 302.
+
+The cause is a case-list bug. `KeepObjectLegal`'s repair for `kFloorTrans` (`HouseLegal.c:132-137`) sits
+inside the `case` block at `:75-90`, which lists sixteen types and not that one; `kFloorTrans` is
+handled thirteen arms later by the `data.d` transport block (`:282-385`), which repairs doors, windows
+and `kInvisTrans` and says nothing about `v`. So the branch never executes, and nothing else puts a
+moved floor transporter back. Had it executed it would also have written through the wrong union
+member: `data.a.distance += 2` at `:136` is the same two bytes as `data.d.tall`, so it would have grown
+the transporter by 2 pixels while fixing its position.
+
+**Consequence for a port:** a validator that requires these 24 constants must accept 300 for
+`kFloorTrans` as a second legal value, or it fails three shipped houses on the original's bug. gliderGo's
+`object-top` check does exactly that, as a value and not a tolerance — 299 and 301 are still reported.
+The full table of 24 constants, and the eight horizontal ones that go with the doors and windows, is in
+`internal/house/lint.go`; `docs/IMPROVEMENTS.md` 4.23 and 4.27 are the entries.
 
 ---
 

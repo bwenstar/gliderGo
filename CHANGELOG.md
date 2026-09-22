@@ -17,6 +17,52 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Two lint checks for the coordinates the 1994 editor never let an author choose (2026-09-22)
+
+24 object types do not have a vertical position in Glider PRO — they have a `#define`. A floor vent is
+at `v` 305 because `kFloorVentTop` is 305 (`GliderDefines.h:467`); `AddNewObject` writes the constant,
+`DragObject`'s case arm for that type adds `deltaH` and does not mention `deltaV`, and
+`KeepObjectLegal` rewrites a wrong one back on every save. Eight of the 24 — the four doors and four
+windows — have named horizontal constants as well, and a dragged door is snapped to the nearer wall
+with its `what` rewritten to match the side it landed on.
+
+So `object-top` and `object-left` in `internal/house/lint.go`, both `warn`, from a table of 32 rows
+that are citations rather than measurements. The 22 shipped houses raise neither: 3,998 of 4,041
+vertical placements and 167 of 167 horizontal ones are at their constant, and the other 43 are one
+type, one value and one 1994 bug (below). `TestCorpusFixedAnchors` is what says the constants were
+transcribed correctly, because it checks them against 22 files nobody involved can edit.
+
+This is a check that restates a tool's behaviour, which is the argument for it: gliderGo's own houses
+are not written by that tool. They are typed into `levels/*.house.txt` with the coordinate spelled out,
+and `make levels` lints with `-fail warn` — so a mistyped column now fails the build instead of
+shipping a ventilation grille hanging two pixels above the floor. Both of the port's houses pass
+unchanged. `docs/IMPROVEMENTS.md` 4.23, which filed this as a note and named two questions that had to
+be answered from the C first; both are answered there, including that one of the note's own claims
+about `HouseLegal.c` was wrong.
+
+One side effect worth naming: 37 subtests in `lint_test.go` built fixtures with every object at `v` 0,
+so the new check fired 98 times the moment it was wired in. The fixtures were fixed, not the check
+exempted — `plain`, `transportTo` and `switchTo` now place their object where the original would have.
+The file's header says the synthetic half builds a house Lint has nothing to say about and then breaks
+one thing in it, and those 37 had quietly stopped being that.
+
+### A dead branch in the original's repair pass, and the 43 objects that are where it left them (2026-09-22)
+
+`HouseLegal.c:132-137` repairs a `kFloorTrans`'s vertical coordinate to 302. It sits inside a `case`
+block whose case list (`:75-90`) does not include `kFloorTrans`, which is handled thirteen arms later
+by the block for `data.d` transports — so the branch has never executed. 43 of the 244 shipped floor
+transporters are at `v` 300 instead of 302: 37 in Slumberland, 5 in Leviathan, 1 in Rainbow's End.
+They are the only exceptions in the whole 4,041-placement census, and they are exactly the type whose
+repair does not run.
+
+Had it been reachable it would also have been wrong: the branch writes through `data.a`, and
+`data.a.distance` is the same two bytes as `data.d.tall`, so repairing the position would have grown
+the transporter's height by 2.
+
+`object-top` accepts 300 for that one type as a value and not a tolerance — 299 and 301 still warn —
+through a named constant with the finding cited beside it. The 43 are not normalised on load: a shipped
+house is the specification, and 302 is not what Slumberland contains. `docs/IMPROVEMENTS.md` 4.27.
+
 ### The release packaging step has now been run, on a machine that cannot reach GitHub (2026-09-22)
 
 `release.yml` has a standing caveat that it has never run, and it was doing more work than it needed
