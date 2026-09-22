@@ -70,7 +70,7 @@ Read in full:
 Also consulted: `Sources/HouseLegal.c`, `Sources/ObjectInfo.c`, `Sources/ObjectEdit.c`
 (`DrawThisRoomsObjects`, the edit-mode dark-room gray overlay), `Sources/RoomInfo.c`
 (the "(Room Is Dark)" / "(Room Is Lit)" dialog strings), `Sources/Music.c`,
-`Sources/Utilities.c`, `Sources/Coordinates.c`, `Sources/StructuresInit1.c`.
+`Sources/Utilities.c`, `Sources/Coordinates.c`, `Sources/StructuresInit.c`.
 
 Binary data verified by parsing with python3: `GliderPRO/Houses/Empty House.binhex`,
 `Demo House.binhex`, `Art Museum.binhex`, `CD Demo House.binhex`, `California or Bust!.binhex`,

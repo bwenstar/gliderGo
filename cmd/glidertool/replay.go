@@ -10,6 +10,14 @@ import (
 	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
+// exampleHouse is the house every piece of replay's own documentation reaches for: the usage
+// text's worked script, the error printed when no house was given, and the template `-script -`
+// writes. One of the 22 originals, so it is built into every executable and the printed template
+// runs on a checkout that has never seen `make assets`; chosen over "Demo House" because it holds
+// all seven exit kinds (internal/game/exits_test.go:27) and so is the one worth pointing a reader
+// at. The three uses are held together by glidertool_test.go rather than by three literals.
+const exampleHouse = "CD Demo House"
+
 // replayCmd runs the game headlessly from a script and prints what happened, one line per
 // frame.
 //
@@ -53,7 +61,7 @@ With no script file, the flags alone describe the run.
 
 A script is line-oriented; %s replay -script - prints one to copy:
 
-  house CD Demo House
+  house %s
   seed 1
   frames 600
   room 4                 # start here...
@@ -77,7 +85,7 @@ machine with no sound card is the only way to hear what a replay sounded like:
 
   %s replay -wav bug.wav -trace -o bug.txt bug.script
 
-`, prog, prog, prog, prog, prog)
+`, prog, prog, exampleHouse, prog, prog, prog)
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -161,14 +169,20 @@ machine with no sound card is the only way to hear what a replay sounded like:
 	s.HouseDir, s.ArtDir, s.HouseArtDir, s.SoundDir = *houseDir, *artDir, *houseArt, *soundDir
 	s.Tree = builtinTree()
 
-	// A directed sentence rather than fs.Usage(): the caller knows what a replay is and has
-	// left out one thing, so fifteen flag descriptions bury the answer.
-	if s.House == "" {
-		return fmt.Errorf("no house to replay: pass a script file, or -house %q (see `%s replay -h`)",
-			"CD Demo House", prog)
-	}
-
+	// -script writes the resolved script out and exits, so it describes a run rather than
+	// performing one, and it is deliberately above the house check below: `replay -script -` with
+	// no other argument is the command the usage text offers as the way to see the format, and
+	// with the check first it was the one command in this tool whose own -h told the reader to
+	// run something that could not run. Found by docs/IMPROVEMENTS.md 4.13's sweep.
+	//
+	// The blank house is filled in with exampleHouse rather than written out empty, because
+	// "prints one to copy" is only worth something if the copy runs -- a template whose first line
+	// is `house` with nothing after it teaches the syntax and then fails on the very next command
+	// the reader types, which is a worse first five minutes than no template at all.
 	if *writeBack != "" {
+		if s.House == "" {
+			s.House = exampleHouse
+		}
 		w, closeOut, err := openOut(*writeBack)
 		if err != nil {
 			return err
@@ -178,6 +192,13 @@ machine with no sound card is the only way to hear what a replay sounded like:
 			return err
 		}
 		return closeOut()
+	}
+
+	// A directed sentence rather than fs.Usage(): the caller knows what a replay is and has
+	// left out one thing, so fifteen flag descriptions bury the answer.
+	if s.House == "" {
+		return fmt.Errorf("no house to replay: pass a script file, or -house %q (see `%s replay -h`)",
+			exampleHouse, prog)
 	}
 
 	// Sound is on by default, and on a checkout with no extracted sound tree that default has to

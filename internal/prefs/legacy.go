@@ -67,7 +67,7 @@ const LegacySize = 226
 const LegacyVersion = 0x0034
 
 // Offsets into the record. Named rather than inlined because every one of them is a
-// claim about a 32-year-old struct layout and TestLegacyOffsets checks them against a
+// claim about a 32-year-old struct layout and TestLegacyLayoutTilesTheRecord checks them against a
 // record built from the same list.
 const (
 	offHouseName  = 0   // Str32  wasDefaultName

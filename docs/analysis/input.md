@@ -3035,7 +3035,7 @@ snapshot player 1 took).
 
 5. **What exactly does `HandleTelephone()` do with input?** It is called once per frame from
    `PlayGame` (`GliderPRO/Sources/Play.c:445`) before `GetInput`. I did not read
- `Sounds.c`/`Utilities` deeply enough to confirm it never consumes events; from its name and
+ `Sound.c`/`Utilities.c` deeply enough to confirm it never consumes events; from its name and
    position it appears to be pure audio/animation, but a port should verify.
 
 6. **Does any house rely on the out-of-bounds `demoData[demoIndex]` read past 1117 records?**

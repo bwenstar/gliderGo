@@ -19,7 +19,7 @@ package player
 type Env interface {
 	// ---- sound -------------------------------------------------------------
 	// PlayPrioritySound is the original's only sound entry point from this code.
-	// Priority decides what a busy channel drops; see docs/analysis/sound.md.
+	// Priority decides what a busy channel drops; see docs/analysis/audio.md.
 	PlayPrioritySound(sound, priority int16)
 
 	// ---- inventory ---------------------------------------------------------

@@ -1,9 +1,13 @@
 # Who made Glider PRO.
 #
-# Transcribed from GliderPRO/README.md lines 2 and 7-15, which is the whole of what the
-# source release says about authorship: the game has no credits screen, its About box is
-# three pictures, and a house file has no author field. So this cannot be read out of the
-# original at runtime and has to be carried as data.
+# Transcribed from GliderPRO/README.md lines 2 and 7-15, which is where the source release
+# says it in words. The 1994 program does say some of it on screen, and it took this port
+# four stages to notice: PICT 153, the plate at the top of the About box, reads "Extreme
+# thanks to: Paul Finn, Steve Sullivan & Ward Hartenstein" (docs/analysis/ui-dialogs.md
+# 10.6). That is three of the six house authors below, one of them under the alias, painted
+# into picture data -- a credit the original gives, and not one anything can read at runtime.
+# Which is why this is a file: there is no credits screen to copy and a house has no author
+# field.
 #
 # It is a data file rather than a Go literal so that it can be checked against its source.
 # credits_test.go reads the vendored README and fails if a person named here is not named
@@ -30,9 +34,10 @@ Six houses are credited to nobody: Art Museum, California or Bust!, Castle o' th
 Empty House, Fun House and Sampler. The third of those names John Calhoun in its banner,
 and Sampler -- saved in 2000, five years after the rest -- names only "Omid".
 
-[the illustrations]
+[borrowed from elsewhere]
 John R. Neill | the Ozma plate (PICT 3975), from "Ozma of Oz"
 Winsor McCay | the About box (PICT 153), from a "Little Nemo in Slumberland" strip
+T.S. Eliot | the line across that plate, from "Prufrock" (1915)
 
 [this port]
 gliderGo | a Go port of the GPL v2 source, 2026

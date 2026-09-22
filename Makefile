@@ -50,7 +50,12 @@ OUT ?= /tmp
 # "dev" -- the default in cmd/glidergo -- is then the honest string.
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS  := -s -w
-GAMEFLAGS := $(LDFLAGS) -X main.version=$(VERSION)
+# Both commands carry the version now, and both have a `var version = "dev"` in package main
+# for it to land in. glidertool went four stages without one, which mattered more than it
+# sounds: every line that tool prints is an assertion about somebody else's data, and a lint
+# report or a replay digest pasted into a bug report is only comparable between two machines
+# if both can say which build produced it.
+STAMPED := $(LDFLAGS) -X main.version=$(VERSION)
 # Both of these are `?=` so that a machine with an open internet can override them
 # from its environment, and `:=` would have silently ignored the attempt.
 #
@@ -93,12 +98,12 @@ embedded:
 ## build: compile the game for this host (x11 backend)
 build: embedded
 	@mkdir -p $(BIN)
-	$(GO) build -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo ./cmd/glidergo
+	$(GO) build -ldflags '$(STAMPED)' -o $(BIN)/glidergo ./cmd/glidergo
 
 ## glidertool: compile the house inspector (`bin/glidertool help`)
 glidertool: embedded
 	@mkdir -p $(BIN)
-	$(GO) build -ldflags '$(LDFLAGS)' -o $(BIN)/glidertool ./cmd/glidertool
+	$(GO) build -ldflags '$(STAMPED)' -o $(BIN)/glidertool ./cmd/glidertool
 
 ## houses: round-trip and sanity-check every extracted house
 houses: glidertool
@@ -147,7 +152,7 @@ smoke: build
 # reachable only by naming a directory that is not there, which is what those two do.
 headless: embedded
 	@mkdir -p $(BIN)
-	$(GO) build -tags nullbackend -ldflags '$(GAMEFLAGS)' -o $(BIN)/glidergo-null ./cmd/glidergo
+	$(GO) build -tags nullbackend -ldflags '$(STAMPED)' -o $(BIN)/glidergo-null ./cmd/glidergo
 	@# Both output directories are cleared first, because both are listed afterwards and $(OUT)
 	@# is a fixed path: without this, a failed run still lists the frames an earlier run left
 	@# behind, and the listing reads as work just done.
@@ -251,19 +256,19 @@ cross: embedded
 		[ "$$os" = windows ] && { ext=".exe"; be="win32 backend (run on Server 2025)"; }; \
 		[ "$$t" = windows/arm64 ] && be="win32 backend (never run on arm64)"; \
 		out=$(BIN)/cross/glidergo-$$os-$$arch$$ext; \
-		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(GAMEFLAGS)' -o $$out ./cmd/glidergo 2>&1; then \
+		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(STAMPED)' -o $$out ./cmd/glidergo 2>&1; then \
 			printf '  %-22s %8s KiB  %s\n' "$$os/$$arch" "$$(( $$(wc -c < $$out) / 1024 ))" "$$be"; \
 		else \
 			printf '  %-22s FAILED\n' "$$os/$$arch"; fail=1; \
 		fi; \
-		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -o $(BIN)/cross/glidertool-$$os-$$arch$$ext ./cmd/glidertool 2>&1; then \
+		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(STAMPED)' -o $(BIN)/cross/glidertool-$$os-$$arch$$ext ./cmd/glidertool 2>&1; then \
 			:; else printf '  %-22s glidertool FAILED\n' "$$os/$$arch"; fail=1; fi; \
 	done; \
 	host=$(BIN)/cross/glidergo-linux-amd64-x11; \
 	if ! pkg-config --exists x11 2>/dev/null; then \
 		printf '  %-22s %8s       x11 backend skipped: no libx11 pkg-config metadata\n' \
 			"linux/amd64 +cgo" "--"; \
-	elif CGO_ENABLED=1 $(GO) build -ldflags '$(GAMEFLAGS)' -o $$host ./cmd/glidergo; then \
+	elif CGO_ENABLED=1 $(GO) build -ldflags '$(STAMPED)' -o $$host ./cmd/glidergo; then \
 		printf '  %-22s %8s KiB  x11 backend (this host)\n' "linux/amd64 +cgo" \
 			"$$(( $$(wc -c < $$host) / 1024 ))"; \
 	else \

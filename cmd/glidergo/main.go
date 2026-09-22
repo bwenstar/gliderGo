@@ -65,6 +65,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -75,8 +76,10 @@ import (
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/platform/backend"
 	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/project"
 	"github.com/bwenstar/gliderGo/internal/render"
 	"github.com/bwenstar/gliderGo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/scores"
 	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
@@ -93,9 +96,38 @@ const defaultHouse = "Slumberland"
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
+
+		// One line under a fatal error, because a released binary travels without this
+		// repository and the person reading the message has no other way to find out where
+		// to send it. It is split two ways on purpose: somebody who mistyped a flag is told
+		// about -h, and everybody else is pointed at the tracker. Sending the mistyped-flag
+		// case to an issue tracker would be the fastest way to make the footer something
+		// nobody reads.
+		//
+		// The second line is conditional -- "if that is not something you can fix" -- and
+		// that wording is load-bearing rather than polite. Most of what reaches here is the
+		// player's to fix: a house that is not where they said it was, a directory that does
+		// not exist. A footer that called every one of those a bug would be wrong most of the
+		// time, and a footer that is wrong most of the time is invisible by the time it is
+		// right.
+		me := filepath.Base(os.Args[0])
+		var u usageErr
+		if errors.As(err, &u) {
+			fmt.Fprintf(os.Stderr, "glidergo: `%s -h` lists the flags\n", me)
+		} else {
+			fmt.Fprintf(os.Stderr, "glidergo: if that is not something you can fix, %s "+
+				"-- paste the output of `%s -version`\n", project.Issues, me)
+		}
 		os.Exit(1)
 	}
 }
+
+// usageErr marks the one class of failure that must not carry the bug-report footer: the
+// command line was wrong. It wraps rather than replaces, so the message is still the specific
+// one the check wrote -- `-neighbors must be 1, 3 or 9` and not a generic "bad usage".
+type usageErr struct{ error }
+
+func (u usageErr) Unwrap() error { return u.error }
 
 // options is the command line, parsed and checked once.
 type options struct {
@@ -169,6 +201,9 @@ func printVersion(o *options) {
 	fmt.Printf("  backend   %s\n", backend.Name)
 	fmt.Printf("  built by  %s\n", runtime.Version())
 	fmt.Printf("  platform  %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	for _, r := range vcsRows() {
+		fmt.Printf("  %-9s %s\n", r[0], r[1])
+	}
 
 	// What the executable is carrying, first, because it is the answer to "does this need
 	// files beside it" and because a build with no assets in it -- which nothing released is,
@@ -206,6 +241,170 @@ func printVersion(o *options) {
 			fmt.Printf("  %-9s missing (%s) -- `make assets` rebuilds it\n", t.what, t.where)
 		}
 	}
+
+	// Then where the sound would go, which is the one row here that is a *prediction* rather
+	// than a reading. It earns its place because "no sound" is the commonest report a port of a
+	// 1994 Mac game gets and because the causes are four different things -- the flag, the bank,
+	// the platform and what happens to be installed -- and only two of them are visible from
+	// outside the process.
+	fmt.Printf("  audio     %s\n", audioRoute(o))
+
+	// Then this installation's own three files, which is the question nobody can answer from
+	// outside the process. The original kept one 226-byte resource in the System Folder; this
+	// port keeps settings, score boards and saved games in three places under
+	// os.UserConfigDir and os.UserHomeDir, and which directories those are depends on the
+	// platform, on four XDG variables and on three flags. "nowhere" is a real answer and not
+	// a fault -- `-prefs none` and a machine with no configuration directory both land there
+	// -- and it is the answer to "it forgot my settings again", which is otherwise
+	// unanswerable without reading this source. Paths only: nothing here opens a file, so
+	// the block still works on the machine where the game will not start.
+	for _, r := range statePaths(o) {
+		fmt.Printf("  %-9s %s\n", r[0], r[1])
+	}
+
+	// Last, and the reason the whole block is worth pasting: where this came from and where
+	// the paste goes. A report that arrives with everything above it and no way to tell which
+	// project it is about has happened to every program that ships more than one binary, and
+	// the lines cost nothing.
+	//
+	// The provenance is four rows rather than one sentence because the one sentence had to
+	// choose an article for an SPDX identifier -- it read "under the GPL-2.0-only" -- and
+	// because these are four separate facts that get quoted separately: which project, where
+	// the bugs go, which revision of whose C this is a transcription of, and who holds what.
+	fmt.Printf("  home      %s\n", project.Home)
+	fmt.Printf("  bugs      %s\n", project.Issues)
+	fmt.Printf("  licence   %s\n", project.Licence)
+	fmt.Printf("  port of   %s -- %s / %s, %s\n", project.Original, project.OriginalAuthor,
+		project.OriginalPublisher, project.OriginalYear)
+	fmt.Printf("  from      %s @ %s\n", project.Upstream, project.UpstreamCommit)
+	fmt.Printf("  %s; %s %s\n", project.Copyright, project.Original, project.OriginalCopyright)
+}
+
+// vcsRows is what the toolchain stamped into this executable, as label/value pairs.
+//
+// It is here because `version` above is a linker variable the Makefile sets from `git
+// describe`, and a plain `go build ./cmd/glidergo` -- which is what somebody trying the project
+// for the first time runs -- leaves it as the literal string "dev". A report from such a binary
+// was unattributable. Since Go 1.18 the toolchain stamps `vcs.revision`, `vcs.time` and
+// `vcs.modified` into any build made inside a repository without being asked, so the commit is
+// recoverable anyway, and `modified true` is the single most useful line in a bug report: it
+// says the binary is not any commit at all and the diff has to come from the reporter.
+//
+// Empty is a normal answer, not a failure: a build from a release tarball, from a module cache
+// or with -buildvcs=false has no stamps, and the rows are simply absent rather than printed as
+// "unknown", because a row that says nothing is worse than no row.
+func vcsRows() [][2]string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return nil
+	}
+	// Fixed order, looked up rather than ranged over, because the order Settings comes in is
+	// not part of the toolchain's contract and this is output somebody reads.
+	labels := [][2]string{
+		{"vcs.revision", "commit"},
+		{"vcs.time", "committed"},
+		{"vcs.modified", "modified"},
+	}
+	var rows [][2]string
+	for _, want := range labels {
+		for _, s := range info.Settings {
+			if s.Key == want[0] {
+				rows = append(rows, [2]string{want[1], s.Value})
+				break
+			}
+		}
+	}
+	return rows
+}
+
+// statePaths answers "where does this build keep my things", for the three stores the game
+// writes, under the flags this invocation was given. Label and value, so the caller owns the
+// formatting.
+//
+// It mirrors loadPrefs, app.openScores and app.openSaves rather than calling them, and that is
+// a deliberate duplication of three switch statements: those three open files, print notes and
+// build stores, and -version must do none of that. The duplication is small, it is in one
+// place, and cmd/glidergo's own test pins the three `none` spellings against it.
+// audioRoute says where this build would send the mix, and opens nothing on the way.
+//
+// Nothing here is allowed to open a device, which is the whole difficulty: the honest answer is
+// what openSink returns and openSink starts a player. So this mirrors its three cases against
+// audio.Outputs(), which only asks the platform what exists -- exec.LookPath for the five
+// external players, waveOutGetNumDevs on Windows. A -version run must be safe beside a running
+// game, and on the native device it would not be: waveout refuses a second open in one process,
+// so asking properly would print a failure caused by the asking.
+//
+// Which makes this a prediction, and the wording says so where it can be wrong. `-audio` names
+// an output that Open insists on, so the row says the run stops if it is missing rather than
+// claiming it is there; the unflagged case names what Open would *try* first and then the rest,
+// because the rest is the list somebody about to type `-audio` wants.
+func audioRoute(o *options) string {
+	// Two flags answer before any output is considered, and both are states a bug report
+	// arrives in: -sound=false is the original's dontLoadSounds and a run with it is silent for
+	// a reason that has nothing to do with this machine's players, and -audio list is checked
+	// after -version in run() so the pair is reachable and would otherwise read as a request
+	// for an output called "list".
+	switch {
+	case !o.sound:
+		return "off (-sound=false: no bank is loaded, as the original's dontLoadSounds)"
+	case o.audioOut == "list":
+		return "nothing opened (-audio list prints this machine's outputs and exits)"
+	}
+
+	var to []string
+	if o.wav != "" {
+		to = append(to, o.wav+" (a file: -wav records the mix)")
+	}
+	// openSink's condition, exactly: -wav on its own records and opens no player, because
+	// starting one on a build machine would be a surprise.
+	if o.audioOut != "" || o.wav == "" {
+		found := audio.Outputs()
+		switch {
+		case o.audioOut != "":
+			to = append(to, o.audioOut+" (named with -audio, so the run stops if it is not there)")
+		case len(found) == 0:
+			to = append(to, "nothing -- no sound output on this machine; "+
+				"`-audio list` names what it looks for, and -wav writes a file instead")
+		case len(found) == 1:
+			to = append(to, found[0])
+		default:
+			to = append(to, found[0]+" (also installed: "+strings.Join(found[1:], " ")+")")
+		}
+	}
+	return strings.Join(to, " + ")
+}
+
+func statePaths(o *options) [][2]string {
+	// resolve turns one flag into the line to print. The empty flag is the interesting case:
+	// it means "the usual place", and the usual place is a computation that can fail on a
+	// machine with no home directory -- which is a state worth naming rather than hiding.
+	resolve := func(name, value, none string, usual func() (string, error)) string {
+		switch value {
+		case none:
+			return fmt.Sprintf("nowhere (-%s %s: nothing is read or written)", name, none)
+		case "":
+			p, err := usual()
+			if err != nil {
+				return fmt.Sprintf("nowhere (%v)", err)
+			}
+			return p
+		default:
+			return value
+		}
+	}
+
+	rows := [][2]string{
+		{"prefs", resolve("prefs", o.prefsPath, prefsNone, prefs.Path)},
+		{"scores", resolve("scores", o.scoresDir, scoresNone, scores.Dir)},
+		{"saves", resolve("saves", o.savesDir, savesNone, saved.Dir)},
+	}
+	// The fourth case loadPrefs has, and the one that would otherwise make this block lie:
+	// a measurement -- -shot, -frames, -bench or -dump -- reads the defaults and writes
+	// nothing, unless -prefs named a file outright. See hermetic in prefs.go.
+	if o.prefsPath == "" && hermetic(o) {
+		rows[0][1] = "nowhere (a measurement run uses this build's defaults)"
+	}
+	return rows
 }
 
 func parseFlags() (*options, error) {
@@ -241,12 +440,47 @@ func parseFlags() (*options, error) {
 	flag.StringVar(&o.wav, "wav", "", "write the mix to this WAV file")
 
 	flag.BoolVar(&o.showVersion, "version", false, "print the build, the compiled-in backend and where the assets are coming from, then exit")
+
+	// `-h` is the other thing a player reaches for before they reach for a search engine, and
+	// the stock message -- "Usage of /tmp/glidergo:" followed by thirty flags -- says neither
+	// what the program is nor where it came from. Everything the flags do is optional: the
+	// binary plays the game with no arguments at all, which is worth saying once at the top.
+	flag.Usage = func() {
+		w := flag.CommandLine.Output()
+		fmt.Fprintf(w, "%s -- a port of %s (%s, %s).\n\n",
+			project.Name, project.Original, project.OriginalAuthor, project.OriginalYear)
+		fmt.Fprintf(w, "usage: %s [flags] [house]\n\nRun it with no flags to play. The rest is for\n"+
+			"development, headless runs and moving a 1994 installation across.\n\n",
+			filepath.Base(os.Args[0]))
+		flag.PrintDefaults()
+		fmt.Fprintf(w, "\n%s -- bugs to %s\n", project.Home, project.Issues)
+	}
 	flag.Parse()
 
 	// Before every other check, because -version has to work on a machine where nothing
 	// else does -- including one where the flags it is given alongside are wrong.
 	if o.showVersion {
 		return o, nil
+	}
+
+	// A house named without -house. Until 2.1 this was silently dropped -- `glidergo Slumberland`
+	// showed the title screen, which looks like the house was refused rather than never read, and
+	// costs the hour the -resume/-room checks below are worded to save. It is accepted rather than
+	// refused for two reasons: the 1994 program was a Mac application and a house was one of its
+	// documents, so opening one by naming it is the original's gesture, not a new convenience; and
+	// it is the form an operating system uses when a file type is associated with a binary, which
+	// is what a double-clicked .house has to become on Windows and macOS.
+	//
+	// Both spellings at once is still an error, on the -resume/-room principle: two answers were
+	// given to one question and guessing which was meant is how an argument gets ignored quietly.
+	switch {
+	case flag.NArg() > 1:
+		return nil, fmt.Errorf("one house at a time: %d were named (%s)",
+			flag.NArg(), strings.Join(flag.Args(), ", "))
+	case flag.NArg() == 1 && o.house != "":
+		return nil, fmt.Errorf("-house %q and %q name two houses: give one", o.house, flag.Arg(0))
+	case flag.NArg() == 1:
+		o.house = flag.Arg(0)
 	}
 
 	if o.volume < 0 || o.volume > audio.FullVolume {
@@ -285,10 +519,29 @@ func parseFlags() (*options, error) {
 	return o, nil
 }
 
+// endlessHeadlessRun reports whether this run would draw frames into nothing, forever.
+//
+// A parameter rather than a reference to backend.Name, because that is a build-time constant: on
+// the host `go test` runs on it is "x11", so a condition written against it directly could only be
+// exercised by a second test binary built with -tags nullbackend, and nothing builds one. Taking
+// the name makes every case reachable from an ordinary run of the suite -- which is the same
+// argument platform.DisplayAdvice is built on, and it is worth repeating because this is a guard
+// whose failure mode is a hang, and a hang is the one failure a test suite cannot report.
+//
+// -shot is exempt and the one-shots have already returned by the call site: each of those is a
+// whole job that finishes, and finishing with no window is exactly what the null backend is for.
+// -bench needs no mention because parseFlags has already turned it into 300 frames, which is the
+// only reason this reads as two conditions rather than four.
+func endlessHeadlessRun(backendName string, o *options) bool {
+	return backendName == "null" && o.frames == 0 && o.shot == ""
+}
+
 func run() error {
 	o, err := parseFlags()
 	if err != nil {
-		return err
+		// Everything parseFlags rejects is the command line, so the wrap is one site rather
+		// than seven `usageErr{...}` constructions inside the checks.
+		return usageErr{err}
 	}
 
 	if o.showVersion {
@@ -322,6 +575,21 @@ func run() error {
 	p, canSave := loadPrefs(o)
 	overrideFromFlags(o, p)
 	reportPrefsNotes(p)
+
+	// A null-backend build has no window and no keyboard, so nothing can ever ask it to stop:
+	// null.Window returns only the events a script handed it, and a play with no script never sees
+	// an EventQuit, so Closed() stays false forever. Without this check the run draws frames into
+	// nothing, silently, until somebody types Ctrl-C -- and it is not an obscure way to arrive
+	// there. It is what `CGO_ENABLED=0 make run` does, which is what CONTRIBUTING.md offers to
+	// anybody who cannot install libx11-dev, and it is what a cross-compiled macOS or arm64 binary
+	// does on the machine it was built for. A first five minutes that ends in a hang with no output
+	// teaches nothing about which of the two it was.
+	//
+	if endlessHeadlessRun(backend.Name, o) {
+		return usageErr{errors.New("this build has no window and no keyboard (backend null), so " +
+			"nothing can ask it to quit: give it -frames N, -bench, or -shot FILE to draw one " +
+			"screen and exit. A windowed build needs libx11-dev on Linux -- `make doctor` checks")}
+	}
 
 	switch {
 	case o.shot != "":

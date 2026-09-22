@@ -2,12 +2,16 @@
 GliderPRO/upstream.git/
 
 # John Calhoun's 1994 C is NOT redistributed here -- only the data the extractors read.
-# But docs/ cites it about 9,500 times at these exact paths, so anyone checking a citation
-# drops upstream 94fed96's Sources/ and Headers/ in here (see README.md, "Working on the
-# original source") and the references resolve. Ignored so that doing so leaves the tree
-# clean instead of showing 92 untracked files.
+# But this repository cites it about 17,800 times at these exact paths, so anyone checking a
+# citation drops upstream 94fed96's Sources/ and Headers/ in here (see README.md, "Working on
+# the original source") and the references resolve. Ignored so that doing so leaves the tree
+# clean instead of showing 93 untracked files.
 GliderPRO/Sources/
 GliderPRO/Headers/
+# And one loose file: Prefix.h sits at the top of upstream's tree rather than inside Headers/,
+# which is how it came to be left out of the copy recipe for four stages while four citations
+# pointed at it. internal/citations holds the recipe to the citations now.
+GliderPRO/Prefix.h
 
 # Rootless toolchain: Go lives in ~/.local/opt/go, C libs are unpacked here on demand.
 .toolchain/

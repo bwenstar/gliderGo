@@ -1,0 +1,72 @@
+name: Doesn't match the original
+description: The port behaves or looks different from Glider PRO 1994
+labels: [fidelity]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most valuable kind of report this project can get, and it does not need to be
+        rigorous to be useful — "the bands used to bounce off the ceiling and now they don't" is a
+        real report. Somebody who remembers the 1994 game knows things no amount of reading the C
+        will surface.
+
+        Two notes before you file. Some differences are **on purpose**: a handful of the original's
+        bugs are reproduced deliberately, and `docs/IMPROVEMENTS.md` records each one with the
+        reasoning. And some are **the original being surprising** — Slumberland's basement really
+        has no way back up, for instance. If you are not sure which, file it anyway; sorting that
+        out is the work.
+
+  - type: textarea
+    id: difference
+    attributes:
+      label: What the original did, and what this does
+      description: Both halves, as concretely as you can manage.
+      placeholder: |
+        In the original, a glider hitting a candle from below was extinguished by it. Here it
+        passes straight through and keeps its altitude.
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Which house and room
+      description: >-
+        The house name, and the room if you know it. A description is fine — "the room above the
+        kitchen" is enough to find it. If you want to be exact, `glidertool house rooms <house>`
+        prints every room with its number and name.
+      placeholder: Slumberland, the room above the kitchen
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: How sure are you about the original's behaviour
+      options:
+        - I have the original in front of me and just checked
+        - I played it a lot and I am confident
+        - I remember it this way but could be wrong
+    validations:
+      required: true
+
+  - type: textarea
+    id: citation
+    attributes:
+      label: Anything from the original source, if you have looked
+      description: >-
+        Entirely optional — but if you have read the C, a function name is worth a paragraph of
+        prose. Upstream is https://github.com/softdorothy/glider_pro; every citation in this
+        project's docs is relative to upstream commit 94fed96.
+      placeholder: |
+        Sources/Interactions.c, HandleCandleCollision() — the original clears the glider's
+        `mode` before the altitude check, and this port does it after.
+
+  - type: textarea
+    id: shots
+    attributes:
+      label: Screenshots
+      description: >-
+        One of each if you can. For anything about drawing this is close to decisive, since the
+        port's own pixels are hashed and a side-by-side tells us immediately whether the corpus is
+        wrong or the rendering is.

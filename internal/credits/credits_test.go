@@ -54,8 +54,12 @@ func TestEverybodyNamedIsNamedInTheREADME(t *testing.T) {
 	doc := readme(t)
 	for _, who := range People() {
 		// The port's own two rows are not credits to a person and are not in the README.
+		// Eliot is a person and is deliberately not checked here: upstream's README says
+		// PICT 153 "features a portion of this Little Nemo comic" and says nothing about the
+		// line of verse set across the same plate, so the README is simply not the authority
+		// for that row. TestEliotIsCreditedFromThePlateItself is.
 		switch who {
-		case "gliderGo", "Nobody but the people above":
+		case "gliderGo", "Nobody but the people above", "T.S. Eliot":
 			continue
 		}
 		// The README writes the publisher with an HTML entity for the ampersand, which is
@@ -161,6 +165,43 @@ func lastWord(s string) string {
 	return f[len(f)-1]
 }
 
+// TestEliotIsCreditedFromThePlateItself covers the one row whose authority is not the README.
+//
+// The 1994 About plate sets a line of verse along its bottom edge. Upstream's README credits the
+// picture the plate is built from and not the words on it, so a port that only transcribes the
+// README loses the quotation -- which is precisely what this one did, for four stages, while also
+// drawing the wrong PICT and so not even showing it. The transcription lives in
+// docs/analysis/ui-dialogs.md 10.6 (internal/shell/provenance_test.go holds the plate id against
+// the same section), and that is what the row is checked against.
+func TestEliotIsCreditedFromThePlateItself(t *testing.T) {
+	spec := filepath.Join(repoRoot(t), "docs", "analysis", "ui-dialogs.md")
+	b, err := os.ReadFile(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "chambers of the sea") {
+		t.Fatalf("%s no longer transcribes PICT 153's text, which is the source for the "+
+			"Eliot row in credits.txt", spec)
+	}
+
+	var row Row
+	for _, sec := range Sections() {
+		for _, r := range sec.Rows {
+			if strings.Contains(r.Who, "Eliot") {
+				row = r
+			}
+		}
+	}
+	if row.Who == "" {
+		t.Fatal("credits.txt credits nobody for the line of verse on PICT 153")
+	}
+	// The plate is the thing being credited, so the row has to point at it. "Prufrock" alone
+	// would be a literary note; what a reader needs is which pixels it came off.
+	if !strings.Contains(row.What, "plate") {
+		t.Errorf("the Eliot row says %q, which does not say where the line appears", row.What)
+	}
+}
+
 // The shape the drawing code relies on: sections in the file's order, every row under a
 // heading, no row both empty and not a note.
 func TestTheFileParsesIntoSectionsWithRows(t *testing.T) {
@@ -180,7 +221,7 @@ func TestTheFileParsesIntoSectionsWithRows(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"the game", "the houses", "the illustrations", "this port"}
+	want := []string{"the game", "the houses", "borrowed from elsewhere", "this port"}
 	if strings.Join(titles, "/") != strings.Join(want, "/") {
 		t.Errorf("the sections are %v, want %v", titles, want)
 	}

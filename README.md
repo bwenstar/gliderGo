@@ -231,14 +231,22 @@ a path or `none`. `-import-prefs` converts a 1994 226-byte `Glider Prefs` file.
 
 A test suite rather than a promise:
 
-- `internal/fidelity` holds a hash of every frame's pixels for a set of scripted runs, plus
-  reference PNGs. Move a pixel and the hashes move; regenerating them is deliberate and shows up
-  in the diff.
+- `internal/fidelity` holds a hash of every frame's pixels for a set of scripted runs. The
+  references are text, not images — `testdata/screens.hashes` and `testdata/duct.frames`, one line
+  per frame — so moving a pixel moves a line, and re-recording is `-update` and shows up in the
+  diff as the lines that changed. A failure writes the offending frame out as PNGs for you to look
+  at; none are committed, because a committed PNG is a diff nobody can read.
 - The 1994 attract-mode demo — 1,117 recorded keystrokes of somebody flying Demo House for about
   two minutes — replays through this port's own physics. It does not finish yet: the glider dies
   573 records in, and closing that gap is the sharpest target the project has.
 - The twenty-row fidelity contract in [docs/ORIGINAL_GAME.md](docs/ORIGINAL_GAME.md) §19.1 is
   audited row by row, with a citation into the C for each and five written exceptions.
+- Those citations are themselves checked. `go test ./internal/citations/` opens the pinned 1994 C
+  and resolves all ~17,800 of them — every file name, every line number, every range — so a claim
+  about the original that points at a line the original does not have fails the build. It found
+  twenty-two broken ones the first time it ran, all now fixed by reading the C.
+  [docs/CITATIONS.md](docs/CITATIONS.md) is the whole story, including what it deliberately does
+  not promise.
 
 ## glidertool
 
@@ -280,27 +288,35 @@ something.
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
+| `internal/shell/` | Everything before and around the game: title screen, house picker, settings, about, credits, the score board. |
+| `internal/audio/` | The 22 kHz mixer, the `'snd '` bank and the score, plus the platform sinks. |
 | `internal/platform/` | 640×480 software framebuffer; X11 (cgo), Windows (pure `syscall`) and headless (PNG/WAV) backends. |
 | `internal/replay/`, `internal/fidelity/` | The determinism harness and the pixel corpus. |
+| `internal/citations/` | The check that every pointer into the 1994 C resolves. See `docs/CITATIONS.md`. |
+| the other ten | `internal/prefs/`, `internal/scores/`, `internal/saved/`, `internal/demo/`, `internal/credits/`, `internal/project/`, `internal/datadir/`, `internal/assetfs/`, `internal/assetpack/`, `internal/module/` — one job each, and each opens with a package comment saying which. |
 | `cmd/glidergo`, `cmd/glidertool` | The game, and the tool above. |
 | `tools/` | The asset extractors: BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. Standard-library python3. |
 | `docs/ORIGINAL_GAME.md` | How the original behaves. Read this one first. |
 | `docs/analysis/` | 29 byte-level specs reverse-documented from the C. The detailed authority. |
+| `docs/CITATIONS.md` | What a citation into the 1994 C means here, how to make one resolve, and what the checker does and does not promise. |
 
 ## Working on the original source
 
-The 1994 C is not in this repository. `docs/` cites it about 9,500 times all the same, because
+The 1994 C is not in this repository. This one cites it about 17,800 times all the same, because
 those citations are the receipts for the transcription — so they are pinned to a commit rather
 than to a copy:
 
 ```bash
 git clone https://github.com/softdorothy/glider_pro /tmp/glider_pro
 git -C /tmp/glider_pro checkout 94fed96e0b4c810a6ac861e5d4b14d625a5a1c31
-cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers GliderPRO/
+cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers /tmp/glider_pro/Prefix.h GliderPRO/
 ```
 
 That puts them where the docs say they are, so every `GliderPRO/Sources/...:line` reference
-resolves; both directories are gitignored, so your tree stays clean. `94fed96` is the commit
+resolves; all three are gitignored, so your tree stays clean. `Prefix.h` is one file at the top
+of upstream's tree rather than inside `Headers/`, and it is copied because four citations point at
+it: it is the seven `#define`s that select the Carbon target, which is why the port transcribes
+the Carbon arm of every `#if TARGET_CARBON`. `94fed96` is the commit
 the port was written against, and the tree that was read was
 byte-for-byte that commit's, verified by `diff -r` over all 137 files. Nothing in the build,
 the tests or the game needs it — `make check` and `make assets-check` both pass without it.
@@ -329,8 +345,9 @@ unambiguously a derivative work, and carries the same licence.
 
 One caveat, stated plainly because it is the last thing standing between this and a release
 someone else can rely on: **the assets are not the source.** That grant is about code. The houses
-are credited to five other authors, and two PICT resources derive from illustrations by John R.
-Neill (*Ozma of Oz*) and Winsor McCay (*Little Nemo*). This repository redistributes all of it —
+are credited to five other authors, two PICT resources derive from illustrations by John R.
+Neill (*Ozma of Oz*) and Winsor McCay (*Little Nemo*), and the About plate sets a line of T. S.
+Eliot's *Prufrock* (1915) across the bottom of the second of those. This repository redistributes all of it —
 `GliderPRO/`'s resource fork and houses byte-for-byte as upstream ships them, `assets/extracted/`
 decoded from those, and `assets/extracted.zip` packed from that and welded into every binary a
 release attaches — on the reasoning that upstream publishes the same files in the same layout. That reading is defensible and it is not confirmed;

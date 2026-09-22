@@ -27,6 +27,7 @@ import (
 
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/prefs"
+	"github.com/bwenstar/gliderGo/internal/project"
 	"github.com/bwenstar/gliderGo/internal/render"
 )
 
@@ -138,6 +139,13 @@ const (
 	aboutPlateTall = 120 // the tallest plate this box will make room for
 	aboutFirst     = 34  // the first baseline, below the panel's top
 	aboutFoot      = 10  // below the last baseline
+
+	// aboutPlate is the picture the original's About dialog puts at the top of itself:
+	// DITL 150 item 4, 372x100 (docs/analysis/ui-dialogs.md 10.6). It is a constant with
+	// a name because the two PICTs either side of it are the fake Okay button's two
+	// states, this drew 151 for four stages, and provenance_test.go now holds the number
+	// to the document rather than to whoever last read it.
+	aboutPlate = 153
 )
 
 // Draw composes the current screen. It draws everything every time -- no dirty
@@ -461,7 +469,16 @@ func (s *Shell) drawAbout(scr *render.Surface) {
 	// The plate, if there is one small enough to be a heading rather than the whole
 	// box. It replaces the drawn wordmark, which is what the original's About dialog
 	// does with its own PICTs (docs/analysis/ui-dialogs.md 2.4).
-	art := s.plate(151)
+	//
+	// 153 and not 150 or 151. All three are About box PICTs and the numbers are
+	// adjacent, which is how this came to be 151 for four stages: 150 and 151 are the
+	// two states of a 63x63 fake Okay button (`kOkayButtPICTNotHiLit` /
+	// `kOkayButtPICTHiLit`, ui-dialogs.md 5.5), so the heading of the one screen whose
+	// whole job is to look deliberate was a white square with a diamond in it. 153 is
+	// the 372x100 title art -- DITL 150's picture item, ui-dialogs.md 10.6 -- and it is
+	// also the only place the 1994 game credits three of its house authors on screen,
+	// which is why drawing the wrong one cost more than it looked.
+	art := s.plate(aboutPlate)
 	if art != nil && (art.W > aboutRight-aboutLeft-16 || art.H > aboutPlateTall) {
 		art = nil
 	}
@@ -491,7 +508,7 @@ func (s *Shell) drawAbout(scr *render.Surface) {
 		dst := render.SetRect(x, v-10, x+int16(art.W), v-10+int16(art.H))
 		scr.Copy(art, art.Bounds(), dst, render.SrcCopy)
 	} else {
-		center(scr, v, "gliderGo", cream, 3)
+		center(scr, v, project.Name, cream, 3)
 	}
 	v += head
 
@@ -521,11 +538,37 @@ func (s *Shell) aboutLines() []aboutLine {
 	if p == nil {
 		p = prefs.Default()
 	}
+
+	// Which build this is, and where it came from. Both are here for the same reason: this
+	// box is the only thing a player who downloaded a binary can read, and the two facts a
+	// bug report is useless without are the version and somewhere to send it. A player
+	// photographing this screen -- which is what actually happens -- captures both.
+	//
+	// The URL drops its scheme because nobody types https:// and the line has to fit a
+	// 640-pixel panel at 1x. It is still derived from project.Home rather than written out,
+	// so the string here cannot come to differ from the one in the README, the usage text
+	// and the issue templates (internal/project's own tests).
+	build := project.Name
+	if s.host.Version != "" {
+		build += " " + s.host.Version
+	}
+
 	lines := []aboutLine{
-		{"a port of Glider PRO", cream, 1},
-		{"John Calhoun / Casady & Greene, 1994", render.LtGray8, 1},
+		{"a port of " + project.Original, cream, 1},
+		{project.OriginalAuthor + " / " + project.OriginalPublisher + ", " + project.OriginalYear,
+			render.LtGray8, 1},
+		{},
+		{build, cream, 1},
+		{strings.TrimPrefix(project.Home, "https://"), render.LtGray8, 1},
 		{},
 		{"source released under the GPL, version 2", render.LtGray8, 1},
+		// And *which* source, pinned. This is the line that turns the box from a credit
+		// into provenance: a port is a claim about a particular revision of somebody else's
+		// code, and "a port of Glider PRO" is not checkable while the revision is implicit.
+		// Somebody who wants to know whether a behaviour is 1994's or ours can now find the
+		// exact tree the transcription was read from without cloning this repository first.
+		{"transcribed from " + strings.TrimPrefix(project.Upstream, "https://") +
+			" @ " + project.UpstreamCommit, render.LtGray8, 1},
 		{"the 1994 art, sounds and 22 houses ship with it;", render.LtGray8, 1},
 		{"nothing to install, nothing to download", render.LtGray8, 1},
 		{},

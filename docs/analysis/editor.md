@@ -2215,7 +2215,7 @@ returns the **first** match.
 
 ## 11.1 `DuplicateObject` (`GliderPRO/Sources/ObjectEdit.c:1191`)
 
-Bound to House ▸ Duplicate (⌘=), `MenuBar.c`'s `iDuplicate`.
+Bound to House ▸ Duplicate (⌘=), `GliderPRO/Sources/Menu.c:549`'s `iDuplicate`.
 
 ```
  1.  if objActive == kNoObjectSelected: return
@@ -11514,7 +11514,7 @@ shipped house sets it** (all 22 have `flags` bit 0 clear). So the feature is unr
 its low bits and that the info dialog once offered a "forceful" toggle in a higher bit which
 the shipped dialog no longer exposes. Which bit, and whether the physics still honours it, I
 could not pin down from the drawing and interaction code I read; a full audit of
-`Interactions.c` / `Environs.c` would be needed.
+`Interactions.c` / `Environ.c` would be needed.
 
 ### Q13 — Undo: was it ever attempted?
 

@@ -25,21 +25,23 @@ is §19, the **fidelity contract**, which states which original behaviours are n
 
 ### Where the citations point
 
-Roughly 9,500 citations in this file and in `docs/analysis/` name a path under
-`GliderPRO/Sources/` or `GliderPRO/Headers/`. **Those files are not in this repository.** They
-are John Calhoun's C, and gliderGo ships only the data it decodes into `assets/extracted/`, not
-his source. Every citation resolves against upstream, pinned:
+Roughly 17,800 citations in this file and in `docs/analysis/` name a path under
+`GliderPRO/Sources/`, `GliderPRO/Headers/` or `GliderPRO/Prefix.h`. **Those files are not in this
+repository.** They are John Calhoun's C, and gliderGo ships only the data it decodes into
+`assets/extracted/`, not his source. Every citation resolves against upstream, pinned:
 
 ```bash
 git clone https://github.com/softdorothy/glider_pro /tmp/glider_pro
 git -C /tmp/glider_pro checkout 94fed96e0b4c810a6ac861e5d4b14d625a5a1c31
-cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers GliderPRO/
+cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers /tmp/glider_pro/Prefix.h GliderPRO/
 ```
 
 `94fed96` is the commit every line number in these documents was taken against, and the tree
-that was read is byte-for-byte that commit's — 137 files, verified by `diff -r`. Both copied
-directories are gitignored, so this leaves the working tree clean. Do it and the citations
-below become checkable; skip it and they are provenance you cannot follow. What remains
+that was read is byte-for-byte that commit's — 137 files, verified by `diff -r`. All three copied
+paths are gitignored, so this leaves the working tree clean. Do it and the citations
+below become checkable — literally, by `go test ./internal/citations/`, which resolves all 17,800
+of them and is documented in [CITATIONS.md](CITATIONS.md) — and skip it and they are provenance you
+cannot follow. What remains
 vendored under `GliderPRO/` is the data the extractors read — `Glider PRO.r`, `Houses/`, the
 upstream `README.md` and its licence — so citations naming *those* four resolve in a bare
 checkout.

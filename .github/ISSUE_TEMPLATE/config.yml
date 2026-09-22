@@ -1,0 +1,27 @@
+# Blank issues stay on. Feature requests, "is this behaviour intended", porting questions and
+# "here is a house I made" do not fit either template, and pushing them through one that asks for a
+# replay script would just cost the reporter time.
+blank_issues_enabled: true
+
+contact_links:
+  - name: How the original behaves
+    url: https://github.com/bwenstar/gliderGo/blob/main/docs/ORIGINAL_GAME.md
+    about: >-
+      Before filing a fidelity difference — this is the port's record of what the 1994 game did,
+      and docs/analysis/ has the byte-level detail behind it.
+
+  - name: Deliberate divergences and known gaps
+    url: https://github.com/bwenstar/gliderGo/blob/main/docs/IMPROVEMENTS.md
+    about: >-
+      The running ledger. Several of the original's bugs are reproduced on purpose and a few
+      things are knowingly unfinished; both are recorded here with the reasoning.
+
+  - name: Building from source
+    url: https://github.com/bwenstar/gliderGo/blob/main/CONTRIBUTING.md
+    about: The build, what `make check` covers, and the four rules a patch can break quietly.
+
+  - name: Glider PRO, the original
+    url: https://github.com/softdorothy/glider_pro
+    about: >-
+      John Calhoun's 1994 source, released under the GPL. Bugs in the original C belong there,
+      not here.

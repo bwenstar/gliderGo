@@ -100,7 +100,7 @@ func (w *World) FlushEvents() {
 // nothing.
 //
 // Input arriving during it is dropped rather than remembered, which is `Delay` followed by
-// `WaitForInputEvent`'s leading FlushEvents at its one call site (Banner.c:239-240). So the
+// `WaitForInputEvent`'s leading FlushEvents at its one call site (Banner.c:232-233). So the
 // player cannot dismiss the stars-remaining panel during its first second however hard they
 // try, and the port keeps that: it is a second of *reading time*, and shortening it on a
 // keystroke the player pressed for some other reason is not the behaviour the panel wants.

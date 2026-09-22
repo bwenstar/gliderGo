@@ -19,13 +19,13 @@ type Rect = house.Rect
 // Pt is a QuickDraw Point: vertical first, as on disk.
 type Pt = house.Point
 
-// SetRect is QSetRect (RectUtils.c:322): left/top/right/bottom order, which is
+// SetRect is QSetRect (RectUtils.c:210-216): left/top/right/bottom order, which is
 // *not* the order the Rect struct stores them in.
 func SetRect(left, top, right, bottom int16) Rect {
 	return Rect{Top: top, Left: left, Bottom: bottom, Right: right}
 }
 
-// Offset is QOffsetRect (RectUtils.c:307).
+// Offset is QOffsetRect (RectUtils.c:197-203).
 func Offset(r Rect, h, v int16) Rect {
 	r.Left += h
 	r.Right += h

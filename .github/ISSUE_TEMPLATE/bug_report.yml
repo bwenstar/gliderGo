@@ -1,0 +1,88 @@
+name: Bug report
+description: Something crashes, hangs, draws wrong, or does not do what it says
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things make a report actionable, and both are asked for below: which build you are
+        running, and some way for the bug to happen on somebody else's machine.
+
+        If the game behaves differently from the 1994 original but is not otherwise broken, the
+        "Doesn't match the original" template fits better.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what it did instead.
+      placeholder: |
+        Went down the stairs in Slumberland's kitchen and the glider came out facing the wrong way.
+    validations:
+      required: true
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Output of `glidergo -version`
+      description: >-
+        Paste it whole. It names the build, the backend it was compiled with, and where its
+        assets are coming from — which is usually the first branch in diagnosing anything.
+      render: text
+      placeholder: |
+        $ glidergo -version
+        glidergo v0.1.2
+          backend   x11
+          built by  go1.23.12
+          platform  linux/amd64
+          assets    built in (1877 files, 15921 KiB)
+    validations:
+      required: true
+
+  - type: textarea
+    id: replay
+    attributes:
+      label: A `glidertool replay` script, if you can get one
+      description: >-
+        This is the single most useful thing a report can carry. `glidertool replay` plays the
+        game headlessly from a text script of keystrokes, deterministically from a fixed seed, so
+        a script that reproduces the bug for you reproduces it here exactly. Run
+        `glidertool replay -script -` to print a commented example to start from. If the bug needs
+        more than a few seconds of input, or you cannot reproduce it on demand, skip this and say
+        so — a vague report is much better than no report.
+      render: text
+      placeholder: |
+        house Slumberland
+        seed 1
+        frames 600
+        room 0
+        at 0 right
+        at 45 -
+        at 120 band
+
+  - type: input
+    id: platform
+    attributes:
+      label: Where you ran it
+      placeholder: Windows 11, or Debian 12 / X11, or Fedora 40 / Wayland via XWayland
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where the build came from
+      options:
+        - A release binary from the Releases page
+        - Built from source with `make`
+        - Something else (say so above)
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >-
+        Screenshots, a crash trace, the terminal output, the house file if it is one of yours.
+        Screenshots are especially useful for anything about drawing.

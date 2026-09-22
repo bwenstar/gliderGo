@@ -456,7 +456,7 @@ names.
 
 **`GliderPRO/Sources/Player.c` contains zero RNG calls.** Grepped for `Random`, `RandomInt`,
 `RandomLong`, `rand`: no matches. The player physics integrator is entirely deterministic given
-its inputs. The same is true of `PlayerControl.c`, `Interactions.c` and the enemy movers
+its inputs. The same is true of `Interactions.c` and the enemy movers
 (`Dynamics*.c` use the RNG only for the cosmetic timers listed above - the sparkle idle delay and
 the coffee-maker cycle - never for anything the player collides with).
 
@@ -1006,7 +1006,7 @@ bug; it is benign because the two flags are set together.
 ## 2.7 The marquee state record
 
 ```c
-// GliderPRO/Sources/Marquee.h:14-20
+// GliderPRO/Headers/Marquee.h:14-20
 typedef struct
 {
 	Pattern		pats[kNumMarqueePats];    // 7 * 8 = 56 bytes, offset 0

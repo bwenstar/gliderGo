@@ -5,9 +5,9 @@ package demo
 // Two of them are worth more than the rest. TestShippedResource pins the one file in the world
 // this format was designed around -- every number in docs/analysis/input.md §14, re-derived from
 // the bytes -- so that a change to the extractor, the endianness or the stride is caught by a
-// test that names the file rather than by a demo that flies into a wall. And TestCursorRepeated
-// Frame demonstrates the hazard the whole package is arranged around: two records on one frame
-// do not lose one action, they lose the entire rest of the stream.
+// test that names the file rather than by a demo that flies into a wall. And
+// TestCursorRepeatedFrameStalls demonstrates the hazard the whole package is arranged around:
+// two records on one frame do not lose one action, they lose the entire rest of the stream.
 
 import (
 	"bytes"

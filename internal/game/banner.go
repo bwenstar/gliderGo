@@ -236,7 +236,7 @@ func linesOfText(s string) []string {
 }
 
 // ---------------------------------------------------------------------------
-// DisplayStarsRemaining (Banner.c:205-243)
+// DisplayStarsRemaining (Banner.c:205-236)
 // ---------------------------------------------------------------------------
 
 // DisplayStarsRemaining puts up the small "N stars to go" panel, holds it for a second, and

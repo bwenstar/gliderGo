@@ -1009,7 +1009,7 @@ So in 1.0.4 the Paste item permanently reads `Nothing To Paste` and is permanent
 first `UpdateMenus` call.
 
 `GetLocalizedString` is `GetIndString(theString, kLocalizedStringsID /*150*/, index)`
-(`GliderPRO/Sources/StringUtils.c:321-330`).
+(`GliderPRO/Sources/StringUtils.c:321-327`).
 
 #### 3.5.6 Checkmark helpers
 
@@ -1814,7 +1814,7 @@ Decoded dimensions of every UI-relevant `PICT`:
 |---|---|---|
 | 150 | 63×63 | About "Okay" diamond, not highlit (`kOkayButtPICTNotHiLit`) |
 | 151 | 63×63 | About "Okay" diamond, highlit (`kOkayButtPICTHiLit`) |
-| 153 | 372×100 | About title art |
+| 153 | 372×100 | About title art — the only on-screen credit in the game besides `by john calhoun`; transcribed in 10.6 |
 | **1000** | **640×460** | `kSplash8BitPICT` — the splash screen |
 | 1001 | 431×32 | Load House header, **1-bit** (`kLoadTitlePict1` = 1001, `GliderPRO/Sources/SelectHouse.c:29`) — the one `DITL` 1000 actually references |
 | 1002 | 257×32 | Load House header, **8-bit** (`kLoadTitlePict8` = 1002, `GliderPRO/Sources/SelectHouse.c:30`) |
@@ -2547,7 +2547,7 @@ pane reads and writes it directly on every keystroke and click, and the value is
 3. if (*volume < 0) *volume = 0; else if (*volume > 7) *volume = 7;
 ```
 
-`UnivSetSoundVolume` (`GliderPRO/Sources/Utilities.c:766-790`):
+`UnivSetSoundVolume` (`GliderPRO/Sources/Utilities.c:766-788`):
 
 ```
 1. if (volume < 0) volume = 0; else if (volume > 7) volume = 7;
@@ -5286,6 +5286,28 @@ It is stored and **never used** — dead like `src` in `DisplayStarsRemaining`.
 PICT dimensions confirmed from the resource fork: `PICT` 150 = 63 × 63 (632 bytes),
 `PICT` 151 = 63 × 63 (632 bytes), `PICT` 153 = 372 × 100 (15194 bytes). `PICT` 152 does not exist.
 `ICON` 150 is a standard 128-byte 32×32 1-bit icon.
+
+**What `PICT` 153 says**, because it is picture data and therefore invisible to every `grep` anyone
+will ever run over the sources — and because this dialog's items 5 and 6 (`by john calhoun`,
+`© 1994-2000 Casady & Greene, Inc.`) are *not* the whole of the credit the running game gives. The
+art is a red-and-orange sunset behind a low sun, with the `Glider` wordmark centred, `PRO` set
+vertically up the right edge, a greyscale figure seated on a rock filling the left margin — given the
+quotation below it, presumably one of the poem's sea-girls — and three lines of type:
+
+| Where | Text |
+|---|---|
+| top, two lines | `Extreme thanks to:` / `Paul Finn, Steve Sullivan & Ward Hartenstein` |
+| bottom, one line | `...we have lingered in the chambers of the sea... T.S. Eliot` |
+
+The three names are the authors of houses shipped with the game — "Paul Finn" is the byline Jonathan
+Chin signs his houses with (`internal/credits/credits.txt` records that), and Steve Sullivan and Ward
+Hartenstein are named in upstream's own `GliderPRO/README.md`. So this PICT is the **only** place the
+1994 program credits anyone other than Calhoun and the publisher on screen, which is why this port
+drawing `PICT` 151 in its About heading for four stages was not merely a cosmetic mistake: it dropped
+a credit. `internal/shell/provenance_test.go` now holds the plate id against the table above.
+
+The Eliot line comes from the closing stanza of *The Love Song of J. Alfred Prufrock* (1915), elided
+at both ends by Calhoun; the poem is public domain.
 
 #### `DoAbout` — `GliderPRO/Sources/About.c:32-89`
 

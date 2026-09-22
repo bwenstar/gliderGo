@@ -17,6 +17,68 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The receipts, checked: 17,800 citations into the 1994 C, and the documents that were wrong about this project (2026-09-22)
+
+This port's whole claim is that it behaves like the original, and the claim is made in pieces — about
+17,800 pointers at a file and a line of John Calhoun's C, naming about 18,300 lines across all 93
+files of upstream `94fed96`. Nothing had ever checked that one of them resolved.
+
+`go test ./internal/citations/` now does. Three classes of claim and one invariant: the 1994 C in four
+tiers (the file exists; every line and range endpoint is inside it; a full path names the directory
+the file is really in and no range runs backwards; coverage both ways, so all 67 of upstream's `.c`
+files are cited somewhere and every exemption is still needed), this repository's own `path:line`
+references, the test names the prose quotes — and the thing the other ten rest on, that all ten places
+the upstream commit is written name the same commit. A `citations` job in CI clones upstream at the pin
+on every push and **fails if any check skipped**, because `go test` prints `ok` for a package whose
+every test skipped. [`docs/CITATIONS.md`](docs/CITATIONS.md) is the reader-facing half, including a
+section on what a green run does *not* promise.
+
+**It found twenty-two broken citations** on prose that had been reviewed repeatedly: nine line numbers
+past the end of their file, six file names that do not exist, one path naming the wrong directory, two
+references to documents of ours that are not there, four test names renamed out from under a comment.
+Every out-of-range number was fixed by reading the C and finding the line the claim was about, not by
+lowering the number until it fit — a citation that resolves to the wrong place is worse than one that
+resolves to nothing, because nothing announces itself. Two implied more than they cost: `Room.c` cited
+to 1215 in a 1206-line file means that reading was done against a differently converted copy, and
+`PlayerControl.c` is a file an early draft invented which has never existed in any version of Glider
+PRO. A twenty-third was not a citation defect but caused four — `GliderPRO/Prefix.h` sits at the top of
+upstream's tree rather than in `Headers/`, so it was missing from the copy recipe in every document,
+and the four citations to it could not resolve on any machine that had followed the instructions.
+
+The documentation's own count was wrong by nearly half: five places said "about 9,500", which is
+roughly the full-path form alone. This also built the linter `docs/IMPROVEMENTS.md` 4.4 had been owing
+since Stage 1, and 4.4's prediction that its one false positive would resolve itself did not come
+true — `TestHighScore` became `World.TestHighScore`, a *method*, which a matcher looking for
+`func Test…` cannot see.
+
+**A companion sweep over the instructions this project gives a person**, which had never been run
+either. Four defects, each failing differently:
+
+- **`glidertool replay -script -` could not run**, though replay's own `-h` offers it as the way to
+  see the script format. The house check sat above the write-back. It survived six stages because a
+  *test asserted the broken behaviour* — `TestReplayNeedsAHouse` used `-script -` as a cheap way to
+  reach the check, and so pinned it in green; it is now `TestReplayNeedsAHouseToRun`. The printed
+  template names a house and replays.
+- **`glidergo <house>` was silently ignored.** `flag.NArg()` was never read, so the most obvious
+  command a player can type showed the title screen — indistinguishable from the house being refused.
+  Now accepted, because a house was one of the 1994 Mac application's *documents* and because that is
+  the form an OS uses for a file association; two houses, or `-house` and a bare name, are refused
+  with both strings quoted back.
+- **`CGO_ENABLED=0` builds a game that cannot be quit.** `CONTRIBUTING.md` said the build "still
+  succeeds and produces a binary that cannot draw"; it does not succeed (`pkg-config` stops it), and
+  the binary a no-cgo build *does* produce selects the null backend, which can never deliver
+  `EventQuit` — so it drew frames into nothing until Ctrl-C. Now refused, naming the three flags that
+  give such a build an end, and the prose says what actually happens and points at `make doctor`.
+- **"is DISPLAY set?" answered one of three questions.** `platform.DisplayAdvice` now distinguishes no
+  session, a refused connection, and a Wayland session with no XWayland — the last being the likeliest
+  on a 2026 desktop and the one the old sentence sent furthest wrong.
+
+`README.md`'s map gained `internal/shell`, `internal/audio` and `internal/citations` — the first being
+everything a player sees before a room is composed — and a test now fails if any `internal/` package is
+missing from it. `CONTRIBUTING.md`, `SECURITY.md`, three issue forms and a pull-request template landed
+(`docs/IMPROVEMENTS.md` 5.7); `CODE_OF_CONDUCT.md` deliberately did not, and 5.7 records why the
+reporting address turned out to be the wrong blocker for one of those and the right one for the other.
+
 ### A house linter, calibrated against the 22 houses it has to tolerate (2026-09-21)
 
 Stage 2 authors new houses, and the first thing that needs to exist is something that reads a house
@@ -529,9 +591,9 @@ early.
 
 ### Stage 1.8 — fidelity, pinned to pixels (`721082e`, `7036c62`, `3ba40ac`)
 
-- `internal/fidelity`: reference PNGs and a hash corpus, the first pixels checked into the
-  repository. A rendering change now needs `go test ./internal/fidelity -update` and a moved hash
-  in the diff.
+- `internal/fidelity`: a per-frame hash corpus, the first pixels checked into the repository —
+  as text, one line per frame, so that a moved pixel is a moved line. A rendering change now needs
+  `go test ./internal/fidelity -update` and a moved hash in the diff.
 - The 1994 attract-mode demo replays through the port's own physics.
 - The original's RNG verified against the C, and the fidelity contract audited in writing —
   which is what found the last two contract items nothing had ever tested.

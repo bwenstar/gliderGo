@@ -47,6 +47,7 @@ import "C"
 
 import (
 	"fmt"
+	"os"
 	"unsafe"
 
 	"github.com/bwenstar/gliderGo/internal/platform"
@@ -86,7 +87,12 @@ func New(cfg platform.Config) (*Window, error) {
 
 	dpy := C.XOpenDisplay(nil)
 	if dpy == nil {
-		return nil, fmt.Errorf("x11: cannot open display (is DISPLAY set?)")
+		// XOpenDisplay reports failure and nothing else -- no errno, no reason -- so the
+		// only diagnosis available is the environment it was asked to connect to. See
+		// platform.DisplayAdvice for the three cases and why one sentence was wrong about two
+		// of them.
+		return nil, fmt.Errorf("x11: cannot open a window: %s",
+			platform.DisplayAdvice(os.Getenv("DISPLAY"), os.Getenv("WAYLAND_DISPLAY")))
 	}
 	scr := C.XDefaultScreen(dpy)
 	depth := C.XDefaultDepth(dpy, scr)

@@ -1258,6 +1258,7 @@ func TestTheDemoReplaysTheSameWayTwice(t *testing.T) {
 	// the number and a bisect can watch it move.
 	t.Logf("consumed %d of %d records in %d frames, %d frames past the end; game over %v, mortals %d",
 		a.Demo.Consumed, a.Demo.Records, a.Frames, a.Demo.PastEnd, a.GameOver, a.Mortals)
+	checkDemoFloor(t, a.Demo.Consumed)
 
 	// And the trace says all of it, because that is what somebody comparing two machines sends.
 	var buf bytes.Buffer
@@ -1273,6 +1274,39 @@ func TestTheDemoReplaysTheSameWayTwice(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("the trace does not report %q:\n%s", want, firstLines(text, 6))
 		}
+	}
+}
+
+// demoRecordsFloor is how far the shipped attract recording gets today, and the number three
+// documents quote: README.md's fidelity section, docs/PLAN.md 4's Stage 1 acceptance notes and
+// docs/IMPROVEMENTS.md 2.18, which owns the defect. All three call "573 of 1117" the sharpest
+// open fidelity target the project has.
+//
+// Which it was not, in one respect that matters: nothing failed if it got worse. The test above
+// logs the figure on purpose, because pinning it to an equality would mean that fixing the physics
+// breaks a test about determinism -- correct reasoning, and it left the number unguarded in the
+// direction that is unambiguously bad. A physics change that dropped the glider to 300 records
+// would have gone green, and the three documents would have gone on claiming 573.
+//
+// So the guard is one-sided: below the floor fails, at or above it passes. A physics improvement
+// still does not turn this file red -- that was the right call and it stands -- but it does print
+// the line that says to raise the floor and which three documents quote the old number, so the
+// ratchet has somewhere to be turned from. The floor is only worth having while it is the truth.
+const demoRecordsFloor = 573
+
+func checkDemoFloor(t *testing.T, consumed int) {
+	t.Helper()
+	switch {
+	case consumed < demoRecordsFloor:
+		t.Errorf("the demo consumed %d of %d records and the committed floor is %d: the "+
+			"physics got worse. docs/IMPROVEMENTS.md 2.18 owns this number; find what "+
+			"changed before lowering the floor, because lowering it is how the defect "+
+			"stops being visible", consumed, demo.ShippedRecords, demoRecordsFloor)
+	case consumed > demoRecordsFloor:
+		t.Logf("the demo now consumes %d of %d records, up from the committed floor of %d: "+
+			"raise demoRecordsFloor to %d and update the figure in README.md, docs/PLAN.md "+
+			"and docs/IMPROVEMENTS.md 2.18, all three of which quote %d",
+			consumed, demo.ShippedRecords, demoRecordsFloor, consumed, demoRecordsFloor)
 	}
 }
 
@@ -1359,7 +1393,7 @@ func TestAGameKeyAbortsTheDemo(t *testing.T) {
 // Two players on one keyboard.
 //
 // Stage 1.9's determinism half. The unit tests for the handshake live where the code does --
-// player.TestTwoPlayerRaceForTheCeiling, game.TestTheSurvivorIsDraggedThroughTheDoorway and the
+// player.TestTwoPlayerRaceForTheCeiling, game.TestTransitFollowerCompletesTheRoomChange and the
 // rest -- and each pins one rule from a world built for it. These pin the *whole* thing running:
 // one house, one keyboard, two gliders, six deaths out of one counter, and a game that ends by
 // itself. See testdata/two.script, which reads the run frame by frame and is the document to

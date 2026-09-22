@@ -294,7 +294,7 @@ func (w *World) GetOriginalBounding(theID int16) int16 {
 }
 
 // ---------------------------------------------------------------------------
-// Room.c:1103-1215 -- the three shape predicates
+// Room.c:1103-1206 -- the three shape predicates
 // ---------------------------------------------------------------------------
 
 // IsShadowVisible is Room.c:1103-1133: should the glider's shadow be drawn on the
@@ -347,7 +347,7 @@ func (w *World) DoesRoomHaveFloor() bool {
 	return true
 }
 
-// DoesRoomHaveCeiling is Room.c:1172-1215: can the glider leave through the top?
+// DoesRoomHaveCeiling is Room.c:1172-1206: can the glider leave through the top?
 //
 // Seven backgrounds have no ceiling -- the four with no floor plus the three ground
 // levels, kGarden, kMeadow and kField. So a garden is open at the top and closed at

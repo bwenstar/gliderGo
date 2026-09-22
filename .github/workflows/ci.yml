@@ -163,6 +163,87 @@ jobs:
         run: make assets-check OUT="$RUNNER_TEMP"
 
   # ---------------------------------------------------------------------------
+  # The citations, resolved. The only job in this file that fetches anything from outside this
+  # repository, and the only place on earth where internal/citations does not skip.
+  #
+  # docs/ makes about 17,800 claims of the form `GliderPRO/Sources/Player.c:1234`, and they are the
+  # whole evidence that this port is a transcription rather than an imitation. Checking one means
+  # opening the 1994 C -- which is not redistributed here, for licence reasons that
+  # GliderPRO/README.md sets out -- so internal/citations skips when the tree is absent, which on a
+  # developer's machine is most of the time and on a fresh clone is always. That is what this job is
+  # for: clone upstream at the pin, and let the sweep actually run.
+  #
+  # Its own job rather than a step in `check`, for three reasons. It needs the network, and `check`
+  # is otherwise hermetic -- worth keeping, because it is the thing a contributor runs locally. It
+  # needs no libX11, no assets and no Go cgo, so it starts and finishes while `check` is still
+  # installing apt packages. And a failure here says something categorically different from a
+  # failure there: a red `check` means the game is wrong, a red `citations` means the documentation
+  # is, and reading one stack of logs to find out which is a waste of somebody's afternoon.
+  #
+  # The clone is a plain full one, and that is a choice against the obvious `--depth 1`. A shallow
+  # clone lands on the default branch's tip, and getting it onto an arbitrary older revision needs a
+  # second fetch of that revision by name -- which works on GitHub and needs a server setting to do
+  # it, and is not a thing that can be confirmed from the airgapped host this file was written on.
+  # glider_pro is a few megabytes of 1994 C; the history is cheaper than the cleverness.
+  #
+  # The `rev-parse` check after it is not ceremony. Everything this job reports is line numbers
+  # against files, so a tree at the wrong revision does not fail -- it produces a page of confident
+  # wrong failures that read as this repository's fault, and the first person to see them would go
+  # looking in docs/ for defects that are not there.
+  # ---------------------------------------------------------------------------
+  citations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      # The pin is read out of internal/project rather than written here, so that this file is not
+      # an eleventh place it has to be kept in step --
+      # TestEveryPlaceThePinIsWrittenNamesTheSameCommit holds the other ten together, and it can
+      # only hold what is inside the repository.
+      - name: Clone John Calhoun's 1994 C at the pinned commit
+        run: |
+          pin=$(grep -oE '\b[0-9a-f]{40}\b' README.md | head -n1)
+          test -n "$pin" || { echo "README.md no longer names a full upstream revision"; exit 1; }
+          echo "pin: $pin"
+          git clone --quiet https://github.com/softdorothy/glider_pro /tmp/glider_pro
+          git -C /tmp/glider_pro checkout --quiet "$pin"
+          test "$(git -C /tmp/glider_pro rev-parse HEAD)" = "$pin"
+          cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers /tmp/glider_pro/Prefix.h GliderPRO/
+
+      # Named explicitly rather than left to `go test ./...`, because the point of this job is that
+      # these tests RAN. `go test` prints "ok" for a package whose every test skipped, so a
+      # mistyped path above would leave this job green and prove nothing; -v puts each SKIP on the
+      # log where it is visible, and the grep below turns one into a failure.
+      - name: Resolve every citation against the original
+        run: |
+          set -o pipefail
+          go test -v ./internal/citations/ 2>&1 | tee citations.log
+          if grep -q '^--- SKIP' citations.log; then
+            echo "::error::a citation check skipped, so the 1994 C did not reach this job"
+            exit 1
+          fi
+
+      # The two log lines worth having without opening anything: how many citations resolved and
+      # how many of our own references did. They are the measurements the README quotes.
+      - name: Put the counts on the job summary
+        if: always()
+        run: |
+          [ -f citations.log ] || exit 0
+          {
+            printf '## Citations\n\n```\n'
+            grep -E 'checked [0-9]+|in agreement' citations.log || printf '(no counts reported)\n'
+            printf '```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The tree this job assembled is NOT uploaded. It is John Calhoun's GPLv2 source, and this
+      # repository does not redistribute it (GliderPRO/README.md); an artifact would be exactly
+      # that, wearing a different hat.
+
+  # ---------------------------------------------------------------------------
   # Every target a release would ship. Compiles only: the windows rows do contain a real backend
   # now, but a green build says it compiles and nothing more -- see `make cross`'s comment, and
   # the `native` job below for the one that actually runs it.

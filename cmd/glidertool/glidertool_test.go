@@ -12,12 +12,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/bwenstar/gliderGo/internal/demo"
 	"github.com/bwenstar/gliderGo/internal/game/player"
 	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/project"
 	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
@@ -420,9 +422,17 @@ func firstLines(s string, n int) string {
 	return strings.Join(lines, "\n")
 }
 
-// TestReplayNeedsAHouse: the one flag with no default worth guessing.
-func TestReplayNeedsAHouse(t *testing.T) {
-	if err := run([]string{"replay", "-script", "-"}); err == nil {
+// TestReplayNeedsAHouseToRun: the one flag with no default worth guessing.
+//
+// The first case used to be written `replay -script -`, on the reasoning that -script is a cheap
+// way to reach the house check without starting a game. It reached it, and so it pinned the bug
+// 4.13 found: -script is a *description* and needs no house, but the check ran first, which made
+// the one command replay's own -h offers as the way to see the script format the one command that
+// could not run. A test asserting the wrong thing is why nobody noticed for six stages, so the
+// case now asks the question it meant to -- a replay with no house at all -- and the case it
+// used to occupy is TestReplayPrintsATemplateThatRuns.
+func TestReplayNeedsAHouseToRun(t *testing.T) {
+	if err := run([]string{"replay"}); err == nil {
 		t.Error("replay with no house succeeded; want an error")
 	}
 	if err := run([]string{"replay", "-where", "1,2", "-script", "-", "-house", "H"}); err == nil {
@@ -430,6 +440,42 @@ func TestReplayNeedsAHouse(t *testing.T) {
 	}
 	if err := run([]string{"replay", filepath.Join(t.TempDir(), "absent.script")}); err == nil {
 		t.Error("replay of a missing script succeeded; want an error")
+	}
+}
+
+// TestReplayPrintsATemplateThatRuns holds the promise replay's usage text makes: that
+// `glidertool replay -script -` prints a script to copy.
+//
+// Two halves, and the second is the one worth having. The command has to succeed with no other
+// argument -- that is the defect 4.13 found -- and what it prints has to *replay*, because a
+// template is documentation and documentation that parses but does not run is the kind a reader
+// stops trusting. It is fed straight back into the command with no house flag, so the house line
+// in the template is doing the work.
+//
+// The usage text's worked example takes exampleHouse through the same Fprintf that spells the
+// program's name, rather than keeping a literal for a test to chase, so a reader who copies the
+// block out of `-h` by hand gets the same house as one who pipes `-script -` into a file.
+func TestReplayPrintsATemplateThatRuns(t *testing.T) {
+	printed, err := captureStdout(t, func() error { return run([]string{"replay", "-script", "-"}) })
+	if err != nil {
+		t.Fatalf("replay -script -: %v", err)
+	}
+	if !strings.Contains(printed, "house "+exampleHouse) {
+		t.Errorf("the template names no house that exists:\n%s", printed)
+	}
+
+	path := filepath.Join(t.TempDir(), "template.script")
+	if err := os.WriteFile(path, []byte(printed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := captureStdout(t, func() error {
+		return run([]string{"replay", "-digest", "-frames", "4", "-neighbors", "1", path})
+	})
+	if err != nil {
+		t.Fatalf("the printed template does not replay: %v", err)
+	}
+	if strings.TrimSpace(digest) == "" {
+		t.Error("the printed template replayed to no digest")
 	}
 }
 
@@ -766,4 +812,71 @@ func captureStdout(t *testing.T, fn func() error) (string, error) {
 		t.Fatal(err)
 	}
 	return string(body), runErr
+}
+
+// TestVersionSaysWhichBuildAndWhichSource is small and it closes a real gap.
+//
+// Everything this tool prints is an assertion about somebody else's data, and two of those
+// outputs get compared between machines: a replay digest and a lint report. Until `version`
+// existed, a digest that differed between two people was ambiguous between "the physics
+// diverged" and "you are running a different build", with no way to tell from the paste. The
+// assertions below are the four facts that resolve it -- which tool, which build, which
+// platform, and which revision of the C the whole tool is an explanation of.
+func TestVersionSaysWhichBuildAndWhichSource(t *testing.T) {
+	var b strings.Builder
+	versionCmd(&b)
+	out := b.String()
+
+	for _, want := range []string{
+		prog,                   // which of the two binaries
+		version,                // which build, "dev" in a test
+		runtime.GOOS,           // and where it was built for
+		project.Home,           // where to look
+		project.Issues,         // where to send it
+		project.Licence,        // under what
+		project.Upstream,       // and which C this is a reading of
+		project.UpstreamCommit, // at which revision, which is the part that makes it a
+		project.Original,       // citation rather than an attribution
+		project.OriginalAuthor,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("`%s version` does not say %q:\n%s", prog, want, out)
+		}
+	}
+}
+
+// TestVersionIsReachableByEveryNameSomebodyWillTry covers the dispatch rather than the text.
+//
+// `version`, `-version` and `--version` all land in the same place on purpose: this tool takes
+// subcommands and the game takes flags, so somebody moving between the two has a fifty-fifty
+// chance of guessing wrong, and "unknown command \"-version\"" is a pointlessly unhelpful way to
+// answer a question the program can answer.
+func TestVersionIsReachableByEveryNameSomebodyWillTry(t *testing.T) {
+	for _, name := range []string{"version", "-version", "--version"} {
+		out, err := captureStdout(t, func() error { return run([]string{name}) })
+		if err != nil {
+			t.Errorf("%s %s: %v", prog, name, err)
+			continue
+		}
+		if !strings.Contains(out, prog+" "+version) {
+			t.Errorf("%s %s printed %q", prog, name, out)
+		}
+	}
+}
+
+// TestUsageListsEveryCommandRunCanDispatch is the sweep that keeps the help text honest.
+//
+// The usage block is hand-written prose in one string, and the switch in run() is somewhere
+// else, so a command added to one and not the other is undetectable by reading either. That is
+// not hypothetical: `version` is the sixth command and the help text had listed five for four
+// stages because nothing ever asked.
+func TestUsageListsEveryCommandRunCanDispatch(t *testing.T) {
+	var b strings.Builder
+	usage(&b)
+	help := b.String()
+	for _, cmd := range []string{"house", "render", "replay", "demo", "types", "version"} {
+		if !strings.Contains(help, cmd) {
+			t.Errorf("`%s help` does not mention the %q command", prog, cmd)
+		}
+	}
 }

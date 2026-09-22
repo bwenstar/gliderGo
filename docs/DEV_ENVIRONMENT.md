@@ -269,8 +269,10 @@ Rationale for each backend:
   targets. Writing our own ~300-line cgo binding for the ~30 SDL functions we need avoids
   needing the unobtainable `go-sdl2` module.
 - **null** — required, not optional: with no audio device and a remote X server, automated
-  fidelity tests must be able to run the game headless and diff framebuffers against
-  reference PNGs.
+  fidelity tests must be able to run the game headless and compare framebuffers against a
+  recorded corpus. That corpus turned out to be text — one hash line per frame, in
+  `internal/fidelity/testdata/` — rather than the reference images first planned; a PNG is only
+  written when a hash disagrees, so there is something to look at.
 
 Audio: the original uses Mac Sound Manager `'snd '` resources (see
 `docs/analysis/audio.md`). Since this box has no `/dev/snd`, `'snd '` is decoded to raw PCM once,
@@ -338,19 +340,26 @@ gliderGo/
 
 ### Working with the original source — read this before grepping
 
-**The 1994 C is not in this repository**; only the data the extractors read is. `docs/` cites
-that C about 9,500 times anyway, because the citations are the receipts for the transcription,
-so they are pinned to an upstream commit. To make them resolve:
+**The 1994 C is not in this repository**; only the data the extractors read is. This repository
+cites that C about 17,800 times anyway, because the citations are the receipts for the
+transcription, so they are pinned to an upstream commit. To make them resolve:
 
 ```bash
 git clone https://github.com/softdorothy/glider_pro /tmp/glider_pro
 git -C /tmp/glider_pro checkout 94fed96e0b4c810a6ac861e5d4b14d625a5a1c31
-cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers GliderPRO/
+cp -r /tmp/glider_pro/Sources /tmp/glider_pro/Headers /tmp/glider_pro/Prefix.h GliderPRO/
 ```
 
-`GliderPRO/Sources/` and `GliderPRO/Headers/` are gitignored, so this leaves the tree clean.
+All three are gitignored, so this leaves the tree clean. `Prefix.h` is a single file at the top of
+upstream's tree rather than inside `Headers/`, which is why it is named separately; leave it out and
+the four citations to it are the only ones that will not resolve.
+
 `94fed96` is the commit every line number in `docs/` was taken against. Nothing in the build
 needs it: `make check` and `make assets-check` both pass without it.
+
+Once you have the tree, `go test ./internal/citations/` stops skipping and checks every one of
+those citations against the file it names — see [CITATIONS.md](CITATIONS.md). That is the fastest
+way to find out whether a tree you have assembled is the right one.
 
 Once you have it: `Sources/*.c` and `Headers/*.h` are **classic Mac text files with CR-only
 line endings**. `wc -l` reports `0`, and editors/tools see one enormous line. Always convert

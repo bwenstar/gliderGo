@@ -58,6 +58,17 @@ Neill plate for *Ozma of Oz*, and 153 (the About box) from a Winsor McCay *Littl
 strip. Both are old enough to be very probably public domain, but "very probably" is not a
 licence audit.
 
+A third borrowed work, found in Stage 2 while fixing the About box to draw PICT 153 at all:
+the same plate sets `...we have lingered in the chambers of the sea... T.S. Eliot` along its
+bottom edge, from the closing stanza of *The Love Song of J. Alfred Prufrock* (1915), elided
+at both ends. Upstream's README credits the Nemo strip and not the verse, so nothing in
+this tree recorded it until now — the words were in the picture data and picture data is
+invisible to `grep`. The poem is public domain on any reading, so this changes nothing about
+the obligation; it changes the count, which is the point of the item. Transcribed at
+`docs/analysis/ui-dialogs.md` 10.6 and credited in `internal/credits/credits.txt`, whose
+`[the illustrations]` section is now `[borrowed from elsewhere]` because a poet is not an
+illustrator.
+
 **Six of the twenty-two houses are credited to nobody, and one of them is not from 1995.**
 Found while writing 1.7c's credits screen, by reading all 22 house banners: Art Museum,
 California or Bust!, Castle o' the Air, Empty House, Fun House and Sampler appear in no line of
@@ -145,7 +156,7 @@ If (c) is ever answered with a no, the fallback is (b) applied to release archiv
 is a `.gitattributes` change and a fetch script rather than a redesign — worth knowing, so that
 route (a) is a reversible decision rather than a one-way door.
 
-### 1.3 No `CHANGELOG.md` and none of the conventional repository files — **changelog DONE, end of Stage 1; the rest planned**
+### 1.3 No `CHANGELOG.md` and none of the conventional repository files — **changelog DONE, end of Stage 1; the rest DONE, 2.0, bar the code of conduct**
 
 gliderGo is a standalone repository: one `Makefile`, one CI workflow
 (`.github/workflows/ci.yml`), no parent project, no external release machinery, and — as of the
@@ -164,7 +175,9 @@ What a public repository is actually missing:
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and issue and pull-request templates:
   none exist. Cheap and conventional, but all four are about *other people*, and they should be
   written when the repository is actually public and there is somebody to address — recorded
-  here so that their absence is a decision. See 5.7.
+  here so that their absence is a decision. See 5.7. **All but the code of conduct written at
+  2.0**, plus a third issue form for fidelity differences, which is the report this project most
+  wants; 5.7 records what each one says and why the covenant is still the odd one out.
 
 ---
 
@@ -646,7 +659,13 @@ the number to raise.**
 
 Two things follow for whoever picks it up. The frame numbers above live in the script's header
 comment, this entry, and a `t.Logf` — deliberately not in an assertion, because the day the physics
-improve, the test that fails should be a fidelity test and not a test about determinism. And a
+improve, the test that fails should be a fidelity test and not a test about determinism. **That
+reasoning is right and it had a hole, closed in Stage 2:** it left the number unguarded in the
+direction that is unambiguously bad, so a change that dropped the glider to 300 records would have
+gone green while this entry and two other documents went on claiming 573. There is now a one-sided
+ratchet, `demoRecordsFloor` in `internal/replay/replay_test.go` — below it fails, at or above it
+passes, and above it logs the line that says to raise the floor and names the three documents
+quoting the old figure. A physics improvement still does not turn the determinism test red. And a
 demo that ran the whole stream would read 86 frames past the last record, which is the
 off-the-end read the original performed and the port counts as `Cursor.PastEnd`; `frames 3500` in
 the script is set past the end on purpose so that a fixed port exercises it.
@@ -1022,7 +1041,7 @@ The port keeps the 64.
 
 ### 2.32 Three things stop the world from inside a frame — **DONE: `DoPause` 1.7b, both banners 1.7d**
 
-`DisplayStarsRemaining` (`Banner.c:205-243`) is the clearest case. It is called from
+`DisplayStarsRemaining` (`Banner.c:205-236`) is the clearest case. It is called from
 `Interactions.c:946`, inside the star-collection arm of `HandleInteraction` — so from the
 *middle* of a frame, after the interaction pass and before the glider moves — and it draws
 to the main window, then `DelayTicks(60)`, then `WaitForInputEvent(30)`. **Those two numbers
@@ -2436,7 +2455,7 @@ That is the answer to this entry's own complaint: the golden says *what changed*
 companion test says *what broke*, and a script whose glider wanders somewhere else fails with a
 sentence instead of a line number. The remaining scripts (one per subsystem) are still owed.
 
-### 4.4 A comment naming a test that does not exist is worse than no comment — **DONE, 1.5e and 1.6; the linter is 1.8**
+### 4.4 A comment naming a test that does not exist is worse than no comment — **DONE, 1.5e and 1.6; the linter is DONE, 2.1**
 
 `internal/render/srcrects.go` had promised since 1.5c that "`TestStripRectsTileTheirSheet`
 checks each array against its sheet's declared bounds, and a transcribed table is what that
@@ -2491,7 +2510,7 @@ false-positive shapes this tree already contains, which are the whole design pro
 | Shape | Where | Why it is not a dangling reference |
 |---|---|---|
 | A wildcard standing for a family of tests | `internal/house/house.go:12` says `TestCorpus*` | Matches the eight `TestCorpus…` tests in `corpus_test.go` |
-| A hyphenated line break | `internal/render/locale.go:101` ends a line with `TestFrame-` | Continues `CountsMatchTheSrcTables` on the next line, and that test exists |
+| A hyphenated line break | `internal/render/locale.go:97` ends a line with `TestFrame-` | Continues `CountsMatchTheSrcTables` on the next line, and that test exists |
 | The C's own identifier | `internal/game/play.go:208` cites `TestHighScore` | `HighScores.c:374`, not a Go test |
 
 So the check has to skip a match followed by `*`, **join** a comment's lines before matching —
@@ -2501,6 +2520,43 @@ The last one is the interesting one: `TestHighScore` will become a real Go test'
 at which point the false positive resolves itself and the exemption stops being needed — which
 suggests the rule should be "a name cited alongside a `.c` filename is the C's", not a
 hand-maintained allowlist.
+
+**Built at 2.1, inside 4.12's checker rather than as a `glidertool lint` subcommand.** A test was
+the better home for the reason 4.12 gives: a linter that reports its findings to a human is a
+linter whose findings can be read and not acted on, and the whole class of defect here is
+"somebody did not do the manual step". It found four more, all of them renames: the one this
+entry predicted, plus three that had gone stale in the six stages since.
+
+Two of the three design notes above survived contact and one did not.
+
+The wildcard form needed widening: prose writes the family with an **ellipsis** as well as a star,
+and this entry's own line 2510 is the proof — "the eight `TestCorpus…` tests" in the sentence, and
+`TestCorpus*` in the code span beside it. The checker accepts `*`, `…` and `...`.
+
+The hyphen rule was right to insist on joining and wrong about where the difficulty is. The
+trailing-`-` case is not only a line break: line 2511 above *quotes* `TestFrame-` mid-sentence,
+as an example of the convention, and no join can rescue it because the rest of the name is prose
+about a different thing. So a name ending in `-` is treated as half an identifier and never as a
+claim, which is a weaker rule than "join and then check" and the only one that does not fail on
+this table.
+
+**And the prediction was wrong.** `TestHighScore` did not become a Go test at 1.7. It became
+`World.TestHighScore` — a *method*, transcribed with the C's name, cited in `cmd/glidergo` and
+called in `internal/game`. A matcher looking for `func Test…` cannot see a method declaration, so
+the reference reads as dangling now for the same reason it did then, and the exemption is still
+needed. This is worth recording as a small lesson about deferring a false positive on the grounds
+that it will resolve itself: what resolved was the *absence* of the thing, not the shape of the
+reference to it.
+
+The suggested rule — "a name cited alongside a `.c` filename is the C's" — was therefore rejected
+in favour of the hand-maintained allowlist it was meant to avoid. Two of the five entries are not
+about the C at all (`docs/CITATIONS.md` uses a placeholder while explaining the convention; two
+other names are quoted in this file as errors that *were* found, and correcting the quotations
+would delete the findings), so the proximity rule would have had to be joined by an allowlist for
+the rest — and an allowlist with a proximity rule in front of it is strictly harder to reason
+about than an allowlist. What makes the list tolerable is 4.12's tier 4: every entry is checked
+for still being needed, so the one on this line will fail the build the day `TestHighScore`
+becomes a test.
 
 ### 4.5 A bug report could not say that two machines drew different pixels — **DONE, 1.5f**
 
@@ -2783,6 +2839,214 @@ whether the file is the same file twice.
 Not started. The counters and the clipping figures are worth keeping either way — they are what
 distinguished "the device refused this" from "the mix was too loud" during the Windows run.
 
+### 4.12 About 17,800 citations into the 1994 C, and nothing had ever checked that one resolved — **DONE, 2.1**
+
+The port's entire claim is that it behaves like the original, and that claim is made in pieces —
+function by function, each backed by a pointer at the C it was read from. There are about 17,800 of
+those pointers, naming about 18,300 lines and ranges across all 93 files of upstream `94fed96`. Not
+one of them had ever been checked against the file it names.
+
+That is a worse gap than the count makes it sound, because of what a citation is *for*. "The original
+clears `mode` before the altitude check" is a thing a reader has to take on trust; the same sentence
+with `Interactions.c:412` after it is a thing a reader can go and disagree with. So a citation that
+does not resolve is not a small blemish — it is the difference between evidence and assertion,
+wearing the costume of the former. It also costs somebody else's time rather than ours, which is the
+category of defect this file exists to take seriously.
+
+`internal/citations/citations_test.go` sweeps every `.go`, `.md`, `.py`, `.sh`, `.txt` and `.yml`
+file in the tree and resolves three classes of claim. The 1994 C, in four tiers: the file exists;
+every line number and range endpoint is inside it; a full path names the directory the file is
+actually in, and every range runs forwards; and coverage both ways — all 67 of upstream's `.c` files
+are cited somewhere, and every entry on the exemption list is still needed by something. This
+repository's own `path:line` references, which is the same promise about a tree where files really do
+get renamed, plus the coverage half of that — every `internal/` package has to appear on the map
+`README.md` draws, because a package missing from it breaks no link and still reads as complete, so
+the only way a reader finds out is by concluding the thing they wanted is not in this project. And
+the test names the prose quotes, which is 4.4's linter, finally built (see below). Plus the invariant
+the rest lean on: every written mention of the upstream commit names the same commit.
+
+**Twenty-two defects, on prose that had been reviewed repeatedly.** Nine numbers past the end of
+their file, six file names that do not exist, one path naming the wrong directory, two references to
+documents of ours that are not there, and four test names that had been renamed out from under a
+comment. Every out-of-range number was fixed by reading the C and finding the line the claim was
+about, not by lowering the number until it fit — `Banner.c:205-236` because that is where
+`DisplayStarsRemaining` ends, `RectUtils.c:210-216` because that is where `QSetRect` is. A citation
+that resolves to the wrong place is worse than one that resolves to nothing: nothing announces
+itself and the wrong place does not.
+
+Two of the twenty-two matter beyond their own line. `Room.c` cited to 1215 in a 1206-line file means
+that reading was done against a differently converted copy, so the other numbers from the same
+sitting were suspect too — which is the kind of thing a count of one defect does not tell you and a
+sweep does. And `PlayerControl.c` was a file an early draft invented, which has never existed in any
+version of Glider PRO; it is now named in exactly one place, to say so.
+
+A twenty-third was not a citation defect but caused four. `GliderPRO/Prefix.h` sits at the top of
+upstream's tree rather than inside `Headers/`, so it was missing from the `cp` recipe in every
+document — which means the four citations to `Prefix.h:1` could not resolve on any machine that had
+followed the instructions, for four stages. It is in all four recipes now and in `.gitignore`. The
+count of citations in the documentation was also wrong by nearly half: five places said "about
+9,500", which is roughly the full-path form alone.
+
+Three decisions inside it worth keeping:
+
+- **The colon is required.** `Banner.c:205` is a citation; "as `Banner.c` 300 times" is prose about a
+  file. Matching the space-separated form would fail against a 237-line file on writing that was
+  correct, and a checker that is wrong about correct prose gets answered by rewriting the prose.
+- **A floor, not an exact count.** The figure moves whenever anybody writes a paragraph, so an exact
+  assertion is one that gets its number bumped without being read. The failure a floor actually
+  catches is the one nothing else can see: an edit that breaks the matching turns 18,000 assertions
+  into a vacuous pass over an empty slice, and the suite stays green. That does not arrive at 17,000.
+- **Exemptions carry their reason, and the reasons are checked for still being needed.** Twenty-one
+  names upstream does not have are legitimately cited — Apple, Win32 and X11 SDK headers, two
+  metasyntactic placeholders, and `PlayerControl.c` named to record that it does not exist. An
+  exemption list is the one part of a checker that cannot fail, so it is the part that rots: an
+  entry nothing needs any more is a name the next person is quietly free to get wrong.
+
+It needs the C, which is not in this repository, so the tiers that read it skip when it is absent and
+print the three clone commands. A skip is a weak thing to rely on, so `.github/workflows/ci.yml` has
+a `citations` job that clones upstream at the pin on every push — and that job fails if any check
+skipped, because `go test` prints `ok` for a package whose every test skipped and a mistyped path
+would otherwise leave it green while proving nothing. The classes that need no C never skip.
+
+`docs/CITATIONS.md` is the reader-facing half, and its §6 is the part worth writing down: what a
+green run does **not** promise. Above all that a citation is about the right thing. `Player.c:1234`
+resolves, and line 1234 is `FlagGliderNormal(thisGlider);` — whether that is what the sentence beside
+it claims, no sweep can say.
+
+Two things this found and did not fix, both deliberate. `docs/analysis/stage15-raw/` is referenced by
+three Go files and four documents and is gitignored, so those references are dead on every clone;
+5.8 owns it and it cannot simply be repointed, because the "releasePolish N" numbering they quote
+exists only there. It is on the exemption list now, which at least makes the deferral
+machine-tracked: the day that numbering lands in a committed file, the checker asks for the exemption
+back. And two of upstream's 25 headers are cited nowhere — `About.h` (10 lines) and `Play.h` (13) are
+prototype-only companions to two of the most heavily cited `.c` files in the tree, with no `typedef`,
+`#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
+headers.
+
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; the rest filed below**
+
+A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
+is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
+binaries' own `-h` offers, and the sentences that say what happens if you are missing something.
+None of those had been run since they were written, and a documented command line that does not work
+is the most expensive wrong sentence in a repository, because it is the one a newcomer meets in their
+first five minutes and the only evidence they have about whether the rest is worth reading.
+
+Four were fixed, and they are worth listing separately because they fail in four different ways.
+
+**`glidertool replay -script -` could not run.** Replay's own usage text offers it as the way to see
+the script format — "A script is line-oriented; `glidertool replay -script -` prints one to copy" —
+and it failed with `no house to replay`. `-script` writes the resolved script out and exits, so it
+describes a run rather than performing one and needs no house; the check for a house was simply
+above it. Moved below, and the blank house is filled in with the one the error message already
+suggested, so what gets printed is a template that *runs* rather than one whose first line is `house`
+with nothing after it.
+
+The interesting part is why it survived six stages: **a test asserted the broken behaviour.**
+`TestReplayNeedsAHouse` was written as `run([]string{"replay", "-script", "-"})` on the reasoning
+that `-script` was a cheap way to reach the house check without starting a game. It was — and so the
+suite pinned the defect, in green. That is a failure mode worth naming: a test that reaches the code
+it means to test *through* an unrelated flag silently takes on that flag's behaviour as a
+requirement. The case now asks its own question, under the name
+`TestReplayNeedsAHouseToRun` — the four words it was missing — and the case it used to occupy is
+`TestReplayPrintsATemplateThatRuns`, which pipes the printed template straight back in and replays
+it, because a template that parses and does not run is documentation a reader stops trusting.
+
+**`glidergo <house>` was silently ignored.** `cmd/glidergo` called `flag.Parse()` and never looked at
+`flag.NArg()`, so the most obvious command a player can type — the name of a house — parsed, ran, and
+showed the title screen. That is indistinguishable from the house having been *refused*, which is the
+failure mode the `-resume`/`-room` checks twenty lines below are worded to prevent ("Accepting both
+would silently ignore one of them, which is the failure mode that costs an hour of wondering why").
+The principle was already written down; nothing had applied it to the arguments.
+
+Accepted rather than refused, which is the one place this entry chose ergonomics over strictness, for
+two reasons that both point the same way: the 1994 program was a Mac application and a house was one
+of its *documents*, so opening one by naming it is the original's gesture rather than a new
+convenience — and it is the form an operating system uses when a file type is associated with a
+binary, which is what a double-clicked `.house` has to become on Windows and macOS. Two houses, or
+`-house` and a bare name together, are still refused, and the message quotes both strings back,
+because a name that lost its quotes (`glidergo CD Demo House`) is the commonest way to get there and
+seeing the three fragments is what tells the player what happened.
+
+**`CGO_ENABLED=0` builds a game that cannot be quit.** `CONTRIBUTING.md` said that without
+`libx11-dev` "the build still succeeds and produces a binary that cannot draw". Both halves were
+wrong in opposite directions. The build does not succeed — the X11 backend asks `pkg-config` for
+`x11`, so it stops with `Package x11 was not found in the pkg-config search path` — and the binary
+that *does* come out of a no-cgo build does something worse than not draw: it selects the null
+backend, whose `PollEvents` returns only the events a script gave it, so nothing can ever deliver
+`EventQuit` and the run draws frames into nothing until somebody types Ctrl-C. No output, no window,
+no error. That is the first five minutes of anybody who cannot install the dev package, which is
+exactly the reader that sentence was written for.
+
+Now refused, with the three flags that give such a build something to finish. And the condition is
+`endlessHeadlessRun(backendName, o)` rather than a comparison against `backend.Name`, because that
+constant is `"x11"` on the host `go test` runs on: a guard written against it directly is a guard no
+test can reach, and this one's failure mode is a hang, which is the single failure a test suite
+cannot report on its own. The prose now says what the build actually does, and points at `make
+doctor`, which already checked for `x11.pc` and was not mentioned.
+
+A smaller trap found underneath it, worth recording because it cost a wrong measurement: the first
+attempt to reproduce the missing-`libx11-dev` failure ran `go build` with `PKG_CONFIG_PATH` pointed
+at nothing and **succeeded**, because Go's build cache had the cgo action already. It takes `-a` to
+see it. Anybody trying to verify a toolchain-dependency claim on this project will hit the same
+thing.
+
+**"is DISPLAY set?" was the answer to one of three questions.** The X11 backend's only diagnosis was
+`x11: cannot open display (is DISPLAY set?)`, and `XOpenDisplay` reports failure with no reason at
+all, so the environment is all there is to go on. Three people read that sentence. One has no
+graphical session and wants to be told about `-shot` and `-frames`. One has `DISPLAY` set and an X
+server that refused — a wrong value, or no `xauth` cookie, which is what `ssh` without `-X` looks
+like — and being asked whether `DISPLAY` is set, when they can see that it is, reads as the program
+not knowing. And one is on Wayland with no XWayland, which on a 2026 desktop is the likeliest of the
+three and the one the old message sent furthest wrong: there *is* a session, it is graphical, it is
+running, and what is missing is a package nothing named.
+
+`platform.DisplayAdvice(display, wayland string) string` now answers each separately, and it lives in
+`internal/platform` beside `Expand` for the reason `Expand`'s own comment gives: the backend needs
+libX11 and a display, a function over two strings needs neither, and so every branch is reachable
+from `go test` on the machine this port is written on. The wording claims no certainty — each branch
+says what was observed before what to do about it, so a reader in a fourth situation can see which
+of the three they were mistaken for.
+
+**Two documented commands were checked and are fine**, and are recorded so the next sweep does not
+re-derive them. `make doctor` runs, installs nothing, and reports `libX11 dev (x11.pc)` along with
+python3, a C compiler, a display and a sound device — it is the `preflight` target this entry nearly
+added before reading the Makefile. And the README's Windows paragraph is current: the "never been
+run" caveat was retired when the build was actually run on Windows Server 2025, and the two
+remaining gaps it names — nobody has played it with a keyboard, `windows/arm64` has never run — are
+both still true. The `never run` lines in `CHANGELOG.md` are history and stay as written.
+
+**Still open, in rough order of who they cost.** Each is a claim or a command, and each is cheap:
+
+- **`glidertool <sub> file -flag` does not work**, because Go's `flag` package stops at the first
+  non-flag argument, and several documented lines put the file first. A `partitionArgs` in
+  `cmd/glidertool/main.go` that lifts flags out from behind positional arguments would make every
+  ordering work. The ordering that fails is the one a shell user writes by habit.
+- **`make check` does not check the documents.** 4.12's `citations` job checks the citations and
+  this entry's four defects were all found by hand. A `docs-check` target that runs the documented
+  command lines — the ones in fenced blocks that begin with `bin/glidergo`, `bin/glidertool` or
+  `make` — would have caught three of the four. The hard part is that some of them need a display
+  and some write files, so it wants a marked subset rather than a scraper.
+- **`release.yml`'s `sed` and `CONTRIBUTING.md`'s walkthrough are still unrun.** 5.4 owns the first;
+  the second is the "your first patch" section, whose steps have never been performed end to end by
+  anybody, which is the same class of defect as the four above and the one most likely to be met.
+- **The Makefile's `## ` help lines skip `smoke` and `all`**, so `make help` lists neither, and
+  `smoke` is in `make check`. Two lines.
+- **`cross`'s caveats are not guarded on `GOOS`**, so a macOS reader is told what a Linux build
+  cannot do. Same for the Windows and macOS gate commands, which name Linux paths.
+- **`project.Releases` has no caller.** It is the one constant in `internal/project` that nothing
+  reads, which means nothing checks it either. Either the release notes and `-version` should point
+  at it or it should go; an exported constant with no reader is a string that can rot silently, and
+  this package exists specifically to stop that.
+- **`docs/PLAN.md` §3's architecture map names directories that do not exist.** It was written before
+  the tree settled and has not been revisited. Unlike the README's map, which 4.12 now sweeps,
+  nothing checks PLAN's — and the two disagree, which is worse than either being wrong alone.
+- **Nothing in the release archives mentions SmartScreen, Mark of the Web, or Gatekeeper
+  quarantine.** A player who downloads an unsigned Windows zip gets "Windows protected your PC" with
+  no Run anyway button visible until they click More info, and a macOS build is quarantined outright.
+  Neither is a bug and both look exactly like one. This is 5.4's release notes, and it is the single
+  most likely reason a first-time player never sees the title screen at all.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -3053,7 +3317,7 @@ instead was to remove the question: commit the decoded assets, so the first comm
 `git clone` is `make run`. That is 1.2's route (a) and it retires the extraction step from the
 quick start entirely.
 
-### 5.7 The four files a public repository is expected to have, and the two templates — **planned, when the repository is actually public**
+### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent**
 
 1.3 records that `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and the issue and
 pull-request templates do not exist. This is where the reasoning lives, because "add the standard
@@ -3082,6 +3346,31 @@ What each one would have to say that is specific to gliderGo, and is therefore n
 
 The decision recorded here is that all six wait for the public push, and that when they are
 written they say the gliderGo-specific thing above rather than the generic thing.
+
+**Written at 2.0, five of the six.** `CONTRIBUTING.md` (172 lines), `SECURITY.md` (51),
+`.github/PULL_REQUEST_TEMPLATE.md`, and three issue forms —
+`.github/ISSUE_TEMPLATE/bug_report.yml`, `fidelity_difference.yml` and `config.yml`. Each says the
+specific thing this section demanded: `CONTRIBUTING.md` leads on the stdlib-only invariant and the
+`-update` hash in the diff; `SECURITY.md`'s scope section is three paragraphs about house-file
+parsing and one sentence about what does not exist; and `fidelity_difference.yml` exists as a
+*separate* form from the bug report, because "the original did something else" and "this crashed"
+want different fields and the former is the report this project most wants to receive.
+
+**What unblocked them was noticing that the reporting address was the wrong blocker.** Both
+`SECURITY.md` and `CODE_OF_CONDUCT.md` were deferred above on the grounds that there is no address
+to put in them and an unattended contact is worse than none. That is true of an email address and
+not true of the mechanism GitHub already provides: private vulnerability reporting routes to the
+maintainer, is auditable, needs no inbox, and cannot be scraped. So `SECURITY.md` points at
+**Security → Report a vulnerability** and states "one maintainer, no SLA" in place of a promise it
+cannot keep — which is the honest version of the same file.
+
+**`CODE_OF_CONDUCT.md` is the one still not written, and now for a better reason than the address.**
+The same substitution does not work: GitHub's private reporting is security-only, so a covenant
+would have to route conduct reports either to an unattended address or to GitHub's own abuse
+process — and pointing at GitHub's process is telling people to go over the maintainer's head by
+default, which is not what the document is for. Left absent rather than boilerplated. The trigger
+to write it is a second maintainer, not the public push; that is who the reporting clause would
+name.
 
 ### 5.8 What the fresh-checkout audit found and deliberately did not fix — **notes, 1.10a**
 

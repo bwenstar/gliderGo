@@ -26,7 +26,7 @@ import "strings"
 
 // keyNames is the whole table: canonical name first, then aliases.
 //
-// Every Key except KeyUnknown appears exactly once, and TestEveryKeyHasAName holds
+// Every Key except KeyUnknown appears exactly once, and TestEveryKeyHasANameAndRoundTrips holds
 // that true -- a key added to the enum with no entry here would otherwise persist as
 // "unknown" and quietly reset itself on the next load.
 var keyNames = []struct {

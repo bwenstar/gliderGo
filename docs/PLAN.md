@@ -1325,7 +1325,7 @@ good intentions:
 | Mechanism | Catches |
 |---|---|
 | **Trace tests** — scripted input → recorded `(frame, x, y, vx, vy, mode)` for the player | physics drift, off-by-one in collision, tick-order mistakes |
-| **Frame diffs** via the null backend against checked-in reference PNGs | draw-order and sprite-indexing regressions |
+| **Frame hashes** via the null backend against a checked-in text corpus, one line per frame (planned as reference PNGs; text diffs, images do not) | draw-order and sprite-indexing regressions |
 | **House round-trip property tests** | loader/writer field loss, endianness slips |
 | **Object behaviour tests**, one per class, from the spec docs | subtle trigger/effect mistakes in the long tail of object types |
 | **Constant audit** — a generated table diffed against `docs/analysis/constants.md` | a mistyped literal silently changing feel |
