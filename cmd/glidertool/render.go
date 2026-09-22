@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bwenstar/gliderGo/internal/assetfs"
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/render"
 )
@@ -41,7 +42,7 @@ func renderCmd(args []string) error {
 		fmt.Fprintf(fs.Output(), "usage: %s render [flags] <house>\n\n", prog)
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {

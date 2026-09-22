@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
@@ -89,7 +90,7 @@ machine with no sound card is the only way to hear what a replay sounded like:
 `, prog, prog, exampleHouse, prog, prog, prog)
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() > 1 {

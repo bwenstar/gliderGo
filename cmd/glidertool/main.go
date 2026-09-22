@@ -3,7 +3,9 @@
 // be inspected and hand-authored without a running game and diffed in git as
 // text.
 //
-// Flags come before file names, as the Go flag package requires:
+// The examples put flags before file names because that reads better, not because it is
+// required: either order works, and `house stats Mine.house -tier small` means what it
+// looks like (internal/cliargs).
 //
 //	glidertool house dump Demo.house               # binary -> text, on stdout
 //	glidertool house dump -residue -o d.txt d.house # byte-exact text (forensics)
@@ -101,8 +103,8 @@ usage: %s <command> [flags] [file...]
   types       [substring]                   the object type names, by code
   version                                   this build, and what it is a port of
 
-Flags precede file names. The text format is documented by the header comment
-that `+"`house dump`"+` writes; the binary formats are documented in
+Flags may also come after the file names. The text format is documented by the
+header comment that `+"`house dump`"+` writes; the binary formats are documented in
 docs/analysis/house-format.md and docs/analysis/input.md §14.
 
 `+project.Home+` -- bugs to `+project.Issues+`

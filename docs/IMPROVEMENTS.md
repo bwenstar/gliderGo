@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; the rest filed below**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; the flag ordering DONE, 2.4; the rest filed below**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3016,7 +3016,9 @@ run" caveat was retired when the build was actually run on Windows Server 2025, 
 remaining gaps it names — nobody has played it with a keyboard, `windows/arm64` has never run — are
 both still true. The `never run` lines in `CHANGELOG.md` are history and stay as written.
 
-**Still open, in rough order of who they cost.** Each is a claim or a command, and each is cheap:
+**Still open, in rough order of who they cost.** Each is a claim or a command, and each is cheap.
+The first was closed in 2.4 and its bullet is kept below with the amendment that closed it, because
+what it cost is the part worth remembering:
 
 - **`glidertool <sub> file -flag` does not work**, because Go's `flag` package stops at the first
   non-flag argument, and several documented lines put the file first. A `partitionArgs` in
@@ -3027,6 +3029,50 @@ both still true. The `never run` lines in `CHANGELOG.md` are history and stay as
   Reordering the documents is not the fix; the parser still refuses the habit, and this bullet stays
   open. It is now the case that every command line in `README.md` and `CONTRIBUTING.md` puts its
   flags first, which is a thing a `docs-check` target could hold.)*
+
+  *(2.4, **DONE**. `internal/cliargs.FlagsFirst` rewrites one command line into the order `Parse`
+  wants, and all sixteen FlagSets in the tree go through it. It walks the arguments and asks **the
+  FlagSet itself** whether each flag takes the token after it — `IsBoolFlag`, an attached `=`, a
+  name nobody registered — then emits the flags, a `--`, and the files. Asking rather than keeping a
+  list of this project's own value-taking flags is the whole design: a new `-whatever` needs no edit
+  there and cannot be got wrong there either.*
+
+  *Measuring the cost first changed what this looked like. The bullet said "does not work", which
+  undersells two of the three failures. `house dump f.house -o out.txt` answers `house dump takes
+  exactly one house file` — **confidently false**, said to somebody who gave exactly one house file,
+  and the reader's next move is to start quoting the file name. `house stats "Demo House.house"
+  -tier tutorial` is worse: it prints all eighteen rows **with no tier column at all**, having
+  silently demoted `-tier` to a file name, and only then stops with `open -tier: no such file or
+  directory`. A flag that is ignored and then blamed for not existing on disk is not a refusal, it
+  is a wrong answer with an exit code attached.*
+
+  *It is a package and not the proposed `partitionArgs` because `cmd/glidergo` had the same defect
+  and nobody had noticed: `glidergo Slumberland -scale 2` was refused with `one house at a time: 3
+  were named (Slumberland, -scale, 2)`, which is 2.1's own fix for this entry reporting the
+  arguments it could not reorder. That is the argument for sharing — two callers whose failure mode
+  is *moving* an argument rather than refusing one — and it is the opposite call to `internal/project`'s
+  nine-line formatter, which is duplicated on purpose.*
+
+  *What it deliberately does not do is become a parser. An unknown flag stays in the flag stream, so
+  a typo is still `flag provided but not defined: -teir` and not "no such file"; `-h` still reaches
+  `flag.ErrHelp`; `-q true` still leaves `true` a positional, because that is what `flag` does with
+  it and a reordering that "fixed" it would eat a file name in one ordering and not the other; and
+  `-o --` still takes `--` as the value. Every one of those is a test.*
+
+  *The sweep is the part that will outlive the fix.
+  `cliargs.TestEveryCommandLineInTheTreeIsReorderedBeforeItIsParsed` reads the tree's own AST,
+  finds every `Parse` on something it knows to be a FlagSet, and requires the arguments to have been
+  reordered — because fifteen call sites are fifteen chances for the sixteenth subcommand to copy a
+  neighbour's first ten lines and not its eleventh, and a behavioural test over today's fifteen
+  would pass forever while that happened. It found a sixteenth site nobody had counted:
+  `tools/packassets`, which takes **no** positional arguments and so had no ordering to get wrong,
+  and which silently ignored one — `packassets assets/levels` packed `assets/extracted` and reported
+  success. Now refused, which is this entry's own principle applied to the one program it had not
+  been applied to.*
+
+  *The `docs-check` bullet below is unaffected and still worth doing. Every documented command line
+  still puts its flags first; the difference is that this is now a house style rather than a
+  requirement, so a reader who departs from it gets what they asked for.)*
 - **`make check` does not check the documents.** 4.12's `citations` job checks the citations and
   this entry's four defects were all found by hand. A `docs-check` target that runs the documented
   command lines — the ones in fenced blocks that begin with `bin/glidergo`, `bin/glidertool` or

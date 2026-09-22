@@ -29,6 +29,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/demo"
 )
 
@@ -55,7 +56,7 @@ func demoInfo(args []string) error {
 	fs := flag.NewFlagSet(prog+" demo info", flag.ContinueOnError)
 	stats := fs.Bool("stats", false, "add the timing analysis: gaps, held runs, frame parity")
 	out := fs.String("o", "-", "write here instead of stdout")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {
@@ -257,7 +258,7 @@ func demoDump(args []string) error {
 	fs := flag.NewFlagSet(prog+" demo dump", flag.ContinueOnError)
 	bare := fs.Bool("bare", false, "omit the explanatory header comment")
 	out := fs.String("o", "-", "write here instead of stdout")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
@@ -302,7 +303,7 @@ func demoDump(args []string) error {
 func demoCheck(args []string) error {
 	fs := flag.NewFlagSet(prog+" demo check", flag.ContinueOnError)
 	quiet := fs.Bool("q", false, "print only files that fail")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {

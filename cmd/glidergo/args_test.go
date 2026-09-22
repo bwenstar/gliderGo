@@ -11,6 +11,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -62,6 +63,63 @@ func TestAHouseNamedWithoutAFlagIsStillAHouse(t *testing.T) {
 	}
 	if o.house != "/tmp/houses/Mine.house" {
 		t.Errorf("the house read %q, want the path as given", o.house)
+	}
+}
+
+// TestAHouseNamedBeforeItsFlagsIsStillAHouse is the second half of the same defect, and it
+// outlived the first by three stages.
+//
+// 2.1 made `glidergo Slumberland` work. It did not make `glidergo Slumberland -scale 2` work, because
+// the flag package stops at the first non-flag argument: -scale and 2 stayed in flag.Args(), so the
+// count came to three and the player was told "one house at a time: 3 were named (Slumberland,
+// -scale, 2)". That is a worse message than the silence it replaced -- it is confident, it is
+// specific, and it is about the wrong thing, so the reader's next move is to try quoting the house
+// name. internal/cliargs reorders the command line before Parse sees it (docs/IMPROVEMENTS.md 4.13).
+//
+// The last row is the reason the reordering emits its own `--`: it is the only way to name a house
+// whose name begins with a dash, and it has to survive being moved.
+func TestAHouseNamedBeforeItsFlagsIsStillAHouse(t *testing.T) {
+	for _, tc := range []struct {
+		args  []string
+		house string
+		check func(*options) string
+	}{
+		{[]string{"Slumberland", "-quiet"}, "Slumberland", func(o *options) string {
+			if !o.quiet {
+				return "-quiet did not take"
+			}
+			return ""
+		}},
+		{[]string{"Slumberland", "-scale", "2"}, "Slumberland", func(o *options) string {
+			if o.scale != 2 {
+				return fmt.Sprintf("-scale is %d, want 2", o.scale)
+			}
+			return ""
+		}},
+		// Flags on both sides of the name, one of them a value that is a bare number, which is
+		// the shape most likely to be mistaken for a second house.
+		{[]string{"-two", "/tmp/Mine.house", "-room", "3"}, "/tmp/Mine.house", func(o *options) string {
+			if !o.two || o.roomNum != 3 {
+				return fmt.Sprintf("-two=%v -room=%d, want true and 3", o.two, o.roomNum)
+			}
+			return ""
+		}},
+		{[]string{"--", "-weird.house"}, "-weird.house", nil},
+	} {
+		o, err := parseArgs(t, tc.args...)
+		if err != nil {
+			t.Errorf("glidergo %s: %v", strings.Join(tc.args, " "), err)
+			continue
+		}
+		if o.house != tc.house {
+			t.Errorf("glidergo %s: the house read %q, want %q",
+				strings.Join(tc.args, " "), o.house, tc.house)
+		}
+		if tc.check != nil {
+			if bad := tc.check(o); bad != "" {
+				t.Errorf("glidergo %s: %s", strings.Join(tc.args, " "), bad)
+			}
+		}
 	}
 }
 

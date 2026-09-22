@@ -10,6 +10,7 @@ import (
 
 	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/render"
 )
@@ -38,7 +39,7 @@ func houseLint(args []string) error {
 	artDir := fs.String("art", "", "extracted application art to use instead of the built-in copy")
 	houseDir := fs.String("houseart", "", "extracted per-house resource forks instead of the built-in ones")
 	soundDir := fs.String("sounds", "", "extracted sounds instead of the built-in ones")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {
@@ -199,7 +200,7 @@ func houseLint(args []string) error {
 // walks into in another.
 func houseLintChecks(args []string) error {
 	fs := flag.NewFlagSet("house checks", flag.ContinueOnError)
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {

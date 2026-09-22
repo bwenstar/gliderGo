@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 )
 
@@ -17,7 +18,7 @@ import (
 // what tells an author which fields the line must carry.
 func typesCmd(args []string) error {
 	fs := flag.NewFlagSet("types", flag.ContinueOnError)
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	filter := strings.ToLower(strings.Join(fs.Args(), " "))

@@ -298,6 +298,12 @@ bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
 bin/glidertool types                                         # the 117 object types
 ```
 
+Every line above puts its flags before the file, which is a house style and not a requirement:
+`house stats my-house.house -tier small` means the same thing, and so does `glidergo Slumberland
+-scale 2`. Go's `flag` package stops at the first non-flag argument, which made the second ordering
+fail in three different misleading ways, so both binaries reorder their arguments before parsing them
+(`internal/cliargs`, [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md) 4.13).
+
 `house dump` and `house build` are how new houses are authored and how a house shows up in a
 diff — `make levels` is those two plus `house lint` over everything in `levels/`. `render` composes a
 room the way the game does and writes a PNG, which is how the renderer got checked by eye, and
@@ -347,7 +353,7 @@ worth having: measuring Open House is how that miss was found in the first place
 | `internal/platform/` | 640×480 software framebuffer; X11 (cgo), Windows (pure `syscall`) and headless (PNG/WAV) backends. |
 | `internal/replay/`, `internal/fidelity/` | The determinism harness and the pixel corpus. |
 | `internal/citations/` | The check that every pointer into the 1994 C resolves. See `docs/CITATIONS.md`. |
-| the other ten | `internal/prefs/`, `internal/scores/`, `internal/saved/`, `internal/demo/`, `internal/credits/`, `internal/project/`, `internal/datadir/`, `internal/assetfs/`, `internal/assetpack/`, `internal/module/` — one job each, and each opens with a package comment saying which. |
+| the other eleven | `internal/prefs/`, `internal/scores/`, `internal/saved/`, `internal/demo/`, `internal/credits/`, `internal/project/`, `internal/datadir/`, `internal/assetfs/`, `internal/assetpack/`, `internal/cliargs/`, `internal/module/` — one job each, and each opens with a package comment saying which. |
 | `cmd/glidergo`, `cmd/glidertool` | The game, and the tool above. |
 | `tools/` | The asset extractors: BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers. Standard-library python3. |
 | `docs/ORIGINAL_GAME.md` | How the original behaves. Read this one first. |

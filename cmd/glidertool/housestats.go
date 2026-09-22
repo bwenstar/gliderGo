@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/bwenstar/gliderGo/internal/assetfs"
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/profile"
 	"github.com/bwenstar/gliderGo/internal/render"
@@ -67,7 +68,7 @@ func houseStats(args []string) error {
 	artDir := fs.String("art", "", "extracted application art to use instead of the built-in copy")
 	houseDir := fs.String("houseart", "",
 		"extracted per-house resource forks instead of the built-in ones")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {

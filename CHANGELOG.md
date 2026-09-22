@@ -17,6 +17,44 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Flags can now come after the file names, which is where people put them (2026-09-22)
+
+Go's `flag` package stops at the first argument that is not a flag. For `go test ./... -run X` that is
+the point; for a tool whose positional argument is a file it is a trap, because the order a person
+types is the order they think in — name the thing, then say what to do with it — and that was the
+order that did not work:
+
+```
+glidertool house stats "Demo House.house" -tier tutorial     # now means what it looks like
+glidergo Slumberland -scale 2                                # so does this
+```
+
+Both of those failed, and neither failed cleanly. `house stats` printed the whole eighteen-row table
+**with no tier column at all**, having silently demoted `-tier` to a file name, and then stopped with
+`open -tier: no such file or directory` — a flag ignored and then blamed for not existing on disk.
+`house dump f.house -o out.txt` answered `house dump takes exactly one house file`, which is
+confidently false to somebody who gave exactly one. And `glidergo Slumberland -scale 2` was refused
+with `one house at a time: 3 were named (Slumberland, -scale, 2)`.
+
+`internal/cliargs.FlagsFirst` reorders one command line before `Parse` sees it, at all sixteen
+FlagSets in the tree. It asks **the FlagSet itself** whether each flag takes the token after it —
+`IsBoolFlag`, an attached `=`, a name nobody registered — so a new flag needs no edit there and
+cannot be got wrong there. It is not a parser and does not become one: an unknown flag stays
+refusable by name (`flag provided but not defined: -teir`, not "no such file"), `-h` still reaches
+`flag.ErrHelp`, `-q true` still leaves `true` a positional because that is what `flag` does with it,
+`house build -` is still stdin, and a file named after `--` survives being moved.
+
+`TestEveryCommandLineInTheTreeIsReorderedBeforeItIsParsed` reads the tree's own AST and requires
+every FlagSet parse to have been reordered, because fifteen call sites are fifteen chances for the
+sixteenth subcommand to copy a neighbour's first ten lines and not its eleventh. It found a
+sixteenth site nobody had counted — `tools/packassets`, which takes no positional arguments at all
+and silently ignored one, so `packassets assets/levels` packed `assets/extracted` and reported
+success. That is now refused.
+
+`docs/IMPROVEMENTS.md` 4.13 is the entry, and this closes its first open bullet. Every documented
+command line still puts its flags first; the difference is that this is a house style now rather than
+a requirement.
+
 ### A house can be measured against the 1994 ones without writing a test first, and the port's own tutorial house turns out to miss a row (2026-09-22)
 
 `internal/profile` measures a house against §10.2 of `docs/analysis/original-houses.md` — eighteen rows

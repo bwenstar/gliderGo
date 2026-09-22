@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 )
 
@@ -47,7 +48,7 @@ func houseDump(args []string) error {
 		"keep the bytes the text format normally drops, making the text byte-exact")
 	bare := fs.Bool("bare", false, "omit the explanatory header comment")
 	out := fs.String("o", "-", "write here instead of stdout")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
@@ -75,7 +76,7 @@ func houseBuild(args []string) error {
 	fs := flag.NewFlagSet("house build", flag.ContinueOnError)
 	out := fs.String("o", "", "write the binary house here; `-o -` means stdout")
 	quiet := fs.Bool("q", false, "do not report what was written")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
@@ -123,7 +124,7 @@ func houseBuild(args []string) error {
 func houseCheck(args []string) error {
 	fs := flag.NewFlagSet("house check", flag.ContinueOnError)
 	quiet := fs.Bool("q", false, "print only files that fail")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {
@@ -271,7 +272,7 @@ func textRoundTrip(h *house.House, opt house.TextOptions) ([]byte, error) {
 
 func houseInfo(args []string) error {
 	fs := flag.NewFlagSet("house info", flag.ContinueOnError)
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() == 0 {
@@ -350,7 +351,7 @@ func flagString(h *house.House) string {
 func houseRooms(args []string) error {
 	fs := flag.NewFlagSet("house rooms", flag.ContinueOnError)
 	objects := fs.Bool("objects", false, "list every object under its room")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cliargs.FlagsFirst(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {

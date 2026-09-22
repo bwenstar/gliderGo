@@ -72,6 +72,7 @@ import (
 	"github.com/bwenstar/gliderGo/assets"
 	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
+	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/platform/backend"
@@ -550,7 +551,19 @@ func parseFlags() (*options, error) {
 		flag.PrintDefaults()
 		fmt.Fprintf(w, "\n%s -- bugs to %s\n", project.Home, project.Issues)
 	}
-	flag.Parse()
+	// flag.Parse() with the arguments reordered, rather than flag.Parse(), so that
+	// `glidergo Slumberland -scale 2` works: the flag package stops at the first
+	// non-flag argument, which made that one "one house at a time: 3 were named
+	// (Slumberland, -scale, 2)" -- a message about the wrong thing entirely. The house
+	// name is the argument a *player* types, which is what makes this worth the
+	// indirection here and not only in glidertool (internal/cliargs, IMPROVEMENTS 4.13).
+	//
+	// flag.CommandLine is read at the point of use and not captured, because
+	// args_test.go's parseArgs swaps it for a fresh FlagSet to keep one test's flags out
+	// of the next one's: a reordering done against the old one would consult a FlagSet
+	// that has none of the flags above registered, and would then leave every flag's
+	// value stranded in the positional list.
+	flag.CommandLine.Parse(cliargs.FlagsFirst(flag.CommandLine, os.Args[1:]))
 
 	// Before every other check, because -version has to work on a machine where nothing
 	// else does -- including one where the flags it is given alongside are wrong.
