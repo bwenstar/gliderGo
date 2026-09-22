@@ -37,12 +37,16 @@ for a machine with no internet.
 ## `make check` is the gate
 
 ```
-embedded fmt-check vet test build glidertool houses levels headless audio fidelity docs-check cross smoke
+embedded fmt-check vet test race build glidertool houses levels headless audio fidelity docs-check cross smoke
 ```
 
 It compiles for Windows as well as this machine, round-trips every shipped house through both
 codecs, rebuilds the houses in `levels/` from their text and lints them, plays a headless session,
 renders and hashes six screens, mixes audio to a WAV, and runs the command lines this file gives.
+`race` is the odd one out in the other direction: it runs the race detector over `internal/netplay`
+and nothing else, because that is the only package here that starts a goroutine. `test` deliberately
+runs without `-race` — the detector needs cgo and a C compiler and costs an order of magnitude — so
+if you add concurrency anywhere else, add it to that target's package list in the same patch.
 Under a minute from a cold Go build cache on an eight-core machine and about a dozen seconds after
 that, and it is the whole contract — if it passes, CI will too.
 

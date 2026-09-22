@@ -351,6 +351,7 @@ worth having: measuring Open House is how that miss was found in the first place
 | `internal/shell/` | Everything before and around the game: title screen, house picker, settings, about, credits, the score board. |
 | `internal/audio/` | The 22 kHz mixer, the `'snd '` bank and the score, plus the platform sinks. |
 | `internal/platform/` | 640×480 software framebuffer; X11 (cgo), Windows (pure `syscall`) and headless (PNG/WAV) backends. |
+| `internal/netplay/` | The two-player race over a network: the handshake, the wire format from `docs/analysis/determinism-networking.md` §10.4, and the arithmetic that decides a winner. Two separate worlds, one result both sides compute for themselves. |
 | `internal/replay/`, `internal/fidelity/` | The determinism harness and the pixel corpus. |
 | `internal/citations/` | The check that every pointer into the 1994 C resolves. See `docs/CITATIONS.md`. |
 | the other eleven | `internal/prefs/`, `internal/scores/`, `internal/saved/`, `internal/demo/`, `internal/credits/`, `internal/project/`, `internal/datadir/`, `internal/assetfs/`, `internal/assetpack/`, `internal/cliargs/`, `internal/module/` — one job each, and each opens with a package comment saying which. |

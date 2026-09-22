@@ -67,7 +67,7 @@ internal/
   audio/               mixer over AudioSink; sound event table
   shell/               everything before a room: title, picker, settings, about, scores
   fidelity/            frame-diff and trace-diff harness against reference data
-  net/                 host/join, progress protocol                      [stage 3]
+  netplay/             the race: handshake, progress protocol, results   [protocol DONE]
 tools/                 the python3 extractors, and the two Go commands `make` runs
 levels/                new houses in text form, authored and version-controlled  [DONE]
 assets/levels/         those built by `make levels`; not committed, `-levels` can point here
@@ -76,7 +76,7 @@ assets/extracted/      generated but committed — reproducible from GliderPRO/ 
 assets/extracted.zip   that tree packed for go:embed — what every binary carries
 ```
 
-That is the layering and **not** a directory listing. `internal/` has twenty-one packages; the
+That is the layering and **not** a directory listing. `internal/` has twenty-two packages; the
 exhaustive one is `README.md`'s "What is in here" table, which
 `TestEveryPackageInTheTreeIsOnTheMapTheReadmeDraws` holds to the tree package by package. What is
 above is the shape the three rules below depend on, plus the three directories that do not exist yet
@@ -1344,8 +1344,24 @@ are wanted; neither substitutes for the other, and conflating them was the plan'
 1.9 first is also the cheaper order: it exercises every two-player branch locally, so what remains
 here is genuinely just transport.
 
-- `internal/net`: host listens on TCP, guest joins by address; length-prefixed JSON or a
-  small binary framing over one connection. LAN discovery is a nice-to-have, not required.
+- `internal/netplay`: host listens on TCP, guest joins by address; one connection. LAN discovery
+  is a nice-to-have, not required. Named `netplay` and not `net`, which is what this line used to
+  say, because a package named `net` makes every file that needs the standard library's `net`
+  alias one of the two.
+- **The wire format is `docs/analysis/determinism-networking.md` §10.4, not JSON.** This line
+  used to offer "length-prefixed JSON or a small binary framing" as a free choice, and that was
+  written before §10.4 existed. It now specifies a complete binary protocol — an 8-byte envelope,
+  seven message types, and §10.4.10's seven encoding rules — for the lock-step mode this port is
+  not building, and inventing a second format alongside it would repeat exactly the mistake
+  `docs/IMPROVEMENTS.md` 4.24 records: documents that state a layout and a port that used another.
+  Three additions were needed and each is argued in `internal/netplay`'s package comment: a
+  `uint32` length prefix, because §10.4's messages are datagram-shaped and TCP is a stream (which
+  is §10.4.10's "explicit count before every variable-length array" applied one level up); one new
+  message type, `MsgStanding` (0x30), because §10.4.8's `MsgProgress` is a ~150 KB resume snapshot
+  and not a per-change record; and a rule §10.4 does not have, that a message which is *allocated
+  but not spoken* — `MsgInputFrames` from a lock-step build — is refused out loud rather than
+  ignored, because two builds silently dropping each other's traffic is the one failure worse than
+  an error message.
 - Host chooses the house(s) in play; both sides load the identical house set (hash-checked,
   so a mismatch is refused rather than producing a bogus race).
 - Each side simulates only its own glider and sends a progress record on every meaningful
@@ -1362,9 +1378,30 @@ here is genuinely just transport.
   indices are authoring order), **floor number** (undefined across suites, and some houses run
   sideways), and **score** (already the tie-breaker, and it rewards farming bonuses in one room
   rather than travelling).
+- **Two amendments to that rule, both made while writing `Winner` and both departures from the
+  paragraph above.** First: **finishing the house outranks the metric.** Taken literally, "the
+  winner is decided by rooms visited" means a player who completed the house on a direct route
+  loses to one who wandered into more rooms and then died, and a race whose winner can be a corpse
+  is not a race — the house has an end and reaching it is the point. So `Finished` first, then
+  rooms between two finishers or two deaths. Second: **a forfeit beats everything and is settled
+  before the race is over.** A player who quits, closes the window, or has their process killed has
+  left; the other one wins immediately, still flying or not, and that is what "leaves the host in a
+  defined state" below means in practice. Its mirror image matters as much and is easier to get
+  wrong: a peer that reported `Finished` or `Died` and *then* hung up has forfeited nothing, so the
+  goodbye at the end of every ordinary race must not decide it (`netplay.Abandoned`). "Time" in the
+  tie-break order reads as **frames simulated**, not wall clock, which is also why there is no
+  countdown and no starting gun: nothing the race measures is measured in seconds.
 - Both players see a live opponent panel (their room, score, and whether they are still alive).
 - *Acceptance:* two processes on this host race to completion; killing the guest mid-race
   leaves the host in a defined state; a house-set mismatch is rejected with a clear message.
+- *Progress.* The protocol is done and tested with no UI: envelope and framing, the symmetric
+  handshake (nonce → slots, mixed seed, house-hash gate), `MsgStanding`, and the result arithmetic,
+  in `internal/netplay`. All three acceptance clauses are covered by `race_test.go` and
+  `handshake_test.go` over a pipe rather than a socket — two peers racing to a result both compute
+  for themselves, a killed guest, and a refused house. What remains is the wiring: host/join flags
+  on `cmd/glidergo`, dialling and listening, a "waiting for the other player" screen (the original
+  had one — `internal/game/consts.go`'s `EscapedTitleMode`), the opponent panel, and the mapping
+  from `World` to `Standing`.
 
 ### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 

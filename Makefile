@@ -46,6 +46,10 @@ HAVE_HOUSES := ls $(ASSETS)/houses/*.house >/dev/null 2>&1
 HAVE_SOUND  := [ -s $(ASSETS)/sound/manifest.tsv ]
 HAVE_ART    := [ -s $(ASSETS)/art/manifest.json ]
 HAVE_ZIP    := [ -s $(ASSETS_ZIP) ]
+# CAN_RACE answers whether `go test -race` can run on this machine. Both halves are asked because
+# either alone lies: the detector is cgo-only, and CGO_ENABLED is 1 by default on a box with no C
+# compiler at all, where the failure is a linker error that says nothing about the detector.
+CAN_RACE    := [ "$$($(GO) env CGO_ENABLED)" = "1" ] && command -v "$$($(GO) env CC)" >/dev/null 2>&1
 HAVE_LEVELS_ZIP := [ -s $(LEVELS_ZIP) ]
 NO_ASSETS   := echo "   they are committed, so this means they were removed: \`make assets\` puts them back (about a minute)"
 
@@ -87,7 +91,7 @@ export GOPROXY
 export GOTOOLCHAIN
 
 .PHONY: all build glidertool houses levels levels-zip run bench smoke headless audio fidelity \
-	test vet fmt fmt-check check check-caveats docs-check clean clean-assets cross cross-windows assets \
+	test race vet fmt fmt-check check check-caveats docs-check clean clean-assets cross cross-windows assets \
 	assets-zip assets-check embedded tools doctor help
 
 ## all: compile both binaries -- the default target, so `make` on its own does this
@@ -396,6 +400,30 @@ cross: embedded
 test:
 	$(GO) test $(PKG)
 
+## race: run the one package that has goroutines under the race detector
+#
+# One package, because one package starts a goroutine: `internal/netplay` reads on one and sends
+# from another for the whole of a match, and nothing else in here is concurrent at all. That is
+# why `test` above does not pass -race and should not -- the detector needs cgo and a C compiler,
+# it costs an order of magnitude on a suite that takes six seconds, and it would buy nothing on
+# the other twenty-one packages. Keeping the concurrency inside one small package is what makes
+# this affordable, and is the reason it was designed that way rather than the consequence.
+#
+# -count=2 because the detector only reports races it observes, and a scheduler that happened to
+# interleave two goroutines safely once will not say so. Two runs is not a proof; it is the
+# cheapest thing better than one.
+#
+# Skipped rather than failed where it cannot run, for the same reason `cross` skips its host row:
+# a check a machine cannot perform is not a defect in the code, and `check-caveats` says so at the
+# end so that a green run does not claim it.
+race:
+	@if $(CAN_RACE); then \
+		$(GO) test -race -count=2 ./internal/netplay/; \
+	else \
+		echo "race: skipped -- the detector needs cgo and a C compiler, and this machine has"; \
+		echo "      CGO_ENABLED=$$($(GO) env CGO_ENABLED) with CC=$$($(GO) env CC)"; \
+	fi
+
 ## vet: static checks
 vet:
 	$(GO) vet $(PKG)
@@ -460,7 +488,7 @@ docs-check: build glidertool
 # nor how to get it back. Asking the guard first means the first thing printed is the sentence with
 # the `git checkout --` in it. Prerequisites are made left to right, which this list already
 # depends on elsewhere (build before the targets that run the binary).
-check: embedded fmt-check vet test build glidertool houses levels headless audio fidelity docs-check cross smoke
+check: embedded fmt-check vet test race build glidertool houses levels headless audio fidelity docs-check cross smoke
 	@echo
 	@echo "gliderGo: check passed"
 	@$(MAKE) --no-print-directory check-caveats
@@ -510,6 +538,10 @@ check-caveats:
 		echo "  - $$os has no backend of its own yet (stage 6), so \`build\` produced the null"; \
 		echo "    backend and cgo makes no difference to that"; n=1;; \
 	esac; \
+	if ! $(CAN_RACE); then \
+		echo "  - the race detector did NOT run, so the one package with goroutines"; \
+		echo "    (internal/netplay) was only tested single-threaded"; n=1; \
+	fi; \
 	if ! $(HAVE_HOUSES) || ! $(HAVE_ART) || ! $(HAVE_SOUND); then \
 		echo "  - no extracted asset tree: the house round-trip and the pixel corpus were NOT"; \
 		echo "    checked (the runs above used the copy inside the binaries and are unaffected)"; n=1; \
@@ -524,7 +556,7 @@ check-caveats:
 		echo "    here is \`make bench\` by hand"; n=1;; \
 	esac; \
 	if [ $$n -eq 0 ]; then \
-		echo "         toolchain, cgo, tests, houses, levels, headless, audio, pixels, cross-build and the blit path"; \
+		echo "         toolchain, cgo, tests, races, houses, levels, headless, audio, pixels, cross-build and the blit path"; \
 	else \
 		echo "         everything above ran, but note the gaps -- this was not a full check"; \
 	fi

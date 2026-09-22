@@ -17,6 +17,57 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Stage 3, first half: the race protocol, from the specification that was already written (2026-09-22)
+
+`internal/netplay` is the networked two-player race — **not** the original's two-player mode, which
+is a shared room and shipped separately as 1.9. Here each machine simulates only its own glider in
+its own copy of the house and the connection carries progress. This half is the protocol: the
+envelope and framing, the handshake, the standing message and the arithmetic that decides a winner.
+No UI, no sockets yet, and every one of Stage 3's three acceptance clauses covered by a test over a
+pipe — two peers racing to a result each computes for itself, a guest killed mid-race, and a house
+mismatch refused by name and hash.
+
+The plan offered "length-prefixed JSON or a small binary framing" as a free choice, and that line
+predated `docs/analysis/determinism-networking.md` §10.4, which specifies a complete binary protocol
+for the lock-step mode this port is not building. Inventing a second format beside it would have
+repeated `docs/IMPROVEMENTS.md` 4.24 exactly — documents that state a layout, and a port that used
+another — so the race speaks §10.4: its 8-byte envelope, its message-type numbering, and its seven
+encoding rules. Three additions were needed and each is argued where it lives: a `uint32` length
+prefix, because §10.4's messages are datagram-shaped and TCP is a stream; one new message type,
+`MsgStanding` (0x30), because §10.4.8's `MsgProgress` is a ~150 KB resume snapshot rather than a
+per-change record; and a rule §10.4 has no reason to state, that a message which is allocated but
+*not spoken by this build* — `MsgInputFrames`, from a lock-step peer — is refused out loud, because
+two builds silently ignoring each other's traffic is the one failure worse than an error message. A
+type from outside every allocated range is still skipped in silence, which is §10.4.10's rule and
+buys the forward compatibility it was written for.
+
+The handshake is symmetric, with no host authority, because there is nothing for an authority to be
+authoritative about: both sides send a `MsgHello`, the smaller nonce becomes player 1, and the match
+seed is an FNV-1a mix of the two nonces in value order, so neither peer can choose the house's
+behaviour by choosing its own number. The two houses must hash identically or the match is refused
+with both names and both hashes on screen — the names are usually the same, two builds of one house
+being the common case, so the hashes are the only thing that tells them apart. There is no starting
+gun and no countdown: the metric is rooms visited and the tie-breaks are score and then *frames
+simulated*, so a peer that started late has simply simulated fewer frames, and nothing has to agree
+about a clock (which `docs/IMPROVEMENTS.md` 4.11 is the standing measurement of the futility of).
+
+Two rules in `Winner` depart from a literal reading of the plan's "the winner is decided by rooms
+visited", and `docs/PLAN.md` Stage 3 now records both. **Finishing the house outranks the metric**,
+because otherwise a player who completed the house on a direct route loses to one who wandered into
+more rooms and then died, and a race whose winner is a corpse is not a race. And **a forfeit beats
+everything and is settled before the race is over**: a player whose process is killed has left, so
+the other one wins immediately, still in the air or not. Its mirror image is the easier one to get
+wrong, and has its own rule and its own test — a peer that reported `Finished` or `Died` and *then*
+hung up has forfeited nothing, so the goodbye at the end of every ordinary race must not decide it.
+
+`make race` is new and `make check` runs it, because this is the first package in the port with a
+goroutine in it and nothing would otherwise have kept it honest. It covers `internal/netplay` and
+nothing else, for the reason it is worth having at all: the concurrency is confined to one small
+package on purpose, so the detector costs a second rather than the order of magnitude it would cost
+across the whole suite. On a machine without cgo or a C compiler it skips and `check-caveats` adds a
+line saying the goroutines were only tested single-threaded, which is the same rule the rest of that
+list follows — a check a machine cannot perform must not be reported as one it passed.
+
 ### The asset extractor publishes by rename, so nothing ever reads a half-written PNG (2026-09-22)
 
 `tools/extract_all.py` wrote straight into `assets/extracted/`, which meant that for the ~70 seconds
