@@ -1394,14 +1394,16 @@ here is genuinely just transport.
 - Both players see a live opponent panel (their room, score, and whether they are still alive).
 - *Acceptance:* two processes on this host race to completion; killing the guest mid-race
   leaves the host in a defined state; a house-set mismatch is rejected with a clear message.
-- *Progress.* The protocol is done and tested with no UI: envelope and framing, the symmetric
-  handshake (nonce → slots, mixed seed, house-hash gate), `MsgStanding`, and the result arithmetic,
-  in `internal/netplay`. All three acceptance clauses are covered by `race_test.go` and
-  `handshake_test.go` over a pipe rather than a socket — two peers racing to a result both compute
-  for themselves, a killed guest, and a refused house. What remains is the wiring: host/join flags
-  on `cmd/glidergo`, dialling and listening, a "waiting for the other player" screen (the original
-  had one — `internal/game/consts.go`'s `EscapedTitleMode`), the opponent panel, and the mapping
-  from `World` to `Standing`.
+- *Progress.* Everything but the UI is done and tested, in `internal/netplay`: envelope and
+  framing, the symmetric handshake (nonce → slots, mixed seed, house-hash gate), `MsgStanding`, the
+  result arithmetic, the transport (`Listen`, `Join`, `Address`, port 1994 by default), and
+  `Race` — the driver the game loop calls, which reports on change, never blocks the frame loop,
+  and offers `Settled` for the screen that waits on the other player. All three acceptance clauses
+  are covered over a pipe by `race_test.go` and `handshake_test.go`, and a whole race runs again
+  over a loopback socket in `dial_test.go`; `make race` runs the package under the detector.
+  What remains is the UI and the game's own numbers: host/join flags on `cmd/glidergo`, a "waiting
+  for the other player" screen (the original had one — `internal/game/consts.go`'s
+  `EscapedTitleMode`), the live opponent panel, and the mapping from `World` to `Standing`.
 
 ### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 

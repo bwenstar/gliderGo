@@ -23,9 +23,9 @@ versioning yet, because nothing has been versioned.
 is a shared room and shipped separately as 1.9. Here each machine simulates only its own glider in
 its own copy of the house and the connection carries progress. This half is the protocol: the
 envelope and framing, the handshake, the standing message and the arithmetic that decides a winner.
-No UI, no sockets yet, and every one of Stage 3's three acceptance clauses covered by a test over a
+No UI yet, and every one of Stage 3's three acceptance clauses covered by a test over a
 pipe — two peers racing to a result each computes for itself, a guest killed mid-race, and a house
-mismatch refused by name and hash.
+mismatch refused by name and hash — then again over a loopback socket.
 
 The plan offered "length-prefixed JSON or a small binary framing" as a free choice, and that line
 predated `docs/analysis/determinism-networking.md` §10.4, which specifies a complete binary protocol
@@ -59,6 +59,38 @@ everything and is settled before the race is over**: a player whose process is k
 the other one wins immediately, still in the air or not. Its mirror image is the easier one to get
 wrong, and has its own rule and its own test — a peer that reported `Finished` or `Died` and *then*
 hung up has forfeited nothing, so the goodbye at the end of every ordinary race must not decide it.
+
+The transport is ordinary TCP and the only decisions in it are the ones a player sees. Port **1994**
+by default, because a number somebody can remember is worth more than a number somebody has
+registered for two people agreeing to play on one LAN; binding is separate from accepting, so a port
+already in use is reported before the waiting screen goes up rather than instead of it; the listener
+closes as soon as the guest arrives, because a third machine told "shut" is better served than one
+left waiting on a match it will never be part of; and closing the listener is how a host that has
+changed its mind gets out of a blocked `Accept`, which nothing else can interrupt. A player may type
+a bare host, a bare port or both, and an IPv6 address unbracketed — that last one is read as an
+address and given the default port, which costs the ability to write `fe80::1:2000` and is the
+correct trade, since nobody has ever meant "the loopback host, port nothing".
+
+`netplay.Race` is the driver the game loop will use, and it exists so that the loop is written once
+here rather than once per caller. Three properties are the reason: **the frame loop never blocks on
+the network** (a standing goes to a writer goroutine, so an opponent whose machine has hung cannot
+slow this one's frame rate); **reports go out only on a change**, because `Present` is called more
+than once per frame — 116 times during a wipe — and a report per call would be thousands of messages
+a second with nothing failing to show it; and a departure is folded into the result by one rule in
+one place, so two peers cannot reach two answers. A pending standing is *replaced* rather than
+queued, which loses nothing, since a standing is cumulative and a newer one carries everything the
+one before it did — and `Close` flushes the last one before saying goodbye, because that is the one
+the result is computed from. `Settled` is the channel the "waiting for the other player" screen will
+wait on: the other side's fate, not this side's, because both machines have to wait for the same
+fact.
+
+One bug worth recording, because the socket test found it and the pipe tests could not. The driver
+first had a single flag for "the peer has gone", set both by a goodbye and by a broken connection,
+and `Close` skipped its own goodbye when it was set. Those are two different facts: a peer that said
+goodbye has finished its *run* and is sitting on a result screen waiting to hear how this one went.
+So whoever finished second hung up in silence, and whoever finished first waited for a standing that
+was never sent and then scored the race a forfeit — over a pipe the timing hid it, over a socket it
+happened on the first run. The flag is now two flags with the difference written down next to them.
 
 `make race` is new and `make check` runs it, because this is the first package in the port with a
 goroutine in it and nothing would otherwise have kept it honest. It covers `internal/netplay` and

@@ -3,6 +3,7 @@ package netplay
 import (
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 )
@@ -249,6 +250,323 @@ func TestKillingTheGuestMidRaceLeavesTheHostWithAResult(t *testing.T) {
 	if theirs.Rooms <= mine.Rooms {
 		t.Errorf("the guest had %d rooms and the host %d; the test only bites if the guest "+
 			"was winning when it quit", theirs.Rooms, mine.Rooms)
+	}
+}
+
+// runRace is play() again, with the Race type doing the parts play() spelled out. Both exist on
+// purpose: play() is the protocol with nothing between it and the test, so a failure there is a
+// failure of the protocol, and this one is the driver the game actually uses, so a failure here is
+// a failure of the driver. If only the second existed, a bug in Race would look like a bug in the
+// wire format.
+func runRace(t *testing.T, e *end, local Hello, script []Standing) played {
+	t.Helper()
+	m, err := Meet(e.Conn, local)
+	if err != nil {
+		return played{err: err}
+	}
+	r := Start(e.Conn, m)
+
+	p := played{m: m}
+	for _, s := range script {
+		p.mine = s
+		// Twice, every time, because the frame loop calls Present more than once per frame --
+		// once per wipe strip, 116 of them in a transition -- and Report is called from there.
+		r.Report(s)
+		r.Report(s)
+	}
+	if err := r.Close(); err != nil {
+		p.err = err
+		return p
+	}
+
+	select {
+	case <-r.Settled():
+	case <-time.After(10 * time.Second):
+		p.err = errors.New("the other side never settled")
+		return p
+	}
+	p.theirs, _ = r.Opponent()
+	p.result = r.Result(p.mine)
+	p.err = r.Err()
+	return p
+}
+
+func TestRaceDrivesBothSidesToOneResult(t *testing.T) {
+	a, b := pair(t)
+	ha, hb := hello(7, houseHashA), hello(9, houseHashA)
+
+	done := make(chan played, 2)
+	go func() { done <- runRace(t, a, ha, hostRun) }()
+	go func() { done <- runRace(t, b, hb, guestRun) }()
+	first, second := <-done, <-done
+	if first.err != nil || second.err != nil {
+		t.Fatalf("the race did not finish: %v, %v", first.err, second.err)
+	}
+
+	host, guest := first, second
+	if host.m.Slot != 0 {
+		host, guest = second, first
+	}
+	if host.result != guest.result {
+		t.Errorf("the two sides disagree: host says %s, guest says %s",
+			host.result, guest.result)
+	}
+	if want := (Outcome{Slot: 1, Reason: ByFinish}); host.result != want {
+		t.Errorf("result = %s, want %s", host.result, want)
+	}
+	// The last standing of each run arrived, which is the one the result is computed from. The
+	// ones before it are not asserted, and deliberately: Report coalesces, so an intermediate
+	// standing may be replaced by a newer one before the writer gets to it. The last cannot be,
+	// because Close flushes it.
+	if host.theirs != guestRun[len(guestRun)-1] {
+		t.Errorf("the host's last word on the guest was %+v, want %+v",
+			host.theirs, guestRun[len(guestRun)-1])
+	}
+	if guest.theirs != hostRun[len(hostRun)-1] {
+		t.Errorf("the guest's last word on the host was %+v, want %+v",
+			guest.theirs, hostRun[len(hostRun)-1])
+	}
+}
+
+func TestReportSendsNothingWhenNothingChanged(t *testing.T) {
+	// The reason this is a test and not a comment: at 30 frames a second, with Present called
+	// over a hundred times in a transition, a Report that sent unconditionally would put
+	// thousands of messages a second on the wire and nothing would fail. It would just be slow
+	// against a real opponent, on somebody else's LAN, and nowhere near this package.
+	a, b := pair(t)
+
+	guestFailed := make(chan error, 1)
+	reports := make(chan int, 1)
+	go func() {
+		if _, err := Meet(b.Conn, hello(9, houseHashA)); err != nil {
+			guestFailed <- err
+			return
+		}
+		n := 0
+		for {
+			msg, err := b.Recv()
+			if err != nil {
+				guestFailed <- err
+				return
+			}
+			switch msg.(type) {
+			case *Report:
+				n++
+			case *Bye:
+				reports <- n
+				return
+			}
+		}
+	}()
+
+	m, err := Meet(a.Conn, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(a.Conn, m)
+	only := hostRun[0]
+	for i := 0; i < 500; i++ {
+		r.Report(only)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	select {
+	case err := <-guestFailed:
+		t.Fatalf("the guest stopped reading: %v", err)
+	case n := <-reports:
+		if n != 1 {
+			t.Errorf("500 identical Reports put %d messages on the wire, want exactly 1", n)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the guest never saw the goodbye")
+	}
+}
+
+func TestCloseFlushesTheStandingItIsAboutToSayGoodbyeAfter(t *testing.T) {
+	// The ordering that decides every ordinary race: the last standing of a run is the one the
+	// result is computed from, and Close is called the instant the run ends. If the goodbye could
+	// overtake the standing still sitting in the queue, the peer would score the race off the
+	// standing before it -- a run that finished the house would come across as one that was still
+	// flying, and the forfeit rule would then award it to the other side.
+	a, b := pair(t)
+
+	got := make(chan []Msg, 1)
+	failed := make(chan error, 1)
+	go func() {
+		if _, err := Meet(b.Conn, hello(9, houseHashA)); err != nil {
+			failed <- err
+			return
+		}
+		var seen []Msg
+		for {
+			msg, err := b.Recv()
+			if err != nil {
+				failed <- err
+				return
+			}
+			seen = append(seen, msg)
+			if _, done := msg.(*Bye); done {
+				got <- seen
+				return
+			}
+		}
+	}()
+
+	m, err := Meet(a.Conn, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(a.Conn, m)
+	last := hostRun[len(hostRun)-1]
+	r.Report(last)
+	if err := r.Close(); err != nil { // no pause, no yield: the two calls are adjacent
+		t.Fatalf("Close: %v", err)
+	}
+
+	select {
+	case err := <-failed:
+		t.Fatalf("the guest stopped reading: %v", err)
+	case seen := <-got:
+		if len(seen) != 2 {
+			t.Fatalf("the guest saw %d messages, want the standing and then the goodbye", len(seen))
+		}
+		rep, ok := seen[0].(*Report)
+		if !ok {
+			t.Fatalf("the first message was %T, want the final standing", seen[0])
+		}
+		if rep.Standing != last {
+			t.Errorf("the flushed standing was %+v, want %+v", rep.Standing, last)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the guest never saw the goodbye")
+	}
+}
+
+func TestRaceTurnsAKilledPeerIntoAForfeitWithoutCallingItAnError(t *testing.T) {
+	a, b := pair(t)
+
+	ready := make(chan struct{})
+	failed := make(chan error, 1)
+	go func() {
+		m, err := Meet(b.Conn, hello(9, houseHashA))
+		if err != nil {
+			failed <- err
+			return
+		}
+		if err := b.SendStanding(m.Slot, guestRun[1]); err != nil {
+			failed <- err
+			return
+		}
+		close(ready)
+		b.kill()
+	}()
+
+	m, err := Meet(a.Conn, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(a.Conn, m)
+	defer r.Close() //nolint:errcheck // there is nobody left to say goodbye to
+
+	select {
+	case err := <-failed:
+		t.Fatalf("the guest failed before it could be killed: %v", err)
+	case <-ready:
+	}
+	select {
+	case <-r.Settled():
+	case <-time.After(10 * time.Second):
+		t.Fatal("the host never noticed the guest had gone")
+	}
+
+	theirs, gone := r.Opponent()
+	if !gone {
+		t.Error("the host thinks the guest is still there")
+	}
+	// **The panel shows the run, not the verdict.** Opponent hands back what the guest last
+	// reported -- still Racing -- because that is what the opponent reached; turning it into a
+	// forfeit is Result's business and happens once, at the end.
+	if theirs != guestRun[1] {
+		t.Errorf("Opponent = %+v, want the guest's last report %+v", theirs, guestRun[1])
+	}
+	if err := r.Err(); err != nil {
+		t.Errorf("Err = %v; a peer whose process ended is a forfeit, not a fault", err)
+	}
+
+	mine := hostRun[1]
+	if mine.State.Ended() {
+		t.Fatal("this test is meaningless unless the host is still racing")
+	}
+	if want := (Outcome{Slot: 0, Reason: ByForfeit}); r.Result(mine) != want {
+		t.Errorf("result = %s, want %s", r.Result(mine), want)
+	}
+}
+
+func TestRaceKeepsAProtocolErrorWhereSomebodyWillSeeIt(t *testing.T) {
+	// The other kind of ending. A lock-step build's MsgInputFrames is the case the package comment
+	// argues about: two versions ignoring each other's messages is worse than a stopped match, so
+	// Conn refuses it -- and a race that dropped that error on the floor would present the refusal
+	// as an ordinary forfeit, which is a result the loser would be right to query.
+	a, b := pair(t)
+
+	failed := make(chan error, 1)
+	go func() {
+		if _, err := Meet(b.Conn, hello(9, houseHashA)); err != nil {
+			failed <- err
+			return
+		}
+		bad := make([]byte, HeaderSize)
+		header(bad, MsgInputFrames, b.MatchID())
+		if err := b.Send(bad); err != nil {
+			failed <- err
+		}
+	}()
+
+	m, err := Meet(a.Conn, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(a.Conn, m)
+	defer r.Close() //nolint:errcheck // the connection is already finished
+
+	select {
+	case err := <-failed:
+		t.Fatalf("the guest could not send the bad message: %v", err)
+	case <-r.Settled():
+	case <-time.After(10 * time.Second):
+		t.Fatal("the host never noticed the bad message")
+	}
+	err = r.Err()
+	if !errors.Is(err, ErrProtocol) {
+		t.Fatalf("Err = %v, want an ErrProtocol", err)
+	}
+	if !strings.Contains(err.Error(), "MsgInputFrames") {
+		t.Errorf("Err = %q, want it to name the message that arrived", err)
+	}
+	if _, gone := r.Opponent(); !gone {
+		t.Error("a match that ended on a protocol error is still a match that ended")
+	}
+}
+
+func TestCloseIsSafeTwice(t *testing.T) {
+	// Because it will be called twice. The result screen closes the race, and so does the deferred
+	// cleanup on the way out of the game loop, and neither knows about the other.
+	a, b := pair(t)
+	go Meet(b.Conn, hello(9, houseHashA)) //nolint:errcheck // this side is only here to handshake
+
+	m, err := Meet(a.Conn, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(a.Conn, m)
+	r.Report(hostRun[0])
+	if err := r.Close(); err != nil {
+		t.Fatalf("first Close: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
 	}
 }
 
