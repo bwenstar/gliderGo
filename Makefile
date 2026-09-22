@@ -539,6 +539,11 @@ check-caveats:
 # It packs as well as extracts, because the executables read the archive and not the tree: an
 # extraction that stopped at the tree would leave a developer looking at a new PNG in git status
 # and the old one on screen. `go test ./assets` is the backstop that says the two agree.
+#
+# Interrupting it is safe, and that is the extractor's doing rather than this rule's: it stages
+# into assets/.extracted.tmp-<pid> and renames the finished tree into place, so ^C leaves the
+# committed tree exactly as it was (docs/IMPROVEMENTS.md 5.2). Two of these at once refuse rather
+# than interleave, for the same reason.
 assets:
 	python3 tools/extract_all.py
 	@$(MAKE) --no-print-directory assets-zip

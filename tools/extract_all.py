@@ -11,6 +11,15 @@ skipped and which input bytes it all came from.
     python3 tools/extract_all.py --out /tmp/x       # somewhere else
     python3 tools/extract_all.py --only art,sound   # one bucket, while iterating
 
+Staging
+-------
+Nothing is written into the output tree while the extraction runs.  Each run
+stages into a dotted sibling -- `assets/.extracted.tmp-<pid>` -- and renames it
+into place once every count checks out, holding `assets/.extracted.lock` for
+the duration so that two runs refuse rather than interleave.  See the comments
+above `only_one_run` for why, which is a golden PNG that was read while it was
+half-written (docs/IMPROVEMENTS.md 5.2).
+
 Output tree
 -----------
     res/<TYPE>/<id>.bin   all 538 resources of Glider PRO.r, raw, untyped
@@ -36,15 +45,39 @@ or simply diffing two manifests proves the pipeline is deterministic.  The
 `inputs` section hashes every file read out of GliderPRO/, so a manifest also
 proves *which* vendored source the assets came from.
 
-assets/extracted/ is gitignored on purpose -- it is derived data, and the
-derivation is this file.
+assets/extracted/ is committed, unlike most derived data, because a fresh clone
+has neither the 1994 CD nor a Python interpreter's worth of patience: the game
+plays without ever running this script.  So a run of it shows up as a diff over
+binary files, and a *deterministic* run shows up as no diff at all -- which is
+what `make assets-check` turns into a test.  The staging above is part of that
+bargain: an extraction that is cancelled or that miscounts leaves the committed
+tree exactly as it was.
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
+import shutil
 import sys
+
+# Advisory locking, by whichever of the two the platform has. Both are in the standard
+# library and both are released by the kernel when the holder dies, which is the property
+# that matters here: CI cancels a job with a signal the process never sees, and a lock
+# that the holder had to clean up would be a lock that is stale half the time.
+#
+# Both imports are guarded because both platforms really run this file. fcntl is absent on
+# Windows, and .github/workflows/ci.yml extracts to a temp tree on the Windows runner as a
+# best-effort step; msvcrt is absent everywhere else.
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -258,6 +291,150 @@ STEPS = {"res": do_res, "art": do_art, "sound": do_sound,
          "houses": do_houses, "houseart": do_houseart, "movie": do_movie}
 
 
+# ----------------------------------------------------------------- publishing
+
+# This section exists because this script used to write straight into
+# assets/extracted/: for the ~70 seconds it ran, that tree was a mixture of the old
+# extraction and the new one, and anything reading it saw half-written files. That is not
+# hypothetical -- a `go test ./...` running beside a `make assets` failed decoding a golden
+# PNG with "unexpected EOF", and it took a while to recognise as a build-system problem
+# rather than a renderer one (docs/IMPROVEMENTS.md 5.2).
+#
+# Three properties, and the third is the one worth arguing for:
+#
+#   - A reader sees the old tree or the new tree. The extraction goes into a staging
+#     directory and one rename publishes it.
+#   - A cancelled run publishes nothing. It used to leave a tree that *looked* complete,
+#     which the build's guards -- `[ -s art/manifest.json ]`, `ls houses/*.house` -- could
+#     not tell from a finished one, because the manifest happens to be written last.
+#   - A run whose counts are wrong publishes nothing either, and keeps its staging tree so
+#     that the numbers can be looked at. EXPECT is checked before the rename rather than
+#     after the write, so a regressed extractor no longer replaces 46 MB of good assets
+#     with 46 MB of wrong ones and then reports a failure.
+#
+# It is not literally atomic. The old tree is renamed aside before the new one is renamed
+# in, so there is a two-syscall window in which assets/extracted does not exist. That is
+# chosen rather than overlooked: there is no portable directory swap (Linux's
+# RENAME_EXCHANGE is not in the standard library), and a reader that finds no tree fails
+# saying which path is missing, where a reader that finds a truncated PNG does not.
+
+
+def sibling(out, suffix):
+    """A dotted sibling of the output tree: assets/extracted -> assets/.extracted<suffix>.
+
+    Beside it rather than inside it, because anything inside would be published along with
+    the tree; dotted because an undotted one would show up in `git status` next to a
+    committed tree, and a build artefact nobody can explain is its own small bug.
+    .gitignore carries the pattern.
+    """
+    d, base = os.path.split(out)
+    return os.path.join(d, "." + base + suffix)
+
+
+def take_lock(fd):
+    """Non-blocking exclusive lock, or False if somebody else holds it."""
+    try:
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        elif msvcrt is not None:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            # Every CPython has one of the two. If a build turns up with neither, say so
+            # rather than letting the caller believe the run is protected.
+            print("extract_all: no file locking on this platform -- two runs at once "
+                  "will interleave")
+    except OSError:
+        return False
+    return True
+
+
+@contextlib.contextmanager
+def only_one_run(out):
+    """Refuse, rather than interleave, when another extraction of `out` is running.
+
+    Two `make assets` at once -- a developer in one terminal, an editor's build task in
+    another -- used to interleave in silence. A release pipeline is precisely a place
+    where two jobs share a checkout, so this wanted doing before one existed.
+
+    Refuse and not wait, deliberately: the second run would produce the same bytes as the
+    first (nothing here reads a clock), so waiting for it buys a caller nothing that
+    reading the message and re-running does not.
+    """
+    path = sibling(out, ".lock")
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        if not take_lock(fd):
+            sys.exit("extract_all: %s is already being extracted by %s\n"
+                     "             lock: %s"
+                     % (out, holder(path) or "another process", path))
+        os.ftruncate(fd, 0)
+        os.write(fd, b"pid %d\n" % os.getpid())
+        yield
+    finally:
+        os.close(fd)
+        # The lock file stays. Unlinking it would race with the next run's open(), which
+        # would then hold a lock on an unlinked inode and exclude nobody; one empty dotted
+        # file beside the output tree is the cheaper end of that trade.
+
+
+def holder(path):
+    """Whatever the lock's holder recorded about itself, for the refusal message."""
+    try:
+        with open(path) as fh:
+            return fh.readline().strip()
+    except OSError:
+        return ""
+
+
+def seed_unbuilt(out, stage, rebuilding):
+    """Hardlink the buckets this run is not rebuilding from the published tree.
+
+    Two reasons, and the second is the one that is easy to miss. A partial run has to
+    publish a *whole* tree, so the buckets it is not touching have to be in the staging
+    tree before the rename. And two steps read a bucket they do not write -- art needs
+    res/, houseart needs res/ and houses/ -- so `--only art` against an empty staging tree
+    would exit saying so.
+
+    Hardlinks, not copies: 46 MB is mostly PNGs, and nothing in a run writes to a bucket it
+    is not rebuilding. Publishing then unlinks the old tree, which drops a reference and
+    leaves the bytes owned by the new one.
+    """
+    if not os.path.isdir(out):
+        return []
+    kept = []
+    for b in BUCKETS:
+        src = os.path.join(out, b)
+        if b in rebuilding or not os.path.isdir(src):
+            continue
+        dst = os.path.join(stage, b)
+        try:
+            shutil.copytree(src, dst, copy_function=os.link)
+        except (OSError, shutil.Error):
+            # A filesystem without hardlinks, or an output tree on a different one. Slower
+            # and the same result.
+            shutil.rmtree(dst, ignore_errors=True)
+            shutil.copytree(src, dst)
+        kept.append(b)
+    return kept
+
+
+def publish(stage, out):
+    """Rename the staged tree into place, and put the old one back if that fails."""
+    old = None
+    if os.path.exists(out):
+        old = sibling(out, ".old-%d" % os.getpid())
+        shutil.rmtree(old, ignore_errors=True)
+        os.replace(out, old)
+    try:
+        os.replace(stage, out)
+    except OSError:
+        if old is not None and not os.path.exists(out):
+            os.replace(old, out)
+        raise
+    if old is not None:
+        shutil.rmtree(old, ignore_errors=True)
+
+
 # --------------------------------------------------------------------- main
 
 def inputs_provenance():
@@ -282,7 +459,42 @@ def main(argv):
             ap.error("unknown bucket %r; pick from %s" % (b, ",".join(BUCKETS)))
 
     out = os.path.abspath(args.out)
-    os.makedirs(out, exist_ok=True)
+    parent = os.path.dirname(out)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with only_one_run(out):
+        return run(out, want)
+
+
+def shown(path):
+    """A path as a reader of the build log wants to see it: relative, unless it is not."""
+    rel = os.path.relpath(path, ROOT)
+    return path if rel.startswith("..") else rel
+
+
+def run(out, want):
+    stage = sibling(out, ".tmp-%d" % os.getpid())
+    shutil.rmtree(stage, ignore_errors=True)
+    os.makedirs(stage)
+    keep = False
+    try:
+        code, keep = extract(out, stage, want)
+        return code
+    finally:
+        # Anything that did not get to the end is removed. An interrupted extraction is
+        # incomplete by definition, and leaving 46 MB of it on disk under a name nobody
+        # recognises is a smaller version of the trap this section exists to close. The one
+        # thing worth keeping is a *complete* run whose counts came out wrong, which is
+        # something to look at rather than something to clear up.
+        if not keep:
+            shutil.rmtree(stage, ignore_errors=True)
+
+
+def extract(out, stage, want):
+    seeded = seed_unbuilt(out, stage, want)
+    print("staging in %s" % shown(stage))
+    if seeded:
+        print("  carried over from the published tree: %s" % ", ".join(seeded))
     manifest = {"source": "GliderPRO/ (vendored read-only, GPLv2)",
                 "produced_by": "tools/extract_all.py",
                 "buckets": {}, "inputs": inputs_provenance()}
@@ -291,26 +503,26 @@ def main(argv):
         print("=" * 72)
         print("== %s" % b)
         print("=" * 72)
-        manifest["buckets"][b] = STEPS[b](out)
-        th, n = tree_hash(os.path.join(out, b))
+        manifest["buckets"][b] = STEPS[b](stage)
+        th, n = tree_hash(os.path.join(stage, b))
         manifest["buckets"][b]["files"] = n
         manifest["buckets"][b]["tree_sha256"] = th
         print()
 
-    mpath = os.path.join(out, "manifest.json")
-    if want != list(BUCKETS) and os.path.exists(mpath):
-        # A partial run must not silently drop the other buckets' records.
-        with open(mpath) as fh:
+    published = os.path.join(out, "manifest.json")
+    if want != list(BUCKETS) and os.path.exists(published):
+        # A partial run must not silently drop the other buckets' records. Read from the
+        # published tree and not from the staging one, which has no manifest of its own --
+        # seed_unbuilt carries buckets over, not the record of them.
+        with open(published) as fh:
             old = json.load(fh)
         merged = old.get("buckets", {})
         merged.update(manifest["buckets"])
         manifest["buckets"] = merged
-    with open(mpath, "w") as fh:
+    with open(os.path.join(stage, "manifest.json"), "w") as fh:
         json.dump(manifest, fh, indent=1, sort_keys=True)
 
     print("=" * 72)
-    rel = os.path.relpath(mpath, ROOT)
-    print("wrote %s" % (mpath if rel.startswith("..") else rel))
     for b in sorted(manifest["buckets"]):
         rec = manifest["buckets"][b]
         print("  %-7s %5d files  %s" % (b, rec.get("files", 0),
@@ -337,10 +549,16 @@ def main(argv):
             print("    " + line)
         print("  Either an extractor regressed or GliderPRO/ changed. Fix the")
         print("  cause, or update EXPECT *and* the doc it cites, not just one.")
-        return 1
+        print("  NOT PUBLISHED. %s is as it was; the extraction that produced"
+              % shown(out))
+        print("  these numbers is kept at %s -- delete it when done." % shown(stage))
+        return 1, True
     print("  count check: %d expectations, all met"
           % sum(1 for (b, _k) in EXPECT if b in manifest["buckets"]))
-    return 0
+
+    publish(stage, out)
+    print("wrote %s" % shown(os.path.join(out, "manifest.json")))
+    return 0, False
 
 
 if __name__ == "__main__":

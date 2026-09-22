@@ -4502,7 +4502,7 @@ wrong:
 None of this blocks Stage 1. It blocks the first push to a public remote, which is where it
 will announce itself loudly and cheaply.
 
-### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **planned, before the release pipeline; the CI half is worked around**
+### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **found, planned, and DONE, 2.4 — all four consequences, and the fix turned out to have a fifth property nobody asked for**
 
 The extractor writes straight into `assets/extracted/`: no temp directory, no rename, no lock.
 So for the ~70 seconds it runs, that tree is a mixture of the old extraction and the new one, and
@@ -4536,6 +4536,85 @@ The fix is the ordinary one: extract into `assets/.extracted.tmp-$$`, `os.replac
 tree into place, and take a lock file for the duration so the second run waits or refuses. It is
 maybe thirty lines in `extract_all.py` and it wants doing before a release pipeline exists, since
 a pipeline is precisely a place where two jobs share a checkout.
+
+*(5.2, **DONE**, 2.4. Done as prescribed, in the shape prescribed, and it was 150 lines rather
+than thirty. The staging tree, the rename and the lock are the thirty; the rest is what having a
+staging tree turns out to imply.*
+
+*`tools/extract_all.py` now stages every run in `assets/.extracted.tmp-<pid>`, publishes it with
+two renames, and holds `assets/.extracted.lock` for the duration. Both names are dotted siblings
+of the output tree rather than children of it: a child would be published along with the tree, and
+an undotted sibling would show up in `git status` beside a committed tree as a build artefact
+nobody can account for. `.gitignore` carries the one pattern, with the reason.*
+
+***The fifth property, which the entry did not ask for and is the best thing about the fix.***
+*`EXPECT` — the eleven counts this script checks against the analysis documents — is now checked
+**before** the rename rather than after the write. The old order meant a regressed extractor
+replaced 46 MB of good assets with 46 MB of wrong ones and then told you the counts were wrong;
+recovery was `git checkout -- assets/extracted`, which you had to know to reach for. The new order
+means a failed count publishes nothing, and the run says so in as many words: `NOT PUBLISHED.
+assets/extracted is as it was`. It also **keeps** its staging tree in that one case, and names the
+path, because a complete extraction with wrong numbers is the thing you want to look at. Every
+other exit — interrupt, exception, success — removes it, since an incomplete 46 MB tree under a
+name nobody recognises is a smaller copy of the trap this whole entry is about.*
+
+***What staging broke, and the part worth reading.*** *`--only art,sound` looked like a detail and
+was the hard half. Two ways it fails against a fresh staging tree: the steps are not independent
+(`art` reads `res/`, `houseart` reads `res/` and `houses/`, and both exit saying so when it is
+missing), and a partial run still has to publish a **whole** tree or the rename would delete the
+five buckets it was not asked to rebuild. Both are fixed by seeding: the buckets a run is not
+rebuilding are hardlinked from the published tree into the staging tree first. Hardlinks and not
+copies because 46 MB is mostly PNGs and nothing writes to a bucket it is not rebuilding — the
+links are read, then publishing unlinks the old tree, which drops a reference and leaves the bytes
+owned by the new one. A filesystem without hardlinks falls back to a real copy. The manifest merge
+that keeps a partial run from dropping the other buckets' records now reads the **published**
+manifest and not the staged one, because seeding carries buckets across and not the record of them.*
+
+***The lock refuses rather than waits***, *which is the one place this departs from the entry's
+"waits or refuses". Nothing in here reads a clock, so the second run would produce the same bytes
+as the first: waiting for it buys a caller nothing that reading one line and re-running does not.
+It is an OS advisory lock — `fcntl.flock` where there is an `fcntl`, `msvcrt.locking` where there
+is not — rather than an `O_EXCL` pid file, because the kernel releases those when the holder dies
+and CI cancels a job with a signal the process never sees. A lock that had to be cleaned up by its
+holder would be stale half the time. **Both imports are guarded, and that is not defensive
+habit:** `.github/workflows/ci.yml` extracts to a temp tree on the **Windows** runner as a
+best-effort step, so an unguarded `import fcntl` at the top of this file would have turned a
+passing job into an `ImportError`.*
+
+***What it is not.*** *Not literally atomic. The old tree is renamed aside before the new one is
+renamed in, so there is a two-syscall window in which `assets/extracted` does not exist, and a
+reader unlucky enough to land in it fails saying which path is missing. That is chosen and not
+overlooked: there is no portable directory swap (Linux's `RENAME_EXCHANGE` is not in the standard
+library), and "no such directory" is a failure that names itself, where a truncated PNG is the
+failure this entry opens with. If the second rename fails, the first is undone and the old tree is
+put back.*
+
+***Verified, four ways, all four observed rather than reasoned about.*** *A full `make assets`
+republished all 1,877 tracked files with **no `git diff`** and the leftover state in `assets/` is
+one ignored lock file, so the rename path is byte-for-byte what writing in place was; `make
+assets-check` still reports the committed tree is what the extractor produces, with its lock
+landing outside the compared tree. `--only houses` against a tree holding only `movie/` published
+**both** buckets, with `movie/`'s link count back to 1 afterwards — the seeding and the unlink are
+both doing what they claim. A `SIGINT` 1.5 s into `--only art` left exit 130, no staging
+directory, and a published tree with no `art/` in it. And forcing a count to disagree left the
+staging tree named on stdout, the published tree byte-identical, and exit 1.*
+
+***The four consequences the entry lists, one by one.*** *The CI workaround stays, but its comment
+no longer says "until 5.2 is actually fixed" — the `assets` job is separate now because it costs
+python3 and a minute of CPU the Go jobs have no reason to wait for, which is a scheduling choice
+and not a hazard. "A cancelled `make assets` now edits tracked files" is gone outright: a cancelled
+run edits nothing. The guards that could catch an empty tree but not a half-written one
+(`[ -s art/manifest.json ]`, `ls houses/*.house`) are no longer load-bearing, because a
+half-written tree cannot be published for them to inspect. Two `make assets` at once refuse. And
+5.3's `assets/extracted.zip` tripwire — `go test ./assets` comparing archive to tree file by file
+— is still the backstop for everything downstream of the rename.*
+
+***One thing found on the way, of 4.4's kind.*** *This file's own docstring said
+"assets/extracted/ is gitignored on purpose — it is derived data, and the derivation is this
+file." It has been committed since 1.2, 1,877 files of it, and `.gitignore` says so at length. The
+docstring now explains why derived data is committed here and how staging is part of that bargain:
+a deterministic run shows up as no diff at all, which is what `make assets-check` turns into a
+test.)*
 
 ### 5.3 An installed copy looked for its assets beside the binary — **DONE, embedded; the assets are inside every executable**
 
@@ -4979,6 +5058,12 @@ alone for a stated reason rather than missed.
 | `levels/Boarding House.house.txt`: 51 rooms at the small tier, all eighteen built-in backgrounds, and a per-background histogram pinned because moving one room out of `kRoof` falsified four figures in its own header while every profile row stayed green | 2.4 | this stage |
 | 4.21 `lint.go`'s calibration paragraph rewritten around a narrower rule — a class the corpus exercises deliberately cannot be an error; a class it exercises by overrunning a buffer can — with the staircase example dropped because it fires zero times | 2.4 | this stage |
 | 4.22 `mount-no-floor`, `mount-no-ceiling` and `starfield-tiles`: the first three checks that relate an object to the background it stands in, classified by a census rather than by the objects' names | 2.4 | this stage |
+| 4.13 The documented command lines nobody had run — four in 2.1, the nine that were left in 2.4, and with that the section is closed: the only command line in this repository nobody has run is `gh release create`, which needs github.com and is 5.4's | 2.1 + 2.4 | this stage |
+| 4.24 The `'bnds'` layout eight analysis documents state and the port had wrong, which opened the wrong walls in 155 rooms across seven houses | 2.4 | this stage |
+| 4.26 The three documents describing `make check`, two of which were wrong; the verbatim copy of its output is machine-checked now | 2.4 | this stage |
+| 4.23 `object-top` and `object-left`: 24 object types whose coordinates are `#define`s in the 1994 editor rather than choices an author was offered, from a table of citations, with the corpus's 4,041 placements as the stronger half of the test | 2.4 | this stage |
+| 4.27 The unreachable repair in `KeepObjectLegal` and the 43 floor transporters that are 2 pixels low because of it — filed, accepted as a value rather than a tolerance, and deliberately not normalised on load | 2.4 | this stage |
+| 5.2 `tools/extract_all.py` publishes by rename: a staging tree, an OS advisory lock, and the eleven counts checked *before* the rename, so a cancelled or a miscounting run publishes nothing | 2.4 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

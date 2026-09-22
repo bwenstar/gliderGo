@@ -17,6 +17,30 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The asset extractor publishes by rename, so nothing ever reads a half-written PNG (2026-09-22)
+
+`tools/extract_all.py` wrote straight into `assets/extracted/`, which meant that for the ~70 seconds
+it ran, the tree was a mixture of the old extraction and the new one. That was not theoretical: a
+`go test ./...` beside a `make assets` once failed decoding a golden PNG with "unexpected EOF", and
+it took a while to recognise as a build-system problem rather than a renderer one.
+
+It now stages each run in `assets/.extracted.tmp-<pid>` and renames the finished tree into place,
+holding `assets/.extracted.lock` — an OS advisory lock, so a cancelled CI job cannot leave a stale
+one — for the duration. A second run refuses rather than interleaving. A `^C`, a crash and a failed
+count all publish nothing, which is the part that was not in the plan: the eleven counts this script
+checks against the analysis documents are now verified *before* the rename, so a regressed extractor
+no longer replaces 46 MB of good assets with 46 MB of wrong ones and then reports the failure. That
+one case keeps its staging tree and names the path, because a complete extraction with wrong numbers
+is what you want to look at.
+
+`--only art,sound` was the hard half. A partial run has to publish a whole tree, and two of the six
+steps read a bucket they do not write, so the buckets a run is not rebuilding are hardlinked from
+the published tree into the staging tree first. Verified by running it: `--only houses` against a
+tree holding only `movie/` publishes both, a full `make assets` republishes all 1,877 tracked files
+with no `git diff`, and `make assets-check` still proves the committed tree is what the extractor
+produces. `docs/IMPROVEMENTS.md` 5.2, which had been open since 1.2 and wanted closing before a tag
+exists — a release pipeline is precisely a place where two jobs share a checkout.
+
 ### Two lint checks for the coordinates the 1994 editor never let an author choose (2026-09-22)
 
 24 object types do not have a vertical position in Glider PRO — they have a `#define`. A floor vent is

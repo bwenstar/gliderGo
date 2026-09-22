@@ -36,7 +36,10 @@ Nothing else is needed and nothing else is fetched. The game's data is committed
 so there is no extraction step before playing and no copy of Glider PRO to find.
 `tools/extract_all.py` produced that tree from the vendored `GliderPRO/` and `make assets`
 re-runs it (~70 s, needs python3); `make assets-check` re-extracts to a temp tree and proves
-the committed copy is byte-for-byte identical.
+the committed copy is byte-for-byte identical. Neither writes into the tree while it works —
+each stages an extraction in `assets/.extracted.tmp-<pid>` and renames it into place at the end,
+so a `^C` or a failed count leaves the committed tree untouched, and two runs at once refuse
+instead of interleaving (`docs/IMPROVEMENTS.md` 5.2).
 
 `assets/extracted.zip` is that same tree packed for `go:embed`, and it is the copy every
 executable carries — which is why a build of this repository runs from any directory and needs

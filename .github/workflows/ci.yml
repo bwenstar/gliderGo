@@ -155,11 +155,12 @@ jobs:
   # re-extract from GliderPRO/ and compare every file. A failure means either the extractor
   # changed without the tree being regenerated, or somebody hand-edited an asset.
   #
-  # Its own job because tools/extract_all.py writes assets/extracted/ in place with no
-  # temp-and-rename, so it must not run beside anything that reads the tree -- a concurrent
-  # `go test` once failed decoding a half-written golden PNG (docs/IMPROVEMENTS.md 5.2). Here
-  # it writes to a temp tree via OUT, which sidesteps that, but the isolation is kept anyway
-  # until 5.2 is actually fixed.
+  # Its own job for a duller reason than it used to be. The extractor wrote assets/extracted/
+  # in place with no temp-and-rename, so it could not run beside anything that read the tree --
+  # a concurrent `go test` once failed decoding a half-written golden PNG. That is fixed
+  # (docs/IMPROVEMENTS.md 5.2): it stages into a dotted sibling, renames it into place, and
+  # holds a lock, so a second run refuses instead of interleaving. What is left is cost --
+  # python3 and a minute of CPU that the Go jobs have no reason to wait for.
   # ---------------------------------------------------------------------------
   assets:
     runs-on: ubuntu-latest

@@ -56,6 +56,13 @@ scripts/local-source.sh
 # `make assets-check` excludes them from its comparison for the same reason.
 /assets/extracted/houses/*.rsrc
 
+# tools/extract_all.py never writes into its output tree. It stages an extraction in a dotted
+# sibling and renames it into place, and holds a lock file beside it for the duration, so that a
+# cancelled run cannot leave a half-written asset for something else to read (docs/IMPROVEMENTS.md
+# 5.2). Both live here, ignored, because a committed tree with an unexplained file next to it is
+# its own small bug -- and because the lock file is left in place on purpose.
+/assets/.extracted.*
+
 # Python bytecode from the extraction tools
 __pycache__/
 *.pyc

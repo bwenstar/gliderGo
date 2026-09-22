@@ -1656,7 +1656,10 @@ python3 tools/extract_all.py            # or: make assets
 script is the derivation, but it is *committed* anyway, so that a clone can play without running
 it — see docs/IMPROVEMENTS.md 1.2. Two runs over the same `GliderPRO/` produce byte-identical
 output, verified: no wall-clock anywhere in the manifest, and `make assets-check` re-extracts to
-a temp directory and compares every file against the committed tree.
+a temp directory and compares every file against the committed tree. The run publishes by rename
+rather than by writing in place — staging tree, lock file, counts checked before the rename — so
+nothing ever reads a half-written asset and nothing but a complete extraction is ever published
+(docs/IMPROVEMENTS.md 5.2).
 
 | Script | Size | What it does |
 |---|---:|---|
