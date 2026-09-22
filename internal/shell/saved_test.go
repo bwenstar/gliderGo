@@ -366,7 +366,9 @@ func TestTheNoteIsDrawnInTheBand(t *testing.T) {
 //
 // The lower bound is why menuBottom is gone: at seven rows a constant 264 left the last two
 // baselines below the box. The upper bound is where the derived bottom stops being able to
-// help, and that is the row this test refuses to let a ninth item cross.
+// help, and that is the row this test refuses to let a tenth item cross. There is a third
+// bound now, added with the ninth row: the panel had to move up to make room, and above
+// splashSkyV its halo would checkerboard the aeroplane instead of the sky.
 func TestMenuPanelClearsTheHouseLabel(t *testing.T) {
 	// render's fontAscent, which is not exported: a glyph with its baseline at v inks from
 	// row v-7 down (internal/render/font.go's const block).
@@ -375,8 +377,8 @@ func TestMenuPanelClearsTheHouseLabel(t *testing.T) {
 	s, _ := shellOver(t, []string{"Slumberland"})
 	savedHost(s, savedInfo("Slumberland"), nil)
 	n := len(s.menu())
-	if n < 8 {
-		t.Fatalf("the menu has %d rows; this test is about the eight it grew to", n)
+	if n < 9 {
+		t.Fatalf("the menu has %d rows; this test is about the nine it grew to", n)
 	}
 
 	r := menuRect(n)
@@ -412,7 +414,18 @@ func TestMenuPanelClearsTheHouseLabel(t *testing.T) {
 		t.Error("menuRect(0) should be the one-row panel, not an empty or inverted one")
 	}
 	if grew := menuRect(n+1).Bottom - r.Bottom; int(grew) != menuPitch {
-		t.Errorf("a ninth row moved the bottom by %d, want one pitch of %d", grew, menuPitch)
+		t.Errorf("a tenth row moved the bottom by %d, want one pitch of %d", grew, menuPitch)
+	}
+
+	// And the top, which the ninth row is what made tight: the halo begins eight rows above
+	// the panel and must not start on the drawing. This is the bound that cannot be bought
+	// off by making the panel shorter, so a tenth row has nowhere left to come from and the
+	// message says so rather than leaving the next person to measure it again.
+	if halo := menuTop - 8; halo < splashSkyV {
+		t.Errorf("the panel's halo starts at row %d and PICT 1000 is still drawing until "+
+			"row %d: the dimmed border would fall across the aeroplane. The panel cannot "+
+			"go higher, so %d rows is as many as this menu holds in one column", halo,
+			splashSkyV, n)
 	}
 
 	// And the label survives the panel on a real draw, which is the check that does not

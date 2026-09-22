@@ -42,7 +42,7 @@ embedded fmt-check vet test race build glidertool houses levels headless audio f
 
 It compiles for Windows as well as this machine, round-trips every shipped house through both
 codecs, rebuilds the houses in `levels/` from their text and lints them, plays a headless session,
-renders and hashes six screens, mixes audio to a WAV, and runs the command lines this file gives.
+renders and hashes seven screens, mixes audio to a WAV, and runs the command lines this file gives.
 `race` is the odd one out in the other direction: it runs the race detector over `internal/netplay`
 and nothing else, because that is the only package here that starts a goroutine. `test` deliberately
 runs without `-race` — the detector needs cgo and a C compiler and costs an order of magnitude — so
@@ -75,11 +75,11 @@ neither stdlib nor `github.com/bwenstar/gliderGo/...`. That includes test files 
 need a dependency, open an issue first and expect the answer to be "write the twenty lines".
 
 **2. Pixels are hashed, so intentional changes need a hash in the diff.** `internal/fidelity`
-holds SHA-256 hashes of six rendered screens. If your change moves a pixel, `make check` fails
+holds SHA-256 hashes of seven rendered screens. If your change moves a pixel, `make check` fails
 with a line telling you which screen. Look at it first:
 
 ```bash
-bin/glidergo -shot /tmp/screen.png -shot-screen about   # splash houses settings about credits scores
+bin/glidergo -shot /tmp/screen.png -shot-screen about   # splash houses settings race about credits scores
 ```
 
 If the change was intended, refresh the corpus and commit the new hash *in the same commit as the

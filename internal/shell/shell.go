@@ -48,6 +48,7 @@ import (
 	"github.com/bwenstar/gliderGo/internal/prefs"
 	"github.com/bwenstar/gliderGo/internal/render"
 	"github.com/bwenstar/gliderGo/internal/saved"
+	"github.com/bwenstar/gliderGo/internal/scores"
 )
 
 // Host is the machine's side of the shell: a surface to draw on, a way to show it,
@@ -164,6 +165,18 @@ type Choice struct {
 	// (game.CanSaveGame). The shell's row is one-player for that reason and not to keep
 	// things simple.
 	Resume bool
+
+	// Race asks for a game against another machine instead of a game on its own: this side
+	// waits for the other to connect, or it dials an address the other side is waiting on.
+	// The shell's part is the arrangement and nothing else -- see race.go, which owns no
+	// socket and knows no protocol -- and the host's part is all of the rest.
+	//
+	// Never with TwoPlayer or Resume, and for the reasons cmd/glidergo's raceRefusals sets
+	// out: -two is two gliders on one keyboard while a race is one glider on each machine,
+	// and a resumed house is a house one of the two players has already flown half of. The
+	// Race screen offers neither, so the shell cannot produce the combination; the host
+	// refuses it anyway, because the command line still can.
+	Race Race
 }
 
 // Outcome is what came back. Score and StarsLeft are the two numbers the status
@@ -189,6 +202,7 @@ const (
 	modeSplash mode = iota
 	modeHouses
 	modeSettings
+	modeRace
 	modeAbout
 	modeScores
 	modeCredits
@@ -231,6 +245,20 @@ type Shell struct {
 	set      int
 	capture  int
 	setDirty bool
+
+	// The Race screen's own two, and its field outlives a visit on purpose: see race.go.
+	raceSel  int
+	raceAddr *scores.Field
+
+	// shift is whether a shift key is down, which only the Race screen's address field
+	// wants and which nothing else here has ever needed.
+	//
+	// The shell tracks it rather than asking the window, the way cmd/glidergo's high-score
+	// screen does (`a.win.KeyDown(platform.KeyShift)`): a Host hook for one modifier would
+	// be a hook every host has to fill in and every test has to stub, for a screen where
+	// the answer matters to exactly one character -- the colon in an address. Both real
+	// backends fill Event.Text from the layout, so this is the fallback path's fallback.
+	shift bool
 
 	// boards caches what Host.Scores answered, by house. It exists because the picker
 	// asks for a board on *every frame* -- the footer shows the selected house's best
@@ -329,6 +357,11 @@ func (s *Shell) Show(screen string) error {
 		if s.mode != modeSettings {
 			return fmt.Errorf("shell: cannot show the settings: %s", s.msg)
 		}
+	case "race":
+		s.openRace()
+		if s.mode != modeRace {
+			return fmt.Errorf("shell: cannot show the race screen: %s", s.msg)
+		}
 	case "about":
 		s.mode = modeAbout
 	case "credits":
@@ -340,7 +373,7 @@ func (s *Shell) Show(screen string) error {
 		}
 	default:
 		return fmt.Errorf("shell: no screen called %q "+
-			"(splash, houses, settings, about, credits or scores)", screen)
+			"(splash, houses, settings, race, about, credits or scores)", screen)
 	}
 	return nil
 }
@@ -389,7 +422,20 @@ func (s *Shell) event(ev platform.Event) {
 	switch ev.Kind {
 	case platform.EventQuit:
 		s.quit = true
+	case platform.EventKeyUp:
+		// The one thing a key *release* is needed for: see Shell.shift. Everything else
+		// here is a press, because a shell is a thing you choose from rather than a thing
+		// you hold a key down on.
+		if ev.Key == platform.KeyShift {
+			s.shift = false
+		}
 	case platform.EventKeyDown:
+		if ev.Key == platform.KeyShift {
+			// Before the repeat filter, because a held shift repeats and a shift that is
+			// down has to stay down. It falls through to the screens as well and none of
+			// them binds it, which is what makes that safe.
+			s.shift = true
+		}
 		if ev.Repeat && !arrow(ev.Key) {
 			return
 		}
@@ -400,6 +446,11 @@ func (s *Shell) event(ev platform.Event) {
 			s.pickerKey(ev.Key)
 		case modeSettings:
 			s.settingsKey(ev.Key)
+		case modeRace:
+			// The whole event and not just the key: this is the one screen with a text
+			// field on it, and a field has to read what the player's layout typed rather
+			// than which key they pressed (platform.Event.Text, and internal/scores).
+			s.raceKey(ev)
 		case modeAbout:
 			// C is the one key that does not dismiss the box: it opens the credits,
 			// which the box itself says on its last line. Any other key still leaves,
@@ -473,6 +524,18 @@ func (s *Shell) menu() []item {
 		// ⌘O in 1994 (Glider PRO.r), and it never worked. See saved.go.
 		s.resumeItem(),
 		{key: platform.KeyL, label: "Load House...", ok: len(s.lib.Houses) > 0, do: s.openPicker},
+		// The row the original has no counterpart for at all, and it goes *after* the four
+		// it does rather than next to the one it most resembles. A race is the other
+		// two-player game, so directly under "Two Player Game" is where it reads best -- but
+		// MENU 129's order is not this port's to rearrange, and a player who knows the
+		// original knows Open Saved Game... is third. So it takes the first row past the
+		// end of 1994's list, which is still inside the group of rows that start a game and
+		// still above the three that do not.
+		//
+		// R because the two-player row has already taken 2, and a race is not a second sort
+		// of it (see race.go, and Choice.Race).
+		{key: platform.KeyR, label: "Race...", ok: have, do: s.openRace,
+			note: "play the same house against another machine on this network"},
 		// Options > High Scores (Menu.c:417-419), which in the original is enabled
 		// whenever a house is open and does nothing else at all: it calls DoHighScores
 		// and returns. This is the item that makes the screen reachable without dying
@@ -562,9 +625,14 @@ func (s *Shell) play(two bool) {
 func (s *Shell) start(c Choice) {
 	h := c.House
 	s.mode = modeSplash
-	if c.Resume {
+	switch {
+	case c.Race.Host:
+		s.loading = "waiting for the other player in " + h.Name + "..."
+	case c.Race.Join != "":
+		s.loading = "joining a race at " + c.Race.Join + "..."
+	case c.Resume:
 		s.loading = "resuming " + h.Name + "..."
-	} else {
+	default:
 		s.loading = "playing " + h.Name + "..."
 	}
 	defer func() { s.loading = "" }()

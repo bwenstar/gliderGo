@@ -270,7 +270,7 @@ headless: embedded
 	@rm -rf $(OUT)/glidergo-frames $(OUT)/glidergo-shell
 	$(BIN)/glidergo-null -frames 3 -dump $(OUT)/glidergo-frames
 	@ls -1 $(OUT)/glidergo-frames
-	@for s in splash houses settings about credits scores; do \
+	@for s in splash houses settings race about credits scores; do \
 		$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/$$s.png -shot-screen $$s || exit 1; \
 	done
 	@# And the layouts a build with no assets shows: an empty picker, and an About box with no

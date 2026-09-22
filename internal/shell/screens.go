@@ -78,13 +78,28 @@ const (
 // Only three sides are constants. The bottom is derived from the number of rows the menu has
 // -- see menuRect -- because the space between this panel and the house label is exactly as
 // deep as the menu needs and not a pixel deeper.
+//
+// The top is not a free choice either, and it stopped being one when the ninth row arrived.
+// panel() dims eight rows beyond every edge, so the halo begins at menuTop-8, and above
+// splashSkyV that halo would lay a checkerboard across the aeroplane's tail. 102 puts the
+// halo's first row exactly on the first row of clear sky: as high as this panel can go
+// without touching the drawing, which is as high as it has to go, because its bottom is
+// pinned by the house label and the ninth row had to come from somewhere.
 const (
-	menuTop   = 112
+	menuTop   = 102
 	menuLeft  = 336
 	menuRight = 632
 
+	// splashSkyV is the first row of PICT 1000 that is clear sky across this panel's
+	// columns, the halo's eight included (x 328 to 640). Measured off the extracted art:
+	// rows 78 to 93 hold the tail of the aeroplane, narrowing from 105 pixels to 10, and
+	// row 94 is the first with none. It is written down rather than measured at run time
+	// because the art is fixed and because the test that reads it has to pass on a build
+	// with no assets extracted at all.
+	splashSkyV = 94
+
 	menuScale = 2  // 12x18 per character
-	menuFirst = 28 // first baseline, relative to menuTop
+	menuFirst = 19 // first baseline, relative to menuTop
 	menuPitch = 21
 	menuInset = 14
 
@@ -93,13 +108,25 @@ const (
 	// pixel one scale under that, so the deepest ink of the last row is 3*menuScale-1
 	// below it -- and the panel's inner frame is three rows above its bottom. Ten leaves
 	// that ink clear of the frame with a row to spare, which is what
-	// TestMenuPanelClearsTheHouseLabel checks along with the other end.
+	// TestMenuPanelClearsTheHouseLabel checks along with the other end. It is the minimum
+	// that has that spare row, so a tenth menu row cannot be bought here.
 	menuFoot = 10
 
-	// The menu's own selection bar, which cannot be the picker's barRise below: a bar runs
-	// from v-menuRise to v+2*menuScale, so one pitch less than that drop is the tallest bar
-	// that neither overlaps its neighbour nor clips the descenders of the row above it.
-	menuRise = menuPitch - 2*menuScale
+	// The menu's own selection bar: how far it rises above the baseline. It cannot be the
+	// picker's barRise below, and it is no longer one pitch less than the row's own depth
+	// either -- which is what it was until the ninth row had to be found somewhere.
+	//
+	// Two rows of this bar's padding is what paid for that row. A bar runs from v-menuRise
+	// to v+2*menuScale, and what bounds menuRise from above is the *glyphs* of the row above,
+	// whose descenders reach v-menuPitch+2*menuScale-1 = v-18; anything up to 17 clears them,
+	// and their shadows do not come into it because shadow() draws in Black8 and the panel is
+	// already Black8. What menuRise bounds in turn is menuFirst, because the first row's bar
+	// is the highest thing in the panel and has to stay a clear row below the inner frame --
+	// so a shorter bar lets the first baseline sit nearer the top, and 19+15 is two rows less
+	// than 21+17 while still leaving a row of cream above the row's own capitals (which ink
+	// from v-7*menuScale). It is tighter than it was. The alternatives were a menu of eight
+	// rows or a halo laid across the artwork; see menuTop.
+	menuRise = 15
 )
 
 // The inverse-video selection bar of the house picker and the settings screen: how far it
@@ -206,6 +233,8 @@ func (s *Shell) Draw() {
 		s.drawPicker(scr)
 	case modeSettings:
 		s.drawSettings(scr)
+	case modeRace:
+		s.drawRace(scr)
 	case modeAbout:
 		s.drawAbout(scr)
 	case modeCredits:

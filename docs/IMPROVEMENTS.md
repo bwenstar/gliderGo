@@ -4535,7 +4535,7 @@ kind of helpfulness `TestCorpusNonCompacted` exists to forbid.
 
 ---
 
-### 4.28 A race can only be arranged from a command line, and the guest is made to name a house it is about to be told — **note; found finishing Stage 3**
+### 4.28 A race can only be arranged from a command line, and the guest is made to name a house it is about to be told — **note; found finishing Stage 3; the first half DONE, 2.6 — the second is a protocol change and stays open**
 
 The networked race works and has no way in. `-host`, `-join <address>` and `-port` are the whole
 interface, and `cmd/glidergo/main.go`'s dispatch puts a race on the same path the measurement flags
@@ -4570,6 +4570,66 @@ was written on, is both of them. It is filed rather than fixed so that it is not
 somebody on Windows wondering where the two-player mode went. LAN discovery, which `docs/PLAN.md`
 Stage 3 already calls a nice-to-have, belongs to the same dialog: the reason a player needs to know an
 IP address at all is that nothing offers them a list.
+
+**Done, 2.6: the half that was a screen.** `internal/shell/race.go` is a Race screen on the title
+menu — `R`, or the arrows to the row directly under the original's own four. Two rows and one field:
+Host waits for the other machine, Join dials the address, and the address is a `scores.Field`, reused
+whole for its Mac Roman limit, its select-all-on-open and its keyboard. What comes out is a
+`shell.Race` on the `Choice` the shell already hands to `Play`, so `internal/shell` still has no
+`net` import and still knows nothing about a socket: it arranges a race, `cmd/glidergo` runs one.
+`-host` and `-join` now build the same value (`asRace`), which is the whole point of the type —
+there is one path through `play` and not two, and the flags have become a way of *skipping* the title
+screen rather than the only way in. `-port` stopped being refused on its own in the same change,
+because it now means "the port the Race screen will use".
+
+Four things fell out of it that this note did not predict, and each is the kind of thing that is
+cheaper to write down than to measure twice.
+
+**The menu had nowhere to put a ninth row, and the artwork is what said so.** The panel's bottom is
+pinned by the house label, which the original draws at a fixed `MoveTo(436,314)`
+(`SelectHouse.c:87-96`), and its top by PICT 1000: `panel()` dims eight rows beyond every edge, so a
+panel any higher lays a checkerboard across the aeroplane's tail. The tail was measured off the
+extracted art rather than argued about — in the panel's columns including its halo, rows 78–93 hold
+ink narrowing from 105 pixels to 10, and row 94 is the first with none — and that number is now the
+constant `splashSkyV`, with the geometry test asserting the halo starts on it. Nine rows fit at
+`menuTop` 102 with two rows shaved off the selection bar's padding; a tenth does not fit at all, in
+one column, and the test says so in its failure message so that the next person does not re-derive
+it. What was *not* done, and was considered: moving the house label (it is 1994's coordinate),
+narrowing the panel (too narrow for scale-2 labels), or folding "Two Player Game" into this screen
+(it would bury a MENU 129 item behind a submenu).
+
+**The row could not go where it reads best.** A race is the other two-player game, so directly under
+"Two Player Game" is where it belongs by meaning — and that is one row above where MENU 129 puts
+"Open Saved Game...", which `internal/shell/saved_test.go` pins on purpose. The original's order is
+not this port's to rearrange, so the row goes on the first line past the end of 1994's list: still
+inside the group that starts a game, still above the three that do not.
+
+**Escape on the waiting screen had to become an error.** `errRaceGaveUp` used to be swallowed by
+`play`, which was harmless when the only caller was a command line about to exit. With a shell behind
+it, a zero `Outcome` and no error puts *"Fun House — score 0, 0 stars left"* on the status band, which
+is a report of a game nobody played. So it is returned; the shell shows it on the band, and
+`playDirect` unwraps it back into a clean exit.
+
+**The hosting screen's worked example could not be pasted.** It printed
+`glidergo -join 10.0.0.5:1138 Fun House`, unquoted, and a positional house argument is one argument:
+`parseFlags` answers that line with "one house at a time". Sixteen of the 22 shipped houses have a
+space in their name, so the example was broken for nearly every house it could be used with. The address is now on a line of its own and first, because that is what the other
+player types into the field; the command line is underneath it and quoted (`shellQuote`, double quotes
+because the line gets read on Windows as often as on a shell that understands either).
+
+**Still open, and it is a protocol change rather than a screen.** The second half of this note — that
+a guest should be *told* the host's house instead of naming it — cannot be closed by any dialog.
+`netplay.Meet` is a single symmetric exchange in which both sides send a `Hello` carrying their own
+house hash, so there is no moment at which the guest knows what the host opened and has not yet
+committed to a house of its own. Fixing it means an asymmetric first round — the host names the house,
+the guest answers — which changes the handshake, the version gate and both ends of `handshake_test.go`,
+and it should be done with LAN discovery rather than before it, because a guest that was offered a
+*list* of hosts would be told the house as part of the list. What the screens do meanwhile is say the
+name out loud at both ends: the Race screen's last-but-one line, and the host's waiting screen. This
+note also guessed wrong about where the work was: moving the waiting and dialling screens into the
+shell was called "most of the work", and they have not moved and should not. They exist to be the one
+place the program is allowed to block on a socket, which is precisely what a package with no `net`
+import cannot hold.
 
 ### 4.29 A new house can carry pictures now, and still cannot carry a sound — **note; found closing 4.15, 2.5**
 
@@ -5205,6 +5265,7 @@ alone for a stated reason rather than missed.
 | 4.23 `object-top` and `object-left`: 24 object types whose coordinates are `#define`s in the 1994 editor rather than choices an author was offered, from a table of citations, with the corpus's 4,041 placements as the stronger half of the test | 2.4 | this stage |
 | 4.27 The unreachable repair in `KeepObjectLegal` and the 43 floor transporters that are 2 pixels low because of it — filed, accepted as a value rather than a tolerance, and deliberately not normalised on load | 2.4 | this stage |
 | 5.2 `tools/extract_all.py` publishes by rename: a staging tree, an OS advisory lock, and the eleven counts checked *before* the rename, so a cancelled or a miscounting run publishes nothing | 2.4 | this stage |
+| 4.28 (the first half) `internal/shell/race.go`: a Race screen on the title menu, so the mode that was reachable only from a shell is reachable with the keyboard already in the player's hands — one `shell.Race` built by both the screen and the flags, and a ninth menu row whose geometry the splash artwork's own pixels decided | 2.6 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

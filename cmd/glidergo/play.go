@@ -378,7 +378,7 @@ func (a *app) bindAudio(w *game.World, name string) {
 // range, the saved game does not belong to this house -- and the shell shows it and stays
 // up, because the player's next move is to choose a different house
 // (docs/IMPROVEMENTS.md 2.33).
-func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
+func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outcome, error) {
 	o := a.o
 	name := ref.Name
 
@@ -418,7 +418,7 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 		h.FirstRoom = int16(o.roomNum)
 	}
 
-	// The race, if the flags asked for one, and **here** rather than anywhere earlier or later.
+	// The race, if one was asked for, and **here** rather than anywhere earlier or later.
 	//
 	// Later is wrong because the seed the World is built from is the one the two machines agree
 	// (Match.RandSeed), so the handshake has to have happened before NewWorld. Earlier is wrong
@@ -428,20 +428,23 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 	// parseFlags, so in practice this is the house as loaded -- but the ordering is what makes
 	// that a fact about the flags rather than a thing to remember.
 	//
-	// A player who gives up on the waiting screen gets no game and no error: they have already
-	// read what happened on the screen they pressed Escape on. See cmd/glidergo/race.go.
-	var race *netplay.Race
+	// The race comes in as an argument rather than off the options, because a race is arranged
+	// in two places now: the command line, and the title screen's Race row (internal/shell's
+	// race.go). playDirect turns its flags into the same value, so there is one path from here
+	// down and the shell's arrangement is not a second-class one.
+	//
+	// A player who gives up on the waiting screen gets errRaceGaveUp and no game. It is
+	// returned rather than swallowed, which it was not until this screen existed: a shell that
+	// got back a zero Outcome and no error would put "Fun House -- score 0, 0 stars left" on
+	// the status band, which is a report of a game nobody played. playDirect prints it and
+	// exits cleanly; the shell shows it on the band. See cmd/glidergo/race.go.
+	var netRace *netplay.Race
 	seed := a.randSeed
-	if raceRequested(o) {
-		r, trans, err := a.openRace(name, h)
+	if race.Wanted() {
+		r, trans, err := a.openRace(name, h, race)
 		switch {
 		case errors.Is(err, errRaceClosed):
 			return shell.Outcome{Closed: true}, nil
-		case errors.Is(err, errRaceGaveUp):
-			if !o.quiet {
-				fmt.Printf("glidergo: %v\n", err)
-			}
-			return shell.Outcome{}, nil
 		case err != nil:
 			return shell.Outcome{}, err
 		}
@@ -450,7 +453,7 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 		// interrupted any other way. netplay.Start's comment has the shape: Meet, Start,
 		// play, Close, close the socket.
 		defer trans.Close()
-		race = r
+		netRace = r
 		seed = r.Match().RandSeed()
 	}
 
@@ -611,8 +614,8 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 	// that a timed run's limit is still the outermost thing and still ends the game on the frame
 	// it says. wrapPresentRace has the argument for why the report is once a frame and the
 	// drawing is once a blit.
-	if race != nil {
-		w.Present = wrapPresentRace(w, race)
+	if netRace != nil {
+		w.Present = wrapPresentRace(w, netRace)
 	}
 
 	// closed distinguishes the two ways out of a game that look identical to the
@@ -1019,8 +1022,8 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 	// not.** The other player may still be flying, so this side reports how its run ended, says
 	// goodbye, and waits to hear -- and only then is there a result for either machine to show.
 	// finishRace is the whole of it, including the screens.
-	if race != nil {
-		a.finishRace(w, race, finalStanding(w), closed)
+	if netRace != nil {
+		a.finishRace(w, netRace, finalStanding(w), closed)
 	}
 
 	// NewGame's teardown has just started the idle score on this World, which is about to

@@ -568,7 +568,7 @@ func parseFlags() (*options, error) {
 	flag.BoolVar(&o.quiet, "quiet", false, "do not print the startup and shutdown summaries")
 
 	flag.StringVar(&o.shot, "shot", "", "draw one title-screen frame to this PNG and exit; needs no display")
-	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses, settings, about, credits or scores")
+	flag.StringVar(&o.shotScreen, "shot-screen", "splash", "which screen -shot draws: splash, houses, settings, race, about, credits or scores")
 
 	flag.StringVar(&o.prefsPath, "prefs", "", "preferences file to use instead of the one in the config directory (\""+prefsNone+"\" = this build's defaults, saving nothing)")
 	flag.StringVar(&o.importPrefs, "import-prefs", "", "convert an original 226-byte \"Glider Prefs\" file into this port's settings, then exit")
@@ -576,9 +576,9 @@ func parseFlags() (*options, error) {
 	flag.StringVar(&o.savesDir, "saves", "", "directory for saved games, one per house (\""+savesNone+"\" = play without saving any)")
 	flag.BoolVar(&o.resume, "resume", false, "with -house, resume its saved game instead of starting a new one")
 
-	flag.BoolVar(&o.host, "host", false, "wait for another machine to join a race in this house, then play it")
-	flag.StringVar(&o.join, "join", "", "join a race another machine is hosting (its address, or address:port)")
-	flag.StringVar(&o.port, "port", netplay.DefaultPort, "TCP port for -host and -join (a port inside -join's address wins)")
+	flag.BoolVar(&o.host, "host", false, "skip the title screen and wait for another machine to join a race (the Race... row does this too)")
+	flag.StringVar(&o.join, "join", "", "skip the title screen and join a race another machine is hosting (its address, or address:port)")
+	flag.StringVar(&o.port, "port", netplay.DefaultPort, "TCP port a race hosts and dials on (a port inside -join's or the Race screen's address wins)")
 
 	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
 	flag.StringVar(&o.sounds, "sounds", "", "directory of extracted sound assets to use instead of the ones built in")
@@ -855,7 +855,18 @@ func playDirect(o *options, p *prefs.Prefs) error {
 	if err := a.openAudio(); err != nil {
 		return err
 	}
-	if _, err := a.play(ref, o.two, o.resume); err != nil {
+	if _, err := a.play(ref, o.two, o.resume, asRace(o)); err != nil {
+		// A player who pressed Escape on the waiting screen did not fail at anything, and
+		// since the Race screen exists play returns that as an error rather than swallowing
+		// it (see play.go). So it is unwrapped back into a clean exit here: the shell shows
+		// it on the status band and stays up, and a run with no shell behind it says the
+		// same sentence on stderr and stops with status 0.
+		if errors.Is(err, errRaceGaveUp) {
+			if !o.quiet {
+				fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
+			}
+			return a.artErr
+		}
 		return err
 	}
 	return a.artErr
@@ -1012,7 +1023,7 @@ func (a *app) shellHost() shell.Host {
 			// FS-and-Rel are what open the file. The FS travels on the house because
 			// a library is a union of roots now and the houses root is not the only
 			// one a listed house can have come from. See shell.House.
-			out, err := a.play(libraryHouse(c.House), c.TwoPlayer, c.Resume)
+			out, err := a.play(libraryHouse(c.House), c.TwoPlayer, c.Resume, c.Race)
 			a.startTitleMusic()
 			return out, err
 		},

@@ -17,6 +17,72 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A race can be arranged from the title screen, and the menu found the edge of the artwork (2026-09-23)
+
+Stage 3's networked race worked and had no way in. `-host`, `-join <address>` and `-port` were the
+whole interface, and `cmd/glidergo`'s dispatch put a race on the same path the measurement flags use
+— straight into the house, past the title screen — because there was nowhere on that screen to type
+an address. On Windows, which is where a release is a double-clicked `.exe` from a zip, that made the
+mode effectively unreachable: there is no shell in front of the player at all. Filed as
+`docs/IMPROVEMENTS.md` 4.28 while finishing the stage, and half of it is closed here.
+
+`internal/shell/race.go` is a Race screen: `R` from the splash, or the arrows to the menu row
+directly under the original's own four. Two rows and one field — Host waits for the other machine,
+Join dials an address — and the field is `internal/scores`' `Field`, reused whole for its Mac Roman
+limit, its select-all-on-open and its keyboard, which is what it was made generic for when the
+high-score name needed it. `scores.Prompt` is deliberately *not* reused: every rectangle in it comes
+out of DLOG 1020's own item list, and putting 1994's measurements on a screen 1994 never drew would be
+this port claiming the original had a network mode.
+
+What the screen produces is a `shell.Race` on the `Choice` the shell already hands to `Play`, so
+`internal/shell` still has no `net` import and still knows nothing about a socket: it arranges a race
+and `cmd/glidergo` runs one. `-host` and `-join` now build the same value, which is the point of the
+type — there is one path through `play` rather than two, and the flags have become a way of *skipping*
+the title screen rather than the only way in. `-port` stopped being refused on its own in the same
+change, because it now means "the port the Race screen will use". One consequence had to be unpicked:
+`errRaceGaveUp` used to be swallowed, which was harmless when the only caller was a command line about
+to exit, but a shell that gets back a zero `Outcome` and no error puts *"Fun House — score 0, 0 stars
+left"* on the status band, which is a report of a game nobody played. It is returned now; the shell
+shows it and stays up, `playDirect` unwraps it into a clean exit.
+
+**The menu had nowhere to put a ninth row, and the 1994 artwork is what decided where it went.** The
+panel's bottom is pinned by the house label, which the original draws at a fixed `MoveTo(436,314)`
+(`SelectHouse.c:87-96`); its top is pinned by PICT 1000, because `panel()` dims eight rows beyond
+every edge and a panel any higher lays a checkerboard across the aeroplane's tail. So the tail was
+measured off the extracted art rather than argued about: in the panel's columns, halo included, rows
+78–93 hold ink narrowing from 105 pixels to 10, and row 94 is the first with none. That number is the
+constant `splashSkyV` now, written down rather than measured at run time because the art is fixed and
+the test that reads it has to pass on a build with no assets extracted at all. Nine rows fit at
+`menuTop` 102 with two rows shaved off the selection bar's padding; a tenth does not fit in one
+column, and the geometry test says so in its failure message so that the next person does not
+re-derive it. Moving the label, narrowing the panel and folding "Two Player Game" into the new screen
+were all considered and are all recorded as rejected.
+
+**The row could not go where it reads best, either.** A race is the other two-player game, so
+directly under "Two Player Game" is where it belongs by meaning — and that is one row above where
+MENU 129 puts "Open Saved Game...", which a test pins on purpose. The original's order is not this
+port's to rearrange, so the row takes the first line past the end of 1994's list: still inside the
+group that starts a game, still above the three that do not.
+
+**And the host's waiting screen was printing an example that could not be pasted.** It read out
+`glidergo -join 10.0.0.5:1138 Fun House`, unquoted, and a positional house argument is one argument —
+`parseFlags` answers that line with "one house at a time". Sixteen of the 22 shipped houses have a
+space in their name. The address is now on a line of its own and first, because that is what the
+other player types into the field, with the command line underneath it and quoted; double quotes,
+because that line gets read on Windows as often as on a shell that understands either.
+
+The second half of 4.28 stays open, and it is a protocol change rather than a screen. A guest should
+be *told* the host's house instead of naming it, but `netplay.Meet` is a single symmetric exchange in
+which both sides send a `Hello` carrying their own house hash, so there is no moment at which the
+guest knows what the host opened and has not yet committed to a house of its own. That wants an
+asymmetric first round, and it wants doing with LAN discovery rather than before it — a guest offered
+a *list* of hosts would be told the house as part of the list. Meanwhile both screens say the name
+out loud: the Race screen's last-but-one line, and the host's waiting screen.
+
+The screen joins the pixel corpus, which is now seven screens rather than six
+(`internal/fidelity.DefaultScreens`, `make headless`, `-shot-screen race`), and the splash's hash
+moves in this commit because the menu did.
+
 ### A house of our own can carry pictures of its own, and `-houseart` no longer takes the other houses' away (2026-09-23)
 
 A room's `background` at 3000 or above names a picture the *house* carries rather than one of the

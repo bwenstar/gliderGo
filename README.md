@@ -102,13 +102,14 @@ and the glider that flies over them dies.
 no files beside it. `make levels` builds them out of the text for inspection and `-levels DIR` plays a
 directory you are still editing; the text is meant to be read and taken apart.
 
-**Stage 3 is done: a networked race.** One machine runs `-host`, the other `-join <address>`, and
-the two of them race the same house from the same seed — separate rooms, separate gliders, one
-answer about who won. It is the thing the original never had, and it is not the original's
-two-player mode; see [Two players, two machines](#two-players-two-machines) below for both halves
-of that sentence. The one thing still missing is a way to start one *from the title screen*
-([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 4.28), so for now a race is arranged on a command
-line.
+**Stage 3 is done: a networked race.** Two machines race the same house from the same seed —
+separate rooms, separate gliders, one answer about who won. It is the thing the original never had,
+and it is not the original's two-player mode; see
+[Two players, two machines](#two-players-two-machines) below for both halves of that sentence.
+`Race...` on the title screen arranges one, and `-host` / `-join <address>` are the same arrangement
+from a shell. What is still missing is smaller than it was: the guest has to name the house rather
+than being told which one the host opened, and nothing finds the hosts on your network for you
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 4.28).
 
 Then the house editor the original had (Stage 5), and macOS and possibly mobile (Stage 6), which
 needs a CoreAudio sink behind the same seam the Windows one arrived through.
@@ -241,15 +242,22 @@ A different game from the one above, and the original never had it. There, two g
 room and one roll of foil. Here each machine runs its own copy of the house and its own glider, and
 the network carries how far each of you has got.
 
+**From the title screen: `Race...`.** One player chooses Host and reads the address off the screen
+that comes up; the other types it into Join and presses Return. Both have to have the same house
+open first, and the screen names the one it is about to race in.
+
+From a shell, which skips the title screen and is what a script or a second window wants:
+
 ```bash
 bin/glidergo -host Slumberland                        # on one machine
 bin/glidergo -join 192.168.1.20 Slumberland           # on the other, once the first is waiting
 ```
 
-The host prints the exact command the other player should type, with its own addresses and the port
-it actually got, so in practice you read it off the waiting screen rather than working it out.
-`-port` moves both off 1994 (`-join 192.168.1.20:2000` says the same thing), the house may be a name
-or a path, and `-host` on its own opens Slumberland. Escape gives up while you are waiting.
+The waiting screen reads out this machine's addresses and the port it actually got — that top line
+is exactly what the other player types into Join — with a ready-made `-join` command underneath for
+a partner who is also at a shell. `-port` moves both off 1994 (`-join 192.168.1.20:2000` says the
+same thing), the house may be a name or a path, and `-host` on its own opens Slumberland. Escape
+gives up while you are waiting.
 
 **Furthest wins, and "furthest" means rooms visited** — the same number the 1994 high-score table
 records, because a house is a graph and "how far" has no geometric answer. Finishing the house beats

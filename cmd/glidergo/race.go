@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,12 +44,23 @@ import (
 	"github.com/bwenstar/gliderGo/internal/netplay"
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
-// raceRequested reports whether the flags asked for a race. One function rather than the
-// condition written out at its three call sites -- run()'s dispatch, parseFlags' refusals and
-// play's -- because the three must agree about what a race is.
+// raceRequested reports whether the *flags* asked for a race. One function rather than the
+// condition written out at its two call sites -- run()'s dispatch and parseFlags' refusals --
+// because the two must agree about what a race is.
+//
+// play does not use it any more, and that is the shape of the Race screen's change: a race can
+// now be arranged from the title screen as well as from a command line, so what play is handed
+// is a shell.Race (Wanted() is the same question asked of the arrangement rather than of the
+// flags) and the flags' only remaining job is to make one before the shell ever opens.
 func raceRequested(o *options) bool { return o.host || o.join != "" }
+
+// asRace is the command line's arrangement, in the form the shell would have produced. It is
+// what keeps playDirect and the shell's Play on the same path through play(): one race type,
+// made in two places, understood in one.
+func asRace(o *options) shell.Race { return shell.Race{Host: o.host, Join: o.join} }
 
 // The two ways the connecting screens end without a match, both of them the player's choice and
 // neither of them a failure. play turns each into a return rather than into a message on stderr:
@@ -180,7 +192,12 @@ type raceMeeting struct {
 // and a resume refused, which is why it is called from there and not from playDirect -- -room
 // rewrites h.FirstRoom and the hash covers it, so two players who disagree about the starting
 // room are not racing the same house either.
-func (a *app) openRace(name string, h *house.House) (*netplay.Race, net.Conn, error) {
+//
+// Which end this machine is comes in as an argument, because since the Race screen existed it is
+// no longer a property of the flags: `-host` and the title screen's Host row arrive here as the
+// same shell.Race and get the same handshake. The port is still the flag's, because a port is a
+// property of the machine rather than of one arrangement made on it -- see the -port help text.
+func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.Race, net.Conn, error) {
 	o := a.o
 
 	canon, err := h.Save()
@@ -208,7 +225,7 @@ func (a *app) openRace(name string, h *house.House) (*netplay.Race, net.Conn, er
 	var l *netplay.Listener
 	var heading string
 	var where []string
-	if o.host {
+	if race.Host {
 		if l, err = netplay.Listen("", o.port); err != nil {
 			return nil, nil, err
 		}
@@ -217,7 +234,7 @@ func (a *app) openRace(name string, h *house.House) (*netplay.Race, net.Conn, er
 	} else {
 		heading = "JOINING"
 		where = []string{
-			"connecting to " + netplay.Address(o.join, o.port),
+			"connecting to " + netplay.Address(race.Join, o.port),
 			"the other machine has to be hosting " + name,
 		}
 	}
@@ -227,9 +244,9 @@ func (a *app) openRace(name string, h *house.House) (*netplay.Race, net.Conn, er
 		rc.keep(l, nil) // nothing can have cancelled yet; the screen is not up
 	}
 	res := make(chan raceMeeting, 1)
-	go func() { res <- a.meetRace(rc, l, local) }()
+	go func() { res <- a.meetRace(rc, l, race.Join, local) }()
 
-	met, err := a.awaitRace(rc, heading, where, res)
+	met, err := a.awaitRace(rc, race, heading, where, res)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -249,13 +266,13 @@ func (a *app) openRace(name string, h *house.House) (*netplay.Race, net.Conn, er
 // meetRace is the connecting goroutine: accept or dial, then shake hands. Everything in it
 // blocks, which is why it is not on the frame loop's goroutine and why every blocking call has
 // been handed to rc first.
-func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, local netplay.Hello) raceMeeting {
+func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, join string, local netplay.Hello) raceMeeting {
 	var trans net.Conn
 	var err error
 	if l != nil {
 		trans, err = l.Accept()
 	} else {
-		trans, err = a.dialRace(rc)
+		trans, err = a.dialRace(rc, join)
 	}
 	if err != nil {
 		if rc.stopped() {
@@ -288,9 +305,9 @@ func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, local netplay.Hello
 }
 
 // dialRace is the guest's half: dial until somebody answers or the player gives up.
-func (a *app) dialRace(rc *raceConnect) (net.Conn, error) {
+func (a *app) dialRace(rc *raceConnect, join string) (net.Conn, error) {
 	for {
-		c, err := netplay.Join(a.o.join, a.o.port, joinTimeout)
+		c, err := netplay.Join(join, a.o.port, joinTimeout)
 		if err == nil {
 			return c, nil
 		}
@@ -309,7 +326,7 @@ func (a *app) dialRace(rc *raceConnect) (net.Conn, error) {
 // accidental keystroke must not undo it -- which is the opposite of the high-score screens, where
 // any key means "I have read this". The way out is written on the screen, which is the same rule
 // the pause hint follows.
-func (a *app) awaitRace(rc *raceConnect, heading string, where []string, res <-chan raceMeeting) (raceMeeting, error) {
+func (a *app) awaitRace(rc *raceConnect, race shell.Race, heading string, where []string, res <-chan raceMeeting) (raceMeeting, error) {
 	scr := raceSurface()
 	var deadline <-chan time.Time
 	if hermetic(a.o) {
@@ -326,7 +343,7 @@ func (a *app) awaitRace(rc *raceConnect, heading string, where []string, res <-c
 			// A nil channel never fires, so a player's wait never comes through here. See
 			// raceConnectWait.
 			rc.cancel()
-			return raceMeeting{}, raceTimedOut(a.o, rc)
+			return raceMeeting{}, raceTimedOut(race, rc)
 		default:
 		}
 
@@ -358,8 +375,8 @@ func (a *app) awaitRace(rc *raceConnect, heading string, where []string, res <-c
 // raceTimedOut is the message a measurement run gets instead of an Escape key. The guest's
 // version carries the last refusal, because after thirty seconds of "connection refused" the
 // refusal is the whole of what went wrong.
-func raceTimedOut(o *options, rc *raceConnect) error {
-	if o.host {
+func raceTimedOut(race shell.Race, rc *raceConnect) error {
+	if race.Host {
 		return fmt.Errorf("nobody joined the race within %v", raceConnectWait)
 	}
 	if err := rc.lastNote(); err != nil {
@@ -373,23 +390,56 @@ func raceTimedOut(o *options, rc *raceConnect) error {
 // The port comes from the listener rather than from the flag, because a host that asked for port
 // 0 -- or whose 1994 was taken -- still has to be able to say where to connect. The addresses are
 // this machine's, and they are here for one reason: the sentence a hosting player needs is the
-// whole command the other player has to type, and "`-join` my address" is not that sentence. A
-// machine with none to offer says so rather than printing an empty line.
+// thing the other player has to type, and "`-join` my address" was not that sentence even when a
+// command line was the only way in. A machine with none to offer says so rather than printing an
+// empty line.
+//
+// **The address is on its own line now, and the command line has moved underneath it.** That is
+// this screen's half of the Race screen's arrival: the other player opens Race..., puts the cursor
+// on Join and types what is on this screen, so what this screen has to say is an address and
+// nothing else. The shell's version is still printed, because the player who typed `-host` may
+// well have a partner at a shell too -- and it is quoted, which it was not, because a house name
+// with a space in it is two arguments and parseFlags answers two arguments with "one house at a
+// time". An example a player can paste and be refused by is worse than no example at all.
 func hostingLines(addr, name string) []string {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		port = netplay.DefaultPort
 	}
-	lines := []string{"the other player runs:"}
-	switch got := localAddresses(); {
-	case len(got) == 0:
-		lines = append(lines, fmt.Sprintf("glidergo -join THIS-MACHINE:%s %s", port, name))
-	default:
-		for _, ip := range got {
-			lines = append(lines, fmt.Sprintf("glidergo -join %s:%s %s", ip, port, name))
-		}
+	got := localAddresses()
+	if len(got) == 0 {
+		// Nothing to offer, so the shape of the answer is offered instead: somebody who can
+		// see their own address in an operating system's own settings can still read this.
+		got = []string{"THIS-MACHINE"}
 	}
-	return lines
+
+	lines := []string{"the other player opens Race... and types:"}
+	for _, ip := range got {
+		// ip + ":" + port, not net.JoinHostPort: localAddresses has already bracketed the IPv6
+		// literals it returns -- it has to, they go on a screen next to a port -- and
+		// JoinHostPort would bracket them twice.
+		lines = append(lines, ip+":"+port)
+	}
+	return append(lines, "", "or, from a shell:",
+		fmt.Sprintf("glidergo -join %s:%s %s", got[0], port, shellQuote(name)))
+}
+
+// shellQuote wraps a house name so that a shell hands it to the program as one argument.
+//
+// Double quotes rather than single, and that is the only real decision in it: this line is read on
+// Windows at least as often as on a shell that understands both, and cmd.exe knows only double
+// quotes. Names are quoted only when they need it, so that the ordinary case reads as a name and
+// not as a string literal. A name containing a double quote is left exactly as it is, because it
+// cannot be quoted correctly for both shells at once, no 1994 house has one, and the line above
+// this one is the line the player is meant to use anyway.
+func shellQuote(s string) string {
+	if s == "" {
+		return `""`
+	}
+	if strings.ContainsAny(s, `"`) || !strings.ContainsAny(s, " \t'\\$&|<>()^;,=%!`*?~#") {
+		return s
+	}
+	return `"` + s + `"`
 }
 
 // localAddresses is this machine's addresses, best first, for the line above.
@@ -852,6 +902,11 @@ func (a *app) presentSurface(s *render.Surface) error {
 // parseFlags. Each one is two answers to one question, and the house rule for those is to refuse
 // rather than to guess -- see the -resume/-room pair, whose failure mode (an hour wondering why a
 // flag did nothing) is the one this is written to avoid.
+//
+// There used to be a fifth, refusing `-port` without `-host` or `-join`, and the Race screen
+// retired it: a port given on its own is no longer a flag with nothing to act on, it is the port
+// the title screen's Race row will host and dial on. That is not two answers to one question, so
+// it is not this function's business.
 func raceRefusals(o *options) error {
 	race := raceRequested(o)
 	switch {
@@ -878,8 +933,6 @@ func raceRefusals(o *options) error {
 		// house does is exactly the kind of quiet disagreement the gate exists to catch.
 		return errors.New("-seed and a race cannot both be given: the two machines agree a " +
 			"seed between themselves so that the house behaves the same on both")
-	case !race && o.port != netplay.DefaultPort:
-		return errors.New("-port only means something with -host or -join")
 	}
 	return nil
 }

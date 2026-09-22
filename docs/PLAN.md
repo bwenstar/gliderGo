@@ -1422,13 +1422,21 @@ here is genuinely just transport.
   three pre-match blocking calls (`Accept`, `DialTimeout`, `Meet`'s first `Recv`) are cancelled by
   closing what they hold from another goroutine, since none of them can be told anything.
 
-  Two caveats, in the same spirit as Stage 2's. **No race has been played by hand** — the
-  verification is two `nullbackend` processes on the loopback, normally and with one killed, which
-  covers the arithmetic and the sockets but not the panel's pixels or a human pressing Escape on the
-  waiting screen. And there is **no way to arrange a race from the title screen**: the flags put a
-  race on the same path the measurement flags use, straight into the house, because there is nowhere
-  on that screen to type an address. `docs/IMPROVEMENTS.md` 4.28 owns that, together with the guest
-  having to name a house the handshake was about to tell it.
+  Two caveats were filed here, in the same spirit as Stage 2's, and one of them is now closed.
+  **No race has been played by hand** — the verification is two `nullbackend` processes on the
+  loopback, normally and with one killed, which covers the arithmetic and the sockets but not the
+  panel's pixels or a human pressing Escape on the waiting screen. That one stands.
+
+  The other was that there was **no way to arrange a race from the title screen**, and there is one
+  now: `internal/shell/race.go`, on `R` or the menu row directly under the original's own four. Host
+  waits, Join takes an address in a `scores.Field`, and what the screen produces is a `shell.Race` on
+  the `Choice` it already hands to `Play` — the same value `-host` and `-join` build, so there is one
+  path through `play` rather than two and the shell still has no `net` import. That is the first half
+  of `docs/IMPROVEMENTS.md` 4.28, which keeps the second: a guest still names the house instead of
+  being told it, because `netplay.Meet` is one symmetric exchange in which both sides send their own
+  house hash, so there is no moment at which the guest knows what the host opened and has not yet
+  committed. That is a handshake change and belongs with LAN discovery, which is where a guest would
+  be *offered* a house rather than asked for one.
 
 ### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 

@@ -28,7 +28,7 @@ import (
 )
 
 // DefaultScreens is every screen Shell.Show knows, in the order a player meets them.
-var DefaultScreens = []string{"splash", "houses", "settings", "about", "credits", "scores"}
+var DefaultScreens = []string{"splash", "houses", "settings", "race", "about", "credits", "scores"}
 
 // refVersion is the version string the About box draws in a recording. See Screen.
 const refVersion = "fidelity"
@@ -36,9 +36,9 @@ const refVersion = "fidelity"
 // ScreensOpts is the shell's world for a recording: where the art and the houses are, and
 // which house is selected.
 //
-// The house matters to three of the six screens -- the splash names it, the picker
-// highlights it, the board is its -- so it is pinned rather than left to whatever
-// Library.Discover happened to sort first.
+// The house matters to four of the seven screens -- the splash names it, the picker
+// highlights it, the Race screen says the other machine has to open it, the board is its --
+// so it is pinned rather than left to whatever Library.Discover happened to sort first.
 type ScreensOpts struct {
 	// ArtDir and HouseDir are directories to read, and empty means the copy of that root
 	// built into the executable -- assetfs's rule, and replay.Script's. This package's own
