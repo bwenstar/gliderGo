@@ -74,6 +74,7 @@ import (
 	"github.com/bwenstar/gliderGo/internal/audio"
 	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/netplay"
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/platform/backend"
 	"github.com/bwenstar/gliderGo/internal/prefs"
@@ -178,6 +179,14 @@ type options struct {
 	scoresDir   string
 	savesDir    string
 	resume      bool
+
+	// The race, docs/PLAN.md Stage 3: two machines, two worlds, one house, and whoever gets
+	// further wins. host and join are the two ends of one arrangement and cannot both be given;
+	// port is the TCP port for either, and a port inside join's address wins over it
+	// (netplay.Address). See cmd/glidergo/race.go, and internal/netplay for the protocol.
+	host bool
+	join string
+	port string
 
 	sound    bool
 	sounds   string // the fourth asset root, and empty means built-in like the rest
@@ -528,6 +537,10 @@ func parseFlags() (*options, error) {
 	flag.StringVar(&o.savesDir, "saves", "", "directory for saved games, one per house (\""+savesNone+"\" = play without saving any)")
 	flag.BoolVar(&o.resume, "resume", false, "with -house, resume its saved game instead of starting a new one")
 
+	flag.BoolVar(&o.host, "host", false, "wait for another machine to join a race in this house, then play it")
+	flag.StringVar(&o.join, "join", "", "join a race another machine is hosting (its address, or address:port)")
+	flag.StringVar(&o.port, "port", netplay.DefaultPort, "TCP port for -host and -join (a port inside -join's address wins)")
+
 	flag.BoolVar(&o.sound, "sound", true, "load the sound bank; -sound=false is the original's dontLoadSounds")
 	flag.StringVar(&o.sounds, "sounds", "", "directory of extracted sound assets to use instead of the ones built in")
 	flag.BoolVar(&o.music, "music", true, "play the score as well as the effects")
@@ -606,6 +619,9 @@ func parseFlags() (*options, error) {
 		// first room -- it starts where the save says. Accepting both would silently ignore
 		// one of them, which is the failure mode that costs an hour of wondering why.
 		return nil, errors.New("-resume and -room cannot both be given: a saved game names its own room")
+	}
+	if err := raceRefusals(o); err != nil {
+		return nil, err
 	}
 	if o.scale < 1 {
 		return nil, errors.New("-scale must be at least 1")
@@ -702,7 +718,12 @@ func run() error {
 	switch {
 	case o.shot != "":
 		return shot(o, p)
-	case o.house != "" || o.frames > 0 || o.bench || o.dump != "" || o.resume:
+	case o.house != "" || o.frames > 0 || o.bench || o.dump != "" || o.resume || raceRequested(o):
+		// A race is on this path and not the shell's because there is nowhere on the title
+		// screen to type an address yet: the mode is arranged on the command line by two
+		// people who have already agreed to play. The house is the usual one when neither
+		// side names one, which is what makes `-host` and `-join addr` a complete
+		// arrangement -- both ends default to the same house and the hash proves it.
 		return playDirect(o, p)
 	default:
 		return runShell(o, p, canSave)

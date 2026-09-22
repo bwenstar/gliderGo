@@ -17,6 +17,77 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Stage 3, second half: the race is something a player can start, watch and win (2026-09-23)
+
+`-host` waits for another machine, `-join <address>` finds one, and `-port` moves both off 1994. The
+protocol half had no UI; this half is the three screens it needed and the one mapping it was missing,
+from `World` to `Standing`. Two machines on a LAN now race a house from the same seed and both arrive
+at the same answer about who won.
+
+A race goes down the same path the measurement flags use — straight into the house, no title
+screen — because there is nowhere on the title screen to type an address. That is a gap and not a
+design: `docs/IMPROVEMENTS.md` now carries it, along with the related observation that a guest is
+made to name the house it already learns from `Hello.PeerHouseName` during the handshake. What the
+flags do refuse is five combinations, each with its own sentence: `-host` with `-join`, because one
+machine hosts and the other joins it; a race with `-two`, because `-two` is two players at one
+keyboard and a race is one glider on each machine; a race with `-resume`, because a race starts both
+players at the house's beginning; a race with `-seed`, because the two peers agree a seed between
+themselves; and `-port` without either, which is the one that catches a typo rather than a
+misunderstanding.
+
+The waiting screen reads out the whole command the other player types, `glidergo -join <ip>:<port>
+<house>`, with up to three of this machine's addresses — IPv4 first, IPv6 bracketed, interfaces that
+are down or loopback or link-local left out. The port comes from the *listener* and not from the
+flag, so a host that asked for port 0 still tells the truth. Getting out of that screen is the
+interesting part: all three of the calls a peer blocks in before a match exists — `Accept`, a dial's
+`DialTimeout`, and `Meet`'s first `Recv` — are uninterruptible by asking, and can only be released by
+closing the thing underneath them from another goroutine. So the connecting goroutine hands each
+resource to a small mutex-guarded struct as it acquires it, and Escape closes whatever is held. The
+same struct refuses a handover after a cancel, which is what stops a socket that arrived a moment too
+late from being leaked instead of closed. A failed dial is retried every half second rather than
+reported, because the commonest way joining fails is joining before the other player has pressed
+host, and the last failure is shown on the screen while it retries so that a wrong address still
+looks wrong.
+
+There is one exception to "the player presses Escape", and it is the reason a 30-second give-up
+exists at all: **a run with nobody in front of it has no Escape key**. A `-frames` or `-bench` or
+`-shot` run that joined an address nobody is hosting would retry until somebody killed it, which in a
+script is a hang and not an error. The test for which kind of run this is is `hermetic`, in
+`cmd/glidergo/prefs.go`, and not a fresh condition written beside it, because "is there somebody in
+front of this" already had one name and two answers to it would eventually disagree. The same
+function now decides whether the result screen is drawn and whether the wait for the other player
+blocks, which is a small tidy-up of a condition that had been spelled out by hand.
+
+The live opponent panel is where the frame loop and the network actually meet, and the asymmetry in
+it is the substantive result of this half. `Present` is called more than once per frame — 116 or 160
+times during a wipe, once per strip — and building a standing calls `CountRoomsVisited`, which walks
+every room in the house (383 in Slumberland). So the report to the network is gated on the frame
+number changing, and the panel is *drawn on every call*, because the game composes each frame from
+its work map and restores the pixels under anything that moved there. Nothing in this path writes to
+the work map, so the game's own idea of the screen is untouched and the panel survives by being
+redrawn rather than by being remembered.
+
+It sits in the top-left corner, and it is worth saying plainly that there was no good place to put
+it. The screen is 640x480 with a 512-wide room in the middle; the scoreboard takes rows 460..480 with
+nine neighbours and rows 59..79 with one or three, and with nine neighbours those bands hold slivers
+of the rooms next door. Every option covers something. The corner covers the least, and the panel
+disappears the moment the run ends so that the game-over and high-score screens are the original's.
+
+Finishing is two screens and one rule. `finalStanding` is the mapping, and its three cases are the
+game's own: a run that ended without `GameOver` was given up, `Mortals < 0` is a death, and anything
+else finished the house — which follows `internal/game/play.go`'s own branch rather than inventing a
+second reading of the same two fields. Then the race waits, because **the race is not over until both
+runs are, however far ahead you finished**, and only then prints and draws the result. The panel and
+the result screen deliberately describe a departed opponent differently: the panel says "left" and
+shows the last standing as it arrived, while the result folds it through `netplay.Abandoned` first,
+because a forfeit is a scoring rule and a live readout is not.
+
+Verified in two processes over a real loopback socket on a `nullbackend` build, which is the only way
+any of this could be exercised without two people: both peers agreed the match ID and seed, took
+different slots, and independently reached the same outcome. Killing the guest three seconds into a
+300-frame race left the host with the guest's last standing, a named `broken pipe` on its result, and
+its own run finished normally.
+
 ### Stage 3, first half: the race protocol, from the specification that was already written (2026-09-22)
 
 `internal/netplay` is the networked two-player race — **not** the original's two-player mode, which

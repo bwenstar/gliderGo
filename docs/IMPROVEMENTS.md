@@ -4465,6 +4465,44 @@ kind of helpfulness `TestCorpusNonCompacted` exists to forbid.
 
 ---
 
+### 4.28 A race can only be arranged from a command line, and the guest is made to name a house it is about to be told — **note; found finishing Stage 3**
+
+The networked race works and has no way in. `-host`, `-join <address>` and `-port` are the whole
+interface, and `cmd/glidergo/main.go`'s dispatch puts a race on the same path the measurement flags
+use — straight into the house, past the title screen — because there is nowhere on that screen to type
+an address.
+
+**Why that is worse than it sounds.** The title screen exists, has a menu and a house picker over all
+22 houses (3.4, done in 1.7a), and is how every other way of starting a game is reached. A player who
+wants to race has to leave it, find a shell, learn their opponent's IP address by some means this port
+does not provide, and type a command line with an address in it. On Windows that is the sharpest form
+of the problem: a release there is a double-clicked `.exe` from a zip, and the player has no shell in
+front of them at all. The mode is, on the platform most likely to receive it, effectively unreachable.
+
+**The second half is smaller and is the same missing dialog.** A guest must name the house on its
+command line, and it does not need to: `MsgHello` already carries `HouseName`, so by the time the
+handshake finishes the guest has been *told* which house the host opened. Naming it first is what makes
+the house-hash gate fire, and the commonest way it will fire in practice is a guest that typed a
+different house rather than one that has a different build of the same house — which is a refusal
+earned by the interface, not by the houses.
+
+**Not a blocker on the input widget.** `internal/scores`'s `Prompt`/`Field` is a working modal text
+entry, written for the high-score name in 1.7c, and an address is a shorter string than a banner. What
+is actually missing is a shell concept: `internal/shell` has no notion of a mode that must complete a
+*network* transaction before a game can begin, so the waiting screen, the retrying dial and the
+give-up live in `cmd/glidergo/race.go` and draw their own surfaces rather than being shell screens
+like the other six. Moving them is most of the work; a "Race" menu item and an address field is the
+small part.
+
+**Deliberately left.** Stage 3's acceptance is about the protocol and the result, not the way in, and
+the flags are enough for two people on one LAN who both have a terminal — which, on the machine this
+was written on, is both of them. It is filed rather than fixed so that it is not discovered by
+somebody on Windows wondering where the two-player mode went. LAN discovery, which `docs/PLAN.md`
+Stage 3 already calls a nice-to-have, belongs to the same dialog: the reason a player needs to know an
+IP address at all is that nothing offers them a list.
+
+---
+
 ## 5. Getting off this machine: the build, the package and the public path
 
 Everything above is about the game. This section is about the fact that the game is being

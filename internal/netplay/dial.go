@@ -16,9 +16,11 @@ import (
 // player is about to type the address out loud. `-host :port` overrides it in either direction.
 const DefaultPort = "1994"
 
-// Address fills in what a player left out.
+// Address fills in what a player left out. An empty port means DefaultPort, so that the flag a
+// player typed and the default this package ships are resolved in one place instead of two.
 //
-// "10.0.0.7" becomes "10.0.0.7:1994"; ":2000" and "10.0.0.7:2000" are left alone; "" becomes
+// "10.0.0.7" becomes "10.0.0.7:1994"; ":2000" and "10.0.0.7:2000" are left alone -- a port in the
+// address wins, because it is the more specific of the two things the player said; "" becomes
 // ":1994", which listens on every interface.
 //
 // IPv6 takes two lines of its own because one spelling is genuinely ambiguous: "::1" is a complete
@@ -30,17 +32,20 @@ const DefaultPort = "1994"
 // -- counting colons and hoping -- would be wrong silently instead of wrong in a way the player
 // can see in the error. A host that is already bracketed and has no port gets one appended, which
 // SplitHostPort will not do for us and JoinHostPort would double the brackets of.
-func Address(addr string) string {
+func Address(addr, port string) string {
+	if port == "" {
+		port = DefaultPort
+	}
 	if addr == "" {
-		return ":" + DefaultPort
+		return ":" + port
 	}
 	if strings.HasPrefix(addr, "[") && strings.HasSuffix(addr, "]") {
-		return addr + ":" + DefaultPort
+		return addr + ":" + port
 	}
 	if _, _, err := net.SplitHostPort(addr); err == nil {
 		return addr
 	}
-	return net.JoinHostPort(addr, DefaultPort)
+	return net.JoinHostPort(addr, port)
 }
 
 // Listener is the host waiting for one guest.
@@ -53,11 +58,13 @@ type Listener struct {
 	l net.Listener
 }
 
-// Listen binds addr, filling in the default port. It does not wait for anybody.
-func Listen(addr string) (*Listener, error) {
-	l, err := net.Listen("tcp", Address(addr))
+// Listen binds addr, filling in port (or DefaultPort, if that is empty too). It does not wait for
+// anybody.
+func Listen(addr, port string) (*Listener, error) {
+	full := Address(addr, port)
+	l, err := net.Listen("tcp", full)
 	if err != nil {
-		return nil, fmt.Errorf("netplay: cannot host on %s: %w", Address(addr), err)
+		return nil, fmt.Errorf("netplay: cannot host on %s: %w", full, err)
 	}
 	return &Listener{l: l}, nil
 }
@@ -88,8 +95,8 @@ func (l *Listener) Close() error { return l.l.Close() }
 // The error is worth reading rather than passing through: "connection refused" on a LAN almost
 // always means the host has not pressed Host yet, and that is a sentence a player can act on,
 // where the address-and-errno form is one they have to interpret.
-func Join(addr string, timeout time.Duration) (net.Conn, error) {
-	full := Address(addr)
+func Join(addr, port string, timeout time.Duration) (net.Conn, error) {
+	full := Address(addr, port)
 	c, err := net.DialTimeout("tcp", full, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("netplay: cannot reach %s: %w -- the other machine has to be "+

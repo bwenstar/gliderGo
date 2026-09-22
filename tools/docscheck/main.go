@@ -225,6 +225,20 @@ var rules = map[string]rule{
 	"bin/glidergo -levels assets/levels": {
 		skip: "opens a window and plays until the player quits",
 	},
+
+	// README's race block. Neither line can run here, and for once the reason is not the window:
+	// each of these waits for the *other* one, on a second machine, and a check that ran one of
+	// them would be a check that waits thirty seconds to discover that it is alone. The pair is
+	// covered instead by internal/netplay's own tests, which race two peers over a loopback
+	// socket, and by hand on two processes -- see docs/PLAN.md Stage 3.
+	"bin/glidergo -host Slumberland": {
+		skip: "waits for a second machine to join, then opens a window; the race is tested over " +
+			"a loopback socket in internal/netplay instead",
+	},
+	"bin/glidergo -join 192.168.1.20 Slumberland": {
+		skip: "names an address on somebody else's LAN, which is the one thing in these documents " +
+			"that cannot be true on the machine reading them",
+	},
 }
 
 func main() {

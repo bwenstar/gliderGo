@@ -33,6 +33,7 @@ import (
 	"github.com/bwenstar/gliderGo/internal/game"
 	"github.com/bwenstar/gliderGo/internal/game/player"
 	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/netplay"
 	"github.com/bwenstar/gliderGo/internal/platform"
 	"github.com/bwenstar/gliderGo/internal/platform/backend"
 	"github.com/bwenstar/gliderGo/internal/prefs"
@@ -418,6 +419,42 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 		h.FirstRoom = int16(o.roomNum)
 	}
 
+	// The race, if the flags asked for one, and **here** rather than anywhere earlier or later.
+	//
+	// Later is wrong because the seed the World is built from is the one the two machines agree
+	// (Match.RandSeed), so the handshake has to have happened before NewWorld. Earlier is wrong
+	// because the gate is a hash of the house *as it will be played*: the resume above rewrites
+	// the rooms and the -room block rewrites FirstRoom, and a race whose two sides disagree
+	// about either is not a race over the same house. Both of those are refused for a race by
+	// parseFlags, so in practice this is the house as loaded -- but the ordering is what makes
+	// that a fact about the flags rather than a thing to remember.
+	//
+	// A player who gives up on the waiting screen gets no game and no error: they have already
+	// read what happened on the screen they pressed Escape on. See cmd/glidergo/race.go.
+	var race *netplay.Race
+	seed := a.randSeed
+	if raceRequested(o) {
+		r, trans, err := a.openRace(name, h)
+		switch {
+		case errors.Is(err, errRaceClosed):
+			return shell.Outcome{Closed: true}, nil
+		case errors.Is(err, errRaceGaveUp):
+			if !o.quiet {
+				fmt.Printf("glidergo: %v\n", err)
+			}
+			return shell.Outcome{}, nil
+		case err != nil:
+			return shell.Outcome{}, err
+		}
+		// The transport is this function's to close and closing it is what releases the
+		// Race's reader goroutine, which is parked in a blocking Recv and cannot be
+		// interrupted any other way. netplay.Start's comment has the shape: Meet, Start,
+		// play, Close, close the socket.
+		defer trans.Close()
+		race = r
+		seed = r.Match().RandSeed()
+	}
+
 	artFS, _ := o.artRoot()
 	assets := render.NewAssets(artFS)
 	// The house's own resource fork shadows the application's for as long as the
@@ -438,8 +475,9 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 	scene.Clock = time.Now()
 
 	// The stream is the process's, not this game's: it was resolved at startup by
-	// resolveSeed and the last game handed back where it had got to. See app.randSeed.
-	seed := a.randSeed
+	// resolveSeed and the last game handed back where it had got to (see app.randSeed) --
+	// unless this is a race, in which case the two machines agreed one above and the whole
+	// point is that both houses behave identically.
 	w := game.NewWorld(h, scene, seed)
 	w.TwoPlayer = two
 
@@ -565,6 +603,15 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 		// every door the glider takes. Nil until the bank loads, and safe on a nil
 		// receiver.
 		a.pump.ClockTick()
+	}
+
+	// The race's two lines on the frame loop: report this side's progress, draw the other
+	// side's. Wrapped around the present above and *inside* the -frames wrap further down, so
+	// that a timed run's limit is still the outermost thing and still ends the game on the frame
+	// it says. wrapPresentRace has the argument for why the report is once a frame and the
+	// drawing is once a blit.
+	if race != nil {
+		w.Present = wrapPresentRace(w, race)
 	}
 
 	// closed distinguishes the two ways out of a game that look identical to the
@@ -966,6 +1013,14 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 		mode = game.ResumeGameMode
 	}
 	w.NewGame(mode)
+
+	// The other half of the race, and it has to be here: **the run is over and the race is
+	// not.** The other player may still be flying, so this side reports how its run ended, says
+	// goodbye, and waits to hear -- and only then is there a result for either machine to show.
+	// finishRace is the whole of it, including the screens.
+	if race != nil {
+		a.finishRace(w, race, finalStanding(w), closed)
+	}
 
 	// NewGame's teardown has just started the idle score on this World, which is about to
 	// go out of scope. Hand its place in the score to the title screen's cursor before it

@@ -25,8 +25,8 @@ func TestAddressFillsInWhatThePlayerLeftOut(t *testing.T) {
 		{"::1", "[::1]:" + DefaultPort},                     // read as an address, not a host with no port
 		{"fe80::1", "[fe80::1]:" + DefaultPort},             // and bracketed on the player's behalf
 	} {
-		if got := Address(c.in); got != c.want {
-			t.Errorf("Address(%q) = %q, want %q", c.in, got, c.want)
+		if got := Address(c.in, ""); got != c.want {
+			t.Errorf("Address(%q, \"\") = %q, want %q", c.in, got, c.want)
 		}
 	}
 }
@@ -44,7 +44,7 @@ func TestEveryAddressAddressProducesCanBeSplitAgain(t *testing.T) {
 		"", "10.0.0.7", "macintosh", ":2000", "10.0.0.7:2000",
 		"::1", "fe80::1", "[::1]", "[::1]:2000", "[fe80::1%eth0]",
 	} {
-		full := Address(in)
+		full := Address(in, "")
 		host, port, err := net.SplitHostPort(full)
 		if err != nil {
 			t.Errorf("Address(%q) = %q, which net.Dial cannot parse: %v", in, full, err)
@@ -64,7 +64,7 @@ func TestEveryAddressAddressProducesCanBeSplitAgain(t *testing.T) {
 // for: an address, a port, a listener and the kernel's TCP stack between the two Conns.
 func loopback(t *testing.T) (host, guest net.Conn) {
 	t.Helper()
-	l, err := Listen("127.0.0.1:0") // port 0: the operating system picks one nobody is using
+	l, err := Listen("127.0.0.1", "0") // port 0: the operating system picks one nobody is using
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -78,7 +78,7 @@ func loopback(t *testing.T) (host, guest net.Conn) {
 		done <- accepted{c, err}
 	}()
 
-	guest, err = Join(l.Addr(), 10*time.Second)
+	guest, err = Join(l.Addr(), "", 10*time.Second)
 	if err != nil {
 		l.Close()
 		t.Fatalf("Join(%s): %v", l.Addr(), err)
@@ -156,7 +156,7 @@ func TestASecondGuestFindsThePortShut(t *testing.T) {
 	// A race is two players. The alternative to closing the listener is a third machine
 	// connecting into a match already under way and being ignored, which looks -- from that
 	// machine -- exactly like the host not being there, except that it waits forever first.
-	l, err := Listen("127.0.0.1:0")
+	l, err := Listen("127.0.0.1", "0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestASecondGuestFindsThePortShut(t *testing.T) {
 		accepted <- err
 	}()
 
-	first, err := Join(addr, 10*time.Second)
+	first, err := Join(addr, "", 10*time.Second)
 	if err != nil {
 		l.Close()
 		t.Fatalf("the first guest could not join: %v", err)
@@ -183,7 +183,7 @@ func TestASecondGuestFindsThePortShut(t *testing.T) {
 	// The listener is shut now, by Accept. On Linux a connect to a closed port is refused
 	// outright; the assertion is only that it does not succeed, because how the refusal arrives
 	// is the operating system's business and differs between them.
-	second, err := Join(addr, 2*time.Second)
+	second, err := Join(addr, "", 2*time.Second)
 	if err == nil {
 		second.Close()
 		t.Fatal("a second guest was let in to a match already under way")
@@ -201,7 +201,7 @@ func TestCloseIsHowAWaitingHostGivesUp(t *testing.T) {
 	// the kernel at that point and cannot be told anything; closing the listener from the other
 	// goroutine is the only way to get it back, and it has to come back as an error rather than
 	// hanging or returning a nil connection that the caller then hands to NewConn.
-	l, err := Listen("127.0.0.1:0")
+	l, err := Listen("127.0.0.1", "0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -249,13 +249,13 @@ func TestListenSaysWhyItCouldNotBind(t *testing.T) {
 	// The commonest way hosting fails, and the reason binding is separate from accepting: the
 	// player gets told before the waiting screen goes up, and the message has the address in it
 	// because "address already in use" on its own does not say which.
-	first, err := Listen("127.0.0.1:0")
+	first, err := Listen("127.0.0.1", "0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
 	defer first.Close()
 
-	second, err := Listen(first.Addr())
+	second, err := Listen(first.Addr(), "")
 	if err == nil {
 		second.Close()
 		t.Skip("this machine allows two listeners on one port; nothing to check")
@@ -272,7 +272,7 @@ func TestAddrResolvesThePortTheHostDidNotChoose(t *testing.T) {
 	// What the waiting screen reads out. A host that asked for port 0 -- or the default, on a
 	// machine where something else already has 1994 -- still has to be able to tell the other
 	// player where to connect.
-	l, err := Listen("127.0.0.1:0")
+	l, err := Listen("127.0.0.1", "0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestJoinGivesUpWhenAskedTo(t *testing.T) {
 	// answer without depending on the machine being offline -- which, on the machine this port
 	// was written on, it is.
 	start := time.Now()
-	c, err := Join("203.0.113.1:1994", 250*time.Millisecond)
+	c, err := Join("203.0.113.1", "1994", 250*time.Millisecond)
 	if err == nil {
 		c.Close()
 		t.Skip("something answered on TEST-NET-3; this network is not one this test can use")

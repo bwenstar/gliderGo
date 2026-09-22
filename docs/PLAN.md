@@ -1394,16 +1394,32 @@ here is genuinely just transport.
 - Both players see a live opponent panel (their room, score, and whether they are still alive).
 - *Acceptance:* two processes on this host race to completion; killing the guest mid-race
   leaves the host in a defined state; a house-set mismatch is rejected with a clear message.
-- *Progress.* Everything but the UI is done and tested, in `internal/netplay`: envelope and
-  framing, the symmetric handshake (nonce → slots, mixed seed, house-hash gate), `MsgStanding`, the
-  result arithmetic, the transport (`Listen`, `Join`, `Address`, port 1994 by default), and
-  `Race` — the driver the game loop calls, which reports on change, never blocks the frame loop,
-  and offers `Settled` for the screen that waits on the other player. All three acceptance clauses
-  are covered over a pipe by `race_test.go` and `handshake_test.go`, and a whole race runs again
-  over a loopback socket in `dial_test.go`; `make race` runs the package under the detector.
-  What remains is the UI and the game's own numbers: host/join flags on `cmd/glidergo`, a "waiting
-  for the other player" screen (the original had one — `internal/game/consts.go`'s
-  `EscapedTitleMode`), the live opponent panel, and the mapping from `World` to `Standing`.
+- *Progress.* **Done, both halves.** The protocol is `internal/netplay`: envelope and framing, the
+  symmetric handshake (nonce → slots, mixed seed, house-hash gate), `MsgStanding`, the result
+  arithmetic, the transport (`Listen`, `Join`, `Address`, port 1994 by default), and `Race` — the
+  driver the game loop calls, which reports on change, never blocks the frame loop, and offers
+  `Settled` for the screen that waits on the other player. All three acceptance clauses are covered
+  over a pipe by `race_test.go` and `handshake_test.go`, and a whole race runs again over a loopback
+  socket in `dial_test.go`; `make race` runs the package under the detector.
+
+  The game half is `cmd/glidergo/race.go`: `-host`, `-join` and `-port`; a waiting screen that reads
+  out the whole command the other player types, with this machine's addresses and the port the
+  *listener* resolved rather than the one asked for; the live opponent panel; `World` → `Standing`
+  (rooms from `CountRoomsVisited`, room, floor/suite, score, gliders, frames) and the three-case
+  final standing that follows `internal/game/play.go`'s own game-over branch; and a result screen
+  after a wait on `Settled`, because the race is not over until both runs are. Two details are worth
+  finding again: the report is gated on the frame number but the panel is drawn on every `Present`,
+  because `Present` runs once per wipe strip and `CountRoomsVisited` walks all 383 rooms; and the
+  three pre-match blocking calls (`Accept`, `DialTimeout`, `Meet`'s first `Recv`) are cancelled by
+  closing what they hold from another goroutine, since none of them can be told anything.
+
+  Two caveats, in the same spirit as Stage 2's. **No race has been played by hand** — the
+  verification is two `nullbackend` processes on the loopback, normally and with one killed, which
+  covers the arithmetic and the sockets but not the panel's pixels or a human pressing Escape on the
+  waiting screen. And there is **no way to arrange a race from the title screen**: the flags put a
+  race on the same path the measurement flags use, straight into the house, because there is nowhere
+  on that screen to type an address. `docs/IMPROVEMENTS.md` 4.28 owns that, together with the guest
+  having to name a house the handshake was about to tell it.
 
 ### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 

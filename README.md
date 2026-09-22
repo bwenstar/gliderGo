@@ -102,7 +102,14 @@ and the glider that flies over them dies.
 no files beside it. `make levels` builds them out of the text for inspection and `-levels DIR` plays a
 directory you are still editing; the text is meant to be read and taken apart.
 
-Then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
+**Stage 3 is done: a networked race.** One machine runs `-host`, the other `-join <address>`, and
+the two of them race the same house from the same seed — separate rooms, separate gliders, one
+answer about who won. It is the thing the original never had, and it is not the original's
+two-player mode; see [Two players, two machines](#two-players-two-machines) below for both halves
+of that sentence. The one thing still missing is a way to start one *from the title screen*
+([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 4.28), so for now a race is arranged on a command
+line.
+
 Then the house editor the original had (Stage 5), and macOS and possibly mobile (Stage 6), which
 needs a CoreAudio sink behind the same seam the Windows one arrived through.
 
@@ -227,6 +234,36 @@ answers to what happens when it cannot:
 That is transcribed rather than designed, and `internal/game/twoplayer_test.go` pins it. The one
 consequence worth an escape hatch is the deadlock: `Delete` is player one's key, so player two
 cannot break it. Setting `"player2_give_up": true` gives them the key as well.
+
+## Two players, two machines
+
+A different game from the one above, and the original never had it. There, two gliders share one
+room and one roll of foil. Here each machine runs its own copy of the house and its own glider, and
+the network carries how far each of you has got.
+
+```bash
+bin/glidergo -host Slumberland                        # on one machine
+bin/glidergo -join 192.168.1.20 Slumberland           # on the other, once the first is waiting
+```
+
+The host prints the exact command the other player should type, with its own addresses and the port
+it actually got, so in practice you read it off the waiting screen rather than working it out.
+`-port` moves both off 1994 (`-join 192.168.1.20:2000` says the same thing), the house may be a name
+or a path, and `-host` on its own opens Slumberland. Escape gives up while you are waiting.
+
+**Furthest wins, and "furthest" means rooms visited** — the same number the 1994 high-score table
+records, because a house is a graph and "how far" has no geometric answer. Finishing the house beats
+any number of rooms, ties break on score and then on frames simulated, and somebody who quits or
+whose machine dies has forfeited: the other one wins on the spot. There is no countdown and nothing
+that depends on the two clocks agreeing, which is why a peer that started late is simply a peer that
+has simulated fewer frames.
+
+Both houses must hash identically or the match is refused with both names and both hashes on
+screen — usually two builds of one house, which is why the hashes are there. Both machines agree a
+random seed between themselves, so `-seed` is refused, as are `-two` and `-resume`, each with a
+sentence saying why. A small panel in the top-left corner shows where the other player is while you
+fly, and it goes away when your run ends so that the game-over and high-score screens are the
+original's. The race itself is not over until both runs are, however far ahead you finish.
 
 ## Settings, scores and saves
 
