@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; eight more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings); only `release.yml`'s `sed` is left, and 5.4 owns it**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — the only command line in this repository nobody has run is `gh release create`, which needs github.com and is 5.4's**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3148,6 +3148,20 @@ cost is the part worth remembering:
   calibrated to allow, and `stats` says 210 of 383 rooms are reachable from `Welcome…`. They are not
   left as a one-off: `docs-check` above runs all five on every `make check`, which is the point of
   having built it.*
+
+  *(2.4, the `sed` half too, and it turned out not to need 5.4 at all: the whole "Package the
+  archives" step runs on this host unchanged. Extract its `run:` block, dedent it, give it `VERSION`
+  and the three `GITHUB_*` variables `sed` interpolates, and point it at the `bin/cross/` layout
+  `make cross` already writes — all six archives pack, all six pass their own embedded-asset greps,
+  and `SHA256SUMS` comes out with bare filenames. The link rewrite does what its comment claims: the
+  README's three screenshots become `/raw/` links and its thirteen documents `/blob/` links, every
+  one pinned at the 40-character SHA rather than at a branch, and the `! grep -q '](docs/'` assertion
+  underneath finds nothing left behind. The CRLF `sed` and the `VERSION` `sed` in the notes step were
+  run the same way. Four `sed`s, none of them unrun now.*
+
+  *The cost of rehearsing it is 150 MB in `/dist/`, which `.gitignore` already excludes and says is
+  for exactly this. What it still cannot reach is `gh release create`, which is 5.4's and needs
+  github.com — so the file's standing caveat stays, one step shorter than it was.*
 
   *Two notes for whoever reads this bullet next. This one named a section that does not exist — there
   is no "your first patch" heading in `CONTRIBUTING.md`; the walkthrough is under "Houses", and a

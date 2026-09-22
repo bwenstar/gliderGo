@@ -17,6 +17,21 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The release packaging step has now been run, on a machine that cannot reach GitHub (2026-09-22)
+
+`release.yml` has a standing caveat that it has never run, and it was doing more work than it needed
+to. The "Package the archives" step needs nothing from GitHub: extract its `run:` block, dedent it,
+give it `VERSION` and the three `GITHUB_*` variables its `sed` interpolates, and point it at the
+`bin/cross/` layout `make cross` already writes. All six archives pack, all six pass the greps that
+assert the assets really are inside the binary, and `SHA256SUMS` comes out with bare filenames.
+
+The link rewrite does what its comment claims — the README's three screenshots become `/raw/` links
+and its thirteen documents `/blob/` links, every one pinned at the 40-character commit SHA rather
+than a branch, with nothing left pointing at a `docs/` that the archive does not carry. The CRLF
+conversion and the notes step's `VERSION` substitution were run the same way. That was the last
+documented command line in this repository nobody had executed except `gh release create`, which
+genuinely does need the network (`docs/IMPROVEMENTS.md` 4.13, now closed, and 5.4).
+
 ### The release archives now say what Windows and macOS will do to an unsigned download (2026-09-22)
 
 Nothing here is signed, and both operating systems object in a way that is indistinguishable from a

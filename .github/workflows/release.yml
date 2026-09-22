@@ -335,10 +335,16 @@ jobs:
             cp "bin/cross/glidergo-${target}${binsuf}${exe}"  "$stage/glidergo${exe}"
             cp "bin/cross/glidertool-${target}${exe}"         "$stage/glidertool${exe}"
 
-            # The README's nine links into docs/ would every one of them 404 inside an archive
+            # The README's sixteen links into docs/ would every one of them 404 inside an archive
             # that carries no docs/ -- three of them the screenshots at the very top, which is
             # the first thing anyone opening it sees. Shipping 9.2 MB of development notes six
             # times over to fix that is the wrong trade; rewriting the links is the right one.
+            #
+            # Both branches have now been run, against the same bin/cross/ layout the step above
+            # writes: the three screenshots come out as /raw/ and the thirteen documents as /blob/,
+            # every one pinned at a 40-character SHA, and the assertion below finds nothing left
+            # behind (docs/IMPROVEMENTS.md 4.13). The count in the paragraph above is the one thing
+            # here that will rot; the assertion is what actually holds, and it counts nothing.
             #
             # Pinned at the commit built from rather than at a branch, so they resolve to the
             # source these exact binaries were compiled from however far the default branch
