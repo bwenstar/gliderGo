@@ -17,6 +17,23 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A constant in `internal/project` that nothing reads is now a test failure (2026-09-22)
+
+That package holds the handful of facts the About box, `-version`, both tools' usage text, the issue
+templates and the README all have to agree on, and its whole argument is that a fact spelled out in
+six places will eventually disagree with itself. `project.Releases` was spelled out in one place —
+its own declaration — and pointed at a release page with nothing on it, because no tag has been
+pushed yet. It is deleted rather than linked: the README's "there is nothing to download and no copy
+of the old game to find" is true today, and pointing a player at an empty page would have been the
+same kind of defect as a documented command that does not run.
+
+`TestEveryExportedConstantHereIsReadBySomething` is the general form: it parses the package for its
+exported constants and sweeps every other `.go` file for readers. The rule is transitive, because the
+first run found a second constant with no caller and it was a false accusation — `Home` is
+`"https://" + Module`, so `Module` has exactly one reader and is the string every URL in the game is
+built from. `docs/IMPROVEMENTS.md` 4.13 has the reasoning, and 5.4 records where the URL belongs on
+the day there is something to download.
+
 ### How long `make check` takes, measured (2026-09-22)
 
 Three documents describe what `make check` does and two of them were wrong. `CONTRIBUTING.md` quotes

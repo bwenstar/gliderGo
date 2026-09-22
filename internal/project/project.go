@@ -13,7 +13,9 @@
 // at build time by the Makefile's `-X main.version` and travels as a parameter.
 //
 // project_test.go sweeps the tree and requires that every place these strings appear uses the
-// same ones, which is the half that makes this worth a package rather than a comment.
+// same ones, which is the half that makes this worth a package rather than a comment. It also
+// requires that each constant here is read by something: a fact with no reader is not being
+// shared, and sharing is the entire argument for this package existing.
 package project
 
 const (
@@ -34,9 +36,6 @@ const (
 	// Issues is where a bug report goes. Named separately from Home because the About box
 	// has room for one URL and the bug-report paths have room for the specific one.
 	Issues = Home + "/issues"
-
-	// Releases is where a player who does not want to build it goes.
-	Releases = Home + "/releases"
 
 	// Licence is the SPDX identifier. GPLv2 *only*: upstream's grant names version 2 with
 	// no "or any later version" clause, and this port is a function-by-function

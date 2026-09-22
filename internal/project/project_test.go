@@ -13,6 +13,9 @@ package project
 // module cache.
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -205,6 +208,111 @@ func TestTheOriginalsCopyrightIsQuotedAndNotParaphrased(t *testing.T) {
 		t.Errorf("ui-dialogs.md does not quote OriginalCopyright (%q) as the About dialog's "+
 			"statText; DITL 150 item 6 is the authority and section 10.6 transcribes it",
 			OriginalCopyright)
+	}
+}
+
+// TestEveryExportedConstantHereIsReadBySomething turns this package's own argument into a check.
+// The doc comment says these constants exist because a fact spelled out separately in six places
+// will eventually disagree with itself -- which is true of a constant with six readers and says
+// nothing about one with none. An exported constant nobody reads is not a shared fact; it is a
+// string, in a package whose every other string is compared to something, and it inherits the
+// credibility of its neighbours without earning it.
+//
+// It was found rather than imagined. `Releases` was here for a release page that does not exist
+// yet: spelled correctly, built out of Home like the rest, and read by nothing, so no test could
+// have told anyone if it had been wrong (docs/IMPROVEMENTS.md 4.13). It is gone until the thing it
+// names does, and this is what stops the next one.
+//
+// go/parser for the declarations and a text sweep for the readers, and the split is deliberate. A
+// list of what this package exports has to be exact, and gofmt's column alignment is not something
+// to build a regexp on. A reader, on the other hand, is exactly `project.X` written somewhere else
+// -- no type information, no module cache and no network, which is what internal/module settled on
+// for the same reason. The one thing the sweep cannot see is an aliased import, and nothing in this
+// tree aliases this package; if something ever does, this test will ask for a reader that is
+// already there, which is a failure that explains itself.
+func TestEveryExportedConstantHereIsReadBySomething(t *testing.T) {
+	root := repoRoot(t)
+	self := filepath.Join(root, "internal", "project", "project.go")
+	f, err := parser.ParseFile(token.NewFileSet(), self, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var declared []string
+	uses := map[string][]string{} // constant -> the constants its own value is built from
+	for _, d := range f.Decls {
+		g, ok := d.(*ast.GenDecl)
+		if !ok || g.Tok != token.CONST {
+			continue
+		}
+		for _, s := range g.Specs {
+			v, ok := s.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, n := range v.Names {
+				if !n.IsExported() {
+					continue
+				}
+				declared = append(declared, n.Name)
+				for _, val := range v.Values {
+					ast.Inspect(val, func(n2 ast.Node) bool {
+						if id, ok := n2.(*ast.Ident); ok && id.IsExported() {
+							uses[n.Name] = append(uses[n.Name], id.Name)
+						}
+						return true
+					})
+				}
+			}
+		}
+	}
+	// A floor, because a parse that silently found nothing would pass every case below. There are
+	// fourteen as this is written, in two const blocks.
+	if len(declared) < 10 {
+		t.Fatalf("parsed only %d exported constants out of project.go, which has two const "+
+			"blocks of them; the parse is not reaching the declarations", len(declared))
+	}
+
+	// Every .go file in the tree except this package's own two, which read the constants
+	// unqualified and so say nothing about whether anything outside uses them.
+	elsewhere := map[string]string{}
+	for name, body := range textFiles(t) {
+		if filepath.Ext(name) == ".go" && filepath.Dir(name) != filepath.Join("internal", "project") {
+			elsewhere[name] = body
+		}
+	}
+	read := map[string]bool{}
+	for _, name := range declared {
+		re := regexp.MustCompile(`\bproject\.` + name + `\b`)
+		for _, body := range elsewhere {
+			if re.MatchString(body) {
+				read[name] = true
+				break
+			}
+		}
+	}
+
+	// A constant that only one of its neighbours reads counts, as long as that neighbour is read:
+	// `Home` is `"https://" + Module`, so `Module` has no caller of its own and is still the string
+	// every URL in the game is built out of. Reached by walking the dependency edges from the
+	// constants that do have callers, which terminates because a const block cannot be cyclic.
+	for changed := true; changed; {
+		changed = false
+		for name := range read {
+			for _, dep := range uses[name] {
+				if !read[dep] {
+					read[dep], changed = true, true
+				}
+			}
+		}
+	}
+
+	for _, name := range declared {
+		if !read[name] {
+			t.Errorf("project.%s is exported, nothing outside this package reads it, and no "+
+				"constant that is read is built from it -- so nothing checks it either; give it "+
+				"the caller it was written for, or delete it and say in docs/IMPROVEMENTS.md when "+
+				"it comes back", name)
+		}
 	}
 }
 

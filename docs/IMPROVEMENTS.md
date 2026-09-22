@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; five more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards); the rest filed below**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; six more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`); the rest filed below**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3213,6 +3213,32 @@ cost is the part worth remembering:
   reads, which means nothing checks it either. Either the release notes and `-version` should point
   at it or it should go; an exported constant with no reader is a string that can rot silently, and
   this package exists specifically to stop that.
+
+  *(2.4, **DONE**: it is gone, and the class of defect is now a test. Of the two options the bullet
+  offers, "point at it" turned out to be the one that could not be taken honestly. No tag has been
+  pushed (5.4), so the page the constant names has nothing on it — and the README's opening sentence
+  is "there is nothing to download and no copy of the old game to find. Clone it and `make run`",
+  which is **true today** and is the single best thing that paragraph could say. Pointing a player
+  at an empty releases page, in a repository whose 4.13 is a list of documented instructions that
+  did not work, would have been the same defect wearing a nicer hat.*
+
+  *What the deletion cost had to be weighed, because the obvious objection is that 5.4 will want the
+  string back within one command of tagging. It is one line, and the reason it is safe to lose is
+  that the constant was not protecting anything: `TestEveryGitHubLinkIsOneWeMean` reduces every deep
+  link to its repository root before judging it, so a hand-written `.../releases` in the README
+  would pass with or without a constant to compare against. `internal/project` protects **Go**
+  callers, and a downloads URL has no Go caller — the player holding the binary does not need to be
+  told where to download it. 5.4's entry now names the two places the URL belongs when a tag exists.*
+
+  *The general form is worth more than the one deletion. `TestEveryExportedConstantHereIsReadBySomething`
+  parses `project.go` for its exported constants and sweeps every other `.go` file in the tree for
+  `project.X`; a constant nothing reads fails, with the two options in the failure message. It found
+  a second one on the first run, and that one was a false accusation worth keeping: `Module` has no
+  external caller either, because `Home = "https://" + Module` is its only reader — and `Module` is
+  checked, by `TestModuleMatchesGoMod`, and is the string every URL in the game is built from. So the
+  rule is transitive: a constant counts if something outside reads it, or if a constant that counts
+  is built from it. A test that had shipped without that distinction would have demanded a caller for
+  the most load-bearing string in the package.)*
 - **`docs/PLAN.md` §3's architecture map names directories that do not exist.** It was written before
   the tree settled and has not been revisited. Unlike the README's map, which 4.12 now sweeps,
   nothing checks PLAN's — and the two disagree, which is worse than either being wrong alone.
@@ -4376,6 +4402,15 @@ is closed, so an archive is now two binaries and five documents, and `HOW-TO-RUN
 tells anybody where to stand. Two things a release still cannot fix: §1.2's reading of the licence
 the 1994 content is shipped under, and the fact that the same 11.3 MB rides in both binaries of
 every archive (§5.3's first deferred item).
+
+**One thing to do at the moment the first tag is pushed, and not before.** `README.md`'s opening
+paragraph says "there is nothing to download and no copy of the old game to find. Clone it and `make
+run`", and the issue templates ask how the reporter's copy was built. Both become incomplete the
+instant a release page has something on it, and both are the natural home for
+`https://github.com/bwenstar/gliderGo/releases`. That URL used to be a constant,
+`project.Releases`, deleted in 2.4 because it had no reader and a page with nothing on it is not
+something to point a player at (4.13). Putting it back is one line in `internal/project/project.go`,
+and `TestEveryExportedConstantHereIsReadBySomething` will hold it to having a caller this time.
 
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; windows/amd64 is now run as well as compiled, macOS and windows/arm64 are still compile-only**
 
