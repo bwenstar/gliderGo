@@ -1366,7 +1366,7 @@ here is genuinely just transport.
 - *Acceptance:* two processes on this host race to completion; killing the guest mid-race
   leaves the host in a defined state; a house-set mismatch is rejected with a clear message.
 
-### Stage 4 — Windows — **the window half is done, out of order; audio is not**
+### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 
 Brought forward ahead of Stages 2 and 3 for one reason: the release pipeline (5.4) already
 packaged two Windows archives, and shipping archives that could not draw was worse than doing
@@ -1390,10 +1390,26 @@ this early.
   can run, for latency this game cannot use.
 - *Acceptance, and how much of it is met:* `make cross-windows` produces the binary, `go vet`
   passes for `windows/amd64` and `windows/arm64`, and `ci.yml`'s `native` job compiles it with a
-  Windows toolchain and then runs `-frames 300 -bench` on `windows-latest`. **Not met:** frame
-  output diffed against the Linux build on the same input trace, and any run in front of a human.
-  Nothing on this airgapped host can execute a Windows binary, which is why the backend's own
-  package comment opens by saying it has never run.
+  Windows toolchain and then runs `-frames 300 -bench` on `windows-latest`. **Met, and this is
+  what the stage was waiting for:** `v0.1.1`'s own `windows-amd64` binary has been run on a
+  Windows Server 2025 desktop from a directory holding nothing but the `.exe` — 4,320 frames
+  across six runs, all six `-shot` renders hashing identically to Linux's, and an OS screenshot
+  of the running window, cropped to its client area, an exact pixel-for-pixel match for a frame
+  the Linux build renders. That last part is the one that needed a camera rather than an exit
+  code: `Present` deliberately does not check what `StretchDIBits` returns, so a clean exit and a
+  good frame rate are equally consistent with a window that never painted. The paced run held
+  29.9 fps against the original's 30.07 target, and `waveOut` played 73 of 73 sounds asked of it.
+  `docs/windows-first-run.md` is the write-up, and `make check`'s cross-build table now says
+  *"run on Server 2025"* where it used to say *"never run"*.
+- **What that run did not prove**, because the release notes point at it: no key was ever pressed
+  (every run was `-frames`-driven, so `win32/keys.go` is still the least-exercised file in the
+  package on the platform it exists for), nobody resized, focused, dragged or closed the window,
+  `windows/arm64` has never run at all, and the `.exe` arrived over SSH rather than as a download
+  — so it carried no Mark of the Web and SmartScreen never had an opinion about it, which is
+  `docs/IMPROVEMENTS.md` 5.4's pre-tag rehearsal. The audio comparison is a separate finding:
+  Windows and Linux `-wav` captures differ in ~124,000 byte positions, and two Linux runs of the
+  identical command differ from each other in ~122,000, so it is the mixer's wall clock and not
+  the platform (`docs/IMPROVEMENTS.md` 4.11).
 
 ### Stage 5 — house editor
 
