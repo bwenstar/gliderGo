@@ -17,6 +17,44 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### What `make check` says it could *not* check is now true on Windows and macOS (2026-09-22)
+
+Three places print a caveat — the last row of `make cross`, both halves of `check-caveats`, and
+`smoke`'s note when it skips — and all three were written on Linux and said so without meaning to.
+They ask `go env GOOS` now.
+
+The two platforms were wrong in opposite directions. On macOS everything overstated: `make cross`
+built a *darwin* binary with cgo on and printed it as `linux/amd64 +cgo … x11 backend (this host)`,
+and `check-caveats` reported that cgo was off — or that libx11 metadata was missing — about a
+platform that has no backend to compile either way yet. On Windows it understated, which is the
+direction that list exists to prevent: it announced that the x11 backend had not been compiled and
+that `build` had produced the null backend, of a build whose win32 backend needs no cgo, *was*
+compiled, and draws. Then it blamed an unset `DISPLAY`, a variable Windows has no reason to set, for
+the window that did not open.
+
+```
+  darwin/arm64 +cgo            --       not attempted: cgo buys macOS nothing until stage 6
+  - darwin has no backend of its own yet (stage 6), so `build` produced the null
+    backend and cgo makes no difference to that
+
+smoke: not attempted on windows -- DISPLAY is not what decides a window here, and
+       nothing in this Makefile can tell whether one would open. `make bench` is
+       the on-screen run, and it is the one that would say so.
+```
+
+Only the sentences changed. On Windows `smoke` still skips rather than benching, because nothing in
+a Makefile can decide from outside whether a window would open there, and an honest skip is worth
+more inside `make check` than a possible flake. Two smaller things went with it: `smoke` used to say
+the blit path was "still covered by `make headless`", which is backwards — `headless` renders
+through the null backend, so the blit is the one thing it does not cover — and the libx11 row named
+`linux/amd64` whatever architecture you were on.
+
+None of these branches is reachable from CI: `windows-latest` has no `make`, and the macOS half of
+the same job calls `go` directly for the same reason, so the job that compiles and tests the Windows
+and macOS code never runs the Makefile that describes it. `GOOS=darwin make check-caveats` and its
+two siblings print what those readers see, and the Makefile's comments name them, because they are
+the only test these branches have. `docs/IMPROVEMENTS.md` 4.13 has the rest.
+
 ### `make check` now runs the command lines the documents tell you to run (2026-09-22)
 
 A documented command that does not work is the most expensive wrong sentence in a repository: it is

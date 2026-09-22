@@ -53,8 +53,8 @@ in. A block fenced without the `bash` tag is read as sample output and left alon
 the tag is for.
 
 `make check` finishes by printing what it could *not* check on this machine (no `DISPLAY`, cgo off,
-no extracted asset tree). Read that list; a green run with three caveats is not the same as a green
-run.
+no extracted asset tree — and something different on Windows and macOS, where a different backend is
+at stake). Read that list; a green run with three caveats is not the same as a green run.
 
 ## Four rules that a patch can break without anything obvious going wrong
 

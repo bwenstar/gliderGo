@@ -199,21 +199,34 @@ run: build
 bench: build
 	$(BIN)/glidergo -frames 300 -bench
 
-## smoke: the on-screen bench `check` runs, skipped with a note when DISPLAY is unset
+## smoke: the on-screen bench `check` runs, skipped with a note where it cannot
 #
 # smoke is bench for `check`: the on-screen run is the only part of this Makefile
 # that needs a display, and `check` has to pass over SSH and in CI, so a missing
 # DISPLAY is reported and skipped rather than failing the build. `make bench`
 # still fails without one, because there it is what was asked for.
 #
+# `DISPLAY` is an X11 question, so off Linux the note has to be a different note
+# (docs/IMPROVEMENTS.md 4.13). Windows sets no DISPLAY and needs none -- the win32 backend
+# asks the OS for a window -- so the old message skipped for a reason that was not the reason,
+# and told a Windows reader to go and check X11. The behaviour is unchanged, because nothing
+# in a Makefile can decide from outside whether a window would open on Windows; what changes
+# is that it now says that, and names the target that would find out.
+# `GOOS=windows make smoke BIN=/tmp/x` prints it, which is how it was read from here.
+#
 # There is no asset guard here any more, and that is the embed's doing: `-bench` flies
 # Slumberland, and Slumberland is inside the executable. A checkout with `make clean-assets`
 # run over it still benches.
 smoke: build
-	@if [ -z "$$DISPLAY" ]; then \
+	@if [ "$$($(GO) env GOOS)" = windows ]; then \
+		echo "smoke: not attempted on windows -- DISPLAY is not what decides a window here, and"; \
+		echo "       nothing in this Makefile can tell whether one would open. \`make bench\` is"; \
+		echo "       the on-screen run, and it is the one that would say so."; \
+	elif [ -z "$$DISPLAY" ]; then \
 		echo "smoke: DISPLAY is unset -- skipped the on-screen bench;"; \
-		echo "       the blit path is still covered by \`make headless\`."; \
-		echo "       Run \`make bench\` from a desktop session to check X11."; \
+		echo "       what it draws is still covered by \`make headless\`, which renders the same"; \
+		echo "       frames through the null backend. The blit itself is not: run \`make bench\`"; \
+		echo "       from a desktop session for that."; \
 	else \
 		$(BIN)/glidergo -frames 300 -bench; \
 	fi
@@ -331,6 +344,18 @@ cross-windows: embedded
 # and a broken x11 build left `make cross` exiting 0. It is now an if/elif/else, and a host
 # with no x11 pkg-config metadata says `skipped` instead of `FAILED`, because compiling the
 # release targets is what this target is for and the host backend is `make build`'s job.
+#
+# That row is also the only thing here that is about the machine you are standing on rather than
+# about a release target, so it asks `go env GOOS` before it says anything. A macOS reader used to
+# be told that `linux/amd64 +cgo` had skipped the x11 backend for want of libX11 pkg-config
+# metadata -- a caveat about an operating system they are not using, with a remedy that would do
+# them no good (docs/IMPROVEMENTS.md 4.13). Off Linux the cgo build is not attempted at all,
+# because there is nothing left for it to prove: darwin resolves to the null backend with cgo on
+# or off, and windows to win32 either way, so the row above it already carries that claim. The
+# binary keeps its `-x11` suffix, because .github/workflows/release.yml packages
+# `bin/cross/glidergo-linux-amd64-x11` under that exact name. `GOOS=darwin make cross` prints the
+# row a macOS reader gets without building anything for it, which is how the three non-Linux
+# wordings were read from here; see check-caveats below for why that is the only test they have.
 CROSS_TARGETS := windows/amd64 windows/arm64 darwin/amd64 darwin/arm64 linux/arm64 linux/amd64
 cross: embedded
 	@mkdir -p $(BIN)/cross
@@ -347,15 +372,23 @@ cross: embedded
 		if GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(STAMPED)' -o $(BIN)/cross/glidertool-$$os-$$arch$$ext ./cmd/glidertool 2>&1; then \
 			:; else printf '  %-22s glidertool FAILED\n' "$$os/$$arch"; fail=1; fi; \
 	done; \
-	host=$(BIN)/cross/glidergo-linux-amd64-x11; \
-	if ! pkg-config --exists x11 2>/dev/null; then \
+	hostos=$$($(GO) env GOOS); hostarch=$$($(GO) env GOARCH); \
+	host=$(BIN)/cross/glidergo-$$hostos-$$hostarch-x11; \
+	if [ "$$hostos" != linux ]; then \
+		case $$hostos in \
+			windows) why="not attempted: win32 needs no cgo, so the row above is it";; \
+			darwin)  why="not attempted: cgo buys macOS nothing until stage 6";; \
+			*)       why="not attempted: cgo buys this OS nothing -- no backend";; \
+		esac; \
+		printf '  %-22s %8s       %s\n' "$$hostos/$$hostarch +cgo" "--" "$$why"; \
+	elif ! pkg-config --exists x11 2>/dev/null; then \
 		printf '  %-22s %8s       x11 backend skipped: no libx11 pkg-config metadata\n' \
-			"linux/amd64 +cgo" "--"; \
+			"$$hostos/$$hostarch +cgo" "--"; \
 	elif CGO_ENABLED=1 $(GO) build -ldflags '$(STAMPED)' -o $$host ./cmd/glidergo; then \
-		printf '  %-22s %8s KiB  x11 backend (this host)\n' "linux/amd64 +cgo" \
+		printf '  %-22s %8s KiB  x11 backend (this host)\n' "$$hostos/$$hostarch +cgo" \
 			"$$(( $$(wc -c < $$host) / 1024 ))"; \
 	else \
-		printf '  %-22s FAILED\n' "linux/amd64 +cgo"; fail=1; \
+		printf '  %-22s FAILED\n' "$$hostos/$$hostarch +cgo"; fail=1; \
 	fi; \
 	exit $$fail
 
@@ -447,20 +480,49 @@ check: embedded fmt-check vet test build glidertool houses levels headless audio
 # with an error of pkg-config's own. It is reachable by running `make check-caveats` directly,
 # which is what `make doctor`-adjacent use looks like, and it stays for that. There is no silent
 # fallback to the null backend: that is `make headless`, asked for by name.
+#
+# Every sentence here is about a backend, and which backend you have is decided by GOOS, so both
+# halves ask before they speak (docs/IMPROVEMENTS.md 4.13). The old text was three Linux
+# assumptions worn as universals. On Windows it said cgo was off and so the x11 backend had not
+# been compiled -- of a build whose win32 backend needs no cgo and *was* compiled -- and then
+# blamed an unset `DISPLAY`, a variable Windows has no reason to set, for a window that did not
+# open. On macOS it said the same two things about a platform that has no backend to compile at
+# all. A caveat list is the one place in this file that must be right about what did not happen,
+# because it is the only thing standing between a green run and a claim the run did not make.
+#
+# The other branches are reachable from here, which is why they can be trusted at all: they ask
+# `go env GOOS`, and that answers the environment, so `GOOS=darwin make check-caveats` and
+# `GOOS=windows make check-caveats` print exactly what a reader on those machines would see. CI
+# does not do it -- windows-latest has no `make`, and the macOS half of the same job calls `go`
+# directly for the same reason (the `native` job in .github/workflows/ci.yml) -- so those two
+# command lines are the only test these branches have, and a change here should run all four.
 check-caveats:
-	@n=0; \
-	if [ "$$($(GO) env CGO_ENABLED)" != "1" ]; then \
-		echo "  - cgo is off, so the x11 backend was NOT compiled; \`build\` produced the null backend"; n=1; \
-	elif ! pkg-config --exists x11 2>/dev/null; then \
-		echo "  - libx11 dev metadata is missing, so the x11 backend was NOT compiled"; n=1; \
-	fi; \
+	@n=0; os=$$($(GO) env GOOS); \
+	case $$os in \
+	linux) \
+		if [ "$$($(GO) env CGO_ENABLED)" != "1" ]; then \
+			echo "  - cgo is off, so the x11 backend was NOT compiled; \`build\` produced the null backend"; n=1; \
+		elif ! pkg-config --exists x11 2>/dev/null; then \
+			echo "  - libx11 dev metadata is missing, so the x11 backend was NOT compiled"; n=1; \
+		fi;; \
+	windows) ;; \
+	*) \
+		echo "  - $$os has no backend of its own yet (stage 6), so \`build\` produced the null"; \
+		echo "    backend and cgo makes no difference to that"; n=1;; \
+	esac; \
 	if ! $(HAVE_HOUSES) || ! $(HAVE_ART) || ! $(HAVE_SOUND); then \
 		echo "  - no extracted asset tree: the house round-trip and the pixel corpus were NOT"; \
 		echo "    checked (the runs above used the copy inside the binaries and are unaffected)"; n=1; \
 	fi; \
-	if [ -z "$$DISPLAY" ]; then \
-		echo "  - DISPLAY is unset, so the on-screen blit was NOT exercised"; n=1; \
-	fi; \
+	case $$os in \
+	linux) \
+		if [ -z "$$DISPLAY" ]; then \
+			echo "  - DISPLAY is unset, so the on-screen blit was NOT exercised"; n=1; \
+		fi;; \
+	windows) \
+		echo "  - nothing opened a window: \`smoke\` is the X11 bench, and the on-screen run"; \
+		echo "    here is \`make bench\` by hand"; n=1;; \
+	esac; \
 	if [ $$n -eq 0 ]; then \
 		echo "         toolchain, cgo, tests, houses, levels, headless, audio, pixels, cross-build and the blit path"; \
 	else \

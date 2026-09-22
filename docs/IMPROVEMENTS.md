@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; four more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines); the rest filed below**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; five more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards); the rest filed below**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3168,6 +3168,47 @@ cost is the part worth remembering:
   written down.)*
 - **`cross`'s caveats are not guarded on `GOOS`**, so a macOS reader is told what a Linux build
   cannot do. Same for the Windows and macOS gate commands, which name Linux paths.
+
+  *(2.4, **DONE**. Three targets print a caveat, and all three of them were Linux assumptions worn
+  as universals: `cross`'s last row, both halves of `check-caveats`, and `smoke`'s skip note. Each
+  now asks `go env GOOS` first.*
+
+  *What they said before is worth recording, because the two operating systems were wrong in
+  opposite directions and only one of them looks like a bug. On macOS everything overstated: `cross`
+  built a **darwin** binary with cgo on and printed it as `linux/amd64 +cgo … x11 backend (this
+  host)` — a row whose shape was right and whose every fact was false — and `check-caveats` reported
+  that cgo was off, or that libx11 metadata was missing, about a platform that has no backend to
+  compile either way until stage 6. On Windows it understated, which is the direction `check-caveats`
+  exists to prevent: it said the x11 backend was NOT compiled and that `build` had produced the null
+  backend, of a build whose win32 backend needs no cgo, **was** compiled, and draws — and then
+  blamed an unset `DISPLAY` for the window that did not open, of an OS that has no reason to set one.
+  A caveat list that undersells a green run teaches people to stop reading it, which costs exactly as
+  much as one that oversells.*
+
+  *The bullet's second sentence names something that does not exist: there are no "Windows and macOS
+  gate commands" in any document here — `grep` finds none, and the gate is one `make check` that runs
+  everywhere. What it must have meant is these three printed caveats, and they are what was fixed.
+  Recorded so the next reader does not go looking.*
+
+  *Two fixes in passing. `smoke`'s old note said the blit path "is still covered by `make headless`",
+  which is backwards — `headless` renders through the null backend, so the blit is precisely the one
+  thing it does not cover — and that is the same defect as the Windows caveat, one line up. And the
+  libx11 branch printed a hardcoded `linux/amd64 +cgo`, so a linux/arm64 host was told about somebody
+  else's architecture; it uses `go env GOARCH` now. What did not change is behaviour: on Windows,
+  `smoke` still skips rather than benching, because nothing in a Makefile can decide from outside
+  whether a window would open there, and turning an honest skip into a possible flake inside
+  `make check` would be a worse trade than the wrong sentence was. It now says that, and names `make
+  bench`.*
+
+  *How the new wordings were read, given that this host is Linux: `GOOS=darwin make check-caveats`,
+  `GOOS=darwin make cross` and `GOOS=windows make smoke BIN=/tmp/x` print exactly what a reader on
+  those machines sees, because all three branches ask `go env GOOS` and that answers the environment.
+  All four values were run — linux, windows, darwin and a `freebsd` that stands for the default arm.
+  Those command lines are in the Makefile's comments, because they are the only test these branches
+  have and that is not obvious: CI never reaches any of them. `windows-latest` has no `make` at all
+  and the macOS half of the same job calls `go` directly for the same reason, so the `native` job
+  compiles and tests the Windows and macOS code without ever running the Makefile that describes
+  it.)*
 - **`project.Releases` has no caller.** It is the one constant in `internal/project` that nothing
   reads, which means nothing checks it either. Either the release notes and `-version` should point
   at it or it should go; an exported constant with no reader is a string that can rot silently, and
