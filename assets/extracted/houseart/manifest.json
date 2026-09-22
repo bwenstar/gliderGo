@@ -2274,92 +2274,92 @@
     {
      "bytes": 4,
      "id": 3000,
-     "rect": [
-      256,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      257,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3002,
-     "rect": [
-      256,
-      256,
-      0,
-      -24146
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3003,
-     "rect": [
-      257,
-      257,
-      0,
-      27854
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3300,
-     "rect": [
-      257,
-      256,
-      0,
-      14266
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      257,
-      257,
-      0,
-      -17364
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3302,
-     "rect": [
-      257,
-      256,
-      0,
-      256
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3303,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3304,
-     "rect": [
-      256,
-      256,
-      0,
-      -19532
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     }
    ],
    "house": "Castle o' the Air",
@@ -3057,102 +3057,102 @@
     {
      "bytes": 4,
      "id": 3000,
-     "rect": [
-      0,
-      256,
-      0,
-      -15404
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      256,
-      256,
-      0,
-      14718
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3002,
-     "rect": [
-      256,
-      256,
-      0,
-      20872
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3003,
-     "rect": [
-      256,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3004,
-     "rect": [
-      256,
-      0,
-      1,
-      8496
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3005,
-     "rect": [
-      0,
-      0,
-      1,
-      -30640
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3300,
-     "rect": [
-      1,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": false,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      1,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3302,
-     "rect": [
-      257,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3303,
-     "rect": [
-      257,
-      256,
-      0,
-      -19306
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     }
    ],
    "house": "Demo House",
@@ -4370,142 +4370,142 @@
     {
      "bytes": 4,
      "id": 3000,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      256,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3002,
-     "rect": [
-      0,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3003,
-     "rect": [
-      256,
-      0,
-      0,
-      24776
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3004,
-     "rect": [
-      1,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": false,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3005,
-     "rect": [
-      1,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3006,
-     "rect": [
-      0,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": false,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3007,
-     "rect": [
-      256,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3008,
-     "rect": [
-      257,
-      257,
-      1,
-      1066
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3300,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      1,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3302,
-     "rect": [
-      0,
-      257,
-      0,
-      15392
-     ]
+     "open": {
+      "bottom": true,
+      "left": false,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3303,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3304,
-     "rect": [
-      257,
-      256,
-      0,
-      23366
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     }
    ],
    "house": "ImagineHouse PRO II",
@@ -5146,52 +5146,52 @@
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      256,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3002,
-     "rect": [
-      257,
-      257,
-      1,
-      11498
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3003,
-     "rect": [
-      256,
-      256,
-      0,
-      -23188
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3302,
-     "rect": [
-      256,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     }
    ],
    "house": "Land of Illusion",
@@ -5413,42 +5413,42 @@
     {
      "bytes": 4,
      "id": 3000,
-     "rect": [
-      1,
-      0,
-      0,
-      40
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      256,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3300,
-     "rect": [
-      257,
-      257,
-      0,
-      15064
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      257,
-      257,
-      0,
-      24564
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     }
    ],
    "house": "Leviathan",
@@ -7154,62 +7154,62 @@
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      257,
-      257,
-      0,
-      256
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      257,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3302,
-     "rect": [
-      257,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3303,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3304,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3305,
-     "rect": [
-      257,
-      257,
-      0,
-      -6420
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     }
    ],
    "house": "Rainbow's End",
@@ -7408,202 +7408,202 @@
     {
      "bytes": 4,
      "id": 3000,
-     "rect": [
-      256,
-      256,
-      0,
-      -24190
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      0,
-      0,
-      0,
-      -12028
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3002,
-     "rect": [
-      0,
-      0,
-      0,
-      -30950
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3003,
-     "rect": [
-      256,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3004,
-     "rect": [
-      256,
-      0,
-      0,
-      -7826
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3005,
-     "rect": [
-      256,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3006,
-     "rect": [
-      257,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3007,
-     "rect": [
-      257,
-      256,
-      0,
-      -26516
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3008,
-     "rect": [
-      256,
-      0,
-      0,
-      256
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3009,
-     "rect": [
-      256,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3010,
-     "rect": [
-      256,
-      256,
-      0,
-      -7260
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3300,
-     "rect": [
-      257,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": false,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3301,
-     "rect": [
-      1,
-      1,
-      0,
-      32488
-     ]
+     "open": {
+      "bottom": true,
+      "left": false,
+      "right": false,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3302,
-     "rect": [
-      0,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": false,
+      "right": true,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3303,
-     "rect": [
-      256,
-      1,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3304,
-     "rect": [
-      257,
-      256,
-      0,
-      -8566
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3305,
-     "rect": [
-      257,
-      256,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3306,
-     "rect": [
-      257,
-      256,
-      0,
-      -4014
-     ]
+     "open": {
+      "bottom": false,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3307,
-     "rect": [
-      257,
-      257,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     },
     {
      "bytes": 4,
      "id": 3308,
-     "rect": [
-      257,
-      257,
-      1,
-      22338
-     ]
+     "open": {
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "top": true
+     }
     }
    ],
    "house": "Slumberland",
@@ -9570,22 +9570,22 @@
     {
      "bytes": 4,
      "id": 3000,
-     "rect": [
-      0,
-      0,
-      0,
-      256
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": false
+     }
     },
     {
      "bytes": 4,
      "id": 3001,
-     "rect": [
-      0,
-      0,
-      0,
-      4
-     ]
+     "open": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": false
+     }
     }
    ],
    "house": "The Asylum Pro",

@@ -260,34 +260,41 @@ func interiorThresholds(leftTile, rightTile, wallTile int16) (left, right int16)
 // GetOriginalBounding is Room.c:937-966: the opening bits of a house's own
 // background, read from its 'bnds' resource.
 //
-// The resource is eight bytes shaped like a Rect and used as four booleans: any
-// non-zero side is an open side. The packing is left=1, top=2, right=4, bottom=8,
-// which is the same order as the room's own bounds field once that has been shifted
-// down by one -- so the two sources are interchangeable, which is the point.
+// The resource is four bytes used as four booleans: any non-zero side is an open
+// side. The packing is left=1, top=2, right=4, bottom=8, which is the same order as
+// the room's own bounds field once that has been shifted down by one -- so the two
+// sources are interchangeable, which is the point.
 //
 // A missing resource gives 0: closed on all four sides. That is the safe direction
 // and is what the original does; it also raises a yellow alert, but only when a PICT
 // of the same id *does* exist, i.e. only when an author drew a background and never
 // saved its openings. The alert is advisory and not reproduced.
+//
+// A missing *asset tree* gives 0 by the same route, and that is worth stating because
+// it is not the same claim: a Bnds with nowhere to read from cannot tell "this
+// background is enclosed" from "nobody handed me the house's resource fork", and 155
+// rooms in the shipped corpus then come out sealed. Every caller of this function is
+// reached from DetermineRoomOpenings, so a tool that measures a house has to open the
+// fork before it asks (internal/profile.Measure says so at more length).
 func (w *World) GetOriginalBounding(theID int16) int16 {
 	if w.R.A == nil {
 		return 0
 	}
-	r, ok := w.R.A.Bnds(theID)
+	b, ok := w.R.A.Bnds(theID)
 	if !ok {
 		return 0
 	}
 	code := int16(0)
-	if r.Left != 0 {
+	if b.Left {
 		code += 1
 	}
-	if r.Top != 0 {
+	if b.Top {
 		code += 2
 	}
-	if r.Right != 0 {
+	if b.Right {
 		code += 4
 	}
-	if r.Bottom != 0 {
+	if b.Bottom {
 		code += 8
 	}
 	return code

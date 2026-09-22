@@ -232,36 +232,60 @@ func (a *Assets) MaskedPlate(id int16) *Surface {
 	return s
 }
 
+// Bounds is boundsType (GliderPRO/Headers/GliderStructs.h:266-272), the whole of a
+// 'bnds' resource:
+//
+//	typedef struct { Boolean left; Boolean top; Boolean right; Boolean bottom; } boundsType;
+//
+// Four bytes, in that order, each read as a flag and never as a coordinate: a
+// non-zero byte means that side of the room is open. It is a struct here rather than
+// a Rect because it is not a rectangle, and because calling it one is how this got
+// decoded wrong -- see Bnds.
+type Bounds struct{ Left, Top, Right, Bottom bool }
+
 // Bnds is GetResource('bnds', id): a house background's own opening flags.
 //
-// The resource is eight bytes laid out as a Rect and used as four independent
-// booleans -- a non-zero field means that side is open. It is never read as a
-// rectangle, which is why the four values in the shipped houses are 0 and 1 rather
-// than coordinates. GetOriginalBounding packs it into the same 1/2/4/8 bit code the
-// room's own `bounds` field carries.
+// **This read was four bytes wide all along.** It was written as an eight-byte Rect
+// of big-endian int16s, on the reasonable-looking grounds that the C declares the
+// handle `boundsHand` and QuickDraw's Rect is what usually sits behind such a name.
+// It is not: boundsType is four Booleans. Every one of the 70 'bnds' resources the
+// shipped houses carry is exactly 4 bytes, so the old `len(raw) < 8` guard rejected
+// all of them, GetOriginalBounding answered 0 for every lookup, and 0 is closed on all
+// four sides. 155 rooms across 7 houses take this fallback, and 146 of them lost at
+// least one exit they should have had -- 141 the left wall, 138 the right, 109 the
+// ceiling, 79 the floor. The 79 are the ones that show: a closed bottom is a floor, so
+// the glider could not fall out of a room the original drops it through, and
+// IsShadowVisible drew a shadow on a plane that is not there.
+// docs/analysis/house-format.md 4.2.1 had the layout right, with the struct quoted;
+// nothing compared the two until internal/profile's room graph came up short on exactly
+// those seven houses.
 //
 // 'bnds' exists only in house forks, never in the application's -- the eighteen
 // built-in backgrounds are handled by name in the switches that would otherwise ask
 // for one. So this is the one lookup with no fallback to application art: a missing
 // resource means the author never saved openings for that background, and
 // GetOriginalBounding's answer is then 0, meaning closed on all four sides.
-func (a *Assets) Bnds(id int16) (Rect, bool) {
+func (a *Assets) Bnds(id int16) (Bounds, bool) {
 	a.mu.Lock()
 	fsys := a.houseFS
 	a.mu.Unlock()
 	if fsys == nil {
-		return Rect{}, false
+		return Bounds{}, false
 	}
 	raw, err := fs.ReadFile(fsys, path.Join("bnds", fmt.Sprintf("%d.bin", id)))
-	if err != nil || len(raw) < 8 {
+	if err != nil || len(raw) < 4 {
 		// Not an error. The original's GetResource returns nil here and
 		// GetOriginalBounding raises a yellow alert only if a PICT of the same id
 		// does exist -- i.e. only when the author drew a background and forgot its
 		// bounds. That alert is advisory and is not reproduced.
-		return Rect{}, false
+		return Bounds{}, false
 	}
-	be := func(i int) int16 { return int16(raw[i])<<8 | int16(raw[i+1]) }
-	return Rect{Top: be(0), Left: be(2), Bottom: be(4), Right: be(6)}, true
+	return Bounds{
+		Left:   raw[0] != 0,
+		Top:    raw[1] != 0,
+		Right:  raw[2] != 0,
+		Bottom: raw[3] != 0,
+	}, true
 }
 
 // PictFrame is the picFrame of a picture, zero-cornered. GetObjectRect needs it

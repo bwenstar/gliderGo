@@ -17,6 +17,45 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### 155 rooms in the shipped houses were sealed on all four sides, because a four-byte resource was read as an eight-byte rectangle (2026-09-22)
+
+**A fidelity bug, and not a small one.** `internal/render.Assets.Bnds` decoded the `'bnds'` resource as
+a QuickDraw `Rect` — eight bytes, four big-endian `int16`s — because the C declares its handle
+`boundsHand`. `boundsType` is four one-byte `Boolean`s in the order left, top, right, bottom
+(`GliderPRO/Headers/GliderStructs.h:266-272`), and every one of the 70 resources the shipped houses
+carry is exactly four bytes. The `len(raw) < 8` guard therefore rejected all 70, `GetOriginalBounding`
+answered 0 for every lookup, and 0 means closed on all four sides.
+
+A room takes that path when it has a house's own background and no `bounds` field of its own. **155
+rooms across 7 houses do**: Castle o' the Air 55, Rainbow's End 30, Slumberland 24, Land of Illusion 21,
+Demo House 10, Leviathan 9, The Asylum Pro 6. **146 of the 155 lost at least one exit they should have
+had** — 141 the left wall, 138 the right, 109 the ceiling, 79 the floor. The other nine really are
+sealed, by a resource of four zero bytes, and none of those nine is a trap: they leave by a staircase, a
+window or a `kInvisTrans`.
+
+The 79 are the ones a player would have noticed. A closed bottom *is* a floor, so those rooms got a
+floor the original does not give them: the glider could not fall out of a room designed to drop it, and
+`IsShadowVisible` drew a shadow on a floor plane that is not there (`Room.c:1103-1133`).
+
+`render.Bounds` is now a struct of four `bool`s rather than a `Rect`, so the type refuses the mistake,
+and three tests stand where none did: a byte-driven decode test whose cases fail under the old reading,
+a pass over all 70 shipped resources asserting each is four bytes of 0/1 and each is found, and a census
+in `internal/game` pinning the 155 rooms per house and checking the flags arrive as the openings
+`DetermineRoomOpenings` reads. Six of the 22 house digests in
+`internal/game/testdata/objects_golden.txt` move as a result, which is the whole visible consequence —
+`master` and `hot` counts are unchanged, since object rectangles never depended on this.
+`tools/extract_house_art.py` carried the same assumption in its manifest, where a `">4h"` unpack
+over-read each four-byte resource into the next one; it now records the four flags by name, and
+`assets/extracted/houseart/manifest.json` and the archive are regenerated.
+
+**The documents had it right the whole time** — in twenty-nine places across eight of the thirteen that
+mention the resource, including a numbered list of porting traps in `docs/analysis/structs.md:4332`
+whose item 3 is this bug by name: *"Four bytes, easy to get backwards, and the symptom is rooms with the
+wrong walls open."* Nothing compared the documents to the code. What found it was `internal/profile`'s
+room-graph walk, checked against the independent Python transcription's published figures, coming out
+short on exactly six of the eight houses that ship the resource. `docs/IMPROVEMENTS.md` 4.24 is the entry, and it
+files the general check: a decoder and a documented layout should be made to agree by a test.
+
 ### An object is now read against the background it stands in, and the paragraph that justified the severities was audited first (2026-09-22)
 
 Three new lint checks — `mount-no-floor` and `mount-no-ceiling` at warn, `starfield-tiles` at note —

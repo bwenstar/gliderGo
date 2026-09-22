@@ -693,6 +693,132 @@ func TestDirtInconsistencyIsReachableInShippedHouses(t *testing.T) {
 	}
 }
 
+// TestTheBndsFallbackFiresAndFindsItsResource counts the rooms that ask a background for
+// its openings instead of carrying their own, and checks that the question gets answered.
+//
+// The fallback is GetOriginalBounding, reached from DetermineRoomOpenings when a room has
+// a house's own background (>= kUserBackground) and a `bounds` field of 0. It is not a
+// rare path: docs/analysis/houses-inventory.md counts 155 rooms across 7 houses, and its
+// second claim is the one worth a test -- "every one of them does have a matching `bnds`
+// resource, so the boundsCode-0 default never actually fires on the shipped corpus."
+//
+// That claim was true of the houses and false of this port, for as long as
+// render.Assets.Bnds read the four-byte record as an eight-byte Rect: every lookup
+// failed, every one of the 155 rooms came out sealed on all four sides, and the only
+// symptom was six houses' room graphs being smaller than the published figures. So this
+// test asserts the three things that would have caught it -- the fallback is taken, the
+// resource is found, and a room that is sealed is sealed because its author said so.
+func TestTheBndsFallbackFiresAndFindsItsResource(t *testing.T) {
+	houseDir := requireAssets(t, "houses")
+	artDir := requireAssets(t, "art")
+	paths, _ := filepath.Glob(filepath.Join(houseDir, "*.house"))
+	if len(paths) == 0 {
+		t.Skipf("no houses in %s", houseDir)
+	}
+	sort.Strings(paths)
+
+	// The published census, per house. Pinned by name rather than as a total, because a
+	// total can stay at 155 while two houses trade rooms.
+	want := map[string]int{
+		"Castle o' the Air": 55,
+		"Rainbow's End":     30,
+		"Slumberland":       24,
+		"Land of Illusion":  21,
+		"Demo House":        10,
+		"Leviathan":         9,
+		"The Asylum Pro":    6,
+	}
+
+	got := map[string]int{}
+	fallback, missing, sealed := 0, 0, 0
+	for _, path := range paths {
+		name := strings.TrimSuffix(filepath.Base(path), ".house")
+		h, err := house.LoadFile(path)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		forkDir := filepath.Join(assetRoot, "houseart", name)
+		if _, err := os.Stat(forkDir); err != nil {
+			forkDir = ""
+		}
+		w := newTestWorld(h, artDir, forkDir)
+
+		for r := range h.Rooms {
+			rm := &h.Rooms[r]
+			if rm.Suite == -1 || rm.Background < UserBackground || rm.Bounds != 0 {
+				continue
+			}
+			fallback++
+			got[name]++
+
+			// Bnds rather than GetOriginalBounding, because the two answers this test
+			// has to tell apart -- "no resource" and "a resource saying closed" -- are
+			// both 0 by the time GetOriginalBounding has finished with them.
+			b, ok := w.R.A.Bnds(rm.Background)
+			if !ok {
+				missing++
+				t.Errorf("%s room %d (%q): background %d has no 'bnds' resource, so its "+
+					"four openings default to closed", name, r, rm.Name.Text(), rm.Background)
+				continue
+			}
+			if !b.Left && !b.Top && !b.Right && !b.Bottom {
+				sealed++
+			}
+
+			// And the round trip: the flags have to arrive as the code
+			// DetermineRoomOpenings reads, with kDirt's 1/2/4/8 packing.
+			code := w.GetOriginalBounding(rm.Background)
+			w.R.RoomNumber = int16(r)
+			w.DetermineRoomOpenings()
+			if wantLeft := code&0x0001 != 0; w.R.LeftOpen != wantLeft {
+				t.Errorf("%s room %d: leftOpen %v, 'bnds' says %v", name, r, w.R.LeftOpen, wantLeft)
+			}
+			if wantRight := code&0x0004 != 0; w.R.RightOpen != wantRight {
+				t.Errorf("%s room %d: rightOpen %v, 'bnds' says %v", name, r, w.R.RightOpen, wantRight)
+			}
+			if w.R.TopOpen != b.Top {
+				t.Errorf("%s room %d: topOpen %v, 'bnds' says %v", name, r, w.R.TopOpen, b.Top)
+			}
+			if w.R.BottomOpen != b.Bottom {
+				t.Errorf("%s room %d: bottomOpen %v, 'bnds' says %v", name, r, w.R.BottomOpen, b.Bottom)
+			}
+		}
+	}
+
+	names := make([]string, 0, len(got))
+	for n := range got {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		t.Logf("%s: %d rooms read their openings from a 'bnds' resource", n, got[n])
+	}
+	t.Logf("%d rooms across %d houses take the fallback; %d found no resource, "+
+		"%d were told they are sealed", fallback, len(got), missing, sealed)
+
+	if len(got) != len(want) {
+		t.Errorf("%d houses take the fallback, houses-inventory.md says %d", len(got), len(want))
+	}
+	for n, exp := range want {
+		if got[n] != exp {
+			t.Errorf("%s: %d fallback rooms, houses-inventory.md says %d", n, got[n], exp)
+		}
+	}
+	// Nine of the 155 are told they are sealed, by a resource of four zero bytes. Six are
+	// The Asylum Pro's, which is both of that house's resources and so the one house where
+	// the broken decode was indistinguishable from the right one. The other three are Demo
+	// House's "Windows" and Slumberland's "Paul's Room" and "ssalG gnikooL", and none of
+	// the three is a trap: the first two carry a staircase and a window, and the third is
+	// the Looking Glass, which is entered and left through a kInvisTrans. So "no openings"
+	// is not "no way out" -- staircases, windows and linked transports are exits a 'bnds'
+	// record knows nothing about, and anything that walks a house's room graph has to read
+	// a room's objects as well as its walls.
+	if sealed != 9 {
+		t.Errorf("%d fallback rooms are sealed on all four sides, want 9", sealed)
+	}
+}
+
 // TestOpeningInvariantsOverCorpus asserts the structural properties of
 // DetermineRoomOpenings over all 4,070 rooms, which the golden hash pins but does not
 // explain.

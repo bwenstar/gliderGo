@@ -3761,6 +3761,88 @@ drawn floating is something a player sees.
 
 ---
 
+### 4.24 Eight analysis documents state a resource's layout, one of them warns that getting it wrong opens the wrong walls, and the port got it wrong — **found and DONE, 2.4**
+
+`internal/render.Assets.Bnds` read the `'bnds'` resource as an eight-byte QuickDraw `Rect` of
+big-endian `int16`s, on the reasonable-looking grounds that the C declares its handle `boundsHand`.
+It is not a `Rect`. `boundsType` is four one-byte `Boolean`s — `left`, `top`, `right`, `bottom`
+(`GliderPRO/Headers/GliderStructs.h:266-272`) — and every one of the 70 resources the shipped houses
+carry is exactly four bytes. So the guard `len(raw) < 8` rejected **all 70**, `GetOriginalBounding`
+answered 0 for every lookup, and 0 means closed on all four sides.
+
+**What that does to the shipped game.** 155 rooms across 7 houses take that fallback — a room with a
+house's own background and no `bounds` field of its own — and **146 of them lost at least one exit they
+should have had**: 141 the left wall, 138 the right, 109 the ceiling, 79 the floor. Castle o' the Air 55
+rooms, Rainbow's End 30, Slumberland 24, Land of Illusion 21, Demo House 10, Leviathan 9, The Asylum Pro
+6 — which includes the four largest houses in the corpus by room count and the two most likely to be
+opened first.
+
+The 79 are the ones a player would have met. A closed bottom *is* a floor, so those rooms were given one
+the original does not give them: the glider could not fall out of a room designed to drop it, and
+`IsShadowVisible` drew a shadow on a floor plane that is not there (`Room.c:1103-1133`). The other nine
+of the 155 are genuinely sealed, by a resource of four zero bytes, and were the only rooms the broken
+decode got right by accident.
+
+**The documents were right, in twenty-nine places, in eight of the thirteen that mention the
+resource.** `docs/analysis/interactions.md` §20.5 is titled "`'bnds'` resources — the 4-byte fallback"
+and prints a decoded table of all nine of Castle o' the Air's, byte values and resulting thresholds
+included. `docs/analysis/constants.md:6224` says outright: "A port must read `'bnds'` from the house's
+resource fork; hard-coding 0 breaks room openness in those eight houses." `docs/analysis/house-format.md`
+§4.2.1 quotes the struct. And `docs/analysis/structs.md:4332` is item **3** of a numbered list of the
+traps a porter falls into, whose whole text is this bug:
+
+> **3. `'bnds'` is `{left, top, right, bottom}` — a *different* order from `Rect`.** The one place in
+> the format where the QuickDraw convention does *not* apply (§9.3, `GliderStructs.h:266-272`). Four
+> bytes, easy to get backwards, and the symptom is rooms with the wrong walls open.
+
+Written in advance, about this function, naming the symptom. Nothing read it back.
+
+**Why nothing caught it, which is the part worth generalising.** Three things had to line up:
+
+1. **`Bnds` had no test.** It is the only function in `internal/render` that decodes raw resource
+   bytes at all — everything else in the package goes through PNGs — and it was the one with nothing
+   driving it. Its one caller, `GetOriginalBounding`, had no test either.
+2. **A golden hash over the corpus passed.** `TestObjectGraphEveryRoom` hashes `LeftThresh`,
+   `RightThresh` and the four opening flags for all 4,070 rooms, so it covered every affected room and
+   said nothing — because a golden pins *change*, not correctness. It had recorded the wrong answer as
+   the expected one from the day it was written. Fixing this moved six of its 22 house digests, which
+   is the only signal it was ever going to give.
+3. **The wrong answer is a plausible answer.** "Sealed" is what an unfinished house looks like, and
+   `docs/analysis/original-houses.md` §3.6 already reports that every corpus house has unreachable
+   rooms, so a low reachable count is not by itself suspicious. There was no screen that looked wrong.
+
+**What found it was a second implementation with published numbers.** `tools/probe_houses_inventory.py`
+transcribed `DetermineRoomOpenings` from the C independently, and §3.6 publishes its per-house figures
+including rooms-reachable and BFS eccentricity. When `internal/profile`'s Go walk (4.16) was checked
+against that table, six houses came out short — and it was *which* six that named the cause, because
+they are six of the eight houses that ship `'bnds'`. Two independent decodings of the same bytes,
+compared by a test, is the pattern; a golden hash of one decoding is not.
+
+**What shipped.** `render.Bounds` is now a struct of four `bool`s and not a `Rect`, so the type itself
+refuses the mistake. `TestBndsIsFourBooleansAndNotARect` drives the decoder from bytes, with cases
+chosen to fail under the old reading rather than merely to pass under the new one.
+`TestEveryShippedBndsResourceLoads` asserts all 70 are four bytes of 0/1 and that all 70 are found.
+`TestTheBndsFallbackFiresAndFindsItsResource` pins the 155-room census per house, checks the flags
+arrive as the openings `DetermineRoomOpenings` reads, and confirms
+`docs/analysis/houses-inventory.md`'s second claim — that no shipped room ever actually hits the
+missing-resource default. Nine of the 155 *are* told they are sealed by a resource of four zero bytes,
+and none of the nine is a trap: The Asylum Pro's six, plus Demo House's "Windows" and Slumberland's
+"Paul's Room" and "ssalG gnikooL", which leave by a staircase, a window and a `kInvisTrans`
+respectively. `tools/extract_house_art.py` had the same wrong assumption in its manifest, where a
+`">4h"` unpack over-read a four-byte resource into the next one and published garbage coordinates
+beside a correct `"bytes": 4`; it now records the four flags by name.
+
+**Filed, not written: a check that a documented layout and its decoder agree.** The analysis documents
+quote dozens of on-disk structures with stated byte widths, and nothing compares any of them to the Go
+that reads them. The cheap version is not a parser — it is a per-resource-type assertion that the
+extracted tree's records are the width the document claims, which is two lines each and would have
+caught this the first time the assets were extracted. The expensive version, a doc-to-struct
+comparison, wants the documents to carry machine-readable layout blocks and is 4.12's citation-checker
+argument one level down. **Severity if it ships:** error — a decoder that disagrees with its own
+specification is not a style question, and the corpus is the evidence either way.
+
+---
+
 ## 5. Getting off this machine: the build, the package and the public path
 
 Everything above is about the game. This section is about the fact that the game is being

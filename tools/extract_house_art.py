@@ -17,7 +17,7 @@ resources a renderer cannot draw most of the shipped houses at all.
 Output
 ------
     houseart/<house>/pict/<id>.png     RGB, no alpha
-    houseart/<house>/bnds/<id>.bin     raw 'bnds' record, 8 bytes
+    houseart/<house>/bnds/<id>.bin     raw 'bnds' record, 4 bytes
     houseart/manifest.json
 
 Why RGB and not RGBA
@@ -39,7 +39,6 @@ Pro (1) are affected.
 
 import json
 import os
-import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -141,8 +140,17 @@ def run(resdir, housedir, outdir):
             with open(os.path.join(bdir, "%d.bin" % rid), "wb") as fh:
                 fh.write(res[off:off + ln])
             total_bnds += 1
-            t, l, b, r = struct.unpack_from(">4h", res, off)
-            bnds.append({"id": rid, "rect": [t, l, b, r], "bytes": ln})
+            # boundsType is four Booleans -- left, top, right, bottom -- and not a
+            # QuickDraw Rect, despite the handle being declared `boundsHand`
+            # (GliderStructs.h:266).  Every shipped record is 4 bytes, so the manifest
+            # used to record a ">4h" unpack that over-read into the *next* resource and
+            # published four garbage coordinates beside a correct "bytes": 4.  The Go
+            # loader read it the same wrong way and sealed 155 rooms; see
+            # render.Bnds and docs/analysis/house-format.md 4.2.1.
+            flags = res[off:off + 4]
+            bnds.append({"id": rid, "bytes": ln,
+                         "open": {"left": bool(flags[0]), "top": bool(flags[1]),
+                                  "right": bool(flags[2]), "bottom": bool(flags[3])}})
 
         houses.append({"house": stem, "picts": picts, "bnds": bnds,
                        "types": sorted(fork)})
