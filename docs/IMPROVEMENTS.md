@@ -4153,6 +4153,51 @@ one house at a time, and the sentence that turned out to be wrong had been writt
 **The cost of a measurement living in a test is that it can only ever be asked about the test's own
 subject.**
 
+### 4.26 Three documents describe what `make check` does, and two of them were wrong — **found and DONE, 2.4; the verbatim copy is now machine-checked, the prose is not and cannot be**
+
+Found immediately after 4.13's `docs-check` landed, by the only method that finds this: reading the
+documents as a stranger rather than as their author. `make check` is described in three places, and
+the three had drifted apart.
+
+`CONTRIBUTING.md` quotes the target's prerequisites **verbatim**, which is the right thing to do —
+somebody comparing a CI log against the document should be comparing the same words — and it had
+already fallen a step behind, listing the twelve steps that preceded `docs-check`. `README.md:151`
+and `docs/DEV_ENVIRONMENT.md:25` each carry a prose summary instead, and DEV_ENVIRONMENT's named six
+of the fourteen steps. None of the three is redundant with the others; all three were stale in
+different directions.
+
+The timing was worse, because the two numbers were an order of magnitude apart and neither said what
+it was measuring. `CONTRIBUTING.md` said `make check` "takes a couple of minutes". DEV_ENVIRONMENT
+said "~15 s". Measured on the airgapped host (eight cores, 2026-09-22): **50 s with Go's build cache
+cold, 12 s with it warm.** So "~15 s" was the warm number offered as *the* number — the one figure a
+newcomer never sees, since their first run is by definition cold — and "a couple of minutes" was not
+the cold number either. Both documents now give both, and say which is which.
+
+The verbatim copy is the half that can be held to its source, and now is:
+`TestTheStepListInContributingIsTheMakefilesOwn` in `tools/docscheck` reads the Makefile's `check:`
+line and fails if `CONTRIBUTING.md` does not contain it, printing the line to paste. It reads the
+Makefile rather than running it, so it costs nothing and runs everywhere — including
+`windows-latest`, which has no `make`.
+
+**What is deliberately not checked.** The two prose summaries are summaries: they say "pixel corpus"
+for `fidelity` and "cross-compile" for `cross`, because those are what the steps *are*, and there is
+nothing mechanical to compare a paraphrase against. Reducing them to the target names would make
+them checkable and worse to read, for a document whose job is to be read before anything is built.
+So the arrangement is one exact copy, held by a test, and prose that no longer pretends to be a list
+— DEV_ENVIRONMENT's fence comment now says "everything CI does; `CONTRIBUTING.md` lists the steps"
+and keeps no third copy of its own.
+
+**And a decision worth recording rather than leaving implicit:** `docs/DEV_ENVIRONMENT.md` is *not*
+in `docscheck`'s document list, and the obvious question is why, since it is the document that tells
+a new session how to get a toolchain. Twenty command lines in its `bash` fences, and two of them
+could run unattended here. The rest install packages as root through three different package
+managers, clone over a network this host does not have, `podman pull` a Go image, unpack a tarball
+into `~/.local/opt`, or want an X server. Adding it would buy two checked lines and eighteen written
+excuses, and a rules table that is ninety per cent excuses is exactly what
+`TestMostOfTheDocumentedLinesAreActuallyRun` exists to catch — a check can be made to look thorough
+by widening its subject until it covers nothing. Revisit if that document ever grows commands a
+machine can run; the list is one line.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path

@@ -17,6 +17,19 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### How long `make check` takes, measured (2026-09-22)
+
+Three documents describe what `make check` does and two of them were wrong. `CONTRIBUTING.md` quotes
+the target's steps verbatim and had fallen one behind; `docs/DEV_ENVIRONMENT.md` named six of the
+fourteen. On the timing they disagreed by an order of magnitude — "a couple of minutes" against
+"~15 s" — because neither said whether Go's build cache was cold. It is **50 s cold and 12 s warm**
+on an eight-core machine, and both documents now give both numbers.
+
+The verbatim copy is held to its source from now on: `go test ./tools/docscheck` reads the Makefile's
+`check:` line and fails if `CONTRIBUTING.md` does not contain it, printing the line to paste. The two
+prose summaries are left as prose, deliberately — see `docs/IMPROVEMENTS.md` 4.26, which also records
+why `docs/DEV_ENVIRONMENT.md` is not one of the documents `docs-check` runs.
+
 ### What `make check` says it could *not* check is now true on Windows and macOS (2026-09-22)
 
 Three places print a caveat — the last row of `make cross`, both halves of `check-caveats`, and

@@ -22,9 +22,14 @@ Nothing to bootstrap. `make` finds a `go` on your PATH by itself.
 ```bash
 git clone https://github.com/bwenstar/gliderGo && cd gliderGo
 sudo apt-get install -y build-essential pkg-config libx11-dev   # or §2 for your distro
-make check                          # fmt, vet, tests, build, cross-compile, smoke  (~15 s)
+make check                          # everything CI does; CONTRIBUTING.md lists the steps
 make run                            # play it
 ```
+
+`make check` took **50 s** on the host named at the top of this file (8 cores) with Go's build cache
+cold, and **12 s** with it warm — measured 2026-09-22, and worth stating both ways round because
+those are what a fresh clone and a second run feel like. This line used to quote the warm number on
+its own, as "~15 s", which is the half of the truth a newcomer never sees first.
 
 Nothing else is needed and nothing else is fetched. The game's data is committed:
 `assets/extracted/` holds the 1994 art, sounds, music, 22 houses and movies, already decoded,

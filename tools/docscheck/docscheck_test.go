@@ -6,9 +6,15 @@
 // in a hurry is caught by `go test ./tools/docscheck` with no assets, no binaries and no display,
 // and the failure names the file to edit -- so the person who added the line is the person who
 // decides whether it can be run unattended, which is the only person who knows.
+//
+// The last case is not about the table. `CONTRIBUTING.md` prints `make check`'s prerequisite list
+// verbatim, which makes it a copied line rather than a sentence, and a copied line wants holding to
+// its source. It lives here because this is the package whose subject is what the documents claim.
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -133,6 +139,50 @@ func TestAnUnclosedFenceIsAnError(t *testing.T) {
 		t.Error("a document whose fence is never closed scraped cleanly; every line after the " +
 			"opening tag would be read as a command")
 	}
+}
+
+// TestTheStepListInContributingIsTheMakefilesOwn holds a copied line to the line it was copied
+// from. "## `make check` is the gate" quotes the target's prerequisites exactly -- that is the
+// point of it, since a reader comparing a CI log against the document should be comparing the same
+// words -- and quoting something exactly is a thing that stays true only while somebody notices.
+// It had already drifted once: `docs-check` was added to `check` and the document still listed the
+// twelve steps before it, which is a document quietly describing last week's gate.
+//
+// Deliberately a substring match on the whole file rather than a search for the fence. The list is
+// in an untagged fence, because it is output and not a command (see scrapeText), so the rest of
+// this package cannot see it; and what matters is that the line is *somewhere* in the document
+// rather than in one particular place, which leaves the author free to move the section.
+func TestTheStepListInContributingIsTheMakefilesOwn(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := ""
+	makefile := read(t, root, "Makefile")
+	for _, l := range strings.Split(makefile, "\n") {
+		if rest, ok := strings.CutPrefix(l, "check:"); ok {
+			want = strings.TrimSpace(rest)
+			break
+		}
+	}
+	if want == "" {
+		t.Fatal("the Makefile has no `check:` line with prerequisites on it, so this test cannot " +
+			"say what CONTRIBUTING.md should be quoting")
+	}
+	if doc := read(t, root, "CONTRIBUTING.md"); !strings.Contains(doc, "\n"+want+"\n") {
+		t.Errorf("CONTRIBUTING.md does not quote `make check`'s steps as the Makefile lists them.\n"+
+			"  the Makefile says: %s\n  put that line, on its own, in the fence under "+
+			"\"`make check` is the gate\"", want)
+	}
+}
+
+func read(t *testing.T, root, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func scraped(t *testing.T) map[string][]line {

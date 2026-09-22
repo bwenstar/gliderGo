@@ -42,8 +42,9 @@ embedded fmt-check vet test build glidertool houses levels headless audio fideli
 
 It compiles for Windows as well as this machine, round-trips every shipped house through both
 codecs, rebuilds the houses in `levels/` from their text and lints them, plays a headless session,
-renders and hashes six screens, and mixes audio to a WAV. It takes a couple of minutes and it is
-the whole contract — if it passes, CI will too.
+renders and hashes six screens, mixes audio to a WAV, and runs the command lines this file gives.
+Under a minute from a cold Go build cache on an eight-core machine and about a dozen seconds after
+that, and it is the whole contract — if it passes, CI will too.
 
 `docs-check` is the odd one out: it runs the command lines this file and the README tell you to
 run, because those are claims too and for six stages nothing checked them. So if your patch adds a
