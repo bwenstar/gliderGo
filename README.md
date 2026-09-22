@@ -72,9 +72,18 @@ unzipped `.exe` plays without FFmpeg or anything else installed.
 picker now keeps **Original** and **New** apart — a house's set is the root it was found in, never a
 guess from its name, so nothing of ours can pass itself off as 1994's. `-levels DIR` adds a
 directory of houses to the list as the New set; with only the originals on the shelf the picker draws
-exactly the screen it always did. Next in that stage are the houses themselves, designed against the
-measured profile of the originals in
-[docs/analysis/original-houses.md](docs/analysis/original-houses.md) rather than just "some rooms".
+exactly the screen it always did.
+
+**And the first house of our own is on the shelf.** `levels/Open House.house.txt` is 43 rooms,
+written against the measured profile of the originals in
+[docs/analysis/original-houses.md](docs/analysis/original-houses.md) rather than just "some rooms" —
+thirteen of that document's fifteen numeric targets are inside its tutorial band, and a Go test
+asserts every one of them, so the table in the file's header cannot quietly stop being true. It
+teaches the thing the original never explains: a glider crossing a floor vent at cruising speed only
+gains about sixty pixels of height, and spends more than half of that again on every screen it
+crosses, so **no house in this game is crossable with the arrow held down.** You stop in each
+updraft, ride it to the ceiling, and go. Build it with `make levels` and play it with
+`bin/glidergo -levels assets/levels`; the text is meant to be read and taken apart.
 
 Then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
 Then the house editor the original had (Stage 5), and macOS and possibly mobile (Stage 6), which
@@ -270,9 +279,10 @@ bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
 bin/glidertool types                                         # the 117 object types
 ```
 
-`house dump` and `house build` are how new houses will be authored and how a house shows up in a
-diff. `render` composes a room the way the game does and writes a PNG, which is how the renderer
-got checked by eye. `replay` runs a scripted session headlessly, which is what a useful bug report
+`house dump` and `house build` are how new houses are authored and how a house shows up in a
+diff — `make levels` is those two plus `house lint` over everything in `levels/`. `render` composes a
+room the way the game does and writes a PNG, which is how the renderer got checked by eye, and
+`render -all` over a house of your own is the fastest way to find a lamp you forgot. `replay` runs a scripted session headlessly, which is what a useful bug report
 carries.
 
 `house lint` is the other half of authoring. `house check` asks whether the file survived both
@@ -294,6 +304,7 @@ something.
 | `assets/extracted.zip` | That tree packed for `go:embed`. It is what every binary carries, which is why one runs with no files beside it. |
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
+| `levels/` | Houses this port wrote, in that text format. `make levels` compiles and lints them into `assets/levels/`; `-levels DIR` puts a directory on the shelf as the New set. |
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
 | `internal/shell/` | Everything before and around the game: title screen, house picker, settings, about, credits, the score board. |
 | `internal/audio/` | The 22 kHz mixer, the `'snd '` bank and the score, plus the platform sinks. |

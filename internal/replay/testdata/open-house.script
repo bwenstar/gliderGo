@@ -1,0 +1,127 @@
+# Open House, flown from the Furnace Room to the star in the Belfry.
+#
+# This is the acceptance run for docs/PLAN.md Stage 2's "completable headlessly by a
+# scripted run". It starts where the house starts -- no `room` or `where` line, so the
+# glider appears at the house's own `initial 32 112` in room 4 -- and it finishes by
+# collecting the only star, which sets gameOver. See TestOpenHouseCanBeFinished.
+#
+# ---------------------------------------------------------------------------
+# What the keystrokes are doing, and why there are so many
+# ---------------------------------------------------------------------------
+#
+# The house is 43 rooms; this route touches ten of them, climbing six staircases:
+#
+#   4 Furnace Room (f1 s57) -up-> 10 Front Hall -east-> 11 Parlour -up->
+#   21 Nursery -east-> 22 Sewing Room -up-> 30 Attic Stair -east->
+#   31 Cedar Closet -up-> 36 Tower Landing -east-> 37 Tower Stair -up-> 41 Belfry
+#
+# Every `-` is a released right-arrow and every `right` is it pressed again, and the
+# alternation is not fiddliness -- it is the game. A glider crossing a vent's 52 px
+# catchment at cruise (5 px/frame) is inside it for about ten frames and rises 6 px on
+# each, so it gains **60 px** of height and spends 0.6 px of height on every px it
+# travels. Break-even is a vent every 100 px. Two vents in a 512 px room is nowhere
+# near that, so holding the arrow down loses roughly 100 px of altitude per room and
+# kills the glider in three: the trace of that run reaches room 12 at top 222 and dies
+# in room 13.
+#
+# So the glider has to stop in each column and let it carry it to the ceiling before
+# going on, and that -- not the layout -- is what the house teaches. It is also why the
+# originals average only 1.49 blowers per room (docs/analysis/original-houses.md 10.2)
+# and are no more crossable at a constant hold than this one is: riding the updraft is
+# the mechanic, and a house that could be flown with the key held down would have
+# removed it.
+#
+# The other thing the alternation does is take the staircases. MoveItUp fires on
+# GliderInRect(112x32 at (H,28)) **and** !HeldRight, so the glider passes a staircase it
+# is flying at and climbs one it stops at. In this route the arrow is released inside the
+# trigger box -- h 336..400, v 28..40 -- at f=87, 325, 564, 803 and 1042, and every one
+# of those is a deliberate release rather than a coincidence of timing.
+#
+# The last release, f=1087, is the star: the glider is over the gap between the Belfry's
+# two vents, and letting go drops it straight through the kStar at h 240..272, v 262..293.
+#
+# ---------------------------------------------------------------------------
+# Regenerating it
+# ---------------------------------------------------------------------------
+#
+# The frame numbers came out of the physics rather than out of arithmetic on paper,
+# because the 60 px figure above is a property of the simulation and not of the file. If
+# a change to the flight model moves them, the way to find the new ones is the rule set
+# this route follows, which is short enough to state: hold right; release on the first
+# frame the glider rises above 24; press right again when it reaches top 14; and in a
+# staircase room, release instead on the first frame inside the trigger box. Applying
+# those four rules frame by frame reproduces every number below.
+#
+# A failure here is a flight-model change, and the room the trace stops in says which
+# leg stopped working. It is not a house bug unless the house changed.
+
+house Open House
+seed 1
+frames 1200
+neighbors 9
+players 1
+sound off
+clock 1994-10-14T10:09:00Z
+
+# room 4, The Furnace Room -- lifted off the h 120 vent, across to the h 300 one,
+# then released in the staircase's box at f=87.
+at 0 right
+at 17 -
+at 23 right
+at 58 -
+at 74 right
+at 87 -
+
+# room 10, The Front Hall -- arrives from the stairs at left 127 top 52, which is
+# inside the h 120 catchment, so the vent takes it. Then east to h 336 and out.
+at 112 right
+at 152 -
+at 172 right
+
+# room 11, The Parlour -- entered from the west at top 114; h 120, then h 300, then
+# the box.
+at 231 -
+at 259 right
+at 295 -
+at 312 right
+at 325 -
+
+# room 21, The Nursery, and east into room 22
+at 351 right
+at 391 -
+at 411 right
+
+# room 22, The Sewing Room
+at 470 -
+at 498 right
+at 534 -
+at 551 right
+at 564 -
+
+# room 30, The Attic Stair, and east into room 31
+at 590 right
+at 630 -
+at 650 right
+
+# room 31, The Cedar Closet
+at 709 -
+at 737 right
+at 773 -
+at 790 right
+at 803 -
+
+# room 36, The Tower Landing, and east into room 37
+at 829 right
+at 869 -
+at 889 right
+
+# room 37, The Tower Stair
+at 948 -
+at 976 right
+at 1012 -
+at 1029 right
+at 1042 -
+
+# room 41, The Belfry -- up off the h 120 vent, east over the gap, and let go.
+at 1068 right
+at 1087 -

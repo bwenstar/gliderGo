@@ -75,7 +75,7 @@ GOTOOLCHAIN  ?= local
 export GOPROXY
 export GOTOOLCHAIN
 
-.PHONY: all build glidertool houses run bench smoke headless audio fidelity test vet fmt \
+.PHONY: all build glidertool houses levels run bench smoke headless audio fidelity test vet fmt \
 	fmt-check check check-caveats clean clean-assets cross cross-windows assets assets-zip \
 	assets-check embedded tools doctor help
 
@@ -113,6 +113,41 @@ houses: glidertool
 	else \
 		echo "houses: no extracted houses -- skipped"; $(NO_ASSETS); \
 	fi
+
+## levels: build the port's own houses from levels/*.house.txt and validate them
+#
+# levels/ is source and $(LEVELS) is output, which is the one thing to know about this
+# target. A house is a binary file with 348 bytes per room in it; authoring one means
+# editing the text and running this, the same way the extracted art is a build of the
+# 1994 resource forks. The output is *not* committed, unlike assets/extracted/ -- see the
+# note in .gitignore for why those two differ.
+#
+# The name mapping is nothing, on purpose: `levels/X.house.txt` becomes `$(LEVELS)/X.house`
+# and the picker lists it as "X", because a house is called whatever its file is called and
+# houseType has no name field to disagree with. That is why the source file has a space in
+# it.
+#
+# `-fail warn` and not the default `-fail error`: a shipped house may carry the odd warning
+# for reasons that are now history (27 of the originals set `bounds` on a built-in
+# background), but a house written this week has no such excuse, so anything the linter will
+# say out loud has to be fixed or argued with in the text. docs/analysis/original-houses.md
+# 10.5 is the list of things that get you one.
+#
+# Play it with:
+#     bin/glidergo -levels $(LEVELS)
+#
+# and it appears in the picker under the New set, alongside the twenty-two built in. It is
+# not *inside* the executable yet: that needs assets/levels.zip and a fourth embedded root,
+# which is docs/IMPROVEMENTS.md 4.14's remaining open item.
+LEVELS := assets/levels
+levels: glidertool
+	@mkdir -p $(LEVELS)
+	@set -e; for src in levels/*.house.txt; do \
+		out="$(LEVELS)/$$(basename "$$src" .txt)"; \
+		$(BIN)/glidertool house build -o "$$out" "$$src"; \
+		$(BIN)/glidertool house lint -fail warn "$$out"; \
+	done
+	@echo "levels: built into $(LEVELS)/ -- play with \`$(BIN)/glidergo -levels $(LEVELS)\`"
 
 ## run: build and run windowed at 1:1; pass flags with ARGS='-scale 2'
 run: build
@@ -311,7 +346,7 @@ fmt-check:
 	fi
 
 ## check: everything CI would do; adds an on-screen bench when there is a display
-check: fmt-check vet test build glidertool houses headless audio fidelity cross smoke
+check: fmt-check vet test build glidertool houses levels headless audio fidelity cross smoke
 	@echo
 	@echo "gliderGo: check passed"
 	@$(MAKE) --no-print-directory check-caveats

@@ -3174,6 +3174,130 @@ end.
   speculation: every row on the settings screen is a row a player has to read past, and nobody has
   yet had two sets large enough to be annoyed by this.
 
+### 4.15 A new house cannot have art of its own, because the levels root is *added* and the houseart root *replaces* — **note; found writing the first one, 2.3**
+
+`Open House` (2.3) is drawn entirely with built-in backgrounds 2000-2017 and built-in object art, and
+that was a constraint discovered rather than chosen. §10.3 step 3's target background mix is 15 %
+indoor, 10 % `kDirt`, 3 % ground-outdoor, 5 % elevated, 22 % air/space, **27 % user-structure and
+17 % user-open** — 44 % of the corpus's rooms are painted with art the house carries itself. Ours is
+72 % interior, 7 % `kDirt`, 21 % air, and the missing 44 % is not a design preference.
+
+**It is not that gliderGo cannot read house art.** It reads it very happily, and not as a resource
+fork: `assets/extracted/houseart/<House Name>/pict/<id>.png` is the whole interface, one PNG per
+`PICT` id, and `OpenHouseResFork` (`cmd/glidergo/play.go:427-432`) mounts that directory for as long
+as the house is open. Anybody could paint a 512×322 PNG, call it `3000.png`, and a room with
+`background 3000` would draw it. The obstruction is two mechanical facts about where those bytes are
+allowed to sit, and they were both put there for good reasons that happen to collide here.
+
+**`assets/extracted/` is diff-locked against the extractor.** `make assets-check` is a full
+recursive `diff -r` against `tools/extract_all.py`'s output and `assetpack.Compare` asserts
+`extracted.zip` holds exactly the files in that tree, so a `houseart/Open House/` directory breaks
+both contracts — correctly, because being byte-for-byte reproducible from the 1994 CD is that tree's
+entire value, and 1.2's provenance boundary is the reason it has one. This is 4.14's already-filed
+"where do the new houses live" problem wearing a second hat, and it wants the same answer:
+`assets/levels.zip`, packed by the `tools/packassets` that exists, with the art beside the house.
+
+**The run-time flags are asymmetric, and that is the part worth fixing first.** `-levels DIR` is
+*added* to the built-in house roots — `options.sources` appends a `shell.Source` and the comment at
+`cmd/glidergo/main.go:205-209` says why: "two houses do not resolve against each other". `-houseart
+DIR` is *substituted*: `assetfs.Root` returns `os.DirFS(dir)` and ignores the embedded tree
+(`internal/assetfs/assetfs.go:35-43`). So the only way to hand a new house its art today is
+`-houseart` pointed at a directory that also contains all twenty-two originals' art, and anyone who
+points it at just their own house silently takes the art away from every shipped house that needs it
+— which is half of them. A house's art root is *per house* by construction (the lookup is
+`IsDir(houseArtFS, name)`), so there is no reason for the flag to be exclusive; it should append a
+root the way `-levels` does, and the per-house directory name already makes collisions impossible.
+
+Until then the restriction is the honest one and it is written into the house's own header comment:
+no `kUserBackground` (≥ 3000), no `kCustomPict`, no `kTV`, no custom `snd `. That also means §10.3
+step 4 — "light every user-art room with a `kInvisLight`", the most common authoring mistake — has
+nothing to apply to yet, and §10.5's `kSoundTrigger`-with-no-`snd ` and `kTV`-with-no-`.mov` traps
+are unreachable rather than avoided. Worth knowing when the first house does carry art: three of the
+recipe's rules go live at once.
+
+### 4.16 The profile a new house is held to was measured by hand, and two of its fifteen rows cannot be measured at all — **note; the Go half DONE, 2.3**
+
+Stage 2's bullet asks for houses "designed against the quantitative profile of the originals in
+`docs/analysis/original-houses.md`". §10.2 is that profile: fifteen rows, five tiers. Hitting it for
+`Open House` meant `grep -c` and a pocket calculator over the authored text, twice, because the first
+pass got the empty-room count wrong. There is no tool. `glidertool house lint` answers "is this file
+legal", which is a different question from "is this file the kind of house it claims to be", and
+nothing else in the repository computes a single cell of that table.
+
+**Thirteen of the fifteen rows are now checked in Go, and that is where the argument for a tool
+starts rather than ends.** `TestOpenHouseMatchesTheTutorialProfile`
+(`internal/replay/openhouse_test.go`) walks the parsed house and asserts each band, so the numbers in
+the house's header comment are an invariant instead of a claim — somebody adds four objects to make a
+room look better and the test says which row left its tier. But it is hard-coded to one house and one
+column, which is exactly the wrong shape: the next house is a different tier, and the thing an author
+wants before they have a passing test is *the numbers*, printed, so they can see they are at 2.9
+objects a room with a ceiling of 3.1. That is `glidertool house stats` — the same walk, a table on
+stdout, `-tier tutorial` to add the bands and an exit status. Both existing callers would then be
+checking the same code instead of the same table.
+
+**Two rows cannot be computed from `internal/house` at all, and both for reasons already on file.**
+
+- **Dark rooms** (§10.2 target 0 % for a tutorial, 4.6 % corpus-wide) needs `GetNumberOfLights`,
+  which is a method on `*render.Scene` (`internal/render/locale.go:1350`). `internal/render` imports
+  `internal/house`, so the dependency cannot be inverted, and re-deriving the rule in `house` means
+  two copies of a switch over eighteen backgrounds plus the `kDirt` all-tiles-zero special case plus
+  the eight `State != 0` lamp types — a copy that would drift, and drift silently, since a house that
+  a linter calls lit and the renderer draws black is worse than no check. 4.1 already made this call
+  once, for objects outside their room ("it wants either a callback like `PictSize` or to live in the
+  renderer, and neither is worth doing before a new house needs it"). A new house now needs it, and
+  the callback is the answer both times: `LintOptions` grows a `Lights func(*Room) int`, `glidertool`
+  fills it in from `render`, and the check is skipped with `checks-skipped` when nobody did. That
+  keeps the one implementation in the renderer, which is where the pixels are.
+- **BFS eccentricity** (11-15 for a tutorial) needs the room graph, and 4.1 explains why there isn't
+  one: `Room.Openings` is dead in all 4,070 corpus rooms and the real adjacency comes out of
+  `DetermineRoomOpenings` at run time, in `internal/game`. Same shape, same remedy, one more
+  callback. It is also the row most worth having, because it is the only one that measures the
+  *shape* of a house rather than its contents — `Open House` is 43 rooms on a 7×10 grid and nobody
+  here can say whether its longest shortest-path is 9 or 19.
+
+The scripted playthrough covers what those two rows were standing in for — a house that cannot be
+crossed does not finish — so this is a gap in *reporting*, not in safety. But an author who has to
+choose between "grep, and hope" and "write a 200-line Go test per house" will do neither.
+
+### 4.17 A house with no custom art is told its custom art will fall back — **note; cosmetic, 2.3**
+
+Rendering `Open House` prints `no extracted resource fork at built-in:houseart/Open House; custom
+art will fall back` before every image. It is true and it is useless: the house uses no art above
+2017, so there is nothing to fall back, and the one house in the library that provably needs no
+warning is the only one that gets it on a complete asset tree. The same line is in two places
+(`cmd/glidertool/render.go:85`, `cmd/glidergo/play.go:432`) and both fire on "the directory is
+absent" when the condition they mean is "the directory is absent *and* this house asks for something
+that would have been in it" — which is one pass over the rooms for a `background >= kUserBackground`
+and over the objects for a `kCustomPict`, `kTV` or `kSoundTrigger`, all of which `internal/house`
+can already see (`lint.go:783` does the `kCustomPict` half). Left as a note because the message is
+suppressed by `-quiet` and misleads nobody who reads the next line, but it is the first thing a new
+house's author sees and it tells them they have done something wrong.
+
+### 4.18 §10.3's construction procedure and §10.2's tier table contradict each other, and a tutorial house cannot satisfy both — **note; found by following them, 2.3**
+
+Three of the recipe's steps give per-room object counts that are corpus *means*, and the corpus mean
+is 7.7 objects a room. The tutorial column of the table two subsections above allows **2.2-3.1**.
+So:
+
+- step 5, "interiors get 11-13 objects" — `Open House` is 72 % interior; at 11 apiece that is 340
+  objects in a house whose ceiling is 138, and 7.9 a room.
+- step 10, "decorate each star room to ~15 objects (corpus mean 14.75)" — 15 objects is more than a
+  tenth of the whole tutorial budget in one room, and §10.2's own "rooms at the 24 ceiling: 0" row is
+  the only constraint that survives.
+- step 12, "set `firstRoom`'s contents richer than average: 13 objects" — the same figure, and the
+  only one of the three whose *intent* survives translation, because "richer than average" is a
+  ratio and 13 is not. Ours holds 4 against an average of 3.09, which is the rule; 13 would be a
+  third of the tier.
+
+None of this is wrong in §10.3, which was written from the corpus as a whole and says so. It is
+unusable as written for the smallest tier, which is the tier a first new house should be, and the
+person most likely to follow it step by step is the person least likely to notice that step 5 and the
+table disagree. The fix is one sentence per step making the figure relative — "interiors carry 3-4×
+what the air rooms do", "the star room is the densest room in the house", "`firstRoom` is above the
+house's own mean" — and a line under the table saying the numeric steps below scale with the tier.
+`TestOpenHouseMatchesTheTutorialProfile` encodes the ratio reading for the two that are checkable
+(start room above average, no enemies in it), so the disagreement is at least pinned on one side.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path

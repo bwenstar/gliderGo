@@ -17,6 +17,55 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Open House: the first house of our own, and the sixty pixels that decide what a house can ask for (2026-09-22)
+
+`levels/Open House.house.txt` is 43 rooms on a 7×10 grid, the first house this port wrote. `make
+levels` compiles every `levels/*.house.txt` with `glidertool house build` and lints the result, and
+`glidergo -levels assets/levels` puts them on the shelf as the **New** set — where it lists as "Open
+House · 43 rooms" between "Nemo's Market" and "Rainbow's End", because a house is named by its file
+and `houseType` has no name field.
+
+**Written against measurements, not vibes.** `docs/analysis/original-houses.md` §10.2 is a table of
+fifteen numeric targets across five size tiers, derived from all 4,070 shipped rooms; this is a
+tutorial-tier house and thirteen of those rows are inside the band: 43 rooms (35-45), 7 floors, 10
+suites, grid density 0.614 (0.6-0.65), 133 objects (78-138) at 3.09 a room (2.2-3.1), 9 empty rooms
+at 20.9 % (~20 %), nothing near the 24-object ceiling, 2 enemies (0.0-0.1/room), 11 prizes
+(0.03-0.29/room), one star, 26 distinct object codes (15-48), 11,700 points (8,500-12,500).
+`TestOpenHouseMatchesTheTutorialProfile` asserts all of it, so the table in the file's header comment
+is an invariant and not a boast — add four objects to make a room look nicer and the test names the
+row that left its tier. Two rows are not checked because nothing here can compute them, and both are
+filed with the reason (`docs/IMPROVEMENTS.md` 4.16).
+
+**The design turned on an arithmetic error that the simulation caught.** The house was laid out
+believing a glider that flies through a floor vent leaves it near the ceiling. It does not. The lift
+column is 4 px wide with a 52-px catchment, so a glider crossing at cruise (5 px/frame) is inside it
+for about ten frames and gains **60 px** — while `Gravity 3` against `NormalThrust 5` spends 0.6 px
+of height on every px travelled. Break-even is a vent every 100 px. Two vents in a 512-px room lose
+roughly 100 px of altitude per room, and a trace of the arrow held down dies in the third room.
+
+That is not a flaw in the house and it is not a flaw in the port: **it is the game.** You release the
+key, let the column carry you to the ceiling, then press and glide. The originals average 1.49
+blowers a room, so they are more dependent on it than this house is, and a house that could be flown
+with one key held down would have removed the mechanic. So the layout stayed and the *documentation*
+absorbed the correction — the figure is in the house's header, in the keystroke script, and in the
+`make levels` output, because it is the one thing a new author will get wrong first.
+
+**Completable, and by a test rather than an assertion.** `internal/replay/testdata/open-house.script`
+flies it from the Furnace Room to the star in the Belfry — six staircases, ten rooms, 1,165 frames,
+no glider lost — and `TestOpenHouseCanBeFinished` builds the house from the checked-in *text* before
+flying it, so a stale `assets/levels/` cannot pass for a source that no longer works and a fresh
+clone needs nothing but the Go toolchain. `make check` gained a `levels` step, which means the house
+is lint-clean on every run: 43 rooms, 0 notes, 0 warnings, 0 errors.
+
+Two deviations from the recipe, stated because they are choices and not oversights. The background
+mix is 72 % interior / 7 % `kDirt` / 21 % air against §10.3's 44 % house-carried art, because a house
+of ours has no way to carry art yet — `-levels` adds a root and `-houseart` replaces one, so giving a
+new house its own pictures takes the originals' away (4.15). And §10.3's per-room object budgets are
+corpus means that no tutorial-tier house can satisfy; the interiors hold 3-5 rather than 11-13, and
+the contradiction is filed against the document (4.18). Not verified: **nobody has played it by
+hand.** A scripted run proves a route exists; it says nothing about whether a person would find it,
+and this host has no way to ask.
+
 ### Level sets: Original, New, and a set that says where a house was found rather than what is in it (2026-09-22)
 
 Stage 2 adds houses, and the picker they land in is one flat alphabetical list. That is faithful —

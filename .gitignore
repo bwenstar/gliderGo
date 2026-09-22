@@ -66,3 +66,11 @@ __pycache__/
 # both would leave two disagreeing sources of truth, which is the failure mode the
 # stage 1.4 audit existed to fix.
 /docs/analysis/stage15-raw/
+
+# assets/levels/ is `make levels` output: the houses in levels/*.house.txt built into the
+# binary form the game loads. Not committed, unlike assets/extracted/, and the difference is
+# reproducibility rather than taste -- the extracted tree needs the 1994 CD and a Python
+# extractor that a fresh clone has neither of, so it is committed; a level needs `make levels`
+# and the Go toolchain the clone already requires. internal/replay builds the text itself for
+# its acceptance test, so nothing depends on this directory existing.
+/assets/levels/

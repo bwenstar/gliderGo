@@ -71,10 +71,18 @@ internal/
   net/                 (stage 3) host/join, progress protocol
   fidelity/            frame-diff and trace-diff harness against reference data
 tools/                 python3 extractors (PICT, snd, BinHex, house dump)
-levels/                new houses in text form (stage 2)
+levels/                new houses in text form, authored and version-controlled  [DONE]
+assets/levels/         those built by `make levels`; not committed, `-levels` points here
 assets/extracted/      generated but committed — reproducible from GliderPRO/ via tools/
 assets/extracted.zip   that tree packed for go:embed — what every binary carries
 ```
+
+The two `levels` lines are one pipeline and the naming is stated here because it is otherwise
+inferred twice: `levels/X.house.txt` is authored, `house build` turns it into
+`assets/levels/X.house`, the picker calls it `X` because a house is named by its file and
+`houseType` has no name field, and `glidergo -levels assets/levels` adds the directory to the
+library as the New set. `assets/levels.zip` — so that a new house ships *inside* the executable
+rather than needing the flag — is the one step not built yet (`docs/IMPROVEMENTS.md` 4.14).
 
 Three rules that keep the port honest:
 
@@ -1245,9 +1253,26 @@ that, and what it left open.
   is what keeps `internal/fidelity`'s reference image the original's dialog.
 - New houses designed against the quantitative profile of the originals in
   `docs/analysis/original-houses.md` — comparable room counts, object vocabulary and
-  difficulty curve, not just "some rooms".
+  difficulty curve, not just "some rooms". **DONE for the first one:** `levels/Open House.house.txt`,
+  43 rooms on a 7×10 grid, built by `make levels` into `assets/levels/` and listed as the New
+  set. Thirteen of §10.2's fifteen rows are inside the tutorial band and are asserted rather
+  than claimed — `TestOpenHouseMatchesTheTutorialProfile` walks the parsed house, so the table in
+  its header comment is an invariant. What it teaches is the arithmetic the flight model actually
+  has: a glider crossing a vent's 52-px catchment at cruise gains **60 px** and spends 0.6 px of
+  height per px travelled, so break-even is a vent every 100 px and no house in the corpus is
+  crossable with the arrow held down. Riding each updraft to the ceiling is the mechanic, which is
+  why the originals need only 1.49 blowers a room. Two rows are unmeasurable from here and four
+  gaps found in the writing are filed: `docs/IMPROVEMENTS.md` 4.15 (a new house cannot carry art
+  of its own, because `-levels` adds a root and `-houseart` replaces one), 4.16 (nothing computes
+  §10.2; the dark-room and eccentricity rows need a callback into the renderer), 4.17 and 4.18.
 - *Acceptance:* every new house passes the validator, is completable headlessly by a
-  scripted run, and is playable start to finish by hand.
+  scripted run, and is playable start to finish by hand. **Two of three met for `Open House`:**
+  `make levels` runs `house lint` over every build and it reports 43 rooms, 0 notes, 0 warnings,
+  0 errors; `TestOpenHouseCanBeFinished` flies it from the Furnace Room to the star in the Belfry
+  in 1,165 frames without losing a glider, and builds the house from the checked-in text rather
+  than from a build product so a stale binary cannot pass for it. **Not met: nobody has played
+  it.** A scripted run proves a route exists, not that the route is one a human would find or
+  enjoy, and that is the half this host cannot answer.
 
 ### Stage 3 — 2-player race
 
