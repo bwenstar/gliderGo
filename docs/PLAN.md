@@ -1252,10 +1252,13 @@ that, and what it left open.
 - Text house format (`levels/*.house.txt`) + compiler + validator, sharing the original's
   legality rules (`docs/analysis/house-format.md`). **DONE:** the format and both directions
   are `glidertool house dump` / `house build` from Stage 1, and the validator is
-  `glidertool house lint` — 32 checks, calibrated so the 22 shipped houses produce one error
-  between them, with `house checks` as the lookup table (`docs/IMPROVEMENTS.md` 4.1, 4.22).
-  The three newest are the first that relate an object to the *background* it stands in
-  rather than to its own fields, which is what writing a house by hand turned out to need.
+  `glidertool house lint` — 34 checks, calibrated so the 22 shipped houses produce one error
+  between them, with `house checks` as the lookup table (`docs/IMPROVEMENTS.md` 4.1, 4.22,
+  4.23). Three of the five newest relate an object to the *background* it stands in rather
+  than to its own fields, which is what writing a house by hand turned out to need; the
+  other two relate it to a compile-time constant in the 1994 editor, which is what
+  *measuring* the first three turned out to find — 4,041 of the corpus's object placements
+  sit at a coordinate no author was ever offered a way to choose.
 - A level-set concept: **Original** (the 22 shipped houses) and **New** (ours), chosen in
   the house-selection UI. **DONE:** `internal/shell/sets.go`. A set is declared by the
   *source* a house was walked from, never by the file and never by a list of names, so the
@@ -1292,8 +1295,9 @@ that, and what it left open.
     It is also the first house in the repository, ours or 1994's, to use **all eighteen**
     built-in backgrounds — which made `kRoof` the background where a tile turns out to be physics
     rather than decoration, four of its eight tiles having no collision surface at all.
-  - Eleven gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.25; five are
-    closed. 4.15 (a new house cannot
+  - Eleven gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.25; six are
+    closed, and closing the sixth filed a twelfth (4.27, a bug in the 1994 editor rather than a gap
+    in this port). 4.15 (a new house cannot
     carry art of its own: the levels archive holds houses and nothing else, and `-houseart DIR`
     replaces the one art root rather than adding to it, so pointing it at a new house's pictures
     takes the twenty-two originals' art away), 4.16 (**done**: nothing computed §10.2 for an
@@ -1307,9 +1311,12 @@ that, and what it left open.
     instance in the corpus and one an error that fails it; the audit produced the narrower rule
     the next item was then calibrated against), 4.22 (**done**: three checks relating an object to
     the background it stands in, where the census widened one rule from three object types to
-    twelve and demoted the other to a note), 4.23 (the census's own finding, filed rather than
-    written: twelve object types occupy exactly one vertical coordinate in all 4,070 shipped
-    rooms, so a vent at `v 200` is floating art and nothing says so) and 4.24 (**done**: eight
+    twelve and demoted the other to a note), 4.23 (**done**: the census's own finding, filed with
+    two questions on it and then answered from the C — there is no floor line, there are nineteen
+    per-type constants, and the original's editor enforces them three ways, so `object-top` and
+    `object-left` now hold twenty-four types to coordinates no author was ever offered a way to
+    choose. The note's own claim that `HouseLegal.c` does not enforce it was wrong, and the 43
+    objects that look like the exception to it are 4.27) and 4.24 (**done**: eight
     analysis documents state the `'bnds'` layout, one of them warns that getting it wrong opens the
     wrong walls, and the port had it wrong — 155 rooms across seven houses read their openings from
     that resource, and the room graph is what made the damage visible) and 4.25 (the first thing the
