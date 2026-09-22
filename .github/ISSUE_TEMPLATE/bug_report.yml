@@ -35,7 +35,7 @@ body:
           backend   x11
           built by  go1.23.12
           platform  linux/amd64
-          assets    built in (1877 files, 15921 KiB)
+          assets    built in (1878 files, 15936 KiB)
     validations:
       required: true
 

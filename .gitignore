@@ -73,4 +73,12 @@ __pycache__/
 # extractor that a fresh clone has neither of, so it is committed; a level needs `make levels`
 # and the Go toolchain the clone already requires. internal/replay builds the text itself for
 # its acceptance test, so nothing depends on this directory existing.
+#
+# assets/levels.zip, packed *from* this directory, is committed -- which reads as a
+# contradiction and is not one. The rule here is "commit what a clone cannot regenerate, plus
+# whatever the build needs in hand before it can regenerate anything", and the archive is the
+# second clause: `make levels` runs bin/glidertool, glidertool embeds assets/levels.zip, so a
+# clone without the archive cannot build the tool that fills this directory. One of the two
+# has to be committed to break that cycle and the 1,693-byte archive is the smaller, the one
+# a release actually ships, and the one `go test ./assets` can check against the text.
 /assets/levels/

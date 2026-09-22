@@ -19,8 +19,8 @@
 # developed and tested with LF and the fidelity tests hash bytes.
 * -text
 
-# Never diff, never merge, never guess at these. `binary` is `-text -diff`, restated per class
-# so the intent survives someone relaxing the blanket rule above.
+# Never diff, never merge, never guess at these. `binary` is a macro for `-diff -merge -text`,
+# restated per class so the intent survives someone relaxing the blanket rule above.
 GliderPRO/Glider?PRO.r        binary
 GliderPRO/Houses/*.binhex     binary
 GliderPRO/Houses/*.mov        binary
@@ -56,5 +56,27 @@ assets/extracted/sound/manifest.tsv    diff
 # merged: two branches that both ran `make assets-zip` have two archives of the same bytes and
 # there is nothing to reconcile between them. `make assets-zip` is how it is regenerated and
 # `go test ./assets` is what proves it matches the tree.
+#
+# The `-merge` line below changes nothing today, and is written anyway. `binary` is a macro for
+# `-diff -merge -text`, so this archive stopped being mergeable the moment it was marked binary
+# -- `git check-attr merge -- assets/extracted.zip` said `unset` before this line existed. It is
+# restated for the reason the block near the top of this file is restated, and because the
+# failure it prevents is worth naming once: left to the default driver git runs a *line* merge on
+# two differing archives and writes conflict markers into the deflate stream, and the result is a
+# file that exists, is the right name, and makes assets.Tree() panic at init in every entry point
+# -- `<<<<<<<` inside a zip is not a central directory. Unset, git takes this branch's copy and
+# says the merge conflicted, which is both true and repairable by `make assets-zip`.
 assets/extracted.zip  linguist-generated
 assets/extracted.zip  binary
+assets/extracted.zip  -merge
+
+# assets/levels.zip is the same idea for the port's own houses: levels/*.house.txt built by
+# `make levels` into assets/levels/, then packed here so a downloaded executable ships them
+# without a -levels flag. It is committed and the tree it comes from is not, which looks
+# backwards until you follow the build order -- `make levels` needs bin/glidertool, glidertool
+# embeds the archives, so a clone with no levels.zip cannot build the tool that fills
+# assets/levels/. The archive is the bootstrap. .gitignore says the same thing from the other
+# side, and `go test ./assets` proves this copy matches the text it was built from.
+assets/levels.zip  linguist-generated
+assets/levels.zip  binary
+assets/levels.zip  -merge

@@ -17,13 +17,114 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The twenty-third house ships inside the binary, and the flag that had to start replacing (2026-09-22)
+
+`Open House` existed and no player could reach it. It needed `-levels assets/levels` on the command
+line, so the house, its test and its lint-clean build were for people with a clone and the
+instructions in front of them; anybody who downloaded a release archive got twenty-two houses and no
+sign there was a twenty-third. `assets/levels.zip` closes that: a second `//go:embed` beside
+`extracted.zip`, opened by `assets.Levels()`, so `glidergo` with no flags now lists **23 houses, 0
+skipped** and reports five asset roots, `levels    found (built-in:levels)` among them.
+
+**The archive is committed and the directory it is packed from is not**, which is the reverse of
+`assets/extracted{.zip,/}` — both of those are committed, because no clone can re-run the extractor
+without the 1994 CD. Here the reason is a cycle: `make levels` runs `bin/glidertool`, `cmd/glidertool`
+imports `assets`, and `assets` embeds `levels.zip`, so a checkout without the archive cannot build
+the tool that packs it. The `embedded` guard's remedy for a missing one is therefore `git checkout --
+assets/levels.zip` and nothing else, and the rule both archives follow is "commit what a clone cannot
+regenerate, plus whatever the build needs in hand before it can regenerate anything". Houses sit at
+the archive's *root* — `Open House.house`, not `levels/Open House.house` — because what is embedded
+is the levels root itself, and `assetfs.Whole` exists so that the label for it is `built-in:levels`
+rather than the `built-in:.` that `Root(tree, dir, ".")` would have produced, which would have put a
+dot in the middle of every path in every message about a house.
+
+**`-levels DIR` now replaces the built-in root instead of adding to it**, and the deciding case is
+this repository's own documented workflow. `make levels` builds `levels/*.house.txt` into
+`assets/levels/` so an author can play what they just wrote, and the way they play it is `bin/glidergo
+-levels assets/levels`. Additive semantics list every house **twice** — once from the archive, once
+from the directory it was packed from — and the two rows share one save file and one score file,
+because a side-car is keyed on the house's name and `h.TimeStamp` and both rows agree on both. That
+is not an edge case a player has to go looking for; it is what happens the first time anybody follows
+the instructions. So all five root flags replace, without exception, and what accumulates is the
+*set*: `Library.Discover` is still variadic and the Original and New roots are still two sources.
+`docs/IMPROVEMENTS.md` 4.14 carries the amendment, because the paragraph it corrects argued the other
+way and is left standing. Two tests in `cmd/glidergo/levels_test.go` hold the decision down, on the
+real command line and the real archives: `-levels DIR` where DIR holds a copy of a house already in
+the binary lists that house **once**, and `-levels` at an empty directory leaves no New set at all —
+which is the crisper half, because an empty directory adds nothing and could only remove the built-in
+houses by replacing them.
+
+**`go test ./assets` is the only thing in `make check` that can see any of this, which is why two
+tests were the point of the commit.** Nothing under `internal/` can reach the embedded levels root — `internal/shell` takes its sources from its
+caller, `internal/fidelity` builds its own — so `go test ./assets` is the entire coverage, and both
+likely ways to ship it wrong are silent all the way to the player: a wrongly-prefixed archive lists
+no new house and errors nowhere, and a stale one ships a house that is not the house in the text.
+`TestLevelArchiveHoldsEveryAuthoredHouseAtItsRoot` requires the root to hold exactly the authored
+names and no directories; `TestLevelArchiveIsFresh` rebuilds every source with the same encoder
+`glidertool house build` uses and compares the bytes. Neither skips. `make levels` gained the same
+check from the other end (`packassets -check`), `make levels-zip` repacks, and the release workflow
+now derives the expected house count from the two source trees rather than hard-coding it and greps
+each house's name out of the packaged executable for both platforms.
+
+**A house inside the executable can only be named, never attached, and one tool could not take a
+name.** `glidergo -house "Open House"` played it from the first commit, but `glidertool replay -house
+"Open House"` answered `open Open House.house: file does not exist` — a file nobody on earth has,
+about the one kind of house whose whole point is that there is no file. `replay.Script` now carries
+the levels root as well (`Levels`, `LevelDir`, the `leveldir` script keyword, `glidertool replay
+-levels DIR`) and resolves a name in the houses root first and the levels root second, which is
+`cmd/glidergo`'s order and the tie the picker's sort breaks the same way: an original wins a name it
+shares with a new house. Only a missing file falls through to the second root — a house that is there
+and will not parse is still the answer — and when neither root has it the error names both instead of
+repeating the file name back. That last part matters for the four flags too: a mistyped `-art` used
+to be told to run `make assets`, in a source tree a player does not have.
+
+`-version`'s root rows now give two different remedies, because "missing" was two different
+failures sharing one sentence: a `built-in:` label that will not resolve is a broken build and names
+the make target that rebuilds *that* archive (`make levels-zip` for the levels row, which the old
+single message sent to `make assets`), while a path is a directory a flag named and there is nothing
+to rebuild. `assetfs.Built` is the one-line predicate that tells them apart.
+
+Three things in the `Makefile` that this change put a foot through. `fmt-check` checked `cmd` and
+`internal` while `fmt` reformatted `$(PKG)`, so an unformatted `assets/assets.go` or
+`tools/packassets/main.go` passed `make check` and was then rewritten by the next unrelated `make
+fmt`; it now checks all four directories that hold Go, for 0.1 s. `make levels` did not clear its own
+output, so renaming a house left the old build in `assets/levels/` where it was indistinguishable
+from a house — the freshness check then failed and its remedy, `make levels-zip`, would have packed
+the orphan *into* the archive. And `check` now asks the `embedded` guard first, so a checkout missing
+an archive gets the sentence with `git checkout --` in it rather than the compiler's `pattern
+levels.zip: no matching files found` from `vet`, three steps earlier than the guard used to run.
+
+`.gitattributes` describes both archives, and the `-merge` it now states explicitly is a restatement
+rather than a fix: `binary` is a macro for `-diff -merge -text`, so `assets/extracted.zip` was
+already unmergeable and its effective attributes have not changed. What is written down is the
+failure that rule prevents — git line-merging two differing zips writes conflict markers into a
+deflate stream, and the result is a file that exists, has the right name and panics at init in every
+entry point — because that is the thing somebody relaxing the rule needs to know.
+
+**One field of an authored house is now a promise to strangers.** A saved game is refused unless the
+house's `timestamp` still matches the one the save carries, so shipping a house publishes that
+number: editing it later refuses every save any player has made in it, and nothing else notices,
+because the house still lints, still finishes and still plays. It is pinned by
+`TestShippedHousesKeepTheStampTheirSavesAreKeyedOn` — which fails just as loudly for a house with no
+row as for a changed number — stated in a comment on the field itself, in CONTRIBUTING's Houses
+section, and argued in 4.19. High scores are keyed on the house's name alone, so they survive a
+timestamp change and do not survive a rename.
+
+The About box says it too, and deliberately does not add up: *"the 1994 art, sounds and 22 houses ship
+inside it, with the houses this port adds"*. The count stays the 1994 set's, because the box is the
+only documentation a downloaded executable carries and a single number would be the box claiming 1994
+wrote all of them — which is the thing 4.14 exists to prevent. That is the one changed screen in
+`internal/fidelity/testdata/screens.hashes`.
+
 ### Open House: the first house of our own, and the sixty pixels that decide what a house can ask for (2026-09-22)
 
 `levels/Open House.house.txt` is 43 rooms on a 7×10 grid, the first house this port wrote. `make
 levels` compiles every `levels/*.house.txt` with `glidertool house build` and lints the result, and
 `glidergo -levels assets/levels` puts them on the shelf as the **New** set — where it lists as "Open
 House · 43 rooms" between "Nemo's Market" and "Rainbow's End", because a house is named by its file
-and `houseType` has no name field.
+and `houseType` has no name field. (That flag was the *only* way to see it on the day this landed.
+The entry above is the one that put it inside the binary, and it also changed what the flag means:
+`-levels DIR` now replaces the built-in set rather than adding to it.)
 
 **Written against measurements, not vibes.** `docs/analysis/original-houses.md` §10.2 is a table of
 fifteen numeric targets across five size tiers, derived from all 4,070 shipped rooms; this is a
@@ -59,8 +160,9 @@ is lint-clean on every run: 43 rooms, 0 notes, 0 warnings, 0 errors.
 
 Two deviations from the recipe, stated because they are choices and not oversights. The background
 mix is 72 % interior / 7 % `kDirt` / 21 % air against §10.3's 44 % house-carried art, because a house
-of ours has no way to carry art yet — `-levels` adds a root and `-houseart` replaces one, so giving a
-new house its own pictures takes the originals' away (4.15). And §10.3's per-room object budgets are
+of ours has no way to carry art yet — the levels archive holds houses and nothing else, and
+`-houseart DIR` replaces the one art root rather than adding to it, so giving a new house its own
+pictures takes the twenty-two originals' away (4.15). And §10.3's per-room object budgets are
 corpus means that no tutorial-tier house can satisfy; the interiors hold 3-5 rather than 11-13, and
 the contradiction is filed against the document (4.18). Not verified: **nobody has played it by
 hand.** A scripted run proves a route exists; it says nothing about whether a person would find it,
@@ -119,11 +221,13 @@ picture of the 1994 dialog, and it is asserted both ways — a one-set library r
 whole screen whichever set it is, and `make fidelity` passes with `screens.hashes` and the golden
 `houses.png` untouched.
 
-Where the new houses that ship *inside* the executable will live is filed rather than pre-built:
+Where the new houses that ship *inside* the executable live was filed rather than pre-built here:
 `assets/extracted/houses/` is barred by two contracts that exist for good reasons (`make
 assets-check`'s recursive diff and `assetpack.Compare`), `//go:embed` cannot reach outside `assets/`,
-and the recommendation is a second archive packed by the `tools/packassets` that already exists. See
-4.14. Until then `-levels DIR` is the whole of the New set, which is enough to author against.
+and the recommendation was a second archive packed by the `tools/packassets` that already exists. See
+4.14 — and the entry above, which is that archive, built two commits later. On the day of this one
+`-levels DIR` was the whole of the New set, which was enough to author against and not enough to
+ship.
 
 ### The receipts, checked: 17,800 citations into the 1994 C, and the documents that were wrong about this project (2026-09-22)
 

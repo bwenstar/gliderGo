@@ -17,8 +17,8 @@ make run      # plays
 make check    # everything CI does
 ```
 
-No dependencies to fetch — the module has none, and the game's art, sounds and 22 houses are
-committed and embedded. On Linux you do need `libx11-dev` (or your distribution's name for it): the
+No dependencies to fetch — the module has none, and the game's art, sounds and every house it ships
+are committed and embedded. On Linux you do need `libx11-dev` (or your distribution's name for it): the
 X11 backend asks `pkg-config` for it, so without it `make` stops with
 
 ```
@@ -37,12 +37,13 @@ for a machine with no internet.
 ## `make check` is the gate
 
 ```
-fmt-check vet test build glidertool houses headless audio fidelity cross smoke
+embedded fmt-check vet test build glidertool houses levels headless audio fidelity cross smoke
 ```
 
 It compiles for Windows as well as this machine, round-trips every shipped house through both
-codecs, plays a headless session, renders and hashes six screens, and mixes audio to a WAV. It
-takes a couple of minutes and it is the whole contract — if it passes, CI will too.
+codecs, rebuilds the houses in `levels/` from their text and lints them, plays a headless session,
+renders and hashes six screens, and mixes audio to a WAV. It takes a couple of minutes and it is
+the whole contract — if it passes, CI will too.
 
 `make check` finishes by printing what it could *not* check on this machine (no `DISPLAY`, cgo off,
 no extracted asset tree). Read that list; a green run with three caveats is not the same as a green
@@ -143,6 +144,33 @@ Adding a lint check means a method on `*linter` in `internal/house/lint.go`, a r
 code, so a check whose ID is not in the table (or a table row with no check) fails the build. Then
 run it over all 22 originals — if it fires on them, either the severity is wrong or the check is.
 
+### A house that ships
+
+`levels/` is where the port's own houses are authored, one `*.house.txt` per house, and the path
+from text to a player's screen is three steps and one commit:
+
+```bash
+make levels         # builds every levels/*.house.txt into assets/levels/ and lints each one
+make levels-zip     # packs that directory into assets/levels.zip, which is embedded
+bin/glidergo -levels assets/levels    # play what you just built, instead of the built-in copy
+```
+
+`assets/levels.zip` is committed and `assets/levels/` is not, which is the reverse of the 1994
+assets and worth knowing before you fight it: `make levels` runs `bin/glidertool`, which is built
+from a package that imports `assets`, which embeds the archive — so a clone with no archive cannot
+build the tool that packs it. If you delete it, `git checkout -- assets/levels.zip` is the only way
+back. `make levels` refuses if the archive has gone stale, and `go test ./assets` rebuilds every
+authored house and compares the bytes, so a house committed without `make levels-zip` fails there
+rather than shipping as its previous build.
+
+**One field is a promise, not a value.** A house's `timestamp` is the key every saved game of that
+house is checked against (`internal/saved/store.go:401-407`), so changing it on a house that has
+shipped refuses every save any player has made in it — and nothing else notices, because the house
+still lints, still finishes and still plays. It is pinned by a test with the published number in it,
+and the house's file *name* is the same kind of promise for both saves and high scores. Pick both
+before you ship a house; treat them as fixed afterwards. `docs/IMPROVEMENTS.md` 4.19 has the
+details.
+
 ## Reporting a bug
 
 Use the templates; they ask for the two things that make a report actionable.
@@ -152,7 +180,9 @@ where its assets came from. The second, if you can get it, is a `glidertool repl
 input format exists precisely so a bug can travel as a reproducible input rather than a
 description. `bin/glidertool replay -h` shows the shape, and a scripted session runs headlessly and
 deterministically from a fixed seed, which means a report carrying one reproduces on the
-maintainer's machine exactly.
+maintainer's machine exactly. The script's `house` line takes a name — any house the picker lists,
+including the ones this port wrote, which have no file to attach because they live inside the
+executable (`docs/IMPROVEMENTS.md` 4.20) — or a path, for a house you have and nobody else does.
 
 "This doesn't match the original" is a distinct and very welcome kind of report — there is a
 template for it. Say which room, which house, and what the original did; a screenshot of both is

@@ -23,6 +23,12 @@ it shipped.
 
 ![The house picker](docs/screenshots/house-picker.png)
 
+One row in that list is this port's own — "Open House" — and the strip along the top is there so
+that nothing of ours can be mistaken for theirs: **Original 22, New 1**, Tab to show one set at a
+time. The list is sorted by name and ours sits in among them, which is exactly why the strip and the
+count are drawn rather than left to the reader. A house's set is the root it was found in and never a
+guess from its name.
+
 Casady & Greene published it; Calhoun later released the source under the GPLv2, which is the
 only reason this port can exist. Upstream is
 [softdorothy/glider_pro](https://github.com/softdorothy/glider_pro), pinned at commit `94fed96`
@@ -70,9 +76,9 @@ unzipped `.exe` plays without FFmpeg or anything else installed.
 
 **Stage 2 is underway.** `glidertool house lint` is the validator new houses have to pass, and the
 picker now keeps **Original** and **New** apart — a house's set is the root it was found in, never a
-guess from its name, so nothing of ours can pass itself off as 1994's. `-levels DIR` adds a
-directory of houses to the list as the New set; with only the originals on the shelf the picker draws
-exactly the screen it always did.
+guess from its name, so nothing of ours can pass itself off as 1994's. `-levels DIR` puts a directory
+of your own houses in the New set instead of the ones built in; Tab cycles the sets, and with only
+one set on the shelf the picker draws exactly the screen it always did.
 
 **And the first house of our own is on the shelf.** `levels/Open House.house.txt` is 43 rooms,
 written against the measured profile of the originals in
@@ -82,8 +88,11 @@ asserts every one of them, so the table in the file's header cannot quietly stop
 teaches the thing the original never explains: a glider crossing a floor vent at cruising speed only
 gains about sixty pixels of height, and spends more than half of that again on every screen it
 crosses, so **no house in this game is crossable with the arrow held down.** You stop in each
-updraft, ride it to the ceiling, and go. Build it with `make levels` and play it with
-`bin/glidergo -levels assets/levels`; the text is meant to be read and taken apart.
+updraft, ride it to the ceiling, and go.
+
+**It is inside the binary**, like the twenty-two: a downloaded executable lists 23 houses and needs
+no files beside it. `make levels` builds it out of the text for inspection and `-levels DIR` plays a
+directory you are still editing; the text is meant to be read and taken apart.
 
 Then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
 Then the house editor the original had (Stage 5), and macOS and possibly mobile (Stage 6), which
@@ -96,8 +105,9 @@ needs a CoreAudio sink behind the same seam the Windows one arrived through.
 ## Getting a build
 
 Every `v*` tag packages six archives and attaches them to a GitHub Release with a `SHA256SUMS`
-beside them. Unpack one and run it from anywhere: the 1994 art, the sounds and all 22 houses are
-compiled into the binary, so there is no asset directory to keep beside it and nothing to install.
+beside them. Unpack one and run it from anywhere: the 1994 art, the sounds, all 22 of the original
+houses and the ones this port has written since are compiled into the binary, so there is no asset
+directory to keep beside it and nothing to install.
 That is why it is 15 MB. `linux-amd64` and the two `windows` archives draw to a screen; the other
 three are marked `headless` and explain themselves in the archive. Every archive carries a
 `HOW-TO-RUN.txt`.
@@ -302,9 +312,10 @@ something.
 | `GliderPRO/` | The original's *data*, vendored read-only: `Glider PRO.r` — the whole resource fork — and all 22 houses. The 1994 C itself is not here; see below. |
 | `assets/extracted/` | The same data decoded and committed, so a clone plays. Output, but output that ships. |
 | `assets/extracted.zip` | That tree packed for `go:embed`. It is what every binary carries, which is why one runs with no files beside it. |
+| `assets/levels.zip` | The port's own houses, packed the same way. Committed rather than generated, because the tool that packs it is built from a package that embeds it: a clone without this file cannot build the tool that would rebuild it. |
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
-| `levels/` | Houses this port wrote, in that text format. `make levels` compiles and lints them into `assets/levels/`; `-levels DIR` puts a directory on the shelf as the New set. |
+| `levels/` | Houses this port wrote, in that text format — the source, and the only copy a human edits. `make levels` compiles and lints them; `make levels-zip` packs them into the binary. |
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
 | `internal/shell/` | Everything before and around the game: title screen, house picker, settings, about, credits, the score board. |
 | `internal/audio/` | The 22 kHz mixer, the `'snd '` bank and the score, plus the platform sinks. |

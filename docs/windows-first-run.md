@@ -64,6 +64,18 @@ glidergo v0.1.1
 All four asset roots resolved to `built-in:`, from a directory containing only the `.exe`. That is
 the claim the README makes about the release archives, tested rather than assumed.
 
+The numbers above are v0.1.1's and are left as they were logged. A build since then carries a fifth
+root and a twenty-third house — `levels`, from a second embedded archive — so a current `-version`
+reports 1878 files and a current `-shot-screen houses` says `23 houses`. Four of the six render
+hashes below have moved with it: **splash, houses, about and credits**. Three of those four move for
+one shared reason, which is the status band along the bottom — it counts the houses, so "22 houses"
+became "23 houses: 22 Original, 1 New" on every screen that draws it. `settings` and `scores` are
+unchanged because those two replace the band with a message of their own. The picker also draws a
+strip of set names now, and the About box says that houses of this port's own ship alongside the 1994
+ones. So the table is v0.1.1's and reproduces against v0.1.1, which is what the instructions at the
+end already ask for. Nothing else in this report is affected: every finding below is about the
+backend, the sound and the pixels.
+
 ### The six renders, against Linux
 
 `-shot` draws one title-screen frame to a PNG and needs no display. Each of the six reported

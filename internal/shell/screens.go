@@ -691,8 +691,14 @@ func (s *Shell) aboutLines() []aboutLine {
 		// exact tree the transcription was read from without cloning this repository first.
 		{"transcribed from " + strings.TrimPrefix(project.Upstream, "https://") +
 			" @ " + project.UpstreamCommit, render.LtGray8, 1},
-		{"the 1994 art, sounds and 22 houses ship with it;", render.LtGray8, 1},
-		{"nothing to install, nothing to download", render.LtGray8, 1},
+		// What ships, and whose it is. The count is the 1994 set and is deliberately not the
+		// number of rows in the picker: houses written for this port ship in the same binary
+		// (assets/levels.zip) and the box would be claiming 1994 wrote them if it added them
+		// up. That is 4.14's whole argument, made here because this box is the only
+		// documentation a downloaded executable carries -- the picker's set strip says which
+		// row is which, but only for somebody already looking at it.
+		{"the 1994 art, sounds and 22 houses ship inside it,", render.LtGray8, 1},
+		{"with the houses this port adds; nothing to download", render.LtGray8, 1},
 		{},
 		{"player one:  " + controlsLine(p.Player1), cream, 1},
 		{"player two:  " + controlsLine(p.Player2), cream, 1},

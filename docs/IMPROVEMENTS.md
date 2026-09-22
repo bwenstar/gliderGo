@@ -3047,7 +3047,7 @@ both still true. The `never run` lines in `CHANGELOG.md` are history and stay as
   Neither is a bug and both look exactly like one. This is 5.4's release notes, and it is the single
   most likely reason a first-time player never sees the title screen at all.
 
-### 4.14 The houses this port writes will sit on the same shelf as the 1994 ones, and nothing said which was which — **DONE, 2.2; where the built-in new houses live is filed below**
+### 4.14 The houses this port writes will sit on the same shelf as the 1994 ones, and nothing said which was which — **DONE, 2.2; the built-in New set followed in 2.3, and the amendment below is where the flag's meaning changed**
 
 Stage 2's job is to add houses. The picker they land in is one flat alphabetical list, which is
 faithful — `BuildHouseList` produces exactly that — and the moment this port puts a house of its own
@@ -3104,6 +3104,27 @@ and a source that cannot be read is an error *and the rest are still walked*, so
 `-levels` names itself on the screen the player is looking at and still leaves them a list to play
 from.
 
+**Amended when the levels root became a built-in one, and the amendment is the interesting half.**
+The paragraph above was written when `-levels DIR` was the only way to get a New set at all, so
+"accumulate" had nothing to accumulate *with*: the flag added a second source to the houses root and
+that was the whole of it. `assets/levels.zip` changed the question. There is now a built-in New set,
+and the flag has two possible readings — add a third source, or replace the built-in one the way
+`-art` replaces the built-in art.
+
+It replaces, and the deciding case is the workflow this repository documents. `make levels` builds
+`levels/*.house.txt` into `assets/levels/` so an author can play what they just wrote; the way they
+play it is `bin/glidergo -levels assets/levels`. Under additive semantics that lists every house
+*twice* — once from the archive, once from the directory it was packed from — and the two rows share
+one save file and one score file, because a side-car is keyed on the house's name and
+`h.TimeStamp` (`internal/saved/store.go:401-407`) and both rows agree on both. The failure additive
+semantics creates is therefore not an edge case a player has to go looking for; it is what happens
+the first time anybody follows the instructions.
+
+So `internal/assetfs` is no longer untouched: `assetfs.Whole` is `Root` for a tree that is already
+the root, and `-levels` goes through it. What accumulates is still the *set* — `Discover` is still
+variadic, the Original root and the New root are still two sources — and what a directory replaces
+is one root, which is now the rule all five flags follow without exception.
+
 Accumulating is not the new part. `BuildHouseList` already walked two sources into one list: up to
 eight specs handed in by `AddExtraHouse` — a house dropped on the application, from anywhere on any
 volume — copied in first, then `DoDirSearch` for the rest (`SelectHouse.c:650-664`, `668-675`). What
@@ -3149,32 +3170,61 @@ once as `New`, and requires the two whole screens to be identical. `make fidelit
 `screens.hashes` and the golden `houses.png` unchanged, which is the same claim made from the other
 end.
 
-**Still open, and filed rather than pre-built.**
+**Where the built-in New set lives — DONE, and it was the half that decided whether any of this
+reached a player.** Until it was built, the New set needed `-levels assets/levels` on the command
+line, so nobody who downloaded a release archive had a twenty-third house at all: the work in 2.3
+existed only for people with a clone and the instructions in front of them.
 
-- **Where the new houses that ship *inside the executable* live has not been decided**, and the two
-  places a reader would guess are both barred. `assets/extracted/houses/` cannot take them: `make
-  assets-check` is a full recursive `diff -r` against the extractor's output and `assetpack.Compare`
-  asserts `extracted.zip` holds exactly the files in `assets/extracted`, so a new house breaks both
-  contracts — correctly, because that tree's whole value is being byte-for-byte reproducible from
-  1994 data. And `//go:embed` cannot reach outside `assets/`. The recommendation is a second archive,
-  `assets/levels.zip`, packed from `assets/levels/` by the `tools/packassets` that already exists:
-  no new machinery, and the GPLv2 provenance boundary becomes visible in the file names, which is
-  what 1.2 wants anyway. The alternative — generalising `assetpack.Files`/`Create`/`Compare` to pack
-  two trees under prefixes — buys one file at the cost of making both trees' contract read as one.
-  Until then `-levels DIR` is the whole of the New set, which is enough to author and test against.
-- **`docs/PLAN.md` §3's map says `levels/` is "new houses in text form"**, and this entry's flag says
-  `-levels` is a directory of *built* houses. Both can be true and the naming should be stated once
-  rather than inferred twice: `levels/*.house.txt` authored, `assets/levels/` built by `house build`,
-  `assets/levels.zip` embedded, `-levels DIR` to add a directory at run time. 4.13 already notes that
-  PLAN's §3 map names directories that do not exist; `levels/` is one of them, and it is the one
-  about to exist.
+The two places a reader would guess are both barred, and they stayed barred.
+`assets/extracted/houses/` cannot take a new house: `make assets-check` is a full recursive `diff
+-r` against the extractor's output and `assetpack.Compare` asserts `extracted.zip` holds exactly
+the files in `assets/extracted`, so a 2026 house would be reported as an extra file forever —
+correctly, because that tree's whole value is being byte-for-byte reproducible from 1994 data, which
+is 1.2's provenance boundary. And `//go:embed` cannot reach outside `assets/`. So it is the second
+archive this entry recommended: `assets/levels.zip`, packed from `assets/levels/` by the
+`tools/packassets` that already existed, embedded beside `extracted.zip` and opened by
+`assets.Levels()`. No new machinery, and the provenance boundary is now visible in the file names.
+The alternative — generalising `assetpack.Files`/`Create`/`Compare` to pack two trees under
+prefixes — would have bought one file at the cost of making two different contracts read as one:
+`extracted.zip` carries a claim about 1994 that `make assets-check` proves, and `levels.zip`
+carries no such claim.
+
+Three consequences that are not obvious from the outside, all of them load-bearing:
+
+- **The archive is committed and the directory it is packed from is not**, which is the reverse of
+  `assets/extracted{.zip,/}`, where both are. The reason is a cycle: `make levels` runs
+  `bin/glidertool`, `cmd/glidertool` imports `assets`, and `assets` embeds `levels.zip` — so a
+  checkout without the archive cannot build the tool that packs it. The `embedded` guard's remedy
+  for a missing `levels.zip` is therefore `git checkout -- assets/levels.zip` and nothing else, and
+  the rule the two archives share is "commit what a clone cannot regenerate, plus whatever the
+  build needs in hand before it can regenerate anything".
+- **The member sits at the archive's root** — `Open House.house`, not `levels/Open House.house` —
+  because what is embedded *is* the levels root, so a prefix inside it would have to be stripped by
+  every caller. `assetfs.Whole` exists for the same reason: `Root(tree, dir, ".")` would have
+  labelled the source `built-in:.` and drawn paths like `built-in:./Open House.house`.
+- **`go test ./assets` is the only thing in `make check` that can see any of this.** Nothing under
+  `internal/` can reach the embedded levels root — `internal/shell` takes its sources from its caller and `internal/fidelity` builds its own
+  — so `go test ./assets` is the entire coverage, and the two likely ways to ship it wrong are
+  both silent all the way to the player: a wrongly-prefixed archive (no house appears, and nothing
+  errors) and a stale one (the house that ships is not the house in the text). Hence two tests that
+  do not skip: one requires the archive's root to hold exactly the authored house names and no
+  directories, the other rebuilds every `levels/*.house.txt` and compares the bytes.
+
+**`docs/PLAN.md` §3's map — DONE.** It said `levels/` was "new houses in text form" while this
+entry's flag said `-levels` was a directory of *built* houses; both were true and the naming is now
+stated once rather than inferred twice, in §3's map itself: `levels/*.house.txt` authored,
+`assets/levels/` built by `house build` and regenerated, `assets/levels.zip` that directory packed
+and committed, `-levels DIR` to replace the built-in root at run time.
+
+**Still open.**
+
 - **The chosen set is not remembered between runs.** The filter resets to `AllSets` every launch,
   which is the right default but not obviously the right *only* behaviour once there are two large
   sets. It is one field in `internal/prefs` if anybody asks, and it is deliberately not added on
   speculation: every row on the settings screen is a row a player has to read past, and nobody has
   yet had two sets large enough to be annoyed by this.
 
-### 4.15 A new house cannot have art of its own, because the levels root is *added* and the houseart root *replaces* — **note; found writing the first one, 2.3**
+### 4.15 A new house cannot have art of its own, because there is nowhere its pictures are allowed to sit — **note; found writing the first one, 2.3; half the mechanism has since changed**
 
 `Open House` (2.3) is drawn entirely with built-in backgrounds 2000-2017 and built-in object art, and
 that was a constraint discovered rather than chosen. §10.3 step 3's target background mix is 15 %
@@ -3197,16 +3247,28 @@ entire value, and 1.2's provenance boundary is the reason it has one. This is 4.
 "where do the new houses live" problem wearing a second hat, and it wants the same answer:
 `assets/levels.zip`, packed by the `tools/packassets` that exists, with the art beside the house.
 
-**The run-time flags are asymmetric, and that is the part worth fixing first.** `-levels DIR` is
-*added* to the built-in house roots — `options.sources` appends a `shell.Source` and the comment at
-`cmd/glidergo/main.go:205-209` says why: "two houses do not resolve against each other". `-houseart
-DIR` is *substituted*: `assetfs.Root` returns `os.DirFS(dir)` and ignores the embedded tree
-(`internal/assetfs/assetfs.go:35-43`). So the only way to hand a new house its art today is
+**That archive now exists** (`assets/levels.zip`, embedded in every executable) **and it holds only
+houses.** Art beside the house is still unbuilt, and the shape it wants is clearer for the archive
+existing: one directory per house inside the levels archive, mounted by `OpenHouseResFork` the way
+`houseart/<House Name>/` is, so that `background 3000` in a house of ours finds a PNG the binary
+carries. What that needs is a second lookup in `OpenHouseResFork` and nothing in `assets/extracted/`
+touched at all, which is the point.
+
+**`-houseart DIR` is exclusive, and that is the part worth fixing first.** It *substitutes*:
+`assetfs.Root` returns `os.DirFS(dir)` and ignores the embedded tree
+(`internal/assetfs/assetfs.go:38-46`). So the only way to hand a new house its art today is
 `-houseart` pointed at a directory that also contains all twenty-two originals' art, and anyone who
 points it at just their own house silently takes the art away from every shipped house that needs it
 — which is half of them. A house's art root is *per house* by construction (the lookup is
-`IsDir(houseArtFS, name)`), so there is no reason for the flag to be exclusive; it should append a
-root the way `-levels` does, and the per-house directory name already makes collisions impossible.
+`IsDir(houseArtFS, name)`), so there is no reason for this one flag to be exclusive; it should search
+a list of roots, and the per-house directory name already makes collisions impossible.
+
+This paragraph used to draw the contrast with `-levels`, which it said was *added* rather than
+substituted. That is no longer true and the correction is 4.14's amendment: `-levels DIR` replaces
+the built-in levels root, because the documented author workflow — `make levels` then
+`-levels assets/levels` — listed every house twice under additive semantics, with both rows sharing
+one save file. `-houseart` is now the only asymmetry left, and it is a per-house lookup rather than a
+root-level one, which is why the answer for it is a search list and not a replacement.
 
 Until then the restriction is the honest one and it is written into the house's own header comment:
 no `kUserBackground` (≥ 3000), no `kCustomPict`, no `kTV`, no custom `snd `. That also means §10.3
@@ -3297,6 +3359,78 @@ what the air rooms do", "the star room is the densest room in the house", "`firs
 house's own mean" — and a line under the table saying the numeric steps below scale with the tier.
 `TestOpenHouseMatchesTheTutorialProfile` encodes the ratio reading for the two that are checkable
 (start room above average, no enemies in it), so the disagreement is at least pinned on one side.
+
+### 4.19 Two lines in an authored house are its players' saved games, and nothing said so — **note; found before it could cost anything, 2.3; the pin DONE**
+
+A house that ships is a house people save games into, and the port keys those side-cars on the
+*house* rather than on the file it came from. `saved.Store.Path` is the house's name,
+percent-escaped (`internal/saved/store.go:85`, via `datadir.FileName`), and `Check` then gates the
+save on two facts: the name in the saved block matching the house being opened, case- and
+diacritical-insensitively (`internal/saved/store.go:390-393`), and the house's stamp matching the
+one the save carries (`internal/saved/store.go:401-407` — gate 2, the original's
+`kYellowSavedTimeWrong`, `SavedGames.c:237`). High scores are keyed on the name alone:
+`scores.FileName` takes a house name and nothing else, and nothing in `internal/scores` compares a
+board against the house's stamp. It does keep timestamps — one per row, the day that score was set
+(`internal/scores/scores.go:151`) — and none of them is ever checked against `h.TimeStamp`.
+
+Which makes two ordinary-looking lines of an authored house a compatibility surface, and neither
+looks like one:
+
+- **`timestamp 1725439552`** (`levels/Open House.house.txt:276`) is the save key. Change it, to any
+  value, for any reason, and every saved game of that house in the world is refused with "Open House
+  has been modified since this game was saved". That refusal is *right* — a save holds object states
+  by room and object index, and an edited house may have moved both — which is exactly why the field
+  cannot be treated as cosmetic. High scores survive it; saves do not.
+- **The house's file name** is the other half, and it is both keys at once. Renaming `Open
+  House.house` orphans the saves *and* the score board together and says nothing, because the new
+  name simply has no side-car and a house with no side-car is a house nobody has played.
+
+None of this is a deviation and none of it is a bug: the 1994 program gates on the same field, and
+its high scores lived inside the house file, which is why they never needed a stamp. What was
+missing was anybody writing it down before the first house shipped — while the cost of a tidy-up
+commit to a header is zero, rather than after, when it is every player's progress. It is now in
+three places: the comment on the field in the house's own text, CONTRIBUTING's Houses section, and
+here.
+
+**The guard is built, because the hazard is an accident and not a decision.**
+`TestShippedHousesKeepTheStampTheirSavesAreKeyedOn` (`assets/assets_test.go`) holds a table of every
+shipped house's published stamp and fails if the authored text disagrees — and fails just as loudly
+for a house with no row, so a second house cannot be added without a decision being made about it.
+The failure message is the whole point of the test: it says what the change costs and that the fix
+is to put the old number back. A `house lint` check was the other candidate and is the wrong shape;
+a linter sees one house and cannot know what that house's published stamp was.
+
+### 4.20 A house that ships inside the binary can only ever be named, and one tool could not take a name — **found and DONE, 2.3**
+
+The moment a house lives in `assets/levels.zip` rather than on a disk, "attach the file" stops being
+something a bug report can do. The name is all there is. `glidergo -house "Open House"` was fine —
+`resolveHouse` walks the same sources the picker does (`cmd/glidergo/main.go`, `inSources`) — but the
+tool built for bug reports was not:
+
+```
+$ glidertool replay -house "Open House" -frames 60
+glidertool: open Open House.house: file does not exist
+```
+
+`internal/replay` resolved a name in the houses root alone, so it named a file that does not exist
+anywhere, for the one class of house whose whole point is that it does not exist as a file. A
+reporter's only way out was to find a clone, run `make levels` and pass a path — which is to say,
+there was no way out for a reporter.
+
+**Fixed, and the shape of the fix is the thing worth keeping.** `replay.Script` now carries the
+second root the same way it carries the first (`Levels` beside `Tree`, `LevelDir` beside `HouseDir`,
+`leveldir` in the text format, `-levels` on `glidertool replay`), and the lookup tries the houses
+root and then the levels root — `cmd/glidergo`'s order, and the same tie the picker's sort breaks the
+same way, so an original wins a name it shares with a new house. Only `fs.ErrNotExist` falls through
+to the second root: a house that is there and will not parse is the answer. When neither root has it
+the error names both roots, because "file does not exist" about a name somebody typed omits the one
+fact they need.
+
+The general rule, for the next tool: **anything that accepts a house by name must search every
+source the picker does.** Two things in the tree accept a house by *path* only and are correct as
+they stand — `glidertool render <house>` and `glidertool house <subcommand> <file>` — because in a
+clone every house has a path (`assets/extracted/houses/` is committed and `make levels` writes
+`assets/levels/`). They would still be worth revisiting if either grew a `-house NAME` form.
 
 ---
 

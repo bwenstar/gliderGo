@@ -48,4 +48,6 @@ There are none. `go.mod` has no `require` block, by design and enforced by a tes
 short answer: the only third-party code in a gliderGo binary is the Go standard library, and the
 only non-Go dependency is libX11 on Linux, dynamically linked. What ships inside the binary besides
 the code is data — the 1994 art, sounds and houses, embedded from `assets/extracted.zip`, which
-`make assets-check` verifies is exactly what `tools/` produces from the vendored originals.
+`make assets-check` verifies is exactly what `tools/` produces from the vendored originals, plus
+this port's own houses, embedded from `assets/levels.zip`, which `go test ./assets` verifies is
+exactly a build of the text in `levels/`.

@@ -41,6 +41,7 @@ package replay_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bwenstar/gliderGo/internal/game"
@@ -57,7 +58,14 @@ import (
 // source open-house.house.txt would have needed one.
 const openHouseSource = "../../levels/Open House.house.txt"
 
-func TestOpenHouseCanBeFinished(t *testing.T) {
+// openHouseDir builds the authored text into a directory of one house and returns it.
+//
+// Both tests in this file need a root to resolve a name in, and this package cannot reach the
+// archive inside the executables: nothing under internal/ imports assets/, which is the rule that
+// keeps 15 MiB of PNGs out of every test binary. So the root is made here, from the text, for the
+// reason the file comment gives -- the text is what is under version control.
+func openHouseDir(t *testing.T) string {
+	t.Helper()
 	h, err := house.ParseTextFile(openHouseSource)
 	if err != nil {
 		t.Fatalf("parse %s: %v", openHouseSource, err)
@@ -70,6 +78,11 @@ func TestOpenHouseCanBeFinished(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "Open House.house"), raw, 0o666); err != nil {
 		t.Fatalf("write house: %v", err)
 	}
+	return dir
+}
+
+func TestOpenHouseCanBeFinished(t *testing.T) {
+	dir := openHouseDir(t)
 
 	s := script(t, "open-house.script")
 	s.HouseDir = dir // after localAssets, which points it at the extracted tree
@@ -235,4 +248,42 @@ func TestOpenHouseMatchesTheTutorialProfile(t *testing.T) {
 		"%d distinct codes, %d points, density %.3f",
 		rooms, objects, float64(objects)/float64(rooms), empties, enemies, prizes,
 		len(kinds), total, density)
+}
+
+// TestAHouseInTheLevelsRootIsFoundByName is the lookup a bug report about one of this port's own
+// houses depends on.
+//
+// Those houses ship *inside* the executable (assets/levels.zip), so a player who says "it sticks
+// in the third room of Open House" has a name and no file, and until the levels root was searched
+// here `glidertool replay -house "Open House"` answered `open Open House.house: file does not
+// exist` -- naming a file nobody on earth has. The houses root is the 1994 set and does not hold
+// it, which is exactly the state a release binary is in.
+//
+// The order is asserted the other way round too, in cmd/glidergo's levels_test.go: the houses root
+// is searched first, so an original wins a name it shares with a new house.
+func TestAHouseInTheLevelsRootIsFoundByName(t *testing.T) {
+	s := localAssets(t, replay.NewScript("Open House", 30))
+
+	// First the state this fixes, so that the test cannot pass by the house having quietly
+	// arrived in the houses root: with no levels root there is nothing to find, and the error
+	// has to name where it looked rather than repeat the file name back.
+	if _, err := replay.Run(s); err == nil {
+		t.Fatalf("Open House resolved with no levels root: it is not one of the 22")
+	} else if !strings.Contains(err.Error(), s.HouseDir) {
+		t.Errorf("the error is %q; it should name the root it searched (%s), because "+
+			"\"file does not exist\" about a name somebody typed leaves out where",
+			err, s.HouseDir)
+	}
+
+	s.LevelDir = openHouseDir(t)
+	res, err := replay.Run(s)
+	if err != nil {
+		t.Fatalf("run with -levels %s: %v", s.LevelDir, err)
+	}
+	// That it ran at all is the claim; how many samples thirty frames produce is
+	// TestSixHundredFramesMatchTheGoldenTrace's business and not this test's.
+	if res.Frames == 0 || len(res.Samples) == 0 {
+		t.Errorf("the house resolved and then nothing ran: frames=%d, samples=%d",
+			res.Frames, len(res.Samples))
+	}
 }

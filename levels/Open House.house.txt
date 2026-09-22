@@ -60,9 +60,9 @@
 # art: it reads it as plain PNGs named by PICT id under houseart/<name>/pict/, and
 # painting one would be easy. The obstruction is where the bytes may sit.
 # assets/extracted/ is diff-locked against the extractor by `make assets-check`, so
-# our art cannot go in beside 1994's; and -levels *adds* a house root while
-# -houseart *replaces* the art root, so handing this house its own pictures at run
-# time takes them away from every shipped house that needs them. Both halves are
+# our art cannot go in beside 1994's; and the levels archive holds houses and nothing
+# else, while -houseart *replaces* the one art root, so handing this house its own
+# pictures takes that art away from every shipped house. Both halves are
 # filed as docs/IMPROVEMENTS.md 4.15. So the mix here is 72 % indoor, 21 % air and
 # 7 % kDirt where the corpus is 15/22/10 plus 44 % of its own art. Nothing about the
 # *play* depends on it -- and note that three of 10.3's rules (step 4's kInvisLight
@@ -265,7 +265,15 @@ format 1
 
 house
     version        0x0200               # kHouseVersion
-    timestamp      1725439552           # even, so bit 0 is clear: unlocked and editable
+    # Do not change this number. It is not a date the game shows anybody; it is the key every
+    # saved game of this house is checked against (internal/saved/store.go:401-407, the
+    # original's kYellowSavedTimeWrong), so editing it refuses every save any player has ever
+    # made here -- correctly, because a save holds object states by room and object index. Nothing
+    # else would notice: the house would still lint, still finish and still play. It is pinned by
+    # TestShippedHousesKeepTheStampTheirSavesAreKeyedOn and argued in docs/IMPROVEMENTS.md 4.19.
+    # High scores are keyed on the house's *name* alone, so they survive this and do not survive a
+    # rename. Being even is the other half: bit 0 clear means unlocked and editable.
+    timestamp      1725439552
     flags          0x00000000           # no wardBit, no phoneBit, star count shown
     initial        32 112               # top left of the glider, and inside room 4's h 120 window
     firstroom      4

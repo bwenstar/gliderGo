@@ -111,14 +111,15 @@ type Script struct {
 	// House is a house name (looked up in HouseDir) or a path ending in ".house".
 	House string
 
-	// The four asset roots, each a directory on this machine. **Empty means the copy
-	// built into the executable**, which is what Tree carries and what every release
-	// binary runs from; a run that names a directory reads that instead. See
+	// The five asset roots, each a directory on this machine. **Empty means the copy
+	// built into the executable**, which is what Tree and Levels carry and what every
+	// release binary runs from; a run that names a directory reads that instead. See
 	// internal/assetfs.
 	HouseDir    string
 	ArtDir      string
 	HouseArtDir string
 	SoundDir    string
+	LevelDir    string
 
 	// Tree is the built-in asset tree -- assets.Tree(), from a command that was built
 	// with one -- and is what an empty root above resolves against. It is nil in a test
@@ -130,6 +131,17 @@ type Script struct {
 	// and whether there is a built-in tree behind them is a property of the binary
 	// running it. Parse leaves it nil for its caller to fill in.
 	Tree fs.FS
+
+	// Levels is the second built-in root -- assets.Levels(), the houses this port wrote --
+	// on the same terms as Tree, and it is separate for the reason the archives are
+	// separate: it is a root of houses, not a subtree of one (internal/assetfs.Whole).
+	//
+	// It exists because a house name is the thing a bug report carries. A player who
+	// says "it sticks in the third room of Open House" has no file to attach: that house
+	// is inside the executable, so `replay -house "Open House"` used to answer
+	// `open Open House.house: file does not exist`, naming a file nobody on earth has.
+	// Nil is allowed and means "this binary has none", which is a test's usual state.
+	Levels fs.FS
 
 	Seed      int32 // the random stream; 0 is a legal seed here, unlike in cmd/glidergo
 	Frames    int   // how many simulated frames to run before quitting
@@ -223,9 +235,9 @@ type Hold struct {
 
 // NewScript returns a runnable script for a house with every default filled in.
 func NewScript(houseName string, frames int) *Script {
-	// The four asset roots are left empty, which means the built-in tree: a caller with one
-	// sets Tree and needs no paths at all, and a caller without one -- a test, or somebody
-	// working on the extractor -- names the directories it wants.
+	// The five asset roots are left empty, which means the built-in copy: a caller with one
+	// sets Tree and Levels and needs no paths at all, and a caller without one -- a test, or
+	// somebody working on the extractor -- names the directories it wants.
 	return &Script{
 		House:     houseName,
 		Frames:    frames,
@@ -666,15 +678,22 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 		}
 	}
 
-	// The three asset roots this function needs, resolved once: a directory the script
-	// named, or the built-in tree. The sound root is resolved where the bank is loaded.
+	// The four asset roots this function needs, resolved once: a directory the script
+	// named, or the built-in copy. The sound root is resolved where the bank is loaded.
 	artFS, _ := assetfs.Root(s.Tree, s.ArtDir, "art")
 	houseArtFS, _ := assetfs.Root(s.Tree, s.HouseArtDir, "houseart")
-	housesFS, _ := assetfs.Root(s.Tree, s.HouseDir, "houses")
+	housesFS, housesName := assetfs.Root(s.Tree, s.HouseDir, "houses")
+	levelsFS, levelsName := assetfs.Whole(s.Levels, s.LevelDir, "levels")
 
-	// A house is a name -- looked up in the houses root, wherever that is -- or a path on
-	// this machine ending in ".house", which is how a house nobody has installed yet gets
-	// replayed for a bug report.
+	// A house is a name -- looked up in the houses root and then the levels root, wherever
+	// those are -- or a path on this machine ending in ".house", which is how a house nobody
+	// has installed yet gets replayed for a bug report.
+	//
+	// Two roots, in that order, which is cmd/glidergo's order (inSources) and the same tie the
+	// picker's sort breaks the same way: an original wins a name it shares with a new house.
+	// The levels root is searched at all because the port's own houses ship *inside* the
+	// executable, so a name is all a report can carry -- `replay -house "Open House"` used to
+	// fail with `open Open House.house: file does not exist`, naming a file nobody has.
 	var h *house.House
 	var err error
 	name := s.House
@@ -682,7 +701,29 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 		name = strings.TrimSuffix(filepath.Base(s.House), ".house")
 		h, err = house.LoadFile(s.House)
 	} else {
-		h, err = house.LoadFS(housesFS, name+".house")
+		rel := name + ".house"
+		h, err = house.LoadFS(housesFS, rel)
+		// Only a missing file falls through to the second root. A house that is there and
+		// will not parse is the answer, and searching on would report "no house of that
+		// name" about a house of exactly that name.
+		if err != nil && errors.Is(err, fs.ErrNotExist) {
+			if levelsFS != nil {
+				if inLevels, levelsErr := house.LoadFS(levelsFS, rel); levelsErr == nil {
+					h, err = inLevels, nil
+				}
+			}
+			if err != nil {
+				// Named roots rather than the bare fs error, because "file does not
+				// exist" about a name the caller typed leaves out the one fact they
+				// need: which two places were looked in. Wrapped, so callers testing
+				// for fs.ErrNotExist still see it.
+				where := housesName
+				if levelsFS != nil {
+					where += " or " + levelsName
+				}
+				return nil, fmt.Errorf("replay: no house named %q in %s: %w", name, where, err)
+			}
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -1304,6 +1345,10 @@ func Parse(in io.Reader) (*Script, error) {
 			}
 		case "sounddir":
 			if err := set(&s.SoundDir, 1); err != nil {
+				return nil, err
+			}
+		case "leveldir":
+			if err := set(&s.LevelDir, 1); err != nil {
 				return nil, err
 			}
 		case "sound":

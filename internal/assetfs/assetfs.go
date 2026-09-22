@@ -6,10 +6,13 @@
 //
 //	an empty directory means the built-in copy.
 //
-// That is why the four asset flags default to "" rather than to "assets/extracted/art" and
+// That is why the five asset flags default to "" rather than to "assets/extracted/art" and
 // friends. A default of a path would have made a repository-relative directory the thing the
 // game needs to find, which is the one thing a downloaded binary cannot rely on
 // (docs/IMPROVEMENTS.md 5.3).
+//
+// Five, not four, and the fifth arrives by a different door: -levels resolves against a second
+// embedded archive rather than a subdirectory of the first, which is what Whole is for.
 //
 // Nothing here imports the assets package, and nor does anything else under internal/. The
 // built-in tree arrives as an fs.FS argument from whichever command was built with it, so a
@@ -21,6 +24,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"strings"
 )
 
 // Root is the filesystem for one asset root, and a label naming it for messages.
@@ -42,13 +46,49 @@ func Root(tree fs.FS, dir, sub string) (fs.FS, string) {
 	return Sub(tree, sub), Label(sub)
 }
 
+// Whole is Root for a tree that is already the root.
+//
+// There are two embedded archives and they are shaped differently. assets/extracted.zip is one
+// tree with the four roots inside it as subdirectories, so Root takes "art" or "houses" out of
+// it. assets/levels.zip holds the port's own houses at its top level, because a root is a root
+// and there was nothing to put around them (internal/assetpack.LevelsName). Root(tree, dir, ".")
+// resolves that correctly and then labels it "built-in:.", which puts a dot in every message
+// about a house in it -- `built-in:./Open House.house`. So the label is a word the caller passes
+// rather than a path element taken out of the tree, and the word is the flag's name.
+//
+// dir wins and a nil tree gives a nil FS, both exactly as in Root: the rule that an empty
+// directory means the built-in copy is the same rule.
+func Whole(tree fs.FS, dir, name string) (fs.FS, string) {
+	if dir != "" {
+		return os.DirFS(dir), dir
+	}
+	if tree == nil {
+		return nil, ""
+	}
+	return tree, Label(name)
+}
+
 // Label is how a built-in root is named on a terminal: "built-in:art".
 //
 // It is deliberately not a path. Somebody reading "no extracted resource fork at
 // built-in:houseart/Titanic" should not go looking for a directory of that name, and somebody
 // reading it in a bug report should be able to tell at a glance that the binary was carrying
 // its own assets.
-func Label(sub string) string { return "built-in:" + sub }
+func Label(sub string) string { return builtIn + sub }
+
+const builtIn = "built-in:"
+
+// Built reports whether a label came from Label rather than from a flag.
+//
+// One caller, and it is worth the function: `-version` prints a line per root and "missing" means
+// two unrelated things there. A built-in label that will not resolve is a broken build, and the
+// remedy is a make target in a source tree. A path is a directory somebody typed, and the remedy
+// is to look at what they typed -- telling them to rebuild an archive would send a player who has
+// only the executable somewhere they cannot go.
+//
+// A flag whose value happens to begin "built-in:" would be misread here. It would also be a
+// directory of that name, relative to the working directory, and os.DirFS would not find it.
+func Built(label string) bool { return strings.HasPrefix(label, builtIn) }
 
 // Sub is fs.Sub without the error, which no caller here can act on: the names this package
 // passes are compile-time constants and a house name that has already been read out of a

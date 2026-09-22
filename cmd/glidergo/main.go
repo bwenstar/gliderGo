@@ -142,15 +142,22 @@ type options struct {
 	artDir   string
 	houseArt string
 
-	// levels is the fifth root and the only one that is *added* to another rather than
-	// replacing it: the houses written for this port, listed in the picker beside the
-	// twenty-two as a separate level set. See sources below, and internal/shell/sets.go for
-	// what a set claims.
+	// levels is the fifth root: the houses written for this port, listed in the picker beside
+	// the twenty-two as a separate level set. A directory replaces the built-in copy exactly as
+	// the four above do -- what is *added* is the set, not the root. See sources below, and
+	// internal/shell/sets.go for what a set claims.
 	levels string
 
-	// tree is the built-in tree the four empty roots resolve against: assets.Tree(). It is a
+	// tree is the built-in tree the four roots above resolve against: assets.Tree(). It is a
 	// field and not a package call so that a test can build an options with none.
 	tree fs.FS
+
+	// levelTree is the second one, assets.Levels(), and it is separate for the reason
+	// internal/assetpack.LevelsName gives: the 1994 data carries a claim that `make
+	// assets-check` proves, and a house written this week does not belong inside it. A nil
+	// levelTree with no -levels flag is a build with no houses of its own, which is a state
+	// tests use and nothing released is.
+	levelTree fs.FS
 
 	roomNum   int
 	neighbors int
@@ -181,15 +188,18 @@ type options struct {
 	showVersion bool
 }
 
-// The four asset roots, each as a filesystem and a name for messages. They are resolved at
+// The five asset roots, each as a filesystem and a name for messages. They are resolved at
 // every use rather than once into fields, because resolving one is an os.DirFS or an fs.Sub
 // and neither reads anything -- and because a root that is a live directory should be looked
 // at when it is needed, not cached at startup. See internal/assetfs.
+//
+// Four are subtrees of one archive and levelsRoot is the whole of a second, which is the only
+// reason it calls a different function.
 
 func (o *options) artRoot() (fs.FS, string)      { return assetfs.Root(o.tree, o.artDir, "art") }
 func (o *options) houseArtRoot() (fs.FS, string) { return assetfs.Root(o.tree, o.houseArt, "houseart") }
 func (o *options) housesRoot() (fs.FS, string)   { return assetfs.Root(o.tree, o.houses, "houses") }
-func (o *options) levelsRoot() (fs.FS, string)   { return assetfs.Root(o.tree, o.levels, "levels") }
+func (o *options) levelsRoot() (fs.FS, string)   { return assetfs.Whole(o.levelTree, o.levels, "levels") }
 func (o *options) soundRoot() (fs.FS, string)    { return assetfs.Root(o.tree, o.sounds, "sound") }
 
 // sources is the list of places the picker's houses come from, and the set each one declares.
@@ -202,11 +212,16 @@ func (o *options) soundRoot() (fs.FS, string)    { return assetfs.Root(o.tree, o
 // provenance claim out of a flag. Other is the true answer, and the picker shows the root's
 // label beside the count so it is checkable.
 //
-// The levels root is added rather than substituted, because two houses do not resolve against
-// each other the way two copies of PICT 1000 do -- see internal/shell/library.go. And it is
-// added only when there is something there: a build with no new houses in it and no -levels
-// flag has one set, and a picker with one set draws no chooser at all, so nothing about this
-// shows up until there is something for it to show.
+// The levels root is a second source rather than a substitute for the first, because two houses
+// do not resolve against each other the way two copies of PICT 1000 do -- see
+// internal/shell/library.go. A player who types -levels replaces the houses in the New set,
+// which is the same rule the other four roots follow; what neither flag can do is fold the two
+// sets into one.
+//
+// It is added only when there is something there. That is no longer the interesting case, since
+// every release now carries the port's own houses and the New set is always drawn -- but a build
+// whose levels archive is empty, or a test that passes no levelTree, still has one set, and a
+// picker with one set draws no chooser at all.
 func (o *options) sources() []shell.Source {
 	housesFS, housesName := o.housesRoot()
 	set := shell.SetOriginal
@@ -248,7 +263,16 @@ func printVersion(o *options) {
 	// What the executable is carrying, first, because it is the answer to "does this need
 	// files beside it" and because a build with no assets in it -- which nothing released is,
 	// but a `go build` of a stripped tree could be -- explains everything below it.
-	if files, bytes := assetfs.Measure(o.tree); files > 0 {
+	//
+	// Both archives, counted together. Two lines would have invited the reading that a binary
+	// can have one and not the other, and it cannot: they are two //go:embed directives in one
+	// package, so a build has both or does not compile. The levels root gets its own row below,
+	// where the question is which houses rather than how many bytes.
+	files, bytes := assetfs.Measure(o.tree)
+	if lf, lb := assetfs.Measure(o.levelTree); lf > 0 {
+		files, bytes = files+lf, bytes+lb
+	}
+	if files > 0 {
 		fmt.Printf("  assets    built in (%d files, %d KiB)\n", files, bytes/1024)
 	} else {
 		fmt.Printf("  assets    none built in\n")
@@ -263,26 +287,33 @@ func printVersion(o *options) {
 	houseArtFS, houseArtName := o.houseArtRoot()
 	// A named type and not an anonymous one, because the levels row below is appended
 	// conditionally and an anonymous struct would have to be spelled out twice to do it.
+	//
+	// rebuild is the target that regenerates this root, and it is a field rather than one
+	// sentence at the bottom because the two archives are rebuilt by different targets and the
+	// old single remedy told a stale levels archive to run `make assets`.
 	type row struct {
-		what  string
-		flag  string
-		ok    bool
-		where string
+		what    string
+		flag    string
+		ok      bool
+		where   string
+		rebuild string
 	}
 	rows := []row{
-		{"art", "art", assetfs.Exists(artFS, "manifest.json"), artName},
-		{"sound", "sounds", assetfs.Exists(soundFS, "manifest.tsv"), soundName},
-		{"houses", "houses", assetfs.IsDir(housesFS, "."), housesName},
-		{"houseart", "houseart", assetfs.IsDir(houseArtFS, "."), houseArtName},
+		{"art", "art", assetfs.Exists(artFS, "manifest.json"), artName, "make assets"},
+		{"sound", "sounds", assetfs.Exists(soundFS, "manifest.tsv"), soundName, "make assets"},
+		{"houses", "houses", assetfs.IsDir(housesFS, "."), housesName, "make assets"},
+		{"houseart", "houseart", assetfs.IsDir(houseArtFS, "."), houseArtName, "make assets"},
 	}
 
 	// The fifth root, and only when there is one. It is conditional where the other four are
-	// unconditional because it is the only *optional* root: a build with no new houses in it
-	// is complete, and a "levels none" row on every one of them would read as something
-	// missing rather than as something not asked for. When -levels names a directory the row
-	// appears whether or not the directory is there, which is the case it is for.
+	// unconditional because it is the only root a build can legitimately lack: an executable
+	// with an empty levels archive is complete, and a "levels none" row would read as something
+	// missing rather than as something not asked for. A release has houses of its own, so in
+	// practice this row is always drawn -- it is the line that says which ones, and the one that
+	// says "missing (some/dir)" when -levels was a typo.
 	if levelsFS, levelsName := o.levelsRoot(); o.levels != "" || assetfs.IsDir(levelsFS, ".") {
-		rows = append(rows, row{"levels", "levels", assetfs.IsDir(levelsFS, "."), levelsName})
+		rows = append(rows, row{"levels", "levels", assetfs.IsDir(levelsFS, "."),
+			levelsName, "make levels-zip"})
 	}
 
 	for _, t := range rows {
@@ -291,8 +322,17 @@ func printVersion(o *options) {
 			fmt.Printf("  %-9s none -- name a directory with -%s\n", t.what, t.flag)
 		case t.ok:
 			fmt.Printf("  %-9s found (%s)\n", t.what, t.where)
+		case assetfs.Built(t.where):
+			// The archive in this executable is short of a root, which is a broken build
+			// and not anything the person running it did.
+			fmt.Printf("  %-9s missing (%s) -- `%s` rebuilds it\n", t.what, t.where, t.rebuild)
 		default:
-			fmt.Printf("  %-9s missing (%s) -- `make assets` rebuilds it\n", t.what, t.where)
+			// A directory a flag named, so there is nothing to rebuild: the path is wrong,
+			// or it is right and the directory is not the root it was taken for. This is
+			// the commonest way to see this line at all, and the old message sent every
+			// mistyped -art at `make assets` in a source tree the player may not have.
+			fmt.Printf("  %-9s missing (%s) -- -%s named it, and there is no %s root there\n",
+				t.what, t.where, t.flag, t.what)
 		}
 	}
 
@@ -462,10 +502,10 @@ func statePaths(o *options) [][2]string {
 }
 
 func parseFlags() (*options, error) {
-	o := &options{tree: assets.Tree()}
+	o := &options{tree: assets.Tree(), levelTree: assets.Levels()}
 	flag.StringVar(&o.house, "house", "", "play this house at once instead of showing the title screen (name or path; default "+defaultHouse+" for -frames/-bench/-dump)")
 	flag.StringVar(&o.houses, "houses", "", "directory to search for houses instead of the ones built in")
-	flag.StringVar(&o.levels, "levels", "", "directory of extra houses to list as the New level set, alongside the ones built in")
+	flag.StringVar(&o.levels, "levels", "", "directory of houses to list as the New level set instead of the ones built in")
 	flag.StringVar(&o.artDir, "art", "", "extracted application art tree to use instead of the one built in")
 	flag.StringVar(&o.houseArt, "houseart", "", "extracted per-house resource forks to use instead of the ones built in")
 	flag.IntVar(&o.roomNum, "room", -1, "start in this room number instead of the house's first")

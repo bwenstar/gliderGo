@@ -29,3 +29,11 @@ func assetRoot(dir, sub string) (fs.FS, string) {
 // resolving a root out of it: a replay.Script carries it so that internal/replay can resolve the
 // same four roots the same way, without importing the assets package either.
 func builtinTree() fs.FS { return assets.Tree() }
+
+// builtinLevels is the second archive, the port's own houses, handed on the same way.
+//
+// It is a separate function and not a fifth `sub` of assetRoot because it is a separate archive:
+// the houses sit at its root rather than under a directory name (internal/assetpack.LevelsName),
+// which is what internal/assetfs.Whole is for. The one caller is `replay`, and the reason it has
+// one is that a house shipped inside the executable can only be named, never attached.
+func builtinLevels() fs.FS { return assets.Levels() }

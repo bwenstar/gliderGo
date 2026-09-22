@@ -49,6 +49,22 @@ import (
 // can name it -- a pattern cannot reach outside the package it is written in.
 const Name = "extracted.zip"
 
+// LevelsName is the second archive: the port's own houses, built by `make levels` from
+// levels/*.house.txt and packed by `make levels-zip`.
+//
+// Two archives and not one tree with a levels/ subdirectory in it, because the two have
+// different provenance and different rules. assets/extracted.zip is the 1994 data and
+// `make assets-check` proves it is exactly what the extractor produces from the CD; a house
+// written this week has no business inside a tree with that claim attached to it, and adding one
+// would make assetpack.Compare -- which is what proves the claim -- report it as an extra file
+// forever. Keeping them separate also keeps the two questions separate for a reader of
+// `-version`: "does this binary have the originals" and "does it have ours".
+//
+// It is a plain name and not a prefix: the archive's members are "Open House.house", at its
+// root, the same way the extracted archive's are "houses/Castle o' the Air.house" relative to
+// assets/extracted. A root is a root.
+const LevelsName = "levels.zip"
+
 // packTime is the timestamp every entry gets.
 //
 // One fixed value, and not the file's own mtime, so that two packs of the same tree produce the

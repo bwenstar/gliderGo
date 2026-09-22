@@ -72,17 +72,20 @@ internal/
   fidelity/            frame-diff and trace-diff harness against reference data
 tools/                 python3 extractors (PICT, snd, BinHex, house dump)
 levels/                new houses in text form, authored and version-controlled  [DONE]
-assets/levels/         those built by `make levels`; not committed, `-levels` points here
+assets/levels/         those built by `make levels`; not committed, `-levels` can point here
+assets/levels.zip      that directory packed for go:embed — committed, and what ships  [DONE]
 assets/extracted/      generated but committed — reproducible from GliderPRO/ via tools/
 assets/extracted.zip   that tree packed for go:embed — what every binary carries
 ```
 
-The two `levels` lines are one pipeline and the naming is stated here because it is otherwise
+The three `levels` lines are one pipeline and the naming is stated here because it is otherwise
 inferred twice: `levels/X.house.txt` is authored, `house build` turns it into
-`assets/levels/X.house`, the picker calls it `X` because a house is named by its file and
-`houseType` has no name field, and `glidergo -levels assets/levels` adds the directory to the
-library as the New set. `assets/levels.zip` — so that a new house ships *inside* the executable
-rather than needing the flag — is the one step not built yet (`docs/IMPROVEMENTS.md` 4.14).
+`assets/levels/X.house`, `make levels-zip` packs that directory into `assets/levels.zip`, the
+picker calls the house `X` because a house is named by its file and `houseType` has no name field,
+and every executable embeds the archive — so a new house ships *inside* the binary and `-levels
+DIR` is for playing a directory you are still editing, not for reaching the shipped set. Which end
+of the pipeline is committed is the reverse of `assets/extracted/`'s and the reason is build order:
+`make levels` runs `bin/glidertool`, and `glidertool` embeds the archive.
 
 Three rules that keep the port honest:
 
@@ -1254,16 +1257,19 @@ that, and what it left open.
 - New houses designed against the quantitative profile of the originals in
   `docs/analysis/original-houses.md` — comparable room counts, object vocabulary and
   difficulty curve, not just "some rooms". **DONE for the first one:** `levels/Open House.house.txt`,
-  43 rooms on a 7×10 grid, built by `make levels` into `assets/levels/` and listed as the New
-  set. Thirteen of §10.2's fifteen rows are inside the tutorial band and are asserted rather
-  than claimed — `TestOpenHouseMatchesTheTutorialProfile` walks the parsed house, so the table in
+  43 rooms on a 7×10 grid, built by `make levels` into `assets/levels/`, packed into
+  `assets/levels.zip` and embedded, so a downloaded executable lists it as the New set with no
+  flag and no files beside it. Thirteen of §10.2's fifteen rows are inside the tutorial band and
+  are asserted rather than claimed — `TestOpenHouseMatchesTheTutorialProfile` walks the parsed house, so the table in
   its header comment is an invariant. What it teaches is the arithmetic the flight model actually
   has: a glider crossing a vent's 52-px catchment at cruise gains **60 px** and spends 0.6 px of
   height per px travelled, so break-even is a vent every 100 px and no house in the corpus is
   crossable with the arrow held down. Riding each updraft to the ceiling is the mechanic, which is
   why the originals need only 1.49 blowers a room. Two rows are unmeasurable from here and four
   gaps found in the writing are filed: `docs/IMPROVEMENTS.md` 4.15 (a new house cannot carry art
-  of its own, because `-levels` adds a root and `-houseart` replaces one), 4.16 (nothing computes
+  of its own: the levels archive holds houses and nothing else, and `-houseart DIR` replaces the
+  one art root rather than adding to it, so pointing it at a new house's pictures takes the
+  twenty-two originals' art away), 4.16 (nothing computes
   §10.2; the dark-room and eccentricity rows need a callback into the renderer), 4.17 and 4.18.
 - *Acceptance:* every new house passes the validator, is completable headlessly by a
   scripted run, and is playable start to finish by hand. **Two of three met for `Open House`:**

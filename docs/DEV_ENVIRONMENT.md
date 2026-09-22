@@ -39,6 +39,19 @@ no files beside it. `make assets` repacks it, `make assets-zip` packs it on its 
 `go test ./assets` is what proves it still matches the tree. Every build target refuses if it
 is missing rather than producing a game with no art in it.
 
+There is a second archive, and it is the reason the houses this port writes reach a player at
+all: `assets/levels.zip` holds the built houses from `levels/*.house.txt` — one member per
+house, at the archive's root — and it is embedded the same way, so a downloaded executable
+lists the **New** set with no flag and no files beside it. The chain is worth knowing because it
+is a cycle: `make levels` compiles the text with `bin/glidertool`, which is built from a package
+that imports `assets`, which embeds the archive. So the archive is *committed* (a clone with no
+archive cannot build the tool that packs it, and the only remedy is `git checkout --`), while
+`assets/levels/` is not — it is regenerated. `make levels-zip` repacks it after a house changes,
+`make levels` refuses if it has gone stale, and `go test ./assets` is again what proves it, from two
+directions: one test compares the archive's member names against `levels/*.house.txt` and rejects a
+directory at the root, the other rebuilds each house in memory with the same encoder
+`glidertool house build` uses and compares the bytes.
+
 `make check` also passes on a tree with the assets **removed** and with **no** display —
 verified. Fewer steps skip in that state than used to: anything that goes through a binary
 (`headless`, `audio`, `smoke`) reads the copy inside it, and what skips is the two targets that
@@ -333,6 +346,9 @@ gliderGo/
 │   └── extract_all.py      #   the driver: `make assets` -> assets/extracted/
 ├── assets/extracted/       # committed game data: 1,877 files, 15.5 MB, rebuilt in ~70 s
 ├── assets/extracted.zip    #   the same tree packed for go:embed -- inside every binary
+├── levels/                 # houses this port wrote, as text -- the only copy a human edits
+├── assets/levels/          #   gitignored: `make levels` compiles the text to here
+├── assets/levels.zip       #   committed: that directory packed -- also inside every binary
 ├── scripts/                # bootstrap-dev-env.sh, env.sh (generated, gitignored)
 ├── .github/workflows/      # public CI -- see the caveat at the top of ci.yml
 └── .toolchain/             # gitignored: sysroot + deb cache

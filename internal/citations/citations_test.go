@@ -643,9 +643,12 @@ func TestEveryExemptionIsStillEarned(t *testing.T) {
 // prose is full of paths that are not ours -- `/tmp/glider_pro/Sources`, `~/.config/glidergo`,
 // `os.UserConfigDir`-shaped examples -- and a checker that demanded those exist would be wrong
 // about all of them.
+// zip is in the alternation because two paths under assets/ end in it and both are cited in prose
+// as the thing a binary carries. They are generated and binary, which is exactly the kind of file a
+// rename leaves a stale reference to.
 var ownPath = regexp.MustCompile(
 	`\b((?:cmd|internal|docs|tools|scripts|assets|\.github)/[A-Za-z0-9_./-]+` +
-		`\.(?:go|md|py|sh|json|tsv|txt|yml|hashes))(?::([0-9]+))?`)
+		`\.(?:go|md|py|sh|json|tsv|txt|yml|zip|hashes))(?::([0-9]+))?`)
 
 // deadOwnPaths are prefixes of our own tree that references may point into even though a clone
 // does not have them, with the reason.

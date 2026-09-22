@@ -4,9 +4,16 @@
 //	go run ./tools/packassets                 # rebuild assets/extracted.zip
 //	go run ./tools/packassets -check          # is the committed archive the committed tree?
 //
+// The flags make it general, and there are two archives now:
+//
+//	go run ./tools/packassets -tree assets/levels -out assets/levels.zip
+//
+// packs the port's own houses, which `make levels-zip` is the name for.
+//
 // It is a separate program and not a glidertool subcommand for one reason: glidertool embeds the
 // archive, so building glidertool needs the archive to exist. The thing that makes the archive
-// cannot be the thing that needs it.
+// cannot be the thing that needs it. That is doubly true of assets/levels.zip, whose tree
+// glidertool is what writes.
 //
 // internal/assetpack has the whole argument for why the assets are in an archive at all.
 package main
@@ -50,7 +57,11 @@ func run(tree, out string, check bool) error {
 			for _, d := range diffs {
 				fmt.Fprintf(os.Stderr, "  %s\n", d)
 			}
-			return fmt.Errorf("%s is not %s: `make assets-zip` rebuilds it", out, tree)
+			// The remedy names this program and not a make target, because there are two
+			// archives and the target for each is a different word. Dropping -check from
+			// the line you just typed is the rebuild, whichever archive it was.
+			return fmt.Errorf("%s is not %s: `go run ./tools/packassets -tree %s -out %s` rebuilds it",
+				out, tree, tree, out)
 		}
 		names, err := assetpack.Files(tree)
 		if err != nil {

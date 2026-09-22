@@ -35,6 +35,7 @@ func replayCmd(args []string) error {
 	var (
 		houseName = fs.String("house", "", "house name or path (overrides the script)")
 		houseDir  = fs.String("houses", "", "directory to search for houses instead of the ones built in")
+		levelDir  = fs.String("levels", "", "directory of this port's own houses instead of the ones built in")
 		artDir    = fs.String("art", "", "extracted application art tree to use instead of the one built in")
 		houseArt  = fs.String("houseart", "", "extracted per-house resource forks to use instead of the ones built in")
 		soundDir  = fs.String("sounds", "", "extracted sound bank to use instead of the one built in")
@@ -163,11 +164,16 @@ machine with no sound card is the only way to hear what a replay sounded like:
 	}
 	// The directories always come from the flags, because they describe this machine
 	// rather than the run. A script mailed in by a player names a house, not a path on
-	// the reporter's disk. Each one that is empty -- which is all four unless somebody typed
-	// otherwise -- resolves against the tree built into this executable, so the same script
+	// the reporter's disk. Each one that is empty -- which is all five unless somebody typed
+	// otherwise -- resolves against the copy built into this executable, so the same script
 	// replays the same way on a machine that has never run the extractor.
+	//
+	// Both built-in roots are handed over, and the second is the one that makes a report about
+	// a house of this port's own replayable at all: those houses exist only inside the binary,
+	// so `-house "Open House"` has no file to fall back on.
 	s.HouseDir, s.ArtDir, s.HouseArtDir, s.SoundDir = *houseDir, *artDir, *houseArt, *soundDir
-	s.Tree = builtinTree()
+	s.LevelDir = *levelDir
+	s.Tree, s.Levels = builtinTree(), builtinLevels()
 
 	// -script writes the resolved script out and exits, so it describes a run rather than
 	// performing one, and it is deliberately above the house check below: `replay -script -` with

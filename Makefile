@@ -21,6 +21,16 @@ ASSETS  := assets/extracted
 # files beside it. It is committed like the tree; `make assets-zip` regenerates it.
 ASSETS_ZIP := assets/extracted.zip
 
+# The port's own houses, in the same three parts: levels/*.house.txt is source, $(LEVELS) is
+# what `make levels` builds from it, and $(LEVELS_ZIP) is that directory packed for //go:embed.
+#
+# Here the archive is committed and the directory is not, which is the reverse of the pair
+# above and follows from the build order rather than from taste: `make levels` runs
+# bin/glidertool, glidertool embeds $(LEVELS_ZIP), so the archive has to be in hand before the
+# tool that fills $(LEVELS) will compile. .gitignore makes the same argument at more length.
+LEVELS     := assets/levels
+LEVELS_ZIP := assets/levels.zip
+
 # The asset-tree tests every target below shares, so that they cannot drift apart.
 #
 # assets/extracted/ is committed, so in a clone all three of these are true and nothing below
@@ -36,6 +46,7 @@ HAVE_HOUSES := ls $(ASSETS)/houses/*.house >/dev/null 2>&1
 HAVE_SOUND  := [ -s $(ASSETS)/sound/manifest.tsv ]
 HAVE_ART    := [ -s $(ASSETS)/art/manifest.json ]
 HAVE_ZIP    := [ -s $(ASSETS_ZIP) ]
+HAVE_LEVELS_ZIP := [ -s $(LEVELS_ZIP) ]
 NO_ASSETS   := echo "   they are committed, so this means they were removed: \`make assets\` puts them back (about a minute)"
 
 # Where the scratch PNGs and WAVs go. Overridable because these paths are fixed, not
@@ -75,23 +86,34 @@ GOTOOLCHAIN  ?= local
 export GOPROXY
 export GOTOOLCHAIN
 
-.PHONY: all build glidertool houses levels run bench smoke headless audio fidelity test vet fmt \
-	fmt-check check check-caveats clean clean-assets cross cross-windows assets assets-zip \
-	assets-check embedded tools doctor help
+.PHONY: all build glidertool houses levels levels-zip run bench smoke headless audio fidelity \
+	test vet fmt fmt-check check check-caveats clean clean-assets cross cross-windows assets \
+	assets-zip assets-check embedded tools doctor help
 
 all: build glidertool
 
-# embedded guards the one asset every build needs, as opposed to the ones only a run needs.
+# embedded guards the assets every build needs, as opposed to the ones only a run needs.
 #
-# assets/extracted.zip is a //go:embed input, so a checkout without it does not produce a binary
-# that draws nothing -- it does not compile. That is the right failure, but the compiler reports
-# it as `pattern extracted.zip: no matching files found`, which does not say what the file is or
-# how to get it back. Every target that compiles depends on this instead.
+# Both archives are //go:embed inputs, so a checkout without one does not produce a binary that
+# draws nothing -- it does not compile. That is the right failure, but the compiler reports it as
+# `pattern extracted.zip: no matching files found`, which does not say what the file is or how to
+# get it back. Every target that compiles depends on this instead.
 embedded:
 	@$(HAVE_ZIP) || { \
 		echo "gliderGo: $(ASSETS_ZIP) is missing, and it is built into every executable."; \
 		echo "          It is committed: \`git checkout -- $(ASSETS_ZIP)\` restores it,"; \
 		echo "          or \`make assets-zip\` rebuilds it from $(ASSETS)."; \
+		exit 1; \
+	}
+	@# The second clause has only the one remedy, and that is not an oversight. $(LEVELS_ZIP)
+	@# is rebuilt from $(LEVELS), $(LEVELS) is written by bin/glidertool, and glidertool is
+	@# one of the binaries that will not compile while the archive is missing. Telling anyone
+	@# to run `make levels-zip` out of this hole would be telling them to go round it.
+	@$(HAVE_LEVELS_ZIP) || { \
+		echo "gliderGo: $(LEVELS_ZIP) is missing, and it is built into every executable."; \
+		echo "          It is committed: \`git checkout -- $(LEVELS_ZIP)\` restores it."; \
+		echo "          Rebuilding it needs bin/glidertool, which needs this file, so the"; \
+		echo "          checkout is the way out and not \`make levels\`."; \
 		exit 1; \
 	}
 
@@ -133,21 +155,40 @@ houses: glidertool
 # say out loud has to be fixed or argued with in the text. docs/analysis/original-houses.md
 # 10.5 is the list of things that get you one.
 #
-# Play it with:
+# The houses built here are also inside the executable, via $(LEVELS_ZIP), and that is what a
+# player gets. This directory is for looking at the build product and for `-levels`:
+#
 #     bin/glidergo -levels $(LEVELS)
 #
-# and it appears in the picker under the New set, alongside the twenty-two built in. It is
-# not *inside* the executable yet: that needs assets/levels.zip and a fourth embedded root,
-# which is docs/IMPROVEMENTS.md 4.14's remaining open item.
-LEVELS := assets/levels
+# replaces the embedded set with whatever is in it, which is how you play a house you are in
+# the middle of writing without repacking anything.
 levels: glidertool
 	@mkdir -p $(LEVELS)
+	@# Clear the previous build's houses first, because this directory is compared against the
+	@# archive below and a leftover is indistinguishable from a house. Rename or delete
+	@# levels/X.house.txt and, without this, assets/levels/X.house survives as an orphan: the
+	@# comparison then fails, the remedy it prints (`make levels-zip`) packs the orphan *into*
+	@# the archive, and `go test ./assets` is left to catch a house nobody wrote. The glob is
+	@# narrow on purpose -- only this target's own output, not the directory.
+	@rm -f $(LEVELS)/*.house
 	@set -e; for src in levels/*.house.txt; do \
 		out="$(LEVELS)/$$(basename "$$src" .txt)"; \
 		$(BIN)/glidertool house build -o "$$out" "$$src"; \
 		$(BIN)/glidertool house lint -fail warn "$$out"; \
 	done
-	@echo "levels: built into $(LEVELS)/ -- play with \`$(BIN)/glidergo -levels $(LEVELS)\`"
+	@# Read-only, and the reason it is here rather than in `levels-zip` is that this is the
+	@# moment the two can disagree: the text just changed, the directory has caught up, and the
+	@# archive -- the copy a player actually loads -- has not. Nothing else in `make check`
+	@# notices. `go test ./assets` says the same thing from the other direction and does it
+	@# without the tree, which is why both exist.
+	@$(GO) run ./tools/packassets -tree $(LEVELS) -out $(LEVELS_ZIP) -check || { \
+		echo "levels: $(LEVELS_ZIP) no longer matches $(LEVELS)/, so the houses inside every"; \
+		echo "        executable are the old ones. \`make levels-zip\` repacks it, and the"; \
+		echo "        result is committed."; \
+		exit 1; \
+	}
+	@echo "levels: built into $(LEVELS)/ and matching $(LEVELS_ZIP) -- play the build product"
+	@echo "        directly with \`$(BIN)/glidergo -levels $(LEVELS)\`"
 
 ## run: build and run windowed at 1:1; pass flags with ARGS='-scale 2'
 run: build
@@ -199,10 +240,14 @@ headless: embedded
 	done
 	@# And the layouts a build with no assets shows: an empty picker, and an About box with no
 	@# plate behind it. Nobody sees these by accident now -- a binary always has its own copy --
-	@# so `-art /nonexistent -houses /nonexistent` is the only way they get drawn at all, and
+	@# so naming three directories that are not there is the only way they get drawn at all, and
 	@# they are worth drawing because that is also what `-art` pointed at a typo looks like.
+	@#
+	@# Three, because there are two house roots now. Without `-levels /nonexistent` this shot
+	@# lists the port's own houses and stops being the empty picker it is here for -- which is
+	@# the useful half of the news that every binary carries houses of its own.
 	@$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/first-run.png \
-		-art /nonexistent -houses /nonexistent -quiet 2>/dev/null
+		-art /nonexistent -houses /nonexistent -levels /nonexistent -quiet 2>/dev/null
 	@$(BIN)/glidergo-null -shot $(OUT)/glidergo-shell/about-no-art.png -shot-screen about \
 		-art /nonexistent -quiet
 	@ls -1 $(OUT)/glidergo-shell
@@ -333,9 +378,15 @@ fmt:
 #
 # gofmt is taken from GOROOT rather than PATH: the bootstrapped toolchain is not necessarily on
 # PATH (that is what scripts/env.sh is for), but `go env GOROOT` always finds its own.
+#
+# The four directories are every directory in here that holds Go, which is the point: `fmt` above
+# uses $(PKG) and so reformats all four, and for a while this read `cmd internal`, so an
+# unformatted assets/assets.go or tools/packassets/main.go passed `make check` and was then
+# rewritten by the fix for a complaint about something else. gofmt walks assets/extracted/'s 1,878
+# files to find no Go in them, and takes 0.1 s doing it.
 GOFMT ?= $(shell $(GO) env GOROOT)/bin/gofmt
 fmt-check:
-	@out=$$($(GOFMT) -l cmd internal 2>&1); \
+	@out=$$($(GOFMT) -l cmd internal assets tools 2>&1); \
 	if [ -n "$$out" ]; then \
 		echo "gliderGo: these files are not gofmt'd:"; \
 		echo "$$out" | sed 's/^/  /'; \
@@ -346,7 +397,14 @@ fmt-check:
 	fi
 
 ## check: everything CI would do; adds an on-screen bench when there is a display
-check: fmt-check vet test build glidertool houses levels headless audio fidelity cross smoke
+#
+# `embedded` leads, ahead of even fmt-check, and only for the error message. Both archives are
+# //go:embed inputs, so a checkout missing one fails at `vet` -- the third step -- with the
+# compiler's `pattern levels.zip: no matching files found`, which names neither what the file is
+# nor how to get it back. Asking the guard first means the first thing printed is the sentence with
+# the `git checkout --` in it. Prerequisites are made left to right, which this list already
+# depends on elsewhere (build before the targets that run the binary).
+check: embedded fmt-check vet test build glidertool houses levels headless audio fidelity cross smoke
 	@echo
 	@echo "gliderGo: check passed"
 	@$(MAKE) --no-print-directory check-caveats
@@ -381,7 +439,7 @@ check-caveats:
 		echo "  - DISPLAY is unset, so the on-screen blit was NOT exercised"; n=1; \
 	fi; \
 	if [ $$n -eq 0 ]; then \
-		echo "         toolchain, cgo, tests, houses, headless, audio, pixels, cross-build and the blit path"; \
+		echo "         toolchain, cgo, tests, houses, levels, headless, audio, pixels, cross-build and the blit path"; \
 	else \
 		echo "         everything above ran, but note the gaps -- this was not a full check"; \
 	fi
@@ -406,6 +464,18 @@ assets:
 # hand-authored house dropped in, or a file restored from git.
 assets-zip:
 	$(GO) run ./tools/packassets
+
+## levels-zip: repack assets/levels.zip from assets/levels/ after `make levels`
+#
+# The one target in here whose output is meant to be committed in the same commit as the source
+# change that caused it. `make levels` builds the text into $(LEVELS) and refuses to pass while
+# the archive disagrees; this is what makes it agree again. Two files move in git status, the
+# text and the archive, and that is the shape of a level change.
+#
+# It does not depend on `levels`, so that a directory built by hand or by an editor can be packed
+# without a rebuild -- the same licence `assets-zip` has over `assets`.
+levels-zip:
+	$(GO) run ./tools/packassets -tree $(LEVELS) -out $(LEVELS_ZIP)
 
 ## assets-check: prove the committed asset tree is exactly what the extractor produces
 #
@@ -450,10 +520,11 @@ clean:
 # This deletes committed files, so `git status` will have plenty to say afterwards.
 # `git checkout -- assets/extracted` restores them without re-running the extractor.
 #
-# It leaves assets/extracted.zip alone, deliberately, and that is worth knowing: the archive is
-# a build input, so removing it stops the build, and a binary built without the tree present
-# still plays the 22 houses. What a cleaned tree costs is the extractor's own checks -- `make
-# houses`, `make assets-check` and the fidelity corpus, which read files rather than the archive.
+# It leaves both archives alone, deliberately, and that is worth knowing: they are build inputs,
+# so removing one stops the build, and a binary built without the tree present still plays every
+# house -- the twenty-two originals and the port's own. What a cleaned tree costs is the
+# extractor's own checks -- `make houses`, `make assets-check` and the fidelity corpus, which read
+# files rather than the archives.
 clean-assets:
 	rm -rf $(ASSETS)
 

@@ -53,6 +53,7 @@ package shell
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 	"sort"
@@ -180,8 +181,13 @@ func (l *Library) walk(src Source) error {
 	if fsys == nil {
 		return errors.New("shell: no houses directory")
 	}
+	// The label goes in front, because a root that will not stat says only `stat .: no such
+	// file or directory` on its own: os.DirFS reports the error against the name asked for and
+	// not against the directory it joined it to. With two roots a player can name -- -houses
+	// and -levels -- two typos produced two identical pathless lines, and neither said which
+	// flag was wrong.
 	if st, err := fs.Stat(fsys, "."); err != nil {
-		return err
+		return fmt.Errorf("shell: %s: %w", label, err)
 	} else if !st.IsDir() {
 		return errors.New("shell: " + label + " is not a directory")
 	}

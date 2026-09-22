@@ -117,9 +117,15 @@ jobs:
       # file is missing rather than which target stopped. extracted/ is the working tree the pixel
       # corpus and the house round-trip read by path, and the one `make assets-check` re-extracts
       # against. `go test ./assets`, inside `make check`, is what proves the two agree.
+      #
+      # levels.zip is the second embedded archive: the houses written for this port, which every
+      # release carries beside the twenty-two. It is committed for a reason worth knowing here --
+      # `make levels` rebuilds it with bin/glidertool and glidertool embeds it, so a checkout
+      # without it cannot bootstrap its way back. There is nothing this job could run to recover.
       - name: Refuse a checkout that is missing its assets
         run: |
           test -s assets/extracted.zip
+          test -s assets/levels.zip
           test -s assets/extracted/art/manifest.json
           test -s assets/extracted/sound/manifest.tsv
           ls assets/extracted/houses/*.house >/dev/null
