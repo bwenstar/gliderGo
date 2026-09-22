@@ -128,6 +128,7 @@ bin/glidertool house dump "assets/extracted/houses/Slumberland.house" > slumberl
 bin/glidertool house build -o out.house slumberland.txt
 bin/glidertool house lint out.house
 bin/glidertool house checks          # what every lint finding means
+bin/glidertool house stats -tier small out.house   # how it compares to the 22 originals
 ```
 
 (`GliderPRO/Houses/` holds the same houses as upstream ships them — BinHex-encoded, with their
@@ -138,6 +139,16 @@ The text format is documented by the header `house dump` writes. A new house sho
 over the 22 shipped houses the linter reports 637 notes, 48 warnings and exactly one error, and
 that calibration is deliberate: a warning means "an author probably did not mean this", so new work
 has no excuse for one.
+
+`house stats` is the same idea for the numbers rather than the defects: eighteen measurements —
+rooms, objects and prizes per room, the share of the house that is dark, how deep the room graph
+goes — taken exactly as §10.2 of `docs/analysis/original-houses.md` took them over the 22 originals,
+so a house of yours can be read against the column it belongs in. The walk is `internal/profile`,
+which both of the port's own houses are tested against, and the command prints what those tests
+assert; if you are adding a house, run it before you ask anyone to fly the thing. What it is not is a
+gate. The bands are what 1994 happened to do and several of them are two houses wide, so a miss is
+something to explain rather than something to fix — Open House misses one and the argument for
+leaving it alone is in its own test.
 
 Adding a lint check means a method on `*linter` in `internal/house/lint.go`, a row in
 `LintChecks()`, and a test in `internal/house/lint_test.go`. An AST test holds the catalogue to the

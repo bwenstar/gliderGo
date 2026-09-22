@@ -10,7 +10,7 @@ package replay_test
 // 85 rooms -- whose bands differ from the tutorial's in kind and not just in width: 7 to
 // 19 objects per room against 2.2 to 3.1, enemies where the tutorial tier permits almost
 // none, and up to 4 % dark rooms where the tutorial tier permits none at all. The two
-// houses are measured by the same code (profile_test.go) and share no layout.
+// houses are measured by the same code (internal/profile) and share no layout.
 //
 // The structure here follows openhouse_test.go exactly, including building the house
 // from the checked-in text rather than loading the build product, for the reasons that
@@ -32,6 +32,7 @@ import (
 	"testing"
 
 	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/profile"
 	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
@@ -115,56 +116,36 @@ func TestBoardingHouseCanBeFinished(t *testing.T) {
 // prizes/room came out at 0.941 against a 0.95 ceiling on the first pass, which is not a
 // margin. And dark rooms was at 3.9 % after the Bell Turret stopped being a kRoof room,
 // because kRoof lights itself and kPaneledRoom does not -- 3.9 % is *inside* 0-4 %, so
-// the band did not catch it and the row printed green. The lesson is in the t.Logf at the
+// the band did not catch it and the row printed green. The lesson is in logProfile at the
 // bottom: the numbers are printed so they can be read, not only bounded.
+//
+// # This house is inside all eighteen of small's bands
+//
+// Which is a thing exactly one shipped house does for its own tier -- Leviathan, for epic,
+// by having set eight of that column's bounds itself -- and still not something to be proud
+// of here: it is a small enough tier, and small's bands are wide enough (7-19 objects a
+// room, an eccentricity anywhere from 2 to 23), that being inside all of them is not hard.
+// All three of the houses 8.3 groups at this tier are outside a band of it, and all three
+// at the empty-rooms row, which is the row the corpus disagrees with most (4.25). What
+// it does mean is that the exemption map below is empty, and checkTier fails if a row
+// leaves its band *or* if an exemption is added that turns out not to be needed. Open
+// House misses one row and argues for it at length; this file has nothing to argue.
 func TestBoardingHouseMatchesTheSmallProfile(t *testing.T) {
 	h, err := house.ParseTextFile(boardingHouseSource)
 	if err != nil {
 		t.Fatalf("parse %s: %v", boardingHouseSource, err)
 	}
-	p := measure(t, h)
 
-	checkRows(t, "small", []profileRow{
-		{"real rooms", float64(p.rooms), 45, 85, true},
-		{"occupied floors", float64(p.floors), 5, 14, true},
-		{"occupied suites", float64(p.suites), 13, 20, true},
-		{"grid density", p.density, 0.20, 0.65, false},
-		{"total objects", float64(p.objects), 300, 620, true},
-		{"objects per room", p.perRoom(p.objects), 7.0, 19.0, false},
-		{"empty rooms %", 100 * p.perRoom(p.empties), 10, 25, false},
-		{"rooms at the 24-object ceiling", float64(p.atCeiling), 0, 6, true},
-		{"enemies per room", p.perRoom(p.enemies), 0.5, 1.3, false},
-		{"prizes per room", p.perRoom(p.prizes), 0.4, 0.95, false},
-		{"stars", float64(p.stars), 1, 4, true},
-		{"batteries", float64(p.batteries), 1, 6, true},
-		{"rubber bands", float64(p.bands), 0, 4, true},
-		{"dark rooms %", 100 * p.perRoom(p.dark), 0, 4, false},
-		{"distinct object codes", float64(p.kinds), 50, 69, true},
-		{"total points", float64(p.total), 7900, 45500, true},
-	})
-
-	// The prize:enemy ratio is a row of 10.2 and not a division of two other rows, because
-	// a house can sit inside both of those bands and still be either a shooting gallery or
-	// a museum. Guarded rather than divided, so a house with no enemies fails on the
-	// enemies row above and not on a division by zero here.
-	if p.enemies == 0 {
-		t.Errorf("no enemies at all: the small tier wants 0.5-1.3 per room")
-	} else {
-		ratio := float64(p.prizes) / float64(p.enemies)
-		if ratio < 0.7 || ratio > 1.5 {
-			t.Errorf("prize:enemy = %.3f, want 0.70..1.50 (original-houses.md 10.2, small)",
-				ratio)
-		}
-	}
+	// prize:enemy is checked because it is a row, and it is a row rather than a division of
+	// two other rows because a house can sit inside both of those and still be either a
+	// shooting gallery or a museum. It used to be written out here by hand, guarded against
+	// a house with no enemies; profile.Check reports such a house as a row it could not
+	// measure, which is 10.2's own "n/a" and is the same guard one level down.
+	p := checkTier(t, h, profile.Small, nil)
 
 	checkStartRoom(t, h, p)
-
-	t.Logf("%d rooms, %d objects (%.2f/room), %d empty, %d at the ceiling (fullest %d), "+
-		"%d enemies, %d prizes (%d stars, %d batteries, %d bands), %d distinct codes, "+
-		"%d points, density %.3f, %d dark %v",
-		p.rooms, p.objects, p.perRoom(p.objects), p.empties, p.atCeiling, p.fullest,
-		p.enemies, p.prizes, p.stars, p.batteries, p.bands, p.kinds, p.total, p.density,
-		p.dark, p.darkNames)
+	checkEveryRoomReachable(t, p)
+	logProfile(t, profile.Small, p)
 }
 
 // TestBoardingHouseUsesEveryBuiltInBackground is the one row of this house's design that

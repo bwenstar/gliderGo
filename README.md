@@ -289,9 +289,10 @@ The workshop for the 1994 data. `make glidertool`, then:
 ```bash
 bin/glidertool house info assets/extracted/houses/*.house    # 22 houses, 4,070 rooms
 bin/glidertool house dump "assets/extracted/houses/Demo House.house" | less
-bin/glidertool house build my-house.txt -o my-house.house    # and back again, byte for byte
+bin/glidertool house build -o my-house.house my-house.txt    # and back again, byte for byte
 bin/glidertool house lint my-house.house                     # will it play as authored?
 bin/glidertool house checks                                  # what each lint check means
+bin/glidertool house stats -tier small my-house.house        # is it the shape of a 1994 house?
 bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
 bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
 bin/glidertool types                                         # the 117 object types
@@ -313,6 +314,21 @@ be looked up. Run over the 22 shipped houses it reports 637 notes, 48 warnings a
 that is the calibration: the originals have to lint clean enough for the exit code to mean
 something.
 
+`house stats` asks the third question, and it is not a question about correctness at all: not
+whether the file survived a round trip or whether the house can be finished, but whether it is the
+size and shape of the houses it will be played next to. Eighteen numbers — rooms, objects and
+prizes per room, how much of the house is dark, how deep the room graph goes — measured the way
+§10.2 of [`docs/analysis/original-houses.md`](docs/analysis/original-houses.md) measured the 22
+originals, and `-tier` compares them against one of that table's five columns, from `tutorial` to
+`epic`. `-rooms` names the rooms behind the counts, `-summary` prints one line per house so a glob
+over the shipped tree is a readable table, and `-fail` turns the comparison into an exit status.
+That last flag deserves its warning, which the output repeats: the bands are what the 1994 houses
+*did*, not rules anybody wrote down, and some of them are two houses wide. The port's own Open House
+sits outside one of them on purpose — its room graph is ten hops deep where the two tutorial-sized
+originals are eleven and fifteen — because it is better connected than they are, and chasing the
+number would mean making a hand-flown house worse. So the tool is for noticing, and the noticing is
+worth having: measuring Open House is how that miss was found in the first place.
+
 ## What is in here
 
 | Path | What it is |
@@ -324,6 +340,7 @@ something.
 | `internal/game/` | The world: 117 object types, collision, room transitions, the animated locale. |
 | `internal/house/` | The house model, the 1994 binary codec both ways, and a text format meant to be hand-written and diffed. |
 | `levels/` | Houses this port wrote, in that text format — the source, and the only copy a human edits. `make levels` compiles and lints them; `make levels-zip` packs them into the binary. |
+| `internal/profile/` | A house measured against the 1994 ones: the eighteen rows of `docs/analysis/original-houses.md` §10.2, and the static room graph behind the reachable count and the longest shortest path. `glidertool house stats` prints it. |
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
 | `internal/shell/` | Everything before and around the game: title screen, house picker, settings, about, credits, the score board. |
 | `internal/audio/` | The 22 kHz mixer, the `'snd '` bank and the score, plus the platform sinks. |

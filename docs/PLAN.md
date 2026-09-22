@@ -1263,34 +1263,53 @@ that, and what it left open.
   embedded, so a downloaded executable lists them as the New set with no flag and no files beside
   it.
   - `levels/Open House.house.txt` — 43 rooms on a 7×10 grid, §10.2's **tutorial** column, all
-    sixteen of its measurement rows asserted rather than claimed. What it teaches is the
+    eighteen of its measurement rows asserted rather than claimed, and the one it misses argued for
+    rather than omitted: its BFS eccentricity is 10 against a band of 11-15, because 43 rooms all
+    reachable inside 10 hops is a bushier graph than `Empty House`'s 35 in 11 or `Demo House`'s 33
+    of 45 in 15, and the test names the exemption so that it fails if the reason expires. What it
+    teaches is the
     arithmetic the flight model actually has: a glider crossing a vent's 52-px catchment at
     cruise gains **60 px** and spends 0.6 px of height per px travelled, so break-even is a vent
     every 100 px and no house in the corpus is crossable with the arrow held down. Riding each
     updraft to the ceiling is the mechanic, which is why the originals need only 1.49 blowers a
     room.
-  - `levels/Boarding House.house.txt` — 51 rooms on a 7×13 grid, §10.2's **small** column, all
-    seventeen rows asserted. The second house is what makes the first one evidence: one house
+  - `levels/Boarding House.house.txt` — 51 rooms on a 7×13 grid, §10.2's **small** column, inside
+    all eighteen of its bands. The second house is what makes the first one evidence: one house
     fitted to one column cannot distinguish "the table is usable" from "the column was chosen
     after the fact", and the small tier's bands differ in kind and not just in width (7-19
     objects a room against 2.2-3.1, enemies where the tutorial tier permits almost none, 0-4 %
-    dark rooms where it permits none). It shares no layout with the first, and both are counted
-    by identical code (`internal/replay/profile_test.go`) so a divergence is always the house.
+    dark rooms where it permits none). It shares no layout with the first, and both are measured
+    by identical code (`internal/profile`, which `glidertool house stats` also prints) so a
+    divergence is always the house.
     It is also the first house in the repository, ours or 1994's, to use **all eighteen**
     built-in backgrounds — which made `kRoof` the background where a tile turns out to be physics
     rather than decoration, four of its eight tiles having no collision surface at all.
-  - Eight gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.22: 4.15 (a new house cannot
+  - Eleven gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.25; five are
+    closed. 4.15 (a new house cannot
     carry art of its own: the levels archive holds houses and nothing else, and `-houseart DIR`
     replaces the one art root rather than adding to it, so pointing it at a new house's pictures
-    takes the twenty-two originals' art away), 4.16 (nothing computes §10.2 for an author before
-    they have a passing test; its dark-room half turned out to be three lines and is now
-    asserted, and eccentricity is what remains), 4.17, 4.18 (narrowed by the second house: §10.3's
+    takes the twenty-two originals' art away), 4.16 (**done**: nothing computed §10.2 for an
+    author before they had a passing test, and two of its rows were filed as uncomputable. Both
+    were computable — the dark-room half in three lines, eccentricity in a static room graph —
+    and the answer turned out to be `internal/profile` plus `glidertool house stats` rather than
+    more test code), 4.17, 4.18 (narrowed by the second house: §10.3's
     absolute object counts contradict §10.2's *tutorial* column specifically, because that column
-    is the outlier and the small tier is the corpus mean), 4.19, 4.20, 4.21 (the paragraph
-    calibrating the linter's severities cites four corpus defects; one has no instance in the
-    corpus and one is an error that fails it) and 4.22 (the linter has no check relating an object
-    to the background it stands in, so a floor vent bolted to the sky lints clean — a
-    configuration that appears zero times in 1,084 corpus rooms).
+    is the outlier and the small tier is the corpus mean), 4.19, 4.20 (**done**), 4.21 (**done**:
+    the paragraph calibrating the linter's severities cited four corpus defects, one with no
+    instance in the corpus and one an error that fails it; the audit produced the narrower rule
+    the next item was then calibrated against), 4.22 (**done**: three checks relating an object to
+    the background it stands in, where the census widened one rule from three object types to
+    twelve and demoted the other to a note), 4.23 (the census's own finding, filed rather than
+    written: twelve object types occupy exactly one vertical coordinate in all 4,070 shipped
+    rooms, so a vent at `v 200` is floating art and nothing says so) and 4.24 (**done**: eight
+    analysis documents state the `'bnds'` layout, one of them warns that getting it wrong opens the
+    wrong walls, and the port had it wrong — 155 rooms across seven houses read their openings from
+    that resource, and the room graph is what made the damage visible) and 4.25 (the first thing the
+    new tool was asked: 21 of the 22 shipped houses are outside a band of the tier §8.3 assigns them,
+    because §10.2 rounds its edges inward — large's 6.0-7.5 objects a room contains neither of the
+    two houses it was measured from — because the empty-rooms row is the corpus-wide 20 % rather
+    than a per-tier spread, and because §8.3 and §10.2 disagree about the room counts of the two
+    smallest tiers).
 - *Acceptance:* every new house passes the validator, is completable headlessly by a
   scripted run, and is playable start to finish by hand. **Two of three met, for both houses:**
   `make levels` runs `house lint` over every build and reports 0 notes, 0 warnings, 0 errors for

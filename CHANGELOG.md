@@ -17,6 +17,65 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A house can be measured against the 1994 ones without writing a test first, and the port's own tutorial house turns out to miss a row (2026-09-22)
+
+`internal/profile` measures a house against §10.2 of `docs/analysis/original-houses.md` — eighteen rows
+of bands across five size tiers, derived from all 4,070 shipped rooms — and `glidertool house stats`
+prints it:
+
+```
+glidertool house stats -tier tutorial "Open House.house"
+glidertool house stats -summary assets/extracted/houses/*.house
+```
+
+`-tier` adds the bands and a verdict column, `-fail` turns a miss into an exit status, `-rooms` names
+the dark and unreachable rooms by index as well as by name, and `-summary` is one line per house in the
+columns §3.6 publishes, so the output can be read straight against the document.
+
+**Two of §10.2's rows had been filed as uncomputable and both were computable.** The dark-room row is
+three lines against a `*render.Scene`, which was fixed earlier; the last one, BFS eccentricity, needed
+a room graph. `internal/profile/graph.go` is that: it drives `DetermineRoomOpenings` over every room,
+adds the manholes, staircases, one-way walls, dirt-tile skylights and resolved transports, and
+breadth-first searches the result. The edges are directed, because leaving a room to the east needs
+*this* room's right wall open and the neighbour is not consulted (`Interactions.c:662`,
+`Transit.c:398-404`). It is checked against `tools/probe_houses_inventory.py`'s published figures for
+all 22 houses — a transcription written before any of this existed — so agreement across 4,070 rooms is
+the pin, and a set of hand-built one- and two-room houses in which exactly one thing is true says what
+each individual rule is, since a rule that fires in no shipped house and one that fires in all of them
+both pass a 22-house comparison unchanged. The
+reachable count is reported and never linted: every shipped house has rooms this model cannot reach,
+Art Museum 76 of 109 and Fun House 5 of 43, and `docs/IMPROVEMENTS.md` 4.1 declined it as a lint check.
+
+**`Open House` misses the eccentricity row and is not being changed.** Its longest shortest-path is 10
+and the tutorial band is 11-15. The band is two houses — `Empty House` at 11 and `Demo House` at 15 —
+and the miss is the house being better connected rather than smaller: 43 rooms all reachable inside 10
+hops, against `Empty House`'s 35 in 11 and `Demo House`'s 33 of 45 in 15. Its star sits at hop 9 and
+the four deepest rooms are the roof edges just past it, where a third of `Demo House` lies beyond its
+own goal. `TestOpenHouseMatchesTheTutorialProfile` names the row as an allowed miss with that argument
+attached, and fails if a different row starts missing *or* if the exemption stops being needed.
+
+Both house tests now ask the package instead of holding a hundred lines of tallies between them, which
+closed a gap the hand-written lists had: they asserted sixteen and seventeen of the eighteen rows, and
+`prize:enemy` was simply absent from one of them with nothing able to notice. Three things the tool
+found on its first run are in `docs/IMPROVEMENTS.md` 4.16, which this closes — including that §10.2's
+`prizes/room` band excludes `Empty House`, the house it was measured from, by rounding 0.0286 up to a
+floor of 0.03.
+
+**And the fourth thing it found is about §10.2 rather than about any house: 21 of the 22 shipped
+houses are outside a band of their own tier.** Only `Leviathan` is inside all eighteen, which it
+manages by having set eight of epic's bounds itself. `glidertool house stats -tier` used to print
+"no shipped house is inside all eighteen of its own tier's" — a sentence truncated mid-clause and
+false, written from three houses before anything could ask all 22. Three mechanisms produce the 21,
+and all three are properties of the table (`docs/IMPROVEMENTS.md` 4.25): edges rounded *inward*, so
+that large's 6.0-7.5 objects a room contains neither `Land of Illusion` at 5.9934 nor `Rainbow's End`
+at 7.5022, the two houses it was measured from; an empty-rooms row that is the corpus-wide 20 % rather
+than a per-tier spread, which 18 of the 22 houses are outside — six have no empty room at all and
+`Demo House` is 53.3 % empty; and §8.3's grouping disagreeing with §10.2's room counts for the two
+smallest tiers, so `Sampler`, `California or Bust!` and `Fun House` are each outside the room band of
+the tier the document itself puts them in. The note now says 21 of 22 and
+`TestTheBandsExcludeTheHousesTheyWereMeasuredFrom` measures it, alongside a new corpus pin that the
+840 empty rooms the walk counts are §5.4's own 840.
+
 ### 155 rooms in the shipped houses were sealed on all four sides, because a four-byte resource was read as an eight-byte rectangle (2026-09-22)
 
 **A fidelity bug, and not a small one.** `internal/render.Assets.Bnds` decoded the `'bnds'` resource as

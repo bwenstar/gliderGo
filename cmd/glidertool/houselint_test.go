@@ -155,10 +155,11 @@ func TestHouseChecksPrintsTheCatalogue(t *testing.T) {
 	}
 }
 
-// TestHouseSubcommandsAreDispatched pins that both new subcommands are reachable,
-// which a dispatcher switch makes easy to forget.
+// TestHouseSubcommandsAreDispatched pins that the subcommands added after dump, build
+// and check are reachable, which a dispatcher switch makes easy to forget: a command
+// with tests of its own still does nothing if `house <name>` does not route to it.
 func TestHouseSubcommandsAreDispatched(t *testing.T) {
-	for _, sub := range []string{"lint", "checks"} {
+	for _, sub := range []string{"lint", "checks", "stats"} {
 		if err := houseCmd([]string{sub, "--help"}); err == nil {
 			t.Errorf("house %s --help did not return flag.ErrHelp", sub)
 		}

@@ -3021,7 +3021,12 @@ both still true. The `never run` lines in `CHANGELOG.md` are history and stay as
 - **`glidertool <sub> file -flag` does not work**, because Go's `flag` package stops at the first
   non-flag argument, and several documented lines put the file first. A `partitionArgs` in
   `cmd/glidertool/main.go` that lifts flags out from behind positional arguments would make every
-  ordering work. The ordering that fails is the one a shell user writes by habit.
+  ordering work. The ordering that fails is the one a shell user writes by habit. *(2.4: the one
+  documented line that still had it — the README's `house build my-house.txt -o my-house.house`, in
+  the first fenced block anybody reads — was reordered when `house stats` was added to that block.
+  Reordering the documents is not the fix; the parser still refuses the habit, and this bullet stays
+  open. It is now the case that every command line in `README.md` and `CONTRIBUTING.md` puts its
+  flags first, which is a thing a `docs-check` target could hold.)*
 - **`make check` does not check the documents.** 4.12's `citations` job checks the citations and
   this entry's four defects were all found by hand. A `docs-check` target that runs the documented
   command lines — the ones in fenced blocks that begin with `bin/glidergo`, `bin/glidertool` or
@@ -3277,7 +3282,7 @@ nothing to apply to yet, and §10.5's `kSoundTrigger`-with-no-`snd ` and `kTV`-w
 are unreachable rather than avoided. Worth knowing when the first house does carry art: three of the
 recipe's rules go live at once.
 
-### 4.16 The profile a new house is held to was measured by hand, and two of its fifteen rows cannot be measured at all — **note; the Go half DONE, 2.3; one of the two rows turned out to be computable after all, 2.4 — see the amendment**
+### 4.16 The profile a new house is held to was measured by hand, and two of its fifteen rows cannot be measured at all — **note; the Go half DONE, 2.3; both "impossible" rows turned out to be computable, the second in 2.4 — DONE, see the two amendments**
 
 Stage 2's bullet asks for houses "designed against the quantitative profile of the originals in
 `docs/analysis/original-houses.md`". §10.2 is that profile: fifteen rows, five tiers. Hitting it for
@@ -3355,6 +3360,78 @@ The general lesson is cheaper than the specific one. "X cannot import Y" is a fa
 packages; "this cannot be checked" is a claim about the whole repository, and the step between them is
 "and there is no third package that imports both". That step was never taken, and it was false.
 
+**Second amendment, 2.4: the other row was computable too, and the answer it gives is that `Open
+House` misses its tier.** The remaining half of this item is done. `internal/profile` is the package
+the two callers were always going to need — sixteen rows of arithmetic over `internal/house`, the
+dark-room row through a `*render.Scene`, and the eccentricity row through a static room graph in
+`internal/profile/graph.go` that drives `DetermineRoomOpenings` over every room and breadth-first
+searches the result. `glidertool house stats` prints all eighteen, with `-tier` for the bands and
+`-fail` for an exit status; `internal/replay`'s two house tests now ask the same package instead of
+holding a hundred lines of tallies between them.
+
+The first amendment's lesson applies again and the answer this time is better than a test. A graph
+walk needs `internal/game`, and `internal/replay` imports it — so the three-lines-in-a-test move would
+have worked a second time. It was the wrong move: the numbers are wanted *printed*, and a package
+sitting above `house`, `render` and `game` that none of the three knows about costs nothing the test
+was not already paying. What "cannot be checked" meant, both times, was "I have not looked for the
+place where it can be".
+
+**What the row says, now that it can be asked.** This entry's own words were that eccentricity is "the
+row most worth having, because it is the only one that measures the *shape* of a house rather than its
+contents — `Open House` is 43 rooms on a 7×10 grid and nobody here can say whether its longest
+shortest-path is 9 or 19." It is **10**, and §10.2's tutorial band is 11-15, so the house misses a row
+it has been claiming to hit. The miss is worth more than a pass would have been:
+
+- The band is two houses. `Empty House` is 35 rooms at eccentricity 11, `Demo House` is 45 at 15, and
+  `Sampler` — the third template-tier original — is 2 rooms and outside the tier's 35-45 room band
+  entirely. Nobody chose 11-15.
+- `Demo House` reaches 33 of its 45 rooms. `Empty House` reaches all 35. **`Open House` is 43 rooms
+  and reaches all 43, inside 10 hops** — more rooms than `Empty House` inside a shorter diameter,
+  which is a bushier graph and not a shallower one.
+- Its star is at hop 9, in the Belfry, and the four deepest rooms are the roof edges just past it: the
+  North and South Louvres, the South Slope and the East Balcony. `Demo House`'s one star sits at depth
+  10 of 15 — a third of that house lies beyond its own goal. For a tutorial, having almost nothing
+  past the star is the better of the two shapes.
+
+So the house is not being changed, and `TestOpenHouseMatchesTheTutorialProfile` names the row as an
+allowed miss with that argument attached. `checkTier` checks the exemption both ways: an unnamed miss
+fails, and a named row that has stopped missing fails too, because an exemption whose reason has
+expired is a paragraph that has started lying. This is 4.18's position applied to our own house rather
+than to the corpus — §10.2 is a measurement of 22 houses and not a rule they obey, and the honest
+response to a miss is to look at it and then say what you found.
+
+**Four things the tool found on its first day, which is the case for having built it.**
+
+- **§10.2's `prizes/room` band excludes the house it was measured from.** `Empty House` has one prize
+  in 35 rooms: 0.0286, which §8.3 prints as 0.029 and §10.2 rounds into a band floor of 0.03. So
+  `house stats -tier tutorial "Empty House.house"` reports a miss on a row whose band that house
+  defines. `Band.Contains` is inclusive at both ends precisely so a corpus extreme passes its own
+  band; rounding in the document defeats it. Not corrected — the table is a transcription and
+  `TestTheTierTableMatchesTheDocument` holds it to the markdown — but it is the second known case, with
+  tutorial's `~20 %` empty-rooms midpoint, where 10.2's cell is not quite a band. *(Pointing the same
+  command at all 22 houses turned those two known cases into a property of the table, which is 4.25:
+  the rounding goes inward at seven cells, and large's objects/room band of 6.0-7.5 contains neither
+  of the two houses it was measured from.)*
+- **This entry has miscounted 10.2 since it was written.** The table has eighteen rows, not fifteen;
+  git says it has not changed since the document was written, so the number was never right. That is
+  not pedantry, it is the mechanism: `TestOpenHouseMatchesTheTutorialProfile` asserted a list of
+  sixteen rows somebody typed, and `prize:enemy` was simply absent from it — present in the
+  `Boarding House` test, hand-written, and missing here, with no test able to notice. `profile.Check`
+  iterates the table, so the eighteen are eighteen because the table says so.
+- **`-no-assets` was warning everybody.** The closing line said the reachable and eccentricity rows
+  read a custom-background room as sealed, whenever the flag was given. True for the seven houses with
+  rooms that need a `'bnds'` resource and false for the other fifteen and for every house the port
+  ships, whose rooms carry their own `bounds` field. `Profile.ForkBounded` counts them, the note names
+  the number or says the measurement is exact, and the corpus total is pinned at 155 against §10.1
+  step 10. A caveat that fires on every house is a caveat nobody reads.
+- **The one corpus claim the command printed was false.** Beside the caveat it printed a second note,
+  that 10.2's bands are a spread and "no shipped house is inside all eighteen of its own tier's" — a
+  sentence truncated mid-clause, and wrong: `Leviathan` is inside all eighteen of epic's. The figure is
+  21 of 22, it is now measured rather than assumed, and the three mechanisms behind it are 4.25. The
+  general lesson is the specific one this entry keeps arriving at from different directions: a claim
+  about the corpus that lives in a `fmt.Printf` has nothing holding it, and this project's habit of
+  pinning such claims to a test is what the tool now makes possible for claims about *tiers*.
+
 ### 4.17 A house with no custom art is told its custom art will fall back — **note; cosmetic, 2.3**
 
 Rendering `Open House` prints `no extracted resource fork at built-in:houseart/Open House; custom
@@ -3412,8 +3489,9 @@ table, and it can say which tier it is protecting.
 
 Worth recording as method rather than as content: this was not settled by re-reading either section.
 It was settled by writing a second house at a different tier and measuring it with the same code
-(`internal/replay/profile_test.go`), which is the only way a claim about a *table of tiers* can be
-tested at all. One house fitted to one column cannot distinguish "the table is usable" from "the
+(`internal/replay/profile_test.go`; the measurement is `internal/profile` since 4.16, and 4.25 is what
+asking it about all 22 houses at once then found), which is the only way a claim about a *table of
+tiers* can be tested at all. One house fitted to one column cannot distinguish "the table is usable" from "the
 column was chosen after the fact".
 
 ### 4.19 Two lines in an authored house are its players' saved games, and nothing said so — **note; found before it could cost anything, 2.3; the pin DONE**
@@ -3840,6 +3918,70 @@ caught this the first time the assets were extracted. The expensive version, a d
 comparison, wants the documents to carry machine-readable layout blocks and is 4.12's citation-checker
 argument one level down. **Severity if it ships:** error — a decoder that disagrees with its own
 specification is not a style question, and the corpus is the evidence either way.
+
+### 4.25 §10.2 says "pick a tier, then hit these", and 21 of the 22 houses it was measured from cannot — **note; found by pointing 4.16's new tool at the corpus, 2.4; the port is corrected, the document is what wants changing**
+
+The first thing `glidertool house stats` was asked, once it existed, was the obvious one: run it over
+all 22 shipped houses at the tier §8.3 assigns each of them and see how the originals score against
+their own table. The answer is that **only Leviathan is inside all eighteen bands of its own tier**,
+and it manages that by having set eight of epic's bounds itself. The other 21 are outside at least
+one. Six are outside four or more. Sampler misses eleven of the eighteen.
+
+That is not a defect in the houses and not one in the measurement — the walk agrees with §3.6 on
+eight columns for all 22 houses, and the empty-room count now agrees with §5.4's corpus figure of 840
+to the room. It is a property of the table, and three separate mechanisms produce it.
+
+**An edge rounded inward excludes the house it was taken from.** §10.2's cells are written to two or
+three significant figures and the rounding goes toward the middle of the band, so the extreme house
+that defined a bound lands just outside it. The clearest case is large's objects/room, **6.0-7.5**:
+the minimum at that tier is Land of Illusion at 5.9934 and the maximum is Rainbow's End at 7.5022, so
+the band is exactly those two houses rounded inward and **contains neither of them**. The same thing
+at six other cells — Empty House's one prize in 35 rooms is 0.0286 against a tutorial floor of 0.03,
+SpacePods is 14.53 objects a room against an epic ceiling of 14.5, Art Museum holds 569 objects
+against a medium floor of 570, Metropolis is 1.016 enemies a room against a medium ceiling of 1.0,
+Castle o' the Air is 1.412 prizes a room against 1.4, Fun House is 0.395 against a small floor of
+0.4. Rounding a measured extreme is right; rounding it the wrong way turns a description into a
+rule nothing satisfies. **A band quoted to fewer digits than it was measured at has to be widened,
+not rounded.**
+
+**The empty-rooms row is not a spread at all.** Eighteen of the 22 houses are outside it, which is no
+longer a rounding story. Its five cells run 10-30 % and the houses run **0 % to 53.3 %**: six shipped
+houses have no empty room whatsoever (California or Bust!, Davis Station, Nemo's Market, Sampler,
+SpacePods, The Asylum Pro) and Demo House — the tutorial, the house a first author is likeliest to
+imitate — is 53.3 % empty. The tutorial cell is written `~20 %`, and 20 % is §5.4's *corpus-wide*
+figure, 840 empty rooms in 4,070, which is a mean over rooms and says nothing about houses of any
+particular size. So one row of an eighteen-row table of observed spreads is a recommendation wearing
+a measurement's clothes, and it is the row that fires on nearly every house. The observed per-tier
+ranges, for whoever rewrites the cells: tutorial **0-53.3 %**, small **0-27.9 %**, medium
+**0-22.8 %**, large **11.5-35.8 %**, epic **0-37.5 %**.
+
+**§10.2's room bands disagree with §8.3's own grouping.** §8.3's five tiers are the only complete
+assignment of the 22 houses to §10.2's five columns — by room count alone, California or Bust! at 16
+rooms and Fun House at 43 belong to no column at all — and for medium, large and epic the two
+sections state exactly the same range (85-140, 175-303, 383-531). For the two smallest they do not.
+§8.3 describes its first tier as 2-45 rooms where §10.2's tutorial column says 35-45, and its second
+as 16-65 where small says 45-85. So Sampler (2 rooms), California or Bust! (16) and Fun House (43)
+are each outside the room band of the tier the document itself puts them in. That is 4.18's tier
+again, from a different direction: the two smallest columns are where §10.2 stops being a
+transcription of the corpus.
+
+**What was wrong on our side, and is now right.** The command printed a corpus claim nobody had
+measured: "no shipped house is inside all eighteen of its own tier's", a sentence that was both
+truncated mid-clause and false. `Check`'s doc comment said the same thing, and so did one of the two
+house tests. All three now say 21 of 22 and name Leviathan as the exception.
+`profile.TestTheBandsExcludeTheHousesTheyWereMeasuredFrom` parses §8.3's grouping table, measures all
+22 houses against their assigned column, and asserts the count, the identity of the one house inside,
+the eighteen that miss the empty-rooms row, and which of the five room ranges agree between the two
+sections — with the two that disagree written as a failure if they ever *start* agreeing, because
+that is the fix and the entry should close when it lands.
+
+Worth recording as method, because it is the same lesson twice. 4.16's first amendment found a row
+that "could not be computed" the moment the counting left a test file. This is the second thing the
+move bought: the 22 houses could not be compared against the table *at all* while the comparison
+lived inside two tests about two of our own houses. A claim about a table of tiers is not checkable
+one house at a time, and the sentence that turned out to be wrong had been written from three.
+**The cost of a measurement living in a test is that it can only ever be asked about the test's own
+subject.**
 
 ---
 

@@ -45,6 +45,7 @@ import (
 	"testing"
 
 	"github.com/bwenstar/gliderGo/internal/house"
+	"github.com/bwenstar/gliderGo/internal/profile"
 	"github.com/bwenstar/gliderGo/internal/replay"
 )
 
@@ -132,56 +133,57 @@ func TestOpenHouseCanBeFinished(t *testing.T) {
 // The bands are wide because the corpus's are -- this is not pinning one design, it is
 // keeping an edit inside the tier it was written for.
 //
-// The counting lives in profile_test.go, shared with the small-tier house, so that a
-// difference between the two is always a difference in the houses.
+// The eighteen bands and the counting behind them live in internal/profile, shared with
+// the small-tier house, so that a difference between the two is always a difference in the
+// houses and never in the arithmetic. profile_test.go holds the three assertions that are
+// not cells of 10.2 and the argument for the shape of this test.
 //
-// One of 10.2's rows is still not here: BFS eccentricity (target 11-15) needs a graph walk
-// over the room openings, which is real work for one number and stays filed as
-// docs/IMPROVEMENTS.md 4.16. Dark rooms used to be excluded with it, on the grounds that
-// GetNumberOfLights lives in internal/render and could not be reached from a house. That
-// was wrong -- this package imports internal/render already -- and the row is now asserted;
-// profile_test.go's header has the correction.
+// # The one row this house misses, and why it is not being fixed
+//
+// **BFS eccentricity is 10 and tutorial's band is 11-15.** That row is the last of the
+// eighteen to be computable at all -- it needs a walk over every room's four openings, its
+// staircases and its resolved links, which is internal/profile/graph.go and was filed as
+// docs/IMPROVEMENTS.md 4.16 for five stages. The entry said the number was worth having
+// because it is the only row that measures the *shape* of a house rather than its contents,
+// and that nobody here could say whether this house's longest shortest-path was 9 or 19.
+// It is 10, and the answer is worth the wait, because the miss turns out to be the house
+// being better connected rather than smaller:
+//
+//   - The band is two houses. Empty House is 35 rooms with an eccentricity of 11 and Demo
+//     House is 45 with 15; Sampler, the third template-tier original, is 2 rooms and falls
+//     outside the tier's 35-45 room band entirely. So 11-15 is not a range anybody chose.
+//   - Demo House reaches 33 of its 45 rooms. Empty House reaches all 35. **This house is 43
+//     rooms and reaches all 43, in 10 hops** -- more rooms than Empty House inside a
+//     shorter diameter, which is a bushier graph and not a shallower one.
+//   - The star sits at hop 9, in the Belfry, and the four deepest rooms are the roof edges
+//     just past it: the North and South Louvres, the South Slope and the East Balcony.
+//     Demo House's one star is at depth 10 of 15 -- a third of that house lies beyond its
+//     own goal. A tutorial with nothing much past the star is the better shape of the two.
+//
+// Reaching 11 would mean adding a room at the far end or deleting a shortcut, in a file
+// whose route has been flown by hand, to move one number inside a band measured from two
+// houses. 10.2 is a measurement of 22 houses and not a rule they obey; the honest response
+// to a miss is to look at it and then say what you found, which is what this paragraph is.
 func TestOpenHouseMatchesTheTutorialProfile(t *testing.T) {
 	h, err := house.ParseTextFile(openHouseSource)
 	if err != nil {
 		t.Fatalf("parse %s: %v", openHouseSource, err)
 	}
-	p := measure(t, h)
 
-	checkRows(t, "tutorial", []profileRow{
-		{"real rooms", float64(p.rooms), 35, 45, true},
-		{"occupied floors", float64(p.floors), 6, 7, true},
-		{"occupied suites", float64(p.suites), 9, 10, true},
-		{"grid density", p.density, 0.60, 0.65, false},
-		{"total objects", float64(p.objects), 78, 138, true},
-		{"objects per room", p.perRoom(p.objects), 2.2, 3.1, false},
-		{"empty rooms %", 100 * p.perRoom(p.empties), 15, 25, false},
-		// The tutorial tier's ceiling row is 0, not "under 24": a 24-object room is a room
-		// with nothing left to say, and no house of 43 rooms averaging 3.09 objects should
-		// have one. This used to assert the fullest room against 0..23 instead, which is the
-		// same claim as "not at the ceiling" and so said nothing the row was for.
-		{"rooms at the 24-object ceiling", float64(p.atCeiling), 0, 0, true},
-		{"enemies per room", p.perRoom(p.enemies), 0.0, 0.1, false},
-		{"prizes per room", p.perRoom(p.prizes), 0.03, 0.29, false},
-		{"stars", float64(p.stars), 1, 1, true},
-		{"batteries", float64(p.batteries), 0, 1, true},
-		{"rubber bands", float64(p.bands), 0, 1, true},
-		// The tutorial tier permits no dark rooms at all, and the house's header says all 43
-		// were "checked by eye instead, with `glidertool render -all`". They were, and this
-		// is the same claim made by the rule the game itself uses.
-		{"dark rooms %", 100 * p.perRoom(p.dark), 0, 0, false},
-		{"distinct object codes", float64(p.kinds), 15, 48, true},
-		{"total points", float64(p.total), 8500, 12500, true},
+	// Two rows are worth a word beyond the band they came from. **rooms at the 24 ceiling**
+	// is 0 at this tier and not "under 24": a 24-object room is a room with nothing left to
+	// say, and no house of 43 rooms averaging 3.09 objects should have one. **dark rooms**
+	// is 0 %, and this house's header says all 43 rooms were "checked by eye instead, with
+	// `glidertool render -all`" -- they were, and the row makes the same claim by the rule
+	// the game itself uses.
+	p := checkTier(t, h, profile.Tutorial, map[string]string{
+		"BFS eccentricity": "43 of 43 rooms inside 10 hops is flatter than either " +
+			"tutorial-sized original and flatter is not worse; see the test's comment",
 	})
 
 	checkStartRoom(t, h, p)
-
-	t.Logf("%d rooms, %d objects (%.2f/room), %d empty, %d at the ceiling (fullest %d), "+
-		"%d enemies, %d prizes (%d stars, %d batteries, %d bands), %d distinct codes, "+
-		"%d points, density %.3f, %d dark %v",
-		p.rooms, p.objects, p.perRoom(p.objects), p.empties, p.atCeiling, p.fullest,
-		p.enemies, p.prizes, p.stars, p.batteries, p.bands, p.kinds, p.total, p.density,
-		p.dark, p.darkNames)
+	checkEveryRoomReachable(t, p)
+	logProfile(t, profile.Tutorial, p)
 }
 
 // TestAHouseInTheLevelsRootIsFoundByName is the lookup a bug report about one of this port's own

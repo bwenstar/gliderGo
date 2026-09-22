@@ -56,14 +56,19 @@ const (
 	RoofCrashHigh int16 = 250
 )
 
-// dirtTileOpenAbove reports whether a Dirt tile has sky at its top, so a glider
+// DirtTileOpenAbove reports whether a Dirt tile has sky at its top, so a glider
 // beneath it can rise out of the room. Tiles 5 and 6 are the two that do
 // (Interactions.c:206-209, :263-266).
-func dirtTileOpenAbove(t int16) bool { return t == 5 || t == 6 }
+//
+// Exported for internal/profile, which walks a house's room graph and has to answer
+// the same question about a room nobody is standing in. The alternative was a second
+// copy of the two tile numbers in a package that cannot see this one, and a pair of
+// magic numbers that agree by luck is exactly the kind of drift a port cannot afford.
+func DirtTileOpenAbove(t int16) bool { return t == 5 || t == 6 }
 
-// dirtTileOpenBelow is the same for the floor: tiles 2 and 3
+// DirtTileOpenBelow is the same for the floor: tiles 2 and 3
 // (Interactions.c:318-321, :396-397).
-func dirtTileOpenBelow(t int16) bool { return t == 2 || t == 3 }
+func DirtTileOpenBelow(t int16) bool { return t == 2 || t == 3 }
 
 // tileUnder is `dest.left >> 6` and `dest.right >> 6`, the tile column an edge is in.
 // The shift is arithmetic in both C and Go, so a negative x floors rather than
@@ -186,7 +191,7 @@ func (g *Glider) CheckEscapeUp(e Env) {
 		g.stopAtCeiling()
 		return
 	}
-	if dirtTileOpenAbove(e.Tile(l)) && dirtTileOpenAbove(e.Tile(r)) {
+	if DirtTileOpenAbove(e.Tile(l)) && DirtTileOpenAbove(e.Tile(r)) {
 		if g.Dest.Top < NoCeilingLimit {
 			e.MoveRoomToRoom(g, Above)
 		}
@@ -216,7 +221,7 @@ func (g *Glider) CheckEscapeUpTwo(e Env) {
 		g.stopAtCeiling()
 		return
 	}
-	if dirtTileOpenAbove(e.Tile(l)) && dirtTileOpenAbove(e.Tile(r)) {
+	if DirtTileOpenAbove(e.Tile(l)) && DirtTileOpenAbove(e.Tile(r)) {
 		if g.Dest.Top < NoCeilingLimit {
 			g.raceForExit(e, PlayerEscapedUp, Above, g.bounceOffCeiling)
 		}
@@ -246,7 +251,7 @@ func (g *Glider) CheckEscapeDown(e Env) {
 	}
 	if e.Background() == Dirt {
 		l, r := tileUnder(g.Dest.Left), tileUnder(g.Dest.Right)
-		if tilesInRange(l, r) && dirtTileOpenBelow(e.Tile(l)) && dirtTileOpenBelow(e.Tile(r)) {
+		if tilesInRange(l, r) && DirtTileOpenBelow(e.Tile(l)) && DirtTileOpenBelow(e.Tile(r)) {
 			if g.Dest.Bottom > NoFloorLimit {
 				e.MoveRoomToRoom(g, Below)
 			}
@@ -294,7 +299,7 @@ func (g *Glider) CheckEscapeDownTwo(e Env) {
 			// Interactions.c:315-358 -- deliberately no else branch. See above.
 			return
 		}
-		if dirtTileOpenBelow(e.Tile(l)) && dirtTileOpenBelow(e.Tile(r)) {
+		if DirtTileOpenBelow(e.Tile(l)) && DirtTileOpenBelow(e.Tile(r)) {
 			if g.Dest.Bottom > NoFloorLimit {
 				g.raceForExit(e, PlayerEscapedDown, Below, g.bounceOffFloor)
 			}

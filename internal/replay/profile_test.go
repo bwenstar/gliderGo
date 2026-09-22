@@ -3,209 +3,192 @@ package replay_test
 // The measurement half of docs/PLAN.md Stage 2's "designed against the quantitative
 // profile of the originals in docs/analysis/original-houses.md".
 //
-// 10.2 of that document turns the measurements of all 4,070 shipped rooms into a table
-// of bands per size tier, and each of the port's own houses is written against one
-// column of it. What this file holds is the counting; what the per-house files hold is
-// the column. They are separated for one reason: the houses are at different tiers, so
-// if each test counted for itself, a difference between them could be a difference in
-// the houses or a difference in the arithmetic, and there would be no way to tell from
-// a failure which. Counted here, a divergence is always the house.
+// 10.2 of that document turns the measurements of all 4,070 shipped rooms into a table of
+// bands per size tier, and each of the port's own houses is written against one column of
+// it. What the per-house files hold is the column; what this file holds is the three
+// assertions that are not a cell of the table.
 //
-// # Why dark rooms is in here and not duplicated
+// # The counting used to live here and does not any more
 //
-// Every row below is computable from internal/house alone except one. A dark room is a
-// room GetNumberOfLights answers 0 for, and that function is a method on
-// *render.Scene (internal/render/locale.go:1350-1384) because it reads the background's
-// self-lighting table and each light object's switch state. internal/house cannot
-// import internal/render -- and would not want to, since the rule is a rendering rule.
+// It was a hundred lines of tallies in this file, shared between the two house tests for
+// one reason: the houses are at different tiers, so if each counted for itself then a
+// divergence between them could be a difference in the houses or a difference in the
+// arithmetic, and a failure would not say which. That argument was right, and it kept
+// being right one directory further out -- the same numbers are what an author wants
+// *printed* before there is a test to fail, which a test cannot do because a test only
+// speaks when it fails. So the walk is internal/profile now and `glidertool house stats`
+// prints it (docs/IMPROVEMENTS.md 4.16). Three things came with the move:
 //
-// openhouse_test.go used to say the row therefore "cannot be computed", citing
-// docs/IMPROVEMENTS.md 4.16, and that was wrong: *this* package already imports
-// internal/render (replay.go needs it to run a game at all), so a test here can build a
-// Scene over a parsed house and ask it. It costs three lines and it catches the one
-// thing a band on its own does not -- a house whose light went out because its
+//   - The bands are no longer transcribed here. internal/profile holds one copy of 10.2
+//     and TestTheTierTableMatchesTheDocument parses the markdown to check it cell by
+//     cell, so the numbers live in one place and the document is the place.
+//   - All eighteen rows are checked now, not sixteen. prize:enemy was hand-written in one
+//     of the two files and absent from the other, and BFS eccentricity was not computed
+//     at all -- it is a graph walk over the room openings, and until the walk existed the
+//     row was simply left out with a note saying so.
+//   - Because all eighteen are checked, a house that misses one has to say which and why
+//     in its own file. See checkTier.
+//
+// # Why dark rooms is in here and not filed as impossible
+//
+// Every row except two is computable from internal/house alone. A dark room is a room
+// GetNumberOfLights answers 0 for, and that is a method on *render.Scene
+// (internal/render/locale.go:1350-1386) because it reads the background's self-lighting
+// table and each light object's switch state; internal/house cannot import
+// internal/render and would not want to, since the rule is a rendering rule.
+//
+// openhouse_test.go used to say the row therefore "cannot be computed", and that was
+// wrong: a Scene over a parsed house can be asked, for three lines, and the row caught
+// the one thing a band on its own does not -- a house whose light went out because its
 // background changed. The Bell Turret did exactly that: it was kRoof, which lights
 // itself, and became kPaneledRoom, which does not.
-//
-// What is still not computed is 10.2's BFS eccentricity (a graph walk over the room
-// openings), which remains filed as 4.16.
 
 import (
 	"testing"
 
-	"github.com/bwenstar/gliderGo/internal/game"
 	"github.com/bwenstar/gliderGo/internal/house"
-	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/profile"
 )
 
-// houseProfile is one row per cell of 10.2 that a house can be measured for.
-type houseProfile struct {
-	rooms       int
-	floors      int
-	suites      int
-	density     float64
-	objects     int
-	empties     int
-	fullest     int
-	atCeiling   int // rooms holding all MaxRoomObs objects, which 10.2 counts separately
-	enemies     int
-	prizes      int
-	stars       int
-	batteries   int
-	bands       int
-	kinds       int
-	dark        int
-	darkNames   []string
-	prizePoints int32
-	total       int32
-}
-
-// perRoom is the division 10.2 states most of its bands as, guarding the empty house so
-// a parse that silently produced nothing fails on a band rather than on a NaN.
-func (p houseProfile) perRoom(n int) float64 {
-	if p.rooms == 0 {
-		return 0
-	}
-	return float64(n) / float64(p.rooms)
-}
-
-// measure walks a parsed house and fills in the profile.
+// checkTier measures a house against one of 10.2's five columns and insists that the rows
+// it misses are exactly the ones named.
 //
-// The prize values come from internal/game's constants rather than from a table written
-// here, so a change to what a clock is worth moves the house's expected total points
-// instead of silently disagreeing with it.
-func measure(t *testing.T, h *house.House) houseProfile {
+// Not "misses nothing", which is what this replaced and which is not a claim any house can
+// make. 10.2's bands are the observed spread of the 1994 houses tier by tier, so landing
+// inside all eighteen would mean being that tier's outlier in eighteen ways at once, and
+// neither tutorial-sized original manages it: Empty House is at 34.3 % empty rooms against
+// a 15-25 % band and Demo House at 53.3 %. docs/IMPROVEMENTS.md 4.18 is the entry about
+// where the tiers and 10.3's construction procedure disagree.
+//
+// So a miss is allowed and the price of allowing it is naming it in the test and arguing
+// for it in the comment above. The map is checked both ways, which is what stops it
+// becoming a list of things nobody looks at: an unnamed miss fails, and a named row that
+// has stopped missing fails too, because an exemption whose reason has expired is a
+// paragraph that has started lying.
+func checkTier(t *testing.T, h *house.House, tier profile.Tier, allowed map[string]string) profile.Profile {
 	t.Helper()
 
-	points := map[int16]int32{}
-	for name, v := range map[string]int32{
-		"kRedClock": game.RedClockPoints, "kBlueClock": game.BlueClockPoints,
-		"kYellowClock": game.YellowClockPoints, "kCuckoo": game.CuckooClockPoints,
-		"kStar": game.StarPoints,
-	} {
-		code, ok := house.ObjectCode(name)
-		if !ok {
-			t.Fatalf("no object code for %s", name)
-		}
-		points[code] = v
-	}
-	code := func(name string) int16 {
-		c, ok := house.ObjectCode(name)
-		if !ok {
-			t.Fatalf("no object code for %s", name)
-		}
-		return c
-	}
-	starCode, batteryCode, bandsCode := code("kStar"), code("kBattery"), code("kBands")
+	// No assets. A house of ours carries no art of its own (docs/IMPROVEMENTS.md 4.15),
+	// so no room reads its openings from a 'bnds' resource and the room graph is exact
+	// with an empty tree -- which is also why these tests need nothing extracted.
+	p := profile.Measure(h, nil)
 
-	// One Scene over the whole house, for the dark-room row. The view is the default 640x480
-	// and the assets are empty: GetNumberOfLights reads the room's background and its light
-	// objects' states and touches no art, so there is nothing for an asset tree to supply.
-	scene := render.NewScene(render.DefaultView(), render.NewAssets(nil), h)
-
-	var p houseProfile
-	floors, suites, kinds := map[int16]bool{}, map[int16]bool{}, map[int16]bool{}
-	for i := range h.Rooms {
-		rm := &h.Rooms[i]
-		floors[rm.Floor], suites[rm.Suite] = true, true
-
-		n := rm.LiveObjects()
-		p.objects += n
-		if n == 0 {
-			p.empties++
+	missed := map[string]bool{}
+	for _, m := range profile.Check(p, tier) {
+		missed[m.Row.Target] = true
+		band := m.Row.Bands[tier].String(m.Row.Unit)
+		if why, ok := allowed[m.Row.Target]; ok {
+			// Logged rather than passed over in silence. The lesson of the dark-room row
+			// is that a number can be inside its band and still be wrong -- 3.9 % against
+			// a 0-4 % band printed green -- so the ones deliberately outside are the last
+			// ones that should go unprinted.
+			t.Logf("%s is %s where %s wants %s, allowed: %s",
+				m.Row.Target, m.Row.Unit.Format(m.Value), tier, band, why)
+			continue
 		}
-		if n > p.fullest {
-			p.fullest = n
+		if !m.Measured {
+			t.Errorf("%s cannot be measured for this house, and %s wants %s "+
+				"(original-houses.md 10.2)", m.Row.Target, tier, band)
+			continue
 		}
-		if n == house.MaxRoomObs {
-			p.atCeiling++
-		}
-		if scene.GetNumberOfLights(int16(i)) == 0 {
-			p.dark++
-			p.darkNames = append(p.darkNames, rm.Name.Text())
-		}
-
-		for j := range rm.Objects {
-			o := rm.Objects[j]
-			if o.IsEmpty() {
-				continue
-			}
-			kinds[o.What] = true
-			switch o.Group() {
-			case house.GroupEnemy:
-				p.enemies++
-			case house.GroupBonus:
-				p.prizes++
-				p.prizePoints += points[o.What]
-				switch o.What {
-				case starCode:
-					p.stars++
-				case batteryCode:
-					p.batteries++
-				case bandsCode:
-					p.bands++
-				}
-			}
-		}
+		t.Errorf("%s = %s, want %s (original-houses.md 10.2, %s)",
+			m.Row.Target, m.Row.Unit.Format(m.Value), band, tier)
 	}
 
-	p.rooms, p.floors, p.suites, p.kinds = len(h.Rooms), len(floors), len(suites), len(kinds)
-	if cells := p.floors * p.suites; cells > 0 {
-		p.density = float64(p.rooms) / float64(cells)
+	// A key that is not a row name can never match a miss, so without this it would read
+	// as a row that had stopped missing -- the same message for the opposite problem.
+	names := map[string]bool{}
+	for _, r := range profile.Rows() {
+		names[r.Target] = true
 	}
-	// 100 a room for every room entered after the first, plus the prizes. This is the score
-	// a player who cleared the house would hold, which is the quantity 10.2 tabulates.
-	p.total = int32(100*p.rooms) + p.prizePoints
+	for target, why := range allowed {
+		switch {
+		case !names[target]:
+			t.Errorf("%q is not one of 10.2's rows, so the exemption (%s) can never "+
+				"apply: the eighteen names are the Target fields of profile.Rows()",
+				target, why)
+		case !missed[target]:
+			t.Errorf("%s is inside %s's band now, so the exemption is stale: delete it "+
+				"and the paragraph arguing for it (%s)", target, tier, why)
+		}
+	}
 	return p
 }
 
-// profileRow is one cell of 10.2: a name, the measured value and the tier's band.
-type profileRow struct {
-	what     string
-	got      float64
-	lo, hi   float64
-	integral bool
-}
-
-// checkRows reports every row that left its band, naming the tier so the failure says
-// which column of 10.2 it was read from.
+// checkStartRoom is 10.3 step 12, which both houses obey and which is not a 10.2 band: the
+// first room a player sees is richer than average and cannot kill them.
 //
-// It reports all of them rather than stopping at the first, because the rows are not
-// independent: adding four objects to a room moves objects/room, total objects, the
-// empty-room percentage and possibly prizes/room, and seeing the set is how you tell an
-// edit that went slightly too far from a house that has changed tier.
-func checkRows(t *testing.T, tier string, rows []profileRow) {
+// (The two messages used to cite step 9. Step 9 is the hazard ridge at two-thirds depth;
+// step 12 is "set firstRoom's contents richer than average: 13 objects, no enemies". The
+// citation was simply wrong and nothing checks a step number.)
+//
+// The room comes from the profile rather than from the firstRoom field, because the two
+// differ for a house that names a room it does not contain -- the original clamps such a
+// house to room 0 (play.go:623-633) -- and a house of ours that did that should fail here
+// rather than have the wrong room quietly checked.
+func checkStartRoom(t *testing.T, h *house.House, p profile.Profile) {
 	t.Helper()
-	for _, c := range rows {
-		if c.got >= c.lo && c.got <= c.hi {
-			continue
-		}
-		if c.integral {
-			t.Errorf("%s = %d, want %d..%d (original-houses.md 10.2, %s)",
-				c.what, int(c.got), int(c.lo), int(c.hi), tier)
-		} else {
-			t.Errorf("%s = %.3f, want %.2f..%.2f (original-houses.md 10.2, %s)",
-				c.what, c.got, c.lo, c.hi, tier)
-		}
+	if p.Start < 0 || int(p.Start) >= len(h.Rooms) {
+		t.Fatalf("this house has no room to start in at all")
 	}
-}
-
-// checkStartRoom is 10.3 step 9, which both houses obey and which is not a 10.2 band:
-// the first room a player sees is richer than average and cannot kill them.
-func checkStartRoom(t *testing.T, h *house.House, p houseProfile) {
-	t.Helper()
-	if h.FirstRoom < 0 || int(h.FirstRoom) >= p.rooms {
-		t.Fatalf("firstRoom = %d, out of range", h.FirstRoom)
+	if p.Start != h.FirstRoom {
+		t.Fatalf("firstRoom = %d but the game would start in room %d: 10.1 step 6 wants "+
+			"firstRoom to index a real room", h.FirstRoom, p.Start)
 	}
-	first := &h.Rooms[h.FirstRoom]
-	if n, avg := first.LiveObjects(), p.perRoom(p.objects); float64(n) < avg {
-		t.Errorf("the start room %q holds %d objects, below the %.2f average: 10.3 step 9 "+
+	first := &h.Rooms[p.Start]
+	if n, avg := first.LiveObjects(), p.PerRoom(p.Objects); float64(n) < avg {
+		t.Errorf("the start room %q holds %d objects, below the %.2f average: 10.3 step 12 "+
 			"wants it richer than average", first.Name.Text(), n, avg)
 	}
 	for j := range first.Objects {
 		if o := first.Objects[j]; !o.IsEmpty() && o.Group() == house.GroupEnemy {
-			t.Errorf("the start room %q holds an enemy (%s): 10.3 step 9 forbids it",
+			t.Errorf("the start room %q holds an enemy (%s): 10.3 step 12 forbids it",
 				first.Name.Text(), house.ObjectName(o.What))
 		}
 	}
+}
+
+// checkEveryRoomReachable insists the static room graph can get from the start room to
+// every other room in the house.
+//
+// This is not a row of 10.2 and it is emphatically not a rule the corpus obeys. Four of
+// the 22 ship a house the model reaches all of -- California or Bust!, Empty House, The
+// Asylum Pro and SpacePods -- and Fun House reaches 5 of its 43. internal/profile's
+// graph.go argues at length that the number is therefore reported and never linted, and
+// docs/IMPROVEMENTS.md 4.1 declined it as a lint check.
+//
+// It is an assertion *here* because the model's two blind spots are both things these two
+// houses do not have. It cannot follow a door a kLightSwitch opens in another room, and it
+// cannot know that a link left at `who == 255` was meant to be connected; neither house
+// uses a switch that way, and `glidertool house lint` fails on the unlinked transport. So
+// in these two files "unreachable" has no innocent explanation left, and an edit that
+// seals a room off is a bug rather than a curiosity.
+//
+// It is also the condition that makes the eccentricity row worth reading. A longest
+// shortest-path of 10 over 43 of 43 rooms describes the house; the same number over 5 of
+// 43 describes whichever fragment the walk happened to land in.
+func checkEveryRoomReachable(t *testing.T, p profile.Profile) {
+	t.Helper()
+	if p.Reachable == p.Rooms {
+		return
+	}
+	t.Errorf("the walk reaches %d of the %d rooms from room %d; unreachable: %v",
+		p.Reachable, p.Rooms, p.Start, p.Unreachable)
+}
+
+// logProfile is the bottom of both house tests: every measured row, printed.
+//
+// The rows above are bounded and these are read, which is not the same job. dark rooms sat
+// at 3.9 % inside a 0-4 % band after the Bell Turret stopped being a kRoof room, and the
+// band printed green; what caught it was somebody reading the number. `glidertool house
+// stats` is the same output for a house that has no test yet.
+func logProfile(t *testing.T, tier profile.Tier, p profile.Profile) {
+	t.Helper()
+	t.Logf("%s tier: %d rooms, %d objects (%.2f/room), %d empty, %d at the ceiling "+
+		"(fullest %d), %d enemies, %d prizes (%d stars, %d batteries, %d bands), "+
+		"%d distinct codes, %d points, density %.3f",
+		tier, p.Rooms, p.Objects, p.PerRoom(p.Objects), p.Empty, p.AtCeiling, p.Fullest,
+		p.Enemies, p.Prizes, p.Stars, p.Batteries, p.Bands, p.Kinds, p.Points, p.Density())
+	t.Logf("    %d dark %v; %d of %d rooms reachable from %d, furthest %d hops",
+		p.Dark, p.DarkRooms, p.Reachable, p.Rooms, p.Start, p.Eccentricity)
 }

@@ -13,6 +13,7 @@
 //	glidertool house checks                        # what every lint check means
 //	glidertool house info  assets/extracted/houses/*.house
 //	glidertool house rooms Demo.house
+//	glidertool house stats -tier small new.house   # is it the shape of a 1994 house?
 //	glidertool render -scale 2 -o room.png Demo.house
 //	glidertool render -all -o /tmp/demo Demo.house  # every room, for eyeballing
 //	glidertool replay -house Demo -frames 600      # headless run, summary + digest
@@ -91,6 +92,7 @@ usage: %s <command> [flags] [file...]
   house checks                              every lint check, with what it means
   house info  <house>...                    one summary line per house
   house rooms [-objects] <house>            per-room table
+  house stats [-tier t] <house>...          measure it against the 1994 houses
   render      [flags] <house>               compose a room to PNG, as the game does
   replay      [flags] [script]              play headlessly from a script; trace it
   demo info   [-stats] <demo>...            describe a recorded input stream
