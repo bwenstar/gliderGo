@@ -44,12 +44,20 @@
 #   firstRoom          f1 s57       12 of 22 houses start on floor 1, 19 of 22 in
 #                                   the suite 54-69 band (10.3 step 1)
 #
-# Thirteen of those rows are asserted, not claimed: TestOpenHouseMatchesTheTutorialProfile
+# All sixteen of those rows are asserted, not claimed: TestOpenHouseMatchesTheTutorialProfile
 # (internal/replay/openhouse_test.go) walks this file and reports which one left its
-# band. The dark-rooms row and 10.2's BFS eccentricity are the two it cannot compute,
-# both because the rule lives in internal/render or internal/game and internal/house
-# cannot import either -- docs/IMPROVEMENTS.md 4.16. Dark rooms was checked by eye
-# instead, with `glidertool render -all`, and all 43 are lit.
+# band.
+#
+# Dark rooms used to be the fifteenth, excluded on the grounds that GetNumberOfLights
+# lives in internal/render and internal/house cannot import it. That was true of
+# internal/house and irrelevant: the test does not live there. internal/replay imports
+# internal/render already -- it cannot run a game without it -- so the test builds one
+# Scene over the parsed house and asks it, in three lines
+# (internal/replay/profile_test.go). The row is asserted, and `glidertool render -all`
+# is now a second opinion rather than the only one.
+#
+# What is genuinely not computed is 10.2's BFS eccentricity, which wants a graph walk
+# over the room openings and stays filed as docs/IMPROVEMENTS.md 4.16.
 #
 # Two targets are deliberately missed, and both for the same reason.
 #

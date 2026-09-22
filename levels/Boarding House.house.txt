@@ -1,0 +1,1165 @@
+# Boarding House -- the port's second house, and the one that tests whether the first
+# one's method was a method or a coincidence.
+#
+# Built with `make levels`, which runs `glidertool house build` over this file and
+# writes assets/levels/Boarding House.house. The binary is a build product; this text
+# is the source, and it is the thing to edit.
+#
+# ---------------------------------------------------------------------------
+# Why this house exists
+# ---------------------------------------------------------------------------
+#
+# Open House was designed against docs/analysis/original-houses.md 10.2, which turns
+# the measurements of all 4,070 shipped rooms into a table of targets per size tier.
+# It hit the tutorial column, every row of it asserted by a test. What that does
+# not establish is whether the table is usable, because a single house fitted to a
+# single column is also what you get by drawing a house and then choosing the column
+# it happens to land in.
+#
+# So this is the next column up -- 10.2's **small** tier, 45 to 85 rooms -- and the
+# interesting thing about it is not the room count. It is that the small tier's bands
+# are different in kind, not just wider: 7 to 19 objects per room against the
+# tutorial's 2.2 to 3.1, half a dozen enemies per ten rooms where the tutorial tier
+# permits almost none, and 0 to 4 % dark rooms where the tutorial tier permits none at
+# all. A house that satisfies both columns from the same layout would prove the table
+# says nothing. This one could not reuse Open House's layout and does not.
+#
+# It is also where the port's outdoor art finally gets used. Open House has nine kSky
+# rooms and nothing else outdoors. This house has 21 rooms across all nine of the
+# non-interior backgrounds -- kGarden, kSkywalk, kDirt, kMeadow, kField, kRoof, kSky,
+# kStratosphere and kStars -- which with the nine interiors is what takes it to **18 of
+# 18** built-in backgrounds, the first house in the repository, ours or 1994's, to use
+# every one. Sixteen of the 21 have no ceiling; kSkywalk and kDirt do, which is the
+# distinction the vent section below turns on. Three are kRoof, and kRoof turned out to
+# be the one background in the game where a tile is physics rather than decoration;
+# that cost most of the work here and has a section of its own below.
+#
+# ---------------------------------------------------------------------------
+# What it hits, against docs/analysis/original-houses.md 10.2, small column
+# ---------------------------------------------------------------------------
+#
+#   real rooms              51       target 45-85
+#   occupied floors          7       target 5-14
+#   occupied suites         13       target 13-20
+#   grid density         0.560       target 0.2-0.65     (51 of 7 x 13 cells)
+#   total objects          388       target 300-620
+#   objects/room          7.61       target 7-19
+#   empty rooms           11.8 %     target 10-25 %      (6 of 51)
+#   rooms at the 24 ceiling  0       target 0-6          (the fullest holds 13)
+#   enemies/room         0.647       target 0.5-1.3      (33 of them)
+#   prizes/room          0.922       target 0.4-0.95     (47 of them)
+#   prize:enemy           1.42       target 0.7-1.5
+#   stars                    3       target 1-4
+#   batteries                5       target 1-6
+#   rubber bands             3       target 0-4
+#   dark rooms             2.0 %     target 0-4 %        (one: the Boiler Room)
+#   distinct what codes     65       target 50-69
+#   total points        27,600       target 7,900-45,500 (5,100 rooms + 22,500 prizes)
+#   firstRoom           f1 s55       10.3 step 1: 12 of 22 houses start on floor 1 and
+#                                    19 of 22 in the suite 54-69 band
+#
+# All seventeen rows are asserted rather than claimed:
+# TestBoardingHouseMatchesTheSmallProfile (internal/replay/boardinghouse_test.go) walks
+# this file and names the row that left its band. The counting itself is shared with
+# Open House's test (internal/replay/profile_test.go) so that a difference between the
+# two houses is always a difference in the houses and never in the arithmetic.
+#
+# The dark-rooms row is new here. Open House's header used to say it could not be
+# computed, because GetNumberOfLights lives in internal/render and internal/house cannot
+# import it -- true, and beside the point, since the test does not live in
+# internal/house. internal/replay imports internal/render already. Both headers and both
+# tests were fixed together; see docs/IMPROVEMENTS.md 4.16, which keeps only the BFS
+# eccentricity half.
+#
+# Two rows were the tight ones and it is worth saying which, because they are the two
+# that a house drifts on rather than fails on. prizes/room came out at 0.941 against a
+# 0.95 ceiling on the first pass, which is not a margin; a clock was cut from the
+# turret, which had seven prizes and needed five. And the dark-rooms row was at 3.9 %
+# after the Bell Turret stopped being a kRoof room: kRoof is one of eight backgrounds
+# that light themselves, so changing the background put out the light. 3.9 % is inside
+# 0-4 %, so the band did not catch it and the profile row printed green. What caught it
+# was reading the number rather than the verdict.
+#
+# One target is deliberately missed, and it is Open House's: 10.3 step 3 wants 27 %
+# user-structure and 17 % user-open art, and a house of ours may not carry any, because
+# assets/extracted/ is diff-locked by `make assets-check` and -houseart replaces the
+# single art root rather than adding to it. Both halves are docs/IMPROVEMENTS.md 4.15.
+# The mix here is 59 % indoor art and 41 % outdoor -- 30 rooms in 2000-2008 against 21
+# in 2009-2017 -- where the corpus's own figures are 15/22/10 plus 44 % user art.
+#
+# What this tier *does* fix is the contradiction filed as docs/IMPROVEMENTS.md 4.18.
+# 10.3 step 5 wants interiors filled to 11-13 objects, and the tutorial tier's 2.2-3.1
+# objects/room makes that impossible -- Open House's interiors hold 3 to 5 and its
+# header argues, correctly, that the document is asking for two incompatible things.
+# At this tier they are compatible: the 35 rooms here that have a ceiling average 10.00
+# objects and 24 of them hold 11 to 13, with 7.61 objects/room overall because the 16
+# open-air rooms average 2.38. So 4.18 is a real defect in the tutorial column
+# specifically, not in step 5, and that is now evidence rather than argument.
+#
+# "Has a ceiling" rather than "is indoors" because it is the split the game itself
+# makes -- DoesRoomHaveCeiling (internal/game/room.go:358-371) names the seven
+# backgrounds with no ceiling, and kSkywalk and kDirt are not among them despite both
+# looking outdoor. The distinction is load-bearing for the vent arithmetic below,
+# because a room with no ceiling has no CeilingLimit to top out against and so cannot
+# hold the two-vent idiom at all. 31 of the 35 do hold it; the four that do not are the
+# kDirt cellar, which is a dead end off the route and carries a kSewerGrate or nothing.
+#
+# ---------------------------------------------------------------------------
+# Why 31 of the 35 ceilinged rooms have exactly two vents: the same arithmetic,
+# and the part Open House got half right
+# ---------------------------------------------------------------------------
+#
+# Gravity assigns VDesiredVel 3 every frame and NormalThrust is 5, so the glide ratio
+# is 5:3 and is not negotiable. A room is 512 px wide and the band from CeilingLimit 8
+# to FloorLimit 312 buys 507 px of travel, so no room is crossable in one glide.
+# kFloorVent's column is 4 px wide at h = H+22..H+26, and LiftIt fires on plain overlap
+# with no key condition, so the 48-wide glider is caught while its left edge is in a
+# 52 px window at h = H-25..H+26. Two vents at h 120 and h 336 give windows of left
+# 95..146 and 311..362. Open House's header derives all of that and this house reuses
+# it unchanged, including the rule that a room entered from one side only gets one vent.
+#
+# The part worth adding is where the glider actually stops, because the replay script
+# keys on it. The arithmetic says the hover cut-off is top = V-D-20 = 16: at top 16 the
+# glider's bottom is 36, the column's rect top is V-D = 36, and QuickDraw rect overlap
+# is exclusive at the bottom edge, so the lift lets go. But the glider is carrying
+# VVel -6 at that point and gravity only adds 3 per frame, so it **coasts through the
+# cut-off**. Measured across all 23 presses in
+# internal/replay/testdata/boarding-house.script it tops out between 6 and 10, never at
+# 16, and each `right` is pressed at top 8, 9 or 10. From the house's own
+# `initial 32 112` the run is 32, 30, 26, 20, 14, 10, 8, 8 and then away; out of a
+# staircase it is 46, 40, 34, 28, 22, 16, 10, 6 and then back to 9. A rule set written
+# from the cut-off alone reproduces none of them, which is the practical reason the
+# script was derived by reading the trace rather than by arithmetic on paper.
+#
+# ---------------------------------------------------------------------------
+# The climb
+# ---------------------------------------------------------------------------
+#
+# Eight staircase pairs, each one kUpStairs at `28 336` below and kDownStairs at
+# `28 16` on the floor above in the same suite, which is what CheckForStaircasePairs
+# wants (HouseLegal.c:961-1045) and what `glidertool house lint` checks. V is 28 in all
+# 163 corpus placements and this house does not depart from it.
+#
+# The critical path is twelve rooms and eleven transitions, one room east between each
+# flight, and it climbs the ziggurat from its widest floor to its narrowest:
+#
+#   7  Vestibule     (f1 s55) -east-> 8  Front Hall   (f1 s56)  STAR
+#                              -east-> 9  Mrs Ash's Parlour (f1 s57) -up->
+#   20 First Landing (f2 s57) -east-> 21 Number One   (f2 s58)  -up->
+#   30 Number Five   (f3 s58) -east-> 31 Music Room   (f3 s59)  STAR  -up->
+#   38 Number Seven  (f4 s59) -east-> 39 Box Room     (f4 s60)  -up->
+#   45 Water Tank    (f5 s60) -east-> 46 Tower Stair  (f5 s61)  -up->
+#   49 Bell Turret   (f6 s61) -- the third star, and the end.
+#
+# 11 rooms entered at 100 each plus three stars at 5,000 is 16,100, and that number is
+# asserted by TestBoardingHouseCanBeFinished. The three stars are all at v 14 -- two at
+# h 128 and the turret's at h 336 -- which is to say each one sits directly above a
+# vent, inside the art and over the column, so the route collects them on the way to the
+# ceiling with no keystroke spent on collecting anything. That is the reason this house
+# has three stars in a tier that permits up to four: at 0.922 prizes/room the budget for
+# anything optional was already spent, so the stars had to be on the line the player is
+# already flying.
+#
+# Open House's header forbids exactly that placement -- "a prize is never inside a
+# window either, because the column lifts continuously from the floor up, so a prize in
+# a column can be flown past and never landed on" -- and the two are not in conflict,
+# because the objection is about height. A prize partway up a column cannot be landed
+# on, since there is no way to stop partway. A prize at v 14 is at the *top* of the
+# column, where the glider comes to rest whether it means to or not, so being in the
+# column makes it unmissable rather than unreachable. v 14 is the whole of the
+# difference, and it is also where the corpus puts its roof collectables: every one of
+# them is at v <= 117.
+#
+# MoveItUp fires on GliderInRect(112x32 at (H,28)) **and** !HeldRight. Two things about
+# that rect decided the shape of every stair room here. The first is that GliderInRect
+# is *containment*, not overlap (internal/game/player/hitbox.go:55-58), so the whole
+# 48x20 glider must fit: left in 336..400 and top in **28..40**. The second is that
+# 28..40 is below CeilingLimit 8, so a glider that has just ridden a vent to the
+# ceiling is *above* the box and cannot be in it. The staircase is therefore taken on
+# the way back down, and the sequence in a stair room is five events rather than three:
+# release over the h 120 vent, press at the ceiling, release over the second vent,
+# press at the ceiling, and release again once the glide east has dropped the glider
+# into the band. The driver found left 350 top 30 every time.
+#
+# That is also why a room with a kUpStairs has its second vent at **h 300** and not
+# h 336: the window 275..326 puts the glider close enough to the box that 15 frames of
+# eastward glide lands it at left 350, top 30 -- inside on both axes with 50 px and 10
+# px to spare -- where a window ending at 362 would carry it past left 400 before it had
+# sunk to 28. All five flights on the route release at exactly 15 frames after the
+# press and at exactly left 350, top 30, which is what a house laid out to one idiom
+# buys. The kUpStairs art is 160x267 at v 28..295 and a floor vent is v 305..316, so
+# the two never collide.
+#
+# The arrival is the other half and it needs no input at all. GetUpStairsRightEdge
+# searches the *destination* for a kDownStairs and returns H+159 -- the crossed pairing
+# is the C verbatim, internal/game/env.go:122-166. The glider then *walks* out, and the
+# walk is visible in the trace as eleven frames of -4 px in V and -4 px in H together:
+# left 171 top 96 on the frame it arrives, then diagonally up and back to left 127,
+# top 52, where the walk ends and it is released. Left 127 is inside the h 120 window
+# 95..146, so the vent takes it with no keystroke, and it is outside the kDownStairs
+# box 16..80, so MoveItDown cannot immediately re-fire and send it down again. (Open
+# House's header quotes left 127, top 52 as where the glider "lands"; it is where the
+# walk finishes, which is the number that matters but not the number it arrives at.)
+# Five of the route's twelve rooms are entered by staircase and begin with no keystroke
+# at all, and so does the first room, whose `initial 32 112` is inside its own h 120
+# window. That is why the script has 46 events and not 52.
+#
+# ---------------------------------------------------------------------------
+# Above the slates: kRoof, where the tiles are physics
+# ---------------------------------------------------------------------------
+#
+# kRoof is the one background in the game whose `tiles` row is not decoration.
+# CheckRoofCollision (internal/game/player/escape.go:309-348) reads the tile under the
+# glider's *centre* and kills it unless that tile is one of four diagonals, each with a
+# surface the glider may rest on:
+#
+#   tile 1   surface at v 250-dx    a slope falling away west, deep end at h 0
+#   tile 2   surface at v 186-dx    the same slope one tile higher
+#   tile 5   surface at v 122+dx    the mirror, falling away east
+#   tile 6   surface at v 186+dx    the same, deeper
+#   0 3 4 7  no surface at all -- below v 122 they are an immediate crash
+#
+# So `3` is a solid roof to be crossed at ceiling height and `1 2` or `5 6` is a valley
+# to be entered through, and the corpus uses exactly that vocabulary: of its 181 kRoof
+# rooms, 38 are `3 3 3 3 3 3 3 3` -- a room whose entire floor kills -- and the next
+# nine most common patterns are all a run of 3s with a valley at one end or a wall tile
+# at one edge. The three roofs here are the three idioms that matter:
+#
+#   42 The Leads      f4 s63   3 3 3 3 3 3 3 7   solid, walled east: cross it high
+#   47 The Ridge      f5 s62   1 2 3 3 3 3 3 7   a west valley, then the ridge
+#   48 Over the Attic f6 s60   0 3 3 3 3 3 5 6   walled west, an east valley
+#
+# `1 1 1 1 1 1 1 7` was the first draft of the Ridge and is a sawtooth -- seven
+# separate slopes, each ending in a 64 px cliff -- which no original writes even once.
+# It is not illegal and it is not a crash; it is simply not a roof, and a generated
+# house will produce that sort of thing until something warns about it.
+#
+# Two rules about what may be *drawn* on a roof, and one about what may be under one.
+#
+# **Nothing may be drawn below the surface.** The Leads was first given a kFloorBlower
+# at v 304 and a kCinderBlock at v 250, both 80 to 110 px below the tiles they stand
+# on, which renders as furniture embedded in the slates and -- worse -- advertises a
+# lift at a place the glider cannot reach. Every collectable in the corpus's kRoof
+# rooms is at v <= 117 and that is not a coincidence. The same rule is why a kFloorVent
+# cannot appear here at all: across the corpus's 1,084 kRoof, kSky, kStratosphere and
+# kStars rooms there is not one kFloorVent, kFloorBlower or kSewerGrate, because there
+# is no floor for the art to stand on. Lift outdoors is kInvisBlower, which draws
+# nothing.
+#
+# **A kRoof room never sits above a room the glider can rise out of.** Every one of the
+# 180 corpus kRoof rooms with anything below it has an interior beneath it, and the
+# 181st has nothing; there is no exception in 4,070 rooms. The physics is that side
+# transit preserves V but vertical transit shifts it by a whole TileHigh (OffsetGlider,
+# internal/game/player/modes.go:527-555), so a glider rising out of a ceilingless room
+# arrives in the room above at v ~330 -- on the roof's floor, which is a crash. Floor 4
+# here was laid out with Above the Gable (kStratosphere, no ceiling) under The Leads
+# and had to be swapped with The Studio to satisfy it. Note that the converse is not a
+# rule: 430 of the corpus's 4,070 rooms are ceilingless with nothing above them, so a
+# room open at the top is ordinary.
+#
+# kInvisBlower's `vector` is mandatory and is a single bit -- 1 up, 2 right, 4 down,
+# 8 left -- and anything else, including 0 and any two bits together, registers no hot
+# spot at all (internal/game/hotspots.go:206-236). 419 of the corpus's 511 air-room
+# placements are vector 1. For vector 1 the column is h H+10..H+14 and v V-distance to
+# V+24, which is why every updraught here is written from its top edge and its h is
+# offset by -12 so the 4 px column is centred where the comment says it is.
+#
+# Where the column goes matters more outdoors than in. The Ridge's updraught is at
+# h 100 rather than out on the ridge at h 160, and the difference is measurable: at
+# h 160 the glider arriving from the west is caught on frame 25 of its glide with four
+# frames of margin before the tiles, and at h 100 it is caught on frame 13 with ten. A
+# four-frame window is not a room, it is a trick.
+#
+# One hypothesis was tested here and rejected, which is worth recording because it
+# looks obviously true: **kCloud does not mark the invisible blowers.** An invisible
+# lift with a cloud drawn over it would be the natural way to make an air room
+# readable, and the corpus's air rooms hold 1,188 clouds against 511 blowers. But of
+# the 336 blowers that share a room with a cloud, only 51 % are within 64 px of one and
+# the median gap is 63 px on a cloud that is 128 px wide -- which is no better than
+# chance. So the clouds here are scenery placed for the look of the room, and the eight
+# of them are not load-bearing.
+#
+# ---------------------------------------------------------------------------
+# Walls, floors, light, and what kills
+# ---------------------------------------------------------------------------
+#
+# `bounds` is 0 in every room and that is not laziness: DetermineRoomOpenings reads it
+# only when Background >= 3000 (internal/game/room.go:139), so on a built-in background
+# it is dead data that misleads tools. The walls come from the tiles, and the rule
+# depends on the background in a way that is easy to get wrong:
+#
+#   the nine interiors, kSky and kRoof   tiles[0] == 0 walls the left, tiles[7] == 7
+#                                        the right (kRoof reaches this by falling
+#                                        through to the default arm)
+#   kDirt                                the same rule with the digit changed to 1,
+#                                        and the threshold test disagrees with the flag
+#                                        beside it -- reproduced, not reconciled
+#   kMeadow                              wall tile 6 on the left, 7 on the right
+#   kGarden, kSkywalk, kField,           no side walls whatever the tiles say
+#   kStratosphere, kStars
+#
+# kSky writes 2 for its open column rather than 1, which is what 264 of its 595 corpus
+# rooms do. kStratosphere and kStars write the identity `0 1 2 3 4 5 6 7`, because the
+# background is one continuous 512 px picture rather than eight interchangeable slices
+# -- 305 of the corpus's 308 such rooms are exactly that, and the other three are
+# visibly scrambled. Number Six was written with kSky's idiom and a kFloorBlower, and
+# is the room that produced both of the checks in the paragraph above.
+#
+# Ceilings and floors come from two lists and they are not the same list.
+# DoesRoomHaveFloor (internal/game/room.go:335-348) takes the floor from kSky,
+# kStratosphere and kStars only. DoesRoomHaveCeiling (:358-371) takes the ceiling from
+# those three *and* kGarden, kMeadow, kField and kRoof. So kSkywalk and kDirt both have
+# a ceiling, and the seven backgrounds above the glider's head are the ones the
+# staircase rule and the roof rule are both about.
+#
+# Light comes from a third list, and it is not either of the other two.
+# GetNumberOfLights (internal/render/locale.go:1350-1384) lights eight backgrounds
+# outright -- kGarden, kSkywalk, kMeadow, kField, kRoof, kSky, kStratosphere, kStars --
+# and kDirt only when all eight tiles are 0, which is how the Dry Well is an empty room
+# that is not a dark one. Note kSkywalk: self-lit, but it *has* a ceiling, so it is on
+# the light list and not the ceiling list. Everything else is lit by an object: 18
+# kCeilingLight at v 4 (as in all 160 corpus placements), 9 kTableLamp, 8 kLightBulb, 4
+# kTrackLight, 2 kFlourescent and one kInvisLight, plus the five that count as light
+# without being lamps and without a state to switch -- 13 kWallWindow and one each of
+# kDoorInLf, kDoorInRt, kWindowInLf and kWindowInRt (:1376). The Boiler Room is the one
+# dark room and it is dark on purpose: its kLightBulb has `initial 0 state 0` and there
+# is a kLightSwitch beside it, which is the tier's 0-4 % band spent on the one place a
+# player will look for the switch.
+#
+# What kills: the floor, eleven furniture types, nine appliances and the enemies. The
+# crossing legs above put the glider at a known height at every h, so the lethal pieces
+# sit below v 200 in the central gap h 180..324 -- the 168 px between the two vents'
+# *art*, which spans h H..H+48. That is tighter than the rule it enforces, which is
+# that **no lethal rect may cross a lift column**: the column is only 4 px wide, at
+# h 142..146 and 358..362, and a glider inside one is rising under power and cannot
+# steer out of anything drawn there. Keeping furniture out of the art as well as the
+# column buys a second thing, which is that a vent half hidden under a trunk reads as a
+# decorated floor rather than as a lift, and the whole house depends on the player
+# seeing where the lifts are.
+#
+# The six empty rooms are five kSky and one all-zero kDirt. The kSky five are floorless
+# by definition, so they drop the glider into the room below -- 10.3 step 2's free
+# vertical branch -- and each has a floored room somewhere beneath it, because
+# MoveRoomToRoom to a room that does not exist is a no-op while OffsetGlider still
+# runs, so the glider would wrap 322 px and fall again forever.
+
+format 1
+
+house
+    version        0x0200
+    timestamp      1790035200
+    flags          0x00000000
+    initial        32 112
+    firstroom      7
+    banner         "Boarding House. No vacancies.\rThree stars, and the top of the\rstairs is not the top of the house."
+    trailer        "You rang the bell in the turret, which is\rmore than any lodger ever managed. Mrs Ash\rwould like a word about the roof."
+
+room 0 "The Coal Hole"
+    bounds         0x0000
+    background     2011                 # kDirt
+    tiles          1 0 0 0 0 0 0 0
+    floor          0
+    suite          56
+    start          32 32
+    object 0  kLightBulb      at 17 248  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 1  kSewerGrate     at 303 240  distance 239  initial 1  state 1  vector 1  tall 0
+    object 2  kTrunk          rect 232 180 312 324  pict 0
+    object 3  kRedClock       at 200 220  length 0  points 0  state 1  initial 1
+    object 4  kDrip           at 16 200  length 140  delay 13  byte0 0  initial 1  state 1
+    object 5  kMousehole      rect 284 400 295 410  pict 0
+
+room 1 "The Boiler Room"
+    bounds         0x0000
+    background     2002                 # kBasement
+    tiles          1 1 1 1 1 1 1 1
+    floor          0
+    suite          57
+    start          32 32
+    object 0  kLightBulb      at 17 248  length 0  byte0 0  byte1 0  initial 0  state 0
+    object 1  kLightSwitch    at 141 216  delay 0  where 5708  who 0  type 0
+    object 2  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 4  kStubby         at 271 232  distance 92  initial 1  state 1  vector 1  tall 1
+    object 5  kCabinet        rect 248 248 312 312  pict 0
+    object 6  kYellowClock    at 196 200  length 0  points 0  state 1  initial 1
+
+room 2 "Below the Stairs"
+    bounds         0x0000
+    background     2005                 # kUnfinishedRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          0
+    suite          58
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kInvisSwitch    at 168 236  delay 0  where 5708  who 0  type 1
+    object 5  kShelf          rect 180 180 186 296  pict 0
+    object 6  kCounter        rect 240 180 304 296  pict 0
+    object 7  kBands          at 150 200  length 0  points 0  state 1  initial 1
+    object 8  kDrip           at 20 250  length 100  delay 10  byte0 0  initial 1  state 1
+
+room 3 "Mrs Ash's Preserves"
+    bounds         0x0000
+    background     2011                 # kDirt
+    tiles          0 0 0 0 0 0 0 0
+    floor          0
+    suite          59
+    start          32 32
+    object 0  kShelf          rect 140 180 146 300  pict 0
+    object 1  kShelf          rect 200 180 206 300  pict 0
+    object 2  kBlueClock      at 112 200  length 0  points 0  state 1  initial 1
+    object 3  kBlueClock      at 172 200  length 0  points 0  state 1  initial 1
+    object 4  kRedClock       at 112 260  length 0  points 0  state 1  initial 1
+    object 5  kCobweb         at 20 200  length 0  delay 0  byte0 0  initial 1  state 1
+    object 6  kMousehole      rect 284 400 295 410  pict 0
+
+room 4 "The Dry Well"
+    bounds         0x0000
+    background     2011                 # kDirt
+    tiles          0 0 0 0 0 0 0 0
+    floor          0
+    suite          60
+    start          32 32
+
+room 5 "The Sump"
+    bounds         0x0000
+    background     2011                 # kDirt
+    tiles          0 0 0 0 0 0 0 7
+    floor          0
+    suite          61
+    start          32 32
+    object 0  kInvisLight     at 17 256  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 1  kSewerGrate     at 303 120  distance 239  initial 1  state 1  vector 1  tall 0
+    object 2  kBattery        at 180 240  length 0  points 0  state 1  initial 1
+    object 3  kDrip           at 14 250  length 180  delay 9  byte0 0  initial 1  state 1
+    object 4  kMousehole      rect 284 60 295 70  pict 0
+
+room 6 "The Front Steps"
+    bounds         0x0000
+    background     2012                 # kMeadow
+    tiles          6 1 1 1 1 1 1 1
+    floor          1
+    suite          54
+    start          32 32
+    object 0  kFloorBlower    at 304 120  distance 268  initial 1  state 1  vector 1  tall 1
+    object 1  kFlower         rect 271 200 306 234  pict 2
+    object 2  kFlower         rect 255 260 306 292  pict 5
+    object 3  kRedClock       at 240 400  length 0  points 0  state 1  initial 1
+
+room 7 "The Vestibule"
+    bounds         0x0000
+    background     2000                 # kSimpleRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          55
+    start          32 32
+    object 0  kDoorInLf       at 0 0  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 70 216 236 300  pict 0
+    object 5  kCalendar       rect 60 400 152 463  pict 0
+    object 6  kWallWindow     rect 94 40 174 104  pict 0
+    object 7  kTableLamp      at 245 452  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 8  kVase1          rect 262 400 307 436  pict 0
+    object 9  kRug            rect 299 184 317 328  pict 0
+    object 10 kMousehole      rect 284 452 295 462  pict 0
+    object 11 kPaper          at 200 240  length 0  points 0  state 1  initial 1
+    object 12 kFlower         rect 271 60 306 84  pict 1
+
+room 8 "The Front Hall"
+    bounds         0x0000
+    background     2001                 # kPaneledRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          56
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 3  kStar           at 14 128  length 0  points 0  state 1  initial 1
+    object 4  kMirror         rect 64 210 249 310  pict 0
+    object 5  kCalendar       rect 56 40 148 103  pict 0
+    object 6  kWallWindow     rect 94 400 174 464  pict 0
+    object 7  kTableLamp      at 245 452  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 8  kVase1          rect 262 400 307 436  pict 0
+    object 9  kRug            rect 299 180 317 324  pict 0
+    object 10 kMousehole      rect 284 92 295 102  pict 0
+
+room 9 "Mrs Ash's Parlour"
+    bounds         0x0000
+    background     2001                 # kPaneledRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          57
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 64 200 240 300  pict 0
+    object 5  kTableLamp      at 245 40  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 6  kVase1          rect 262 40 307 76  pict 0
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kWallWindow     rect 94 40 174 104  pict 0
+    object 9  kFlower         rect 283 240 306 267  pict 3
+
+room 10 "The Dining Room"
+    bounds         0x0000
+    background     2004                 # kAsianRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          58
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kTable          rect 230 196 238 316  pict 0
+    object 5  kStool          rect 226 200 264 248  pict 0
+    object 6  kStool          rect 226 264 264 312  pict 0
+    object 7  kYellowClock    at 120 240  length 0  points 0  state 1  initial 1
+    object 8  kMirror         rect 64 400 180 500  pict 0
+    object 9  kCalendar       rect 60 420 152 483  pict 0
+    object 10 kDartRt         at 240 0  length 0  delay 12  byte0 0  initial 1  state 1
+
+room 11 "The Back Hall"
+    bounds         0x0000
+    background     2000                 # kSimpleRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          59
+    start          32 32
+    object 0  kDoorInRt       at 0 368  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kCounter        rect 272 180 304 300  pict 0
+    object 5  kCoffee         at 208 200  height 0  byte0 0  delay 0  initial 1  state 1
+    object 6  kRedClock       at 150 400  length 0  points 0  state 1  initial 1
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kMousehole      rect 284 216 295 226  pict 0
+    object 9  kBalloon        at 305 220  length 0  delay 10  byte0 0  initial 1  state 1
+
+room 12 "The Kitchen"
+    bounds         0x0000
+    background     2005                 # kUnfinishedRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          60
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFlourescent    at 12 180  length 199  byte0 0  byte1 0  initial 1  state 1
+    object 3  kCounter        rect 268 180 304 308  pict 0
+    object 4  kManhole        rect 300 180 322 303  pict 0
+    object 5  kToaster        at 241 200  height 64  byte0 0  delay 10  initial 1  state 1
+    object 6  kShredder       at 239 280  height 0  byte0 0  delay 0  initial 1  state 1
+    object 7  kBlueClock      at 150 400  length 0  points 0  state 1  initial 1
+    object 8  kFaucet         rect 120 4 138 60  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kDrip           at 18 220  length 130  delay 11  byte0 0  initial 1  state 1
+
+room 13 "The Scullery"
+    bounds         0x0000
+    background     2000                 # kSimpleRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          61
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kCounter        rect 276 180 304 292  pict 0
+    object 5  kFaucet         rect 124 8 142 64  pict 0
+    object 6  kBattery        at 150 220  length 0  points 0  state 1  initial 1
+    object 7  kWallWindow     rect 94 40 174 104  pict 0
+    object 8  kMousehole      rect 284 124 295 134  pict 0
+    object 9  kCobweb         at 16 200  length 0  delay 0  byte0 0  initial 1  state 1
+
+room 14 "The Larder"
+    bounds         0x0000
+    background     2002                 # kBasement
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          62
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kLightBulb      at 17 248  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 3  kShelf          rect 130 180 136 320  pict 0
+    object 4  kShelf          rect 190 180 196 320  pict 0
+    object 5  kCabinet        rect 40 400 104 464  pict 0
+    object 6  kCandle         at 271 264  distance 64  initial 1  state 1  vector 1  tall 0
+    object 7  kBlueClock      at 102 200  length 0  points 0  state 1  initial 1
+    object 8  kRedClock       at 162 200  length 0  points 0  state 1  initial 1
+    object 9  kYellowClock    at 102 280  length 0  points 0  state 1  initial 1
+    object 10 kCobweb         at 20 200  length 0  delay 0  byte0 0  initial 1  state 1
+    object 11 kMousehole      rect 284 448 295 458  pict 0
+
+room 15 "The Back Door"
+    bounds         0x0000
+    background     2010                 # kSkywalk
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          63
+    start          32 32
+    object 0  kDoorExRt       at 0 496  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kFlower         rect 292 200 306 227  pict 4
+    object 4  kDartLf         at 240 448  length 0  delay 13  byte0 0  initial 1  state 1
+
+room 16 "The Lawn"
+    bounds         0x0000
+    background     2009                 # kGarden
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          64
+    start          32 32
+    object 0  kFloorBlower    at 304 120  distance 268  initial 1  state 1  vector 1  tall 1
+    object 1  kTiki           at 262 300  distance 64  initial 1  state 1  vector 1  tall 0
+    object 2  kFlowerBox      at 274 200  height 0  byte0 0  delay 0  initial 1  state 1
+    object 3  kRedClock       at 200 420  length 0  points 0  state 1  initial 1
+    object 4  kBalloon        at 305 240  length 0  delay 10  byte0 0  initial 1  state 1
+
+room 17 "The Vegetable Plot"
+    bounds         0x0000
+    background     2013                 # kField
+    tiles          1 1 1 1 1 1 1 1
+    floor          1
+    suite          65
+    start          32 32
+    object 0  kFloorBlower    at 304 120  distance 268  initial 1  state 1  vector 1  tall 1
+    object 1  kBBQ            at 284 300  distance 64  initial 1  state 1  vector 1  tall 0
+    object 2  kFlowerBox      at 274 200  height 0  byte0 0  delay 0  initial 1  state 1
+    object 3  kCopterRt       at 8 32  length 0  delay 16  byte0 0  initial 1  state 1
+
+room 18 "Beyond the Wall"
+    bounds         0x0000
+    background     2012                 # kMeadow
+    tiles          1 1 1 1 1 1 1 7
+    floor          1
+    suite          66
+    start          32 32
+    object 0  kFloorBlower    at 304 120  distance 268  initial 1  state 1  vector 1  tall 1
+    object 1  kCuckoo         at 180 380  length 0  points 0  state 1  initial 1
+    object 2  kCinderBlock    at 250 200  height 0  byte0 0  delay 0  initial 1  state 1
+    object 3  kBalloon        at 305 260  length 0  delay 12  byte0 0  initial 1  state 1
+
+room 19 "Over the Area"
+    bounds         0x0000
+    background     2015                 # kSky
+    tiles          0 2 2 2 2 2 2 2
+    floor          2
+    suite          56
+    start          32 32
+
+room 20 "The First Landing"
+    bounds         0x0000
+    background     2001                 # kPaneledRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          57
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 70 208 240 300  pict 0
+    object 5  kCalendar       rect 60 400 152 463  pict 0
+    object 6  kTableLamp      at 245 452  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 7  kVase1          rect 262 400 307 436  pict 0
+    object 8  kRug            rect 299 180 317 324  pict 0
+    object 9  kWallWindow     rect 94 400 174 464  pict 0
+    object 10 kFlower         rect 278 240 306 250  pict 0
+
+room 21 "Number One"
+    bounds         0x0000
+    background     2000                 # kSimpleRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          58
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 64 196 244 296  pict 0
+    object 5  kTableLamp      at 245 100  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 6  kWallWindow     rect 94 40 174 104  pict 0
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kMousehole      rect 284 180 295 190  pict 0
+    object 9  kVase1          rect 262 40 307 76  pict 0
+    object 10 kDartRt         at 240 0  length 0  delay 13  byte0 0  initial 1  state 1
+
+room 22 "Number Two"
+    bounds         0x0000
+    background     2003                 # kChildsRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          59
+    start          32 32
+    object 0  kWindowInLf     at 64 0  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kDresser        rect 213 180 293 308  pict 0
+    object 5  kStool          rect 226 240 264 288  pict 0
+    object 6  kBands          at 150 200  length 0  points 0  state 1  initial 1
+    object 7  kBear           rect 190 400 248 456  pict 0
+    object 8  kCalendar       rect 60 420 152 483  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kBalloon        at 305 200  length 0  delay 11  byte0 0  initial 1  state 1
+
+room 23 "The Bathroom"
+    bounds         0x0000
+    background     2007                 # kBathroom
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          60
+    start          32 32
+    object 0  kWindowInRt     at 64 492  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kFlourescent    at 12 180  length 199  byte0 0  byte1 0  initial 1  state 1
+    object 4  kCeilingVent    at 8 400  distance 230  initial 1  state 1  vector 4  tall 1
+    object 5  kFaucet         rect 140 4 158 60  pict 0
+    object 6  kCounter        rect 268 180 304 300  pict 0
+    object 7  kBlueClock      at 150 400  length 0  points 0  state 1  initial 1
+    object 8  kPaper          at 214 40  length 0  points 0  state 1  initial 1
+    object 9  kMirror         rect 40 216 132 296  pict 0
+    object 10 kMousehole      rect 284 60 295 70  pict 0
+    object 11 kDrip           at 16 240  length 150  delay 7  byte0 0  initial 1  state 1
+
+room 24 "Number Three"
+    bounds         0x0000
+    background     2003                 # kChildsRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          61
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kDresser        rect 213 180 293 308  pict 0
+    object 5  kGuitar         at 120 400  height 0  byte0 0  delay 0  initial 1  state 1
+    object 6  kRedClock       at 150 240  length 0  points 0  state 1  initial 1
+    object 7  kBear           rect 248 400 306 456  pict 0
+    object 8  kCalendar       rect 60 420 152 483  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kDartLf         at 240 448  length 0  delay 12  byte0 0  initial 1  state 1
+
+room 25 "The Linen Cupboard"
+    bounds         0x0000
+    background     2008                 # kLibrary
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          62
+    start          32 32
+    object 0  kCeilingTrans   at 6 200  tall 0  where 6211  who 0  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kLightBulb      at 17 288  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 4  kShelf          rect 132 180 138 320  pict 0
+    object 5  kShelf          rect 192 180 198 320  pict 0
+    object 6  kCabinet        rect 40 400 104 464  pict 0
+    object 7  kYellowClock    at 104 200  length 0  points 0  state 1  initial 1
+    object 8  kBlueClock      at 164 200  length 0  points 0  state 1  initial 1
+    object 9  kCobweb         at 20 200  length 0  delay 0  byte0 0  initial 1  state 1
+    object 10 kMousehole      rect 284 420 295 430  pict 0
+
+room 26 "Number Four"
+    bounds         0x0000
+    background     2005                 # kUnfinishedRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          2
+    suite          63
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kDresser        rect 213 180 293 292  pict 0
+    object 5  kStool          rect 226 200 264 248  pict 0
+    object 6  kBattery        at 150 260  length 0  points 0  state 1  initial 1
+    object 7  kCalendar       rect 60 40 152 103  pict 0
+    object 8  kBear           rect 248 40 306 96  pict 0
+    object 9  kMousehole      rect 284 120 295 130  pict 0
+    object 10 kDrip           at 14 240  length 160  delay 13  byte0 0  initial 1  state 1
+
+room 27 "The Fire Escape"
+    bounds         0x0000
+    background     2015                 # kSky
+    tiles          2 2 2 2 2 2 2 7
+    floor          2
+    suite          64
+    start          32 32
+
+room 28 "Over the Half Landing"
+    bounds         0x0000
+    background     2015                 # kSky
+    tiles          0 2 2 2 2 2 2 2
+    floor          3
+    suite          56
+    start          32 32
+
+room 29 "The Second Landing"
+    bounds         0x0000
+    background     2001                 # kPaneledRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          3
+    suite          57
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 3  kMirror         rect 70 204 244 304  pict 0
+    object 4  kTableLamp      at 245 452  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 5  kVase1          rect 262 400 307 436  pict 0
+    object 6  kRug            rect 299 180 317 324  pict 0
+    object 7  kWallWindow     rect 94 40 174 104  pict 0
+    object 8  kCalendar       rect 60 400 152 463  pict 0
+    object 9  kFlower         rect 271 60 306 94  pict 2
+    object 10 kRedClock       at 150 240  length 0  points 0  state 1  initial 1
+    object 11 kBalloon        at 305 200  length 0  delay 11  byte0 0  initial 1  state 1
+
+room 30 "Number Five"
+    bounds         0x0000
+    background     2004                 # kAsianRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          3
+    suite          58
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 64 200 248 300  pict 0
+    object 5  kTableLamp      at 245 452  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 6  kBear           rect 248 400 306 456  pict 0
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kWallWindow     rect 94 400 174 464  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kDartLf         at 240 448  length 0  delay 12  byte0 0  initial 1  state 1
+
+room 31 "The Music Room"
+    bounds         0x0000
+    background     2006                 # kSwingersRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          3
+    suite          59
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kStar           at 14 128  length 0  points 0  state 1  initial 1
+    object 4  kTrackLight     at 5 180  length 185  byte0 0  byte1 0  initial 1  state 1
+    object 5  kMirror         rect 64 196 244 296  pict 0
+    object 6  kVase1          rect 262 40 307 76  pict 0
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kWallWindow     rect 94 40 174 104  pict 0
+    object 9  kFlower         rect 255 260 306 292  pict 5
+    object 10 kCalendar       rect 60 100 152 163  pict 0
+    object 11 kSparkle        at 92 240  length 0  points 0  state 1  initial 1
+
+room 32 "The Airing Cupboard"
+    bounds         0x0000
+    background     2007                 # kBathroom
+    tiles          1 1 1 1 1 1 1 1
+    floor          3
+    suite          60
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kLightBulb      at 17 248  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 3  kShelf          rect 136 180 142 300  pict 0
+    object 4  kShelf          rect 196 180 202 300  pict 0
+    object 5  kCabinet        rect 40 400 104 464  pict 0
+    object 6  kBlueClock      at 108 200  length 0  points 0  state 1  initial 1
+    object 7  kRedClock       at 168 200  length 0  points 0  state 1  initial 1
+    object 8  kFaucet         rect 240 452 258 508  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kDrip           at 16 240  length 170  delay 8  byte0 0  initial 1  state 1
+
+room 33 "Number Six"
+    bounds         0x0000
+    background     2017                 # kStars
+    tiles          0 1 2 3 4 5 6 7
+    floor          3
+    suite          61
+    start          32 32
+    object 0  kInvisBlower    at 304 228  distance 268  initial 1  state 1  vector 1  tall 0
+    object 1  kSparkle        at 120 200  length 0  points 0  state 1  initial 1
+    object 2  kCopterRt       at 8 36  length 0  delay 16  byte0 0  initial 1  state 1
+
+room 34 "The Reading Room"
+    bounds         0x0000
+    background     2008                 # kLibrary
+    tiles          1 1 1 1 1 1 1 1
+    floor          3
+    suite          62
+    start          32 32
+    object 0  kFloorTrans     at 302 200  tall 0  where 6210  who 0  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kTrackLight     at 5 180  length 185  byte0 0  byte1 0  initial 1  state 1
+    object 4  kShelf          rect 128 180 134 320  pict 0
+    object 5  kShelf          rect 188 180 194 320  pict 0
+    object 6  kTable          rect 244 196 252 316  pict 0
+    object 7  kYellowClock    at 100 400  length 0  points 0  state 1  initial 1
+    object 8  kBands          at 160 400  length 0  points 0  state 1  initial 1
+    object 9  kMirror         rect 40 40 120 104  pict 0
+    object 10 kCobweb         at 24 200  length 0  delay 0  byte0 0  initial 1  state 1
+
+room 35 "The Gable"
+    bounds         0x0000
+    background     2002                 # kBasement
+    tiles          1 1 1 1 1 1 1 7
+    floor          3
+    suite          63
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kLightBulb      at 17 232  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 4  kTrunk          rect 232 180 312 324  pict 0
+    object 5  kRedClock       at 150 400  length 0  points 0  state 1  initial 1
+    object 6  kCalendar       rect 60 420 152 483  pict 0
+    object 7  kMousehole      rect 284 400 295 410  pict 0
+    object 8  kDrip           at 20 250  length 120  delay 13  byte0 0  initial 1  state 1
+
+room 36 "Over the Second Landing"
+    bounds         0x0000
+    background     2015                 # kSky
+    tiles          0 2 2 2 2 2 2 2
+    floor          4
+    suite          57
+    start          32 32
+
+room 37 "The Third Landing"
+    bounds         0x0000
+    background     2003                 # kChildsRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          4
+    suite          58
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 3  kMirror         rect 70 204 244 304  pict 0
+    object 4  kTableLamp      at 245 40  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 5  kVase1          rect 262 40 307 76  pict 0
+    object 6  kRug            rect 299 180 317 324  pict 0
+    object 7  kWallWindow     rect 94 400 174 464  pict 0
+    object 8  kCalendar       rect 60 40 152 103  pict 0
+    object 9  kBlueClock      at 150 240  length 0  points 0  state 1  initial 1
+    object 10 kMousehole      rect 284 400 295 410  pict 0
+    object 11 kDartRt         at 240 0  length 0  delay 11  byte0 0  initial 1  state 1
+
+room 38 "Number Seven"
+    bounds         0x0000
+    background     2006                 # kSwingersRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          4
+    suite          59
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kTrackLight     at 5 180  length 185  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 64 200 248 300  pict 0
+    object 5  kBear           rect 248 400 306 456  pict 0
+    object 6  kRug            rect 299 180 317 324  pict 0
+    object 7  kWallWindow     rect 94 400 174 464  pict 0
+    object 8  kFlower         rect 271 240 306 264  pict 1
+    object 9  kMousehole      rect 284 460 295 470  pict 0
+    object 10 kDartLf         at 240 448  length 0  delay 10  byte0 0  initial 1  state 1
+
+room 39 "The Box Room"
+    bounds         0x0000
+    background     2005                 # kUnfinishedRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          4
+    suite          60
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kLightBulb      at 17 264  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 5  kMirror         rect 64 196 244 296  pict 0
+    object 6  kCalendar       rect 60 40 152 103  pict 0
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kVase1          rect 262 40 307 76  pict 0
+    object 9  kMousehole      rect 284 124 295 134  pict 0
+    object 10 kDartRt         at 240 0  length 0  delay 12  byte0 0  initial 1  state 1
+
+room 40 "Above the Gable"
+    bounds         0x0000
+    background     2016                 # kStratosphere
+    tiles          0 1 2 3 4 5 6 7
+    floor          4
+    suite          61
+    start          32 32
+    object 0  kCloud          rect 60 300 90 428  pict 0
+    object 1  kCloud          rect 180 40 210 168  pict 0
+
+room 41 "The Studio"
+    bounds         0x0000
+    background     2008                 # kLibrary
+    tiles          1 1 1 1 1 1 1 1
+    floor          4
+    suite          62
+    start          32 32
+    object 0  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 1  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kTrackLight     at 5 180  length 185  byte0 0  byte1 0  initial 1  state 1
+    object 3  kTable          rect 240 180 248 324  pict 0
+    object 4  kStool          rect 226 240 264 288  pict 0
+    object 5  kCabinet        rect 40 400 104 464  pict 0
+    object 6  kYellowClock    at 150 400  length 0  points 0  state 1  initial 1
+    object 7  kSparkle        at 104 240  length 0  points 0  state 1  initial 1
+    object 8  kMirror         rect 40 40 140 120  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kBalloon        at 305 200  length 0  delay 7  byte0 0  initial 1  state 1
+
+room 42 "The Leads"
+    bounds         0x0000
+    background     2014                 # kRoof
+    tiles          3 3 3 3 3 3 3 7
+    floor          4
+    suite          63
+    start          32 32
+    object 0  kInvisBlower    at 204 84  distance 140  initial 1  state 1  vector 1  tall 0
+    object 1  kCloud          rect 28 60 58 188  pict 0
+    object 2  kBattery        at 76 130  length 0  points 0  state 1  initial 1
+    object 3  kCopterRt       at 8 32  length 0  delay 16  byte0 0  initial 1  state 1
+
+room 43 "Over the Third Landing"
+    bounds         0x0000
+    background     2015                 # kSky
+    tiles          0 2 2 2 2 2 2 2
+    floor          5
+    suite          58
+    start          32 32
+
+room 44 "The Long Attic"
+    bounds         0x0000
+    background     2016                 # kStratosphere
+    tiles          0 1 2 3 4 5 6 7
+    floor          5
+    suite          59
+    start          32 32
+    object 0  kInvisBlower    at 204 108  distance 140  initial 1  state 1  vector 1  tall 0
+    object 1  kInvisBlower    at 204 324  distance 140  initial 1  state 1  vector 1  tall 0
+    object 2  kCloud          rect 100 200 130 328  pict 0
+    object 3  kBalloon        at 305 240  length 0  delay 10  byte0 0  initial 1  state 1
+
+room 45 "The Water Tank"
+    bounds         0x0000
+    background     2002                 # kBasement
+    tiles          1 1 1 1 1 1 1 1
+    floor          5
+    suite          60
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kLightBulb      at 17 248  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 64 200 248 300  pict 0
+    object 5  kFaucet         rect 120 456 138 512  pict 0
+    object 6  kRug            rect 299 180 317 324  pict 0
+    object 7  kWallWindow     rect 94 400 174 464  pict 0
+    object 8  kCalendar       rect 60 420 152 483  pict 0
+    object 9  kMousehole      rect 284 400 295 410  pict 0
+    object 10 kDartLf         at 240 448  length 0  delay 11  byte0 0  initial 1  state 1
+
+room 46 "The Tower Stair"
+    bounds         0x0000
+    background     2000                 # kSimpleRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          5
+    suite          61
+    start          32 32
+    object 0  kUpStairs       at 28 336  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 300  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kMirror         rect 64 192 248 292  pict 0
+    object 5  kTableLamp      at 245 40  length 0  byte0 0  byte1 0  initial 1  state 1
+    object 6  kVase1          rect 262 40 307 76  pict 0
+    object 7  kRug            rect 299 180 317 324  pict 0
+    object 8  kWallWindow     rect 94 40 174 104  pict 0
+    object 9  kFlower         rect 283 240 306 267  pict 3
+    object 10 kDartRt         at 240 0  length 0  delay 10  byte0 0  initial 1  state 1
+
+room 47 "The Ridge"
+    bounds         0x0000
+    background     2014                 # kRoof
+    tiles          1 2 3 3 3 3 3 7
+    floor          5
+    suite          62
+    start          32 32
+    object 0  kInvisBlower    at 204 88  distance 140  initial 1  state 1  vector 1  tall 0
+    object 1  kCloud          rect 20 240 50 368  pict 0
+    object 2  kRedClock       at 180 30  length 0  points 0  state 1  initial 1
+
+room 48 "Over the Attic"
+    bounds         0x0000
+    background     2014                 # kRoof
+    tiles          0 3 3 3 3 3 5 6
+    floor          6
+    suite          60
+    start          32 32
+    object 0  kInvisBlower    at 204 458  distance 140  initial 1  state 1  vector 1  tall 0
+    object 1  kBattery        at 140 420  length 0  points 0  state 1  initial 1
+    object 2  kCloud          rect 30 120 60 248  pict 0
+
+room 49 "The Bell Turret"
+    bounds         0x0000
+    background     2001                 # kPaneledRoom
+    tiles          1 1 1 1 1 1 1 1
+    floor          6
+    suite          61
+    start          32 32
+    object 0  kDownStairs     at 28 16  tall 0  where -1  who 255  wide 0
+    object 1  kFloorVent      at 305 120  distance 269  initial 1  state 1  vector 1  tall 0
+    object 2  kFloorVent      at 305 336  distance 269  initial 1  state 1  vector 1  tall 0
+    object 3  kCeilingLight   at 4 224  length 64  byte0 0  byte1 0  initial 1  state 1
+    object 4  kStar           at 14 336  length 0  points 0  state 1  initial 1
+    object 5  kSparkle        at 60 200  length 0  points 0  state 1  initial 1
+    object 6  kSparkle        at 88 248  length 0  points 0  state 1  initial 1
+    object 7  kSparkle        at 116 296  length 0  points 0  state 1  initial 1
+    object 8  kSparkle        at 144 224  length 0  points 0  state 1  initial 1
+    object 9  kSparkle        at 172 272  length 0  points 0  state 1  initial 1
+    object 10 kMirror         rect 40 400 150 470  pict 0
+    object 11 kFlower         rect 255 400 306 432  pict 5
+
+room 50 "The Chimney Stack"
+    bounds         0x0000
+    background     2015                 # kSky
+    tiles          2 2 2 2 2 2 2 7
+    floor          6
+    suite          62
+    start          32 32
+    object 0  kCloud          rect 70 180 100 308  pict 0
+    object 1  kCloud          rect 200 40 230 168  pict 0
+
+scores
+    banner         "Boarding House"
+    #     name                     score     timestamp  rooms
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0
+    entry "--------------"             0             0  0

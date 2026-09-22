@@ -28,19 +28,26 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
-// oneBuiltInLevel copies one house out of the embedded levels archive into a fresh directory and
-// returns the directory and the house's name.
+// builtInLevels copies **every** house out of the embedded levels archive into a fresh directory
+// and returns the directory and their names.
 //
-// A copy rather than a house written for the test, because the copy is the case that matters: it
-// reproduces what `make levels` leaves on disk, where the same house exists twice over -- once in
-// the directory and once inside the binary running.
-func oneBuiltInLevel(t *testing.T, tree fs.FS) (dir, name string) {
+// Copies rather than houses written for the test, because the copy is the case that matters: it
+// reproduces what `make levels` leaves on disk, where each house exists twice over -- once in the
+// directory and once inside the binary running.
+//
+// All of them and not just the first, which is what this copied while there was only one house to
+// copy. With two, a directory holding one of them is not "the same houses built in" -- replacing
+// correctly would then *lose* a house and the count would legitimately drop, so the test would fail
+// while the behaviour it checks was right. Copying the whole archive keeps the claim the one the
+// failure message makes, and keeps it true for the next house as well.
+func builtInLevels(t *testing.T, tree fs.FS) (dir string, names []string) {
 	t.Helper()
 	ents, err := fs.ReadDir(tree, ".")
 	if err != nil {
@@ -49,16 +56,19 @@ func oneBuiltInLevel(t *testing.T, tree fs.FS) (dir, name string) {
 	if len(ents) == 0 {
 		t.Skip("this build carries no houses of its own, so there is no replacement to test")
 	}
-	rel := ents[0].Name()
-	b, err := fs.ReadFile(tree, rel)
-	if err != nil {
-		t.Fatalf("%s: %v", rel, err)
-	}
 	dir = t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, rel), b, 0o644); err != nil {
-		t.Fatal(err)
+	for _, e := range ents {
+		rel := e.Name()
+		b, err := fs.ReadFile(tree, rel)
+		if err != nil {
+			t.Fatalf("%s: %v", rel, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, rel), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, strings.TrimSuffix(rel, ".house"))
 	}
-	return dir, strings.TrimSuffix(rel, ".house")
+	return dir, names
 }
 
 // discover builds the library the picker would show for one command line.
@@ -82,27 +92,27 @@ func TestLevelsFlagReplacesTheBuiltInSetRatherThanAddingToIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir, name := oneBuiltInLevel(t, plain.levelTree)
+	dir, names := builtInLevels(t, plain.levelTree)
 
 	before := discover(t)
 	after := discover(t, "-levels", dir)
 
 	// The one number a player sees on the status band, and the whole point: a directory
-	// holding a copy of a house already in the binary must not make two houses of it.
+	// holding a copy of every house already in the binary must not double any of them.
 	if len(after.Houses) != len(before.Houses) {
-		t.Errorf("-levels %s lists %d houses where the same houses built in list %d: the "+
+		t.Errorf("-levels %s lists %d houses where the same %d houses built in list %d: the "+
 			"directory is being added to the levels root instead of replacing it",
-			dir, len(after.Houses), len(before.Houses))
+			dir, len(after.Houses), len(names), len(before.Houses))
 	}
 
 	// Said again per name, because the count alone would also pass if the flag had replaced
 	// the *houses* root by mistake and the totals happened to match.
-	seen := 0
+	seen := map[string]int{}
 	for _, h := range after.Houses {
-		if h.Name != name {
+		if !slices.Contains(names, h.Name) {
 			continue
 		}
-		seen++
+		seen[h.Name]++
 		if h.Set != shell.SetNew {
 			t.Errorf("%q is in the %v set, want %v: a -levels directory is the New set",
 				h.Name, h.Set, shell.SetNew)
@@ -112,9 +122,11 @@ func TestLevelsFlagReplacesTheBuiltInSetRatherThanAddingToIt(t *testing.T) {
 				"being listed", h.Name, h.Path, dir)
 		}
 	}
-	if seen != 1 {
-		t.Errorf("%q appears %d times with -levels %s, want once -- two rows of one house "+
-			"share one save file and one score board", name, seen, dir)
+	for _, name := range names {
+		if seen[name] != 1 {
+			t.Errorf("%q appears %d times with -levels %s, want once -- two rows of one house "+
+				"share one save file and one score board", name, seen[name], dir)
+		}
 	}
 
 	// And the other four roots are untouched by a flag that names none of them.

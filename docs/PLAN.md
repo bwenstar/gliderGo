@@ -1256,29 +1256,48 @@ that, and what it left open.
   is what keeps `internal/fidelity`'s reference image the original's dialog.
 - New houses designed against the quantitative profile of the originals in
   `docs/analysis/original-houses.md` — comparable room counts, object vocabulary and
-  difficulty curve, not just "some rooms". **DONE for the first one:** `levels/Open House.house.txt`,
-  43 rooms on a 7×10 grid, built by `make levels` into `assets/levels/`, packed into
-  `assets/levels.zip` and embedded, so a downloaded executable lists it as the New set with no
-  flag and no files beside it. Thirteen of §10.2's fifteen rows are inside the tutorial band and
-  are asserted rather than claimed — `TestOpenHouseMatchesTheTutorialProfile` walks the parsed house, so the table in
-  its header comment is an invariant. What it teaches is the arithmetic the flight model actually
-  has: a glider crossing a vent's 52-px catchment at cruise gains **60 px** and spends 0.6 px of
-  height per px travelled, so break-even is a vent every 100 px and no house in the corpus is
-  crossable with the arrow held down. Riding each updraft to the ceiling is the mechanic, which is
-  why the originals need only 1.49 blowers a room. Two rows are unmeasurable from here and four
-  gaps found in the writing are filed: `docs/IMPROVEMENTS.md` 4.15 (a new house cannot carry art
-  of its own: the levels archive holds houses and nothing else, and `-houseart DIR` replaces the
-  one art root rather than adding to it, so pointing it at a new house's pictures takes the
-  twenty-two originals' art away), 4.16 (nothing computes
-  §10.2; the dark-room and eccentricity rows need a callback into the renderer), 4.17 and 4.18.
+  difficulty curve, not just "some rooms". **DONE, two houses at two different tiers.**
+  Both are built by `make levels` into `assets/levels/`, packed into `assets/levels.zip` and
+  embedded, so a downloaded executable lists them as the New set with no flag and no files beside
+  it.
+  - `levels/Open House.house.txt` — 43 rooms on a 7×10 grid, §10.2's **tutorial** column, all
+    sixteen of its measurement rows asserted rather than claimed. What it teaches is the
+    arithmetic the flight model actually has: a glider crossing a vent's 52-px catchment at
+    cruise gains **60 px** and spends 0.6 px of height per px travelled, so break-even is a vent
+    every 100 px and no house in the corpus is crossable with the arrow held down. Riding each
+    updraft to the ceiling is the mechanic, which is why the originals need only 1.49 blowers a
+    room.
+  - `levels/Boarding House.house.txt` — 51 rooms on a 7×13 grid, §10.2's **small** column, all
+    seventeen rows asserted. The second house is what makes the first one evidence: one house
+    fitted to one column cannot distinguish "the table is usable" from "the column was chosen
+    after the fact", and the small tier's bands differ in kind and not just in width (7-19
+    objects a room against 2.2-3.1, enemies where the tutorial tier permits almost none, 0-4 %
+    dark rooms where it permits none). It shares no layout with the first, and both are counted
+    by identical code (`internal/replay/profile_test.go`) so a divergence is always the house.
+    It is also the first house in the repository, ours or 1994's, to use **all eighteen**
+    built-in backgrounds — which made `kRoof` the background where a tile turns out to be physics
+    rather than decoration, four of its eight tiles having no collision surface at all.
+  - Eight gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.22: 4.15 (a new house cannot
+    carry art of its own: the levels archive holds houses and nothing else, and `-houseart DIR`
+    replaces the one art root rather than adding to it, so pointing it at a new house's pictures
+    takes the twenty-two originals' art away), 4.16 (nothing computes §10.2 for an author before
+    they have a passing test; its dark-room half turned out to be three lines and is now
+    asserted, and eccentricity is what remains), 4.17, 4.18 (narrowed by the second house: §10.3's
+    absolute object counts contradict §10.2's *tutorial* column specifically, because that column
+    is the outlier and the small tier is the corpus mean), 4.19, 4.20, 4.21 (the paragraph
+    calibrating the linter's severities cites four corpus defects; one has no instance in the
+    corpus and one is an error that fails it) and 4.22 (the linter has no check relating an object
+    to the background it stands in, so a floor vent bolted to the sky lints clean — a
+    configuration that appears zero times in 1,084 corpus rooms).
 - *Acceptance:* every new house passes the validator, is completable headlessly by a
-  scripted run, and is playable start to finish by hand. **Two of three met for `Open House`:**
-  `make levels` runs `house lint` over every build and it reports 43 rooms, 0 notes, 0 warnings,
-  0 errors; `TestOpenHouseCanBeFinished` flies it from the Furnace Room to the star in the Belfry
-  in 1,165 frames without losing a glider, and builds the house from the checked-in text rather
-  than from a build product so a stale binary cannot pass for it. **Not met: nobody has played
-  it.** A scripted run proves a route exists, not that the route is one a human would find or
-  enjoy, and that is the half this host cannot answer.
+  scripted run, and is playable start to finish by hand. **Two of three met, for both houses:**
+  `make levels` runs `house lint` over every build and reports 0 notes, 0 warnings, 0 errors for
+  each; `TestOpenHouseCanBeFinished` flies the first from the Furnace Room to the star in the
+  Belfry in 1,165 frames and `TestBoardingHouseCanBeFinished` flies the second from the Vestibule
+  to the bell in the turret in 1,447, taking all three stars, neither losing a glider. Both build
+  the house from the checked-in text rather than from a build product, so a stale binary cannot
+  pass for one. **Not met: nobody has played either.** A scripted run proves a route exists, not
+  that the route is one a human would find or enjoy, and that is the half this host cannot answer.
 
 ### Stage 3 — 2-player race
 

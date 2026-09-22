@@ -190,7 +190,8 @@ func TestLevelArchiveHoldsEveryAuthoredHouseAtItsRoot(t *testing.T) {
 //
 // A house is added here in the same commit that ships it, which is the point -- see the test.
 var shippedStamps = map[string]int32{
-	"Open House": 1725439552,
+	"Open House":     1725439552,
+	"Boarding House": 1790035200,
 }
 
 // TestShippedHousesKeepTheStampTheirSavesAreKeyedOn is a guard on one field of one line, and the

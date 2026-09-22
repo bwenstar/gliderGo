@@ -23,11 +23,11 @@ it shipped.
 
 ![The house picker](docs/screenshots/house-picker.png)
 
-One row in that list is this port's own — "Open House" — and the strip along the top is there so
-that nothing of ours can be mistaken for theirs: **Original 22, New 1**, Tab to show one set at a
-time. The list is sorted by name and ours sits in among them, which is exactly why the strip and the
-count are drawn rather than left to the reader. A house's set is the root it was found in and never a
-guess from its name.
+Two rows in that list are this port's own — "Open House" and "Boarding House" — and the strip along
+the top is there so that nothing of ours can be mistaken for theirs: **Original 22, New 2**, Tab to
+show one set at a time. The list is sorted by name and ours sit in among them, which is exactly why
+the strip and the count are drawn rather than left to the reader. A house's set is the root it was
+found in and never a guess from its name.
 
 Casady & Greene published it; Calhoun later released the source under the GPLv2, which is the
 only reason this port can exist. Upstream is
@@ -80,18 +80,26 @@ guess from its name, so nothing of ours can pass itself off as 1994's. `-levels 
 of your own houses in the New set instead of the ones built in; Tab cycles the sets, and with only
 one set on the shelf the picker draws exactly the screen it always did.
 
-**And the first house of our own is on the shelf.** `levels/Open House.house.txt` is 43 rooms,
-written against the measured profile of the originals in
-[docs/analysis/original-houses.md](docs/analysis/original-houses.md) rather than just "some rooms" —
-thirteen of that document's fifteen numeric targets are inside its tutorial band, and a Go test
-asserts every one of them, so the table in the file's header cannot quietly stop being true. It
-teaches the thing the original never explains: a glider crossing a floor vent at cruising speed only
-gains about sixty pixels of height, and spends more than half of that again on every screen it
-crosses, so **no house in this game is crossable with the arrow held down.** You stop in each
-updraft, ride it to the ceiling, and go.
+**And two houses of our own are on the shelf.** Both are written against the measured profile of the
+originals in [docs/analysis/original-houses.md](docs/analysis/original-houses.md) rather than just
+"some rooms", and every numeric target in each one's header is asserted by a Go test, so those tables
+cannot quietly stop being true.
 
-**It is inside the binary**, like the twenty-two: a downloaded executable lists 23 houses and needs
-no files beside it. `make levels` builds it out of the text for inspection and `-levels DIR` plays a
+`levels/Open House.house.txt` is 43 rooms at that document's tutorial tier, and it teaches the thing
+the original never explains: a glider crossing a floor vent at cruising speed only gains about sixty
+pixels of height, and spends more than half of that again on every screen it crosses, so **no house in
+this game is crossable with the arrow held down.** You stop in each updraft, ride it to the ceiling,
+and go.
+
+`levels/Boarding House.house.txt` is 51 rooms at the tier above, and it exists to check that the
+profile is a method and not a coincidence — one house fitted to one column of a table proves nothing
+about the table. It is also the first house anyone has written for this game, ours or 1994's, that
+uses **all eighteen** built-in backgrounds, which is how `kRoof` was found to be the one background
+where a tile is physics rather than decoration: four of its eight have no surface to land on at all,
+and the glider that flies over them dies.
+
+**Both are inside the binary**, like the twenty-two: a downloaded executable lists 24 houses and needs
+no files beside it. `make levels` builds them out of the text for inspection and `-levels DIR` plays a
 directory you are still editing; the text is meant to be read and taken apart.
 
 Then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.

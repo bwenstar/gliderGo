@@ -836,6 +836,22 @@ func TestLintCorpus(t *testing.T) {
 		{"no-stars", 1,
 			"Fun House is the only shipped house with no kStar, which is why no-stars is " +
 				"a warning and not an error"},
+		// The three stair rules, pinned at zero on purpose. This file's own header cites
+		// "staircases that lead nowhere" among the four corpus defects that justify the
+		// severity calibration, and across 326 stair objects in 4,070 rooms not one of
+		// these fires: every flight in the corpus is paired and both ends land in a room
+		// that exists. The rules are exercised by TestLintStairs on houses written to
+		// provoke them, so a zero here is a fact about the corpus and not a dead check.
+		// See docs/IMPROVEMENTS.md 4.21, which is what these three rows are the evidence
+		// for -- the claim went unexamined because nothing counted it.
+		{"stairs-no-room", 0,
+			"no shipped staircase leads to a floor/suite with no room in it"},
+		{"stairs-unpaired", 0,
+			"every shipped kUpStairs has a kDownStairs to arrive on and vice versa; the " +
+				"pairing is crossed, which is the C verbatim (HouseLegal.c:961-1045)"},
+		{"stairs-doubled", 0,
+			"no shipped room holds two kUpStairs or two kDownStairs, so GetUpStairsRightEdge " +
+				"and GetDownStairsLeftEdge breaking on the first match is never observable"},
 		{"undefined-what", 0,
 			"no shipped house contains a `what` outside the nine ranges"},
 		{"room-count", 0,

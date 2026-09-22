@@ -44,7 +44,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bwenstar/gliderGo/internal/game"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/replay"
 )
@@ -133,121 +132,56 @@ func TestOpenHouseCanBeFinished(t *testing.T) {
 // The bands are wide because the corpus's are -- this is not pinning one design, it is
 // keeping an edit inside the tier it was written for.
 //
-// Two of 10.2's rows are not here. Dark rooms (target 0 %) needs GetNumberOfLights, which
-// lives in internal/render and cannot be reached from a house without duplicating its rule;
-// see docs/IMPROVEMENTS.md 4.16. BFS eccentricity (target 11-15) needs a graph walk over the
-// openings, which is real work for one number and is filed with it.
+// The counting lives in profile_test.go, shared with the small-tier house, so that a
+// difference between the two is always a difference in the houses.
+//
+// One of 10.2's rows is still not here: BFS eccentricity (target 11-15) needs a graph walk
+// over the room openings, which is real work for one number and stays filed as
+// docs/IMPROVEMENTS.md 4.16. Dark rooms used to be excluded with it, on the grounds that
+// GetNumberOfLights lives in internal/render and could not be reached from a house. That
+// was wrong -- this package imports internal/render already -- and the row is now asserted;
+// profile_test.go's header has the correction.
 func TestOpenHouseMatchesTheTutorialProfile(t *testing.T) {
 	h, err := house.ParseTextFile(openHouseSource)
 	if err != nil {
 		t.Fatalf("parse %s: %v", openHouseSource, err)
 	}
+	p := measure(t, h)
 
-	prizeValue := map[string]int32{
-		"kRedClock": game.RedClockPoints, "kBlueClock": game.BlueClockPoints,
-		"kYellowClock": game.YellowClockPoints, "kCuckoo": game.CuckooClockPoints,
-		"kStar": game.StarPoints,
-	}
-	points := map[int16]int32{}
-	for name, v := range prizeValue {
-		code, ok := house.ObjectCode(name)
-		if !ok {
-			t.Fatalf("no object code for %s", name)
-		}
-		points[code] = v
-	}
+	checkRows(t, "tutorial", []profileRow{
+		{"real rooms", float64(p.rooms), 35, 45, true},
+		{"occupied floors", float64(p.floors), 6, 7, true},
+		{"occupied suites", float64(p.suites), 9, 10, true},
+		{"grid density", p.density, 0.60, 0.65, false},
+		{"total objects", float64(p.objects), 78, 138, true},
+		{"objects per room", p.perRoom(p.objects), 2.2, 3.1, false},
+		{"empty rooms %", 100 * p.perRoom(p.empties), 15, 25, false},
+		// The tutorial tier's ceiling row is 0, not "under 24": a 24-object room is a room
+		// with nothing left to say, and no house of 43 rooms averaging 3.09 objects should
+		// have one. This used to assert the fullest room against 0..23 instead, which is the
+		// same claim as "not at the ceiling" and so said nothing the row was for.
+		{"rooms at the 24-object ceiling", float64(p.atCeiling), 0, 0, true},
+		{"enemies per room", p.perRoom(p.enemies), 0.0, 0.1, false},
+		{"prizes per room", p.perRoom(p.prizes), 0.03, 0.29, false},
+		{"stars", float64(p.stars), 1, 1, true},
+		{"batteries", float64(p.batteries), 0, 1, true},
+		{"rubber bands", float64(p.bands), 0, 1, true},
+		// The tutorial tier permits no dark rooms at all, and the house's header says all 43
+		// were "checked by eye instead, with `glidertool render -all`". They were, and this
+		// is the same claim made by the rule the game itself uses.
+		{"dark rooms %", 100 * p.perRoom(p.dark), 0, 0, false},
+		{"distinct object codes", float64(p.kinds), 15, 48, true},
+		{"total points", float64(p.total), 8500, 12500, true},
+	})
 
-	var objects, empties, enemies, prizes, stars, fullest int
-	var prizePoints int32
-	floors, suites := map[int16]bool{}, map[int16]bool{}
-	kinds := map[int16]bool{}
-	starCode, _ := house.ObjectCode("kStar")
-	for i := range h.Rooms {
-		rm := &h.Rooms[i]
-		floors[rm.Floor], suites[rm.Suite] = true, true
-		n := rm.LiveObjects()
-		objects += n
-		if n == 0 {
-			empties++
-		}
-		if n > fullest {
-			fullest = n
-		}
-		for j := range rm.Objects {
-			o := rm.Objects[j]
-			if o.IsEmpty() {
-				continue
-			}
-			kinds[o.What] = true
-			switch o.Group() {
-			case house.GroupEnemy:
-				enemies++
-			case house.GroupBonus:
-				prizes++
-				prizePoints += points[o.What]
-				if o.What == starCode {
-					stars++
-				}
-			}
-		}
-	}
-	rooms := len(h.Rooms)
-	total := int32(100*rooms) + prizePoints
-	density := float64(rooms) / float64(len(floors)*len(suites))
+	checkStartRoom(t, h, p)
 
-	// Each row: what it is, the value, and 10.2's tutorial band.
-	for _, c := range []struct {
-		what     string
-		got      float64
-		lo, hi   float64
-		integral bool
-	}{
-		{"real rooms", float64(rooms), 35, 45, true},
-		{"occupied floors", float64(len(floors)), 6, 7, true},
-		{"occupied suites", float64(len(suites)), 9, 10, true},
-		{"grid density", density, 0.60, 0.65, false},
-		{"total objects", float64(objects), 78, 138, true},
-		{"objects per room", float64(objects) / float64(rooms), 2.2, 3.1, false},
-		{"empty rooms %", 100 * float64(empties) / float64(rooms), 15, 25, false},
-		{"objects in the fullest room", float64(fullest), 0, 23, true},
-		{"enemies per room", float64(enemies) / float64(rooms), 0.0, 0.1, false},
-		{"prizes per room", float64(prizes) / float64(rooms), 0.03, 0.29, false},
-		{"stars", float64(stars), 1, 1, true},
-		{"distinct object codes", float64(len(kinds)), 15, 48, true},
-		{"total points", float64(total), 8500, 12500, true},
-	} {
-		if c.got < c.lo || c.got > c.hi {
-			if c.integral {
-				t.Errorf("%s = %d, want %d..%d (original-houses.md 10.2, tutorial)",
-					c.what, int(c.got), int(c.lo), int(c.hi))
-			} else {
-				t.Errorf("%s = %.3f, want %.2f..%.2f (original-houses.md 10.2, tutorial)",
-					c.what, c.got, c.lo, c.hi)
-			}
-		}
-	}
-
-	// The start room is a separate rule (10.3 step 9): richer than average, and no enemies
-	// in it, because the first thing a player sees should not be able to kill them.
-	if h.FirstRoom < 0 || int(h.FirstRoom) >= rooms {
-		t.Fatalf("firstRoom = %d, out of range", h.FirstRoom)
-	}
-	first := &h.Rooms[h.FirstRoom]
-	if n, avg := first.LiveObjects(), float64(objects)/float64(rooms); float64(n) < avg {
-		t.Errorf("the start room %q holds %d objects, below the %.2f average: 10.3 step 9 "+
-			"wants it richer than average", first.Name.Text(), n, avg)
-	}
-	for j := range first.Objects {
-		if o := first.Objects[j]; !o.IsEmpty() && o.Group() == house.GroupEnemy {
-			t.Errorf("the start room %q holds an enemy (%s)", first.Name.Text(),
-				house.ObjectName(o.What))
-		}
-	}
-
-	t.Logf("%d rooms, %d objects (%.2f/room), %d empty, %d enemies, %d prizes, "+
-		"%d distinct codes, %d points, density %.3f",
-		rooms, objects, float64(objects)/float64(rooms), empties, enemies, prizes,
-		len(kinds), total, density)
+	t.Logf("%d rooms, %d objects (%.2f/room), %d empty, %d at the ceiling (fullest %d), "+
+		"%d enemies, %d prizes (%d stars, %d batteries, %d bands), %d distinct codes, "+
+		"%d points, density %.3f, %d dark %v",
+		p.rooms, p.objects, p.perRoom(p.objects), p.empties, p.atCeiling, p.fullest,
+		p.enemies, p.prizes, p.stars, p.batteries, p.bands, p.kinds, p.total, p.density,
+		p.dark, p.darkNames)
 }
 
 // TestAHouseInTheLevelsRootIsFoundByName is the lookup a bug report about one of this port's own

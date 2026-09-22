@@ -17,6 +17,117 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A second house, at a tier the first one could not reach, and the roof tiles that turned out to be physics (2026-09-22)
+
+`levels/Boarding House.house.txt` is 51 rooms on a 7×13 grid, and the reason it exists is not "more
+content". `Open House` was written against the tutorial column of `docs/analysis/original-houses.md`
+§10.2 and hits every row of it, which sounds like evidence that the table is usable and is not: a
+single house fitted to a single column is also exactly what you get by drawing a house and then
+choosing the column it happens to land in. The claim can only be tested at a second tier, so this one
+is the **small** column — 45 to 85 rooms — whose bands differ in kind and not just in width. 7 to 19
+objects a room against 2.2 to 3.1. Enemies, where the tutorial tier permits almost none. Up to 4 %
+dark rooms, where it permits none at all. The two houses share no layout, and all seventeen of this
+one's rows are inside their band: 51 rooms, 388 objects at 7.61 a room, 33 enemies, 47 prizes, 3
+stars, 65 distinct object codes, 27,600 points for a clear.
+
+**Both houses are now counted by the same code.** `internal/replay/profile_test.go` holds the walk and
+each house's test holds only its column, because with the arithmetic duplicated a disagreement between
+the two could be a difference in the houses or a difference in the counting, and a failure would not
+say which. Factored, a divergence is always the house. It also closed a row that had been declared
+uncomputable — see below — and it caught the row-versus-header mismatch in the older test, which
+asserted "the fullest room holds 0..23 objects" where its house's header claims "rooms at the
+24-object ceiling: 0". Those are different quantities and the first says almost nothing, since 24 is
+the ceiling. `Open House` now asserts all sixteen of its table's rows rather than thirteen.
+
+**The dark-room row was computable the whole time, and the reasoning that said otherwise is the useful
+part.** `docs/IMPROVEMENTS.md` 4.16 argued that a dark room needs `GetNumberOfLights`, which is a
+method on `*render.Scene`; that `internal/render` imports `internal/house` so the dependency cannot be
+inverted; and that re-deriving the rule means a second copy of a switch over eighteen backgrounds
+that would drift silently. Every clause is true. The conclusion — that the row cannot be checked —
+does not follow from any of them, because it is a claim about where the *check* lives and the argument
+is about what `internal/house` may import. The check lives in `internal/replay`, which imports
+`internal/render` already and cannot run a game without it. Three lines. "X cannot import Y" is a fact
+about two packages; "this cannot be checked" needs the extra step "and no third package imports
+both", and that step was never taken and was false.
+
+It earned its place immediately. `Boarding House`'s Bell Turret was `kRoof`, one of the eight
+backgrounds that light themselves, and became `kPaneledRoom`, which is not — so changing a background
+put out a light, no other row moved, and the house's dark-room figure went to 3.9 % against a 4 %
+ceiling. **The band did not catch it. Reading the number did**, which is why both profile tests print
+their measurements and the names of the dark rooms rather than only a verdict.
+
+**That same edit had a second consequence nothing caught, and finding it is why the background
+histogram is now pinned too.** Moving one room from `kRoof` to `kPaneledRoom` moves it from the
+open-air side of the house to the ceilinged side, which falsified four figures the house's header
+quotes — the room counts on each side and their object means — while every profile row stayed green,
+because a background is not an object. They were wrong in the header until recomputed by hand. So
+`TestBoardingHouseUsesEveryBuiltInBackground` now asserts the exact count per background rather than
+only that all eighteen appear: one line of data, and any background edit in any room has to come
+through it. The alternative — computing "has a ceiling" in the test — means duplicating
+`DoesRoomHaveCeiling`, which is a method on the running `World` and not a function of a background, and
+every derived figure is downstream of this table anyway. The corrected split is 30 rooms of interior
+art against 21 outdoor, 16 of those with no ceiling, the ceilinged rooms averaging 10.00 objects and
+the open-air ones 2.38.
+
+**Eighteen of eighteen built-in backgrounds, and `kRoof` is where that stopped being a coverage
+exercise.** No house in the repository had used them all — not ours, and none of the 22 from 1994.
+Doing it means eighteen tile sets, four different wall rules and three different ceiling rules in one
+file a person can also play, and it means `kRoof`, whose eight tiles are **collision geometry wearing
+a picture**: `CheckRoofCollision` (`internal/game/player/escape.go:309-348`) gives tiles 1, 2, 5 and 6
+a sloping surface (`250−dx`, `186−dx`, `122+dx`, `186+dx`) and gives 0, 3, 4 and 7 nothing at all, so a
+glider whose centre is over one of those four below v 122 dies. A roof that looks continuous can be
+lethal in four of its eight columns. The three roof rooms here were laid out against that arithmetic
+and each verified to sit above a room that has a ceiling.
+
+**Two corpus rules were reproduced only after getting both wrong in one room, and that room is now
+`docs/IMPROVEMENTS.md` 4.22.** `DoesRoomHaveFloor` gives `kSky`, `kStratosphere` and `kStars` no floor
+at all, which is why there is not one `kFloorVent`, `kFloorBlower` or `kSewerGrate` among the corpus's
+**1,084** roof-and-sky rooms — the art would stand on a hole. And **243 of the corpus's 246** `kStars`
+rooms carry the identity tiling, because the background is one 512-pixel picture. A room here was
+written with `kSky`'s tiles under `kStars` *and* a `kFloorBlower`, and nothing in the toolchain
+objected: `glidertool house lint` reports 0 notes, 0 warnings, 0 errors for a floor vent bolted to the
+sky. The linter's 29 checks are all about a room's own fields being legal and not one relates an object
+to the background it stands in — which is invisible in the direction people test, because the room
+draws, the lift works, and the only thing wrong is what the player sees. Filed with the numbers that
+decide its severity.
+
+**The playthrough is pinned, and the frame numbers came out of the simulation because arithmetic
+cannot produce them.** `TestBoardingHouseCanBeFinished` flies
+`internal/replay/testdata/boarding-house.script` from the Vestibule to the bell in the turret: twelve
+rooms, five staircases, all three stars, 1,447 frames, 16,100 points, neither glider lost. Two things
+about deriving it are worth keeping. The hover cut-off is `top = V − D − 20 = 16`, but the glider
+arrives there carrying `VVel` −6 against gravity's +3 a frame, so it **coasts past** and tops out
+between 6 and 10 — all 23 key presses in the script are at top 8, 9 or 10, and a rule set written from
+the cut-off reproduces none of them. And `GliderInRect` is containment, not overlap
+(`internal/game/player/hitbox.go:55-58`), so a staircase's 112×32 trigger needs the whole 48×20 glider
+inside it, in a band that sits *below* `CeilingLimit` — which means a glider fresh off a vent is above
+the box and cannot be in it, and every staircase is taken on the way back down. Five events a stair
+room, not three. The script's header carries the four rules that regenerate every frame number in it.
+
+**`docs/IMPROVEMENTS.md` 4.18 is narrowed by measurement rather than by argument.** It said §10.3's
+construction recipe and §10.2's tier table contradict each other, because the recipe's "interiors get
+11-13 objects" is unreachable inside a tutorial budget of 138. At the small tier they do not
+contradict: this house's 35 rooms that have a ceiling average **10.00** objects and 24 of them hold 11
+to 13, the recipe's figure taken literally, with the whole house at 7.61. The recipe is written against the
+corpus mean of 7.7 and the small tier *is* the mean — the tutorial column is the outlier, and a recipe
+in absolute numbers will contradict exactly that one column and no other. Which is a smaller and more
+actionable defect than the one originally filed, and it could only be found by writing a house at
+another tier and measuring it with the same code.
+
+**One new item, `docs/IMPROVEMENTS.md` 4.21, and three rows of test for the half of it that was
+cheap.** The paragraph at `internal/house/lint.go:19-24` justifies the linter's severities by naming
+four defects the 22 shipped houses contain, "so none of those classes can be an error". Two of the
+four do not hold. There are **no** staircases that lead nowhere: four stair rules, 326 stair objects,
+4,070 rooms, zero findings — every flight in the corpus is paired and both ends land in a room that
+exists. And the out-of-range `who` **is** an error, does fire once, and makes `glidertool house lint`
+exit 1 on the originals, which the paragraph says cannot happen. It should be an error — the original
+indexes `retroLinkList[who]` with no bound check and reads into the next room's record, and a linter
+that shrugged at that would be the useless one — so the rule the code follows is narrower and better
+than the rule the comment states. `TestLintCorpus` already pinned that error at 1; what it had no row
+for was any stair rule, which is why the other half went unexamined. Three rows added, safe at zero
+because `TestLintStairs` fires all four rules on houses written to provoke them. The comment itself is
+still to fix.
+
 ### The twenty-third house ships inside the binary, and the flag that had to start replacing (2026-09-22)
 
 `Open House` existed and no player could reach it. It needed `-levels assets/levels` on the command

@@ -3277,7 +3277,7 @@ nothing to apply to yet, and §10.5's `kSoundTrigger`-with-no-`snd ` and `kTV`-w
 are unreachable rather than avoided. Worth knowing when the first house does carry art: three of the
 recipe's rules go live at once.
 
-### 4.16 The profile a new house is held to was measured by hand, and two of its fifteen rows cannot be measured at all — **note; the Go half DONE, 2.3**
+### 4.16 The profile a new house is held to was measured by hand, and two of its fifteen rows cannot be measured at all — **note; the Go half DONE, 2.3; one of the two rows turned out to be computable after all, 2.4 — see the amendment**
 
 Stage 2's bullet asks for houses "designed against the quantitative profile of the originals in
 `docs/analysis/original-houses.md`". §10.2 is that profile: fifteen rows, five tiers. Hitting it for
@@ -3321,6 +3321,40 @@ The scripted playthrough covers what those two rows were standing in for — a h
 crossed does not finish — so this is a gap in *reporting*, not in safety. But an author who has to
 choose between "grep, and hope" and "write a 200-line Go test per house" will do neither.
 
+**Amendment, 2.4: the dark-rooms row was computable the whole time, and the sentence above is a good
+example of how to get this wrong.** Writing the second house needed the row, so it got another look.
+Every word of the bullet is true — `GetNumberOfLights` *is* a method on `*render.Scene`,
+`internal/render` *does* import `internal/house`, the dependency *cannot* be inverted, and
+re-deriving the rule *would* be two copies of a switch over eighteen backgrounds. What none of it
+establishes is the conclusion, because the conclusion is about where the *check* lives and the
+argument is about where `internal/house` can import from. The check does not live in
+`internal/house`. It lives in `internal/replay`, which imports `internal/render` already and cannot
+run a game without it. Three lines:
+
+```go
+scene := render.NewScene(render.DefaultView(), render.NewAssets(nil), h)
+...
+if scene.GetNumberOfLights(int16(i)) == 0 { p.dark++ }
+```
+
+The empty asset tree is fine: `GetNumberOfLights` reads the room's background and its light objects'
+switch states and touches no picture, so there is nothing for an asset tree to supply. Both houses
+now assert the row — `internal/replay/profile_test.go` holds the shared counting — and it earned its
+place immediately, on `Boarding House`'s Bell Turret: the room was `kRoof`, which is one of the eight
+backgrounds that light themselves, and became `kPaneledRoom`, which is not, so changing a background
+put out a light and no other row moved. Checked by eye with `glidertool render -all` it would have
+looked like a room at night.
+
+The correction does not touch the case for `glidertool house stats`, which is about an author wanting
+the numbers *before* they have a passing test, and it does not touch BFS eccentricity: that one needs
+`DetermineRoomOpenings` and a graph walk, is genuinely not three lines, and is what remains of this
+item. The `LintOptions.Lights` callback proposed above is also still the right shape for the *linter*,
+which does live in `internal/house` — the amendment is that a test does not have to wait for it.
+
+The general lesson is cheaper than the specific one. "X cannot import Y" is a fact about two
+packages; "this cannot be checked" is a claim about the whole repository, and the step between them is
+"and there is no third package that imports both". That step was never taken, and it was false.
+
 ### 4.17 A house with no custom art is told its custom art will fall back — **note; cosmetic, 2.3**
 
 Rendering `Open House` prints `no extracted resource fork at built-in:houseart/Open House; custom
@@ -3335,7 +3369,7 @@ can already see (`lint.go:783` does the `kCustomPict` half). Left as a note beca
 suppressed by `-quiet` and misleads nobody who reads the next line, but it is the first thing a new
 house's author sees and it tells them they have done something wrong.
 
-### 4.18 §10.3's construction procedure and §10.2's tier table contradict each other, and a tutorial house cannot satisfy both — **note; found by following them, 2.3**
+### 4.18 §10.3's construction procedure and §10.2's tier table contradict each other, and a tutorial house cannot satisfy both — **note; found by following them, 2.3; narrowed to the tutorial column by the second house, 2.4**
 
 Three of the recipe's steps give per-room object counts that are corpus *means*, and the corpus mean
 is 7.7 objects a room. The tutorial column of the table two subsections above allows **2.2-3.1**.
@@ -3359,6 +3393,28 @@ what the air rooms do", "the star room is the densest room in the house", "`firs
 house's own mean" — and a line under the table saying the numeric steps below scale with the tier.
 `TestOpenHouseMatchesTheTutorialProfile` encodes the ratio reading for the two that are checkable
 (start room above average, no enemies in it), so the disagreement is at least pinned on one side.
+
+**Amendment, 2.4: the contradiction is a property of the tutorial column, not of §10.3, and writing a
+house at the tier above settles which.** `Boarding House` is 10.2's **small** tier, whose objects/room
+band is 7-19 against the tutorial's 2.2-3.1. At that tier step 5 is not merely satisfiable, it is
+close to forced: the house's 35 rooms that have a ceiling average **10.00** objects apiece, 24 of them
+holding 11 to 13 — step 5's figure, taken literally, with no adjustment — and the whole-house average
+lands at 7.61, comfortably inside 7-19, because the 16 open-air rooms average 2.38. Step 10's 15-object star room and step 12's 13-object `firstRoom` are
+likewise ordinary numbers at this tier rather than a third of the budget.
+
+So the three numeric steps are not written against the corpus "as a whole" in a way that fails
+everywhere. They are written against the corpus mean, 7.7 objects a room, and the small tier *is* the
+mean. The tutorial column is the outlier — it is the only tier whose object budget is a third of the
+corpus's — and a recipe stated in absolute numbers will contradict exactly that one column and no
+other. That is a smaller and more useful defect than "§10.3 and §10.2 contradict each other": the fix
+is still the sentence-per-step rewording proposed above, but it now needs only one line under the
+table, and it can say which tier it is protecting.
+
+Worth recording as method rather than as content: this was not settled by re-reading either section.
+It was settled by writing a second house at a different tier and measuring it with the same code
+(`internal/replay/profile_test.go`), which is the only way a claim about a *table of tiers* can be
+tested at all. One house fitted to one column cannot distinguish "the table is usable" from "the
+column was chosen after the fact".
 
 ### 4.19 Two lines in an authored house are its players' saved games, and nothing said so — **note; found before it could cost anything, 2.3; the pin DONE**
 
@@ -3431,6 +3487,121 @@ source the picker does.** Two things in the tree accept a house by *path* only a
 they stand — `glidertool render <house>` and `glidertool house <subcommand> <file>` — because in a
 clone every house has a path (`assets/extracted/houses/` is committed and `make levels` writes
 `assets/levels/`). They would still be worth revisiting if either grew a `-house NAME` form.
+
+### 4.21 The paragraph justifying the linter's severities cites four examples: one has no instance in the corpus, and one is calibrated as an error and fails it — **note; found writing the second house, 2.4**
+
+`internal/house/lint.go:19-24` is the argument for how the severities were chosen, and the argument
+is a good one:
+
+> Severity is calibrated against the 22 shipped houses rather than against an ideal, because those
+> houses are the specification of what a playable Glider PRO house is. They contain 189 dangling
+> links, an out-of-range `who`, staircases that lead nowhere and a basement you cannot climb out of
+> — **so none of those classes can be an error** without making the corpus fail its own linter, which
+> would make the linter useless on the day it shipped.
+
+Two of the four examples hold up. 189 dangling links is a count that reproduces, and the basement is
+Slumberland's and has a test of its own (`acafec7`, "Pin Slumberland's inescapable basement as the
+original's design"). The other two do not, in opposite directions.
+
+**The staircases have no instance.** The linter has four stair rules — `stairs-no-room` and
+`stairs-unpaired` at warn, `stairs-doubled` twice at note — and across all 22 houses, 4,070 rooms and
+**326 stair objects** they fire **zero times**:
+
+```
+$ bin/glidertool house lint assets/extracted/houses/*.house | grep -c stairs-
+0
+```
+
+Every staircase in the corpus is paired and both ends land in a room that exists. The checks are not
+wrong; they were derived from `CheckForStaircasePairs` (HouseLegal.c:961-1045) and they fire on houses
+written to provoke them. The phrase is most likely a paraphrase of that function *existing* — Calhoun
+wrote a repair pass for this, which implies he had seen it somewhere — but as written it reads as a
+measurement of these 22 files, and it is not one.
+
+**The `who` is the reverse, and it is the more consequential half: it is calibrated as
+`SeverityError`, it fires, and the corpus therefore does fail its own linter.**
+
+```
+$ bin/glidertool house lint assets/extracted/houses/*.house
+    error link-slot-range   room 72 "Let's Roll" slot 22: kMailboxRt links to slot 35 of room 72,
+                            which holds 24 slots ...
+total: 22 files, 634 notes, 48 warnings, 1 errors
+glidertool: a finding reached error
+$ echo $?
+1
+```
+
+One file, `CD Demo House.house`, one object — exactly the "holds exactly one of these" the check's own
+message claims (`lint.go:692-699`). So the sentence's conclusion is false of the code it introduces,
+and by the sentence's own reasoning the linter was useless on the day it shipped.
+
+It was not, and that is the part worth getting right rather than reverting. `link-slot-range` **should**
+be an error: `GenerateRetroLinks` indexes `retroLinkList[who]` with no bound check (House.c:577, :600),
+so the original reads into the next room's record — this is a memory bug in a shipped file, not a
+stylistic liberty, and a linter that shrugged at it would be the useless one. The calibration rule the
+code actually follows is narrower and better than the one the comment states: *a class the corpus
+exercises deliberately cannot be an error; a class the corpus exercises by overrunning a buffer can.*
+Nothing flagged the mismatch because `make houses` runs `glidertool house check`, which round-trips
+and sanity-checks and exits 0, and no target in the tree runs `house lint` over the originals.
+
+**The remedy is smaller than it first looked, because the test that settles it already existed.**
+`TestLintCorpus` (`internal/house/lint_test.go:798`) walks all 22 houses and pins a table of per-check
+counts — including `link-slot-range` at 1, with the comment "The one error in 4,070 rooms". So the
+tree has known since that test was written that the corpus produces an error; the contradiction was
+eight hundred lines from the sentence asserting it could not. What the table did *not* hold was a row
+for any stair rule, which is why the other half went unexamined for as long as it did.
+
+**Done, 2.4:** three rows added — `stairs-no-room` 0, `stairs-unpaired` 0, `stairs-doubled` 0 — so the
+header's claim is now a number a change has to argue with. They are safe to pin at zero because
+`TestLintStairs` exercises all four rules on houses written to provoke them, so a zero in the corpus
+row is a fact about the corpus rather than a dead check. **Still to do:** the comment itself — state
+the narrower calibration rule, and drop or attribute the staircase example.
+
+Worth keeping as a pattern: **a comment that cites evidence should cite it precisely enough to be
+re-run.** Both defects here sit in examples that read exactly like the two sound ones, and both
+surfaced only by running the commands the prose implies. What prompted it was writing a house with
+eight staircase pairs, which meant reading the stair checks closely enough to wonder what they had
+ever caught.
+
+### 4.22 The linter has no check that an object makes sense for the background it stands in, and the two rules a house author gets wrong first are both in that class — **note; found by getting both wrong, 2.4**
+
+`glidertool house lint` has 29 checks and all of them are about a room's *own* fields being legal:
+`what` in range, links resolving, `tiles[]` inside the background picture, names fitting `Str27`. Not
+one relates an object to the background it sits in. Two configurations that are illegal by the
+corpus's own unanimous practice therefore lint clean:
+
+```
+$ bin/glidertool house lint /tmp/floorless.house
+/tmp/floorless.house: 1 rooms, 0 notes, 0 warnings, 0 errors
+```
+
+That house is a `kSky` room holding a `kFloorVent`. `DoesRoomHaveFloor` (`internal/game/room.go:335-348`)
+gives `kSky`, `kStratosphere` and `kStars` no floor at all, so the vent's art stands on a hole — and
+across the corpus's **1,084** `kRoof`, `kSky`, `kStratosphere` and `kStars` rooms there is not one
+`kFloorVent`, `kFloorBlower` or `kSewerGrate`. Zero of 1,084 is not a style preference, it is a rule
+every author in 1994 followed without being told. The second case is the same shape: `kStars` with
+anything but the identity tiling, where **243 of the corpus's 246** `kStars` rooms are the identity
+because the background is one 512-pixel picture, and that also lints clean.
+
+Both were found the hard way — the generator for `Boarding House` produced a `kStars` room carrying
+`kSky`'s tiles *and* a `kFloorBlower`, one room with both defects, and nothing in the toolchain
+objected. What caught it was a pair of assertions added to the generator, which is a throwaway script:
+the checks are now in `/tmp` and the knowledge is in a house comment, which is the wrong place for
+both. A hand author gets neither.
+
+What makes this worth a check rather than a note in a document is that the failure is invisible in the
+direction people test. The room draws — `kFloorVent` has a picture and it composes fine — so
+`glidertool render` shows a vent, the house lints clean, the lift works because `LiftIt` reads the
+object and not the floor, and the only thing wrong is that a player sees machinery bolted to the sky.
+Nothing in `make check` can fail.
+
+The shape of the fix is `lint.go`'s existing per-object switch plus one table: for each background,
+the object groups that cannot stand in it. It is cheap because the two rules above are the whole of
+what the corpus establishes unanimously — and the corpus is what decides the severity, as it does for
+every other check here. Both should be **warn**, not error, on the evidence: zero instances in 4,070
+rooms means no shipped house is made to fail, and a warning is what `-min warn` shows an author by
+default. Worth doing at the same time as 4.16's `glidertool house stats`, since both are "what a house
+author needs before they have a failing test" and both want the same walk.
 
 ---
 

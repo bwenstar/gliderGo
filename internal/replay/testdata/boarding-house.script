@@ -1,0 +1,165 @@
+# Boarding House, flown from the Vestibule to the bell in the turret.
+#
+# The acceptance run for the port's second house, the way open-house.script is for its
+# first. It starts where the house starts -- no `room` or `where` line, so the glider
+# appears at the house's own `initial 32 112` in room 7 -- and it finishes by collecting
+# the third and last star, which sets gameOver. See TestBoardingHouseCanBeFinished.
+#
+# ---------------------------------------------------------------------------
+# The route
+# ---------------------------------------------------------------------------
+#
+# The house is 51 rooms; this route touches twelve of them, climbing five staircases and
+# taking all three stars:
+#
+#   7  Vestibule     (f1 s55) -east-> 8  Front Hall  (f1 s56)  STAR
+#                              -east-> 9  Mrs Ash's Parlour    -up->
+#   20 First Landing (f2 s57) -east-> 21 Number One  (f2 s58)  -up->
+#   30 Number Five   (f3 s58) -east-> 31 Music Room  (f3 s59)  STAR  -up->
+#   38 Number Seven  (f4 s59) -east-> 39 Box Room    (f4 s60)  -up->
+#   45 Water Tank    (f5 s60) -east-> 46 Tower Stair (f5 s61)  -up->
+#   49 Bell Turret   (f6 s61) -- the third star, at frame 1447.
+#
+# Eleven rooms entered at 100 each plus three stars at 5,000 is 16,100, and the run ends
+# with two mortals still in hand: nothing on this route can kill the glider, which is
+# the point of a house whose interiors all follow one idiom.
+#
+# ---------------------------------------------------------------------------
+# Why the keystrokes alternate
+# ---------------------------------------------------------------------------
+#
+# levels/Boarding House.house.txt derives this at length and open-house.script derives
+# it first, so the short version: the glide ratio is 5:3, two vents 216 px apart in a
+# 512 px room are nowhere near the one-vent-per-100-px break-even, and holding the arrow
+# down loses about 100 px of altitude per room. The glider has to stop in each column
+# and let it carry it to the ceiling. Every `-` is a released right-arrow and every
+# `right` is it pressed again.
+#
+# Three things about this house make its script shorter than its room count suggests.
+#
+# **The stair rooms need five events, not three.** MoveItUp fires on
+# GliderInRect(112x32 at (H,28)) && !HeldRight, and GliderInRect is containment rather
+# than overlap (internal/game/player/hitbox.go:55-58), so the whole 48x20 glider must
+# fit: left in 336..400, top in 28..40. That band is *below* CeilingLimit 8, so a glider
+# that has just ridden a vent to the ceiling is above the box and cannot be in it. The
+# staircase is taken on the way back down, and the fifth event is that release: at f=390,
+# 631, 872, 1113 and 1354, every one of them exactly 15 frames after the press that
+# precedes it and every one at left 350, top 30.
+#
+# **Six legs begin with no keystroke.** The house's `initial 32 112` is inside room 7's
+# own h 120 catchment, so the glider is lifted from frame 0 without being asked. And the
+# walk out of a staircase ends at left 127, top 52 -- eleven frames of -4 px in V and
+# -4 px in H from the left 171, top 96 it arrives at -- which is also inside the h 120
+# catchment, so each of the five rooms entered by stairs starts the same way. That is
+# why there are 46 events here and not 52.
+#
+# **The stars cost nothing.** All three sit at v 14 directly over a vent -- two at h 128
+# and the turret's at h 336 -- so they are collected at the top of a ride the route was
+# making anyway. Not one event below is spent on a prize.
+#
+# ---------------------------------------------------------------------------
+# Regenerating it
+# ---------------------------------------------------------------------------
+#
+# These frame numbers came out of the simulation, not out of arithmetic, and the reason
+# is worth knowing before trying to recompute them: the hover cut-off is top = V-D-20 =
+# 16, but the glider reaches it carrying VVel -6 against gravity's +3 per frame, so it
+# coasts past and tops out between 6 and 10. All 23 presses below are at top 8, 9 or 10.
+# A rule set written from the cut-off reproduces none of them.
+#
+# The rule set that does reproduce them, applied frame by frame against
+# `glidertool replay -trace`, is four rules:
+#
+#   1. hold right;
+#   2. release on the first frame the glider's left enters the catchment of the next
+#      vent in this room it has not yet ridden -- left in [h-25, h+26] for a vent at h
+#      -- and skip the release if nothing is held, because then the column already has
+#      it;
+#   3. press right on the first frame top <= 10;
+#   4. in a room with a kUpStairs, after the second vent, release instead on the first
+#      frame the glider is contained in the trigger box: left in [336,400] and top in
+#      [28,40].
+#
+# A failure here is a flight-model change, and the room the trace stops in says which
+# leg stopped working. It is not a house bug unless the house changed.
+
+house Boarding House
+seed 1
+frames 1500
+neighbors 9
+players 1
+sound off
+clock 1994-10-14T10:09:00Z
+
+# room 7, The Vestibule -- lifted off the h 120 vent with no keystroke, across to the
+# h 336 one, then east out of the room.
+at 21 right
+at 61 -
+at 82 right
+
+# room 8, The Front Hall -- the h 120 vent, and the star at v 14 h 128 on the way up.
+at 141 -
+at 170 right
+at 213 -
+at 235 right
+
+# room 9, Mrs Ash's Parlour -- h 120, then h 300, then down into the staircase box.
+at 295 -
+at 323 right
+at 359 -
+at 375 right
+at 390 -
+
+# room 20, The First Landing -- arrives walking out of the stairs into the h 120
+# catchment, so the vent takes it. Then east to h 336 and out.
+at 414 right
+at 452 -
+at 473 right
+
+# room 21, Number One
+at 532 -
+at 562 right
+at 598 -
+at 616 right
+at 631 -
+
+# room 30, Number Five, and east into room 31
+at 655 right
+at 693 -
+at 714 right
+
+# room 31, The Music Room -- the second star, again at v 14 h 128
+at 773 -
+at 803 right
+at 839 -
+at 857 right
+at 872 -
+
+# room 38, Number Seven, and east into room 39
+at 896 right
+at 934 -
+at 955 right
+
+# room 39, The Box Room
+at 1014 -
+at 1044 right
+at 1080 -
+at 1098 right
+at 1113 -
+
+# room 45, The Water Tank, and east into room 46
+at 1137 right
+at 1175 -
+at 1196 right
+
+# room 46, The Tower Stair -- the last flight
+at 1255 -
+at 1285 right
+at 1321 -
+at 1339 right
+at 1354 -
+
+# room 49, The Bell Turret -- east off the h 120 vent and up the h 336 one, which ends
+# at the third star and the end of the house.
+at 1378 right
+at 1416 -
