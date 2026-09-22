@@ -1244,8 +1244,10 @@ that, and what it left open.
 - Text house format (`levels/*.house.txt`) + compiler + validator, sharing the original's
   legality rules (`docs/analysis/house-format.md`). **DONE:** the format and both directions
   are `glidertool house dump` / `house build` from Stage 1, and the validator is
-  `glidertool house lint` — 29 checks, calibrated so the 22 shipped houses produce one error
-  between them, with `house checks` as the lookup table (`docs/IMPROVEMENTS.md` 4.1).
+  `glidertool house lint` — 32 checks, calibrated so the 22 shipped houses produce one error
+  between them, with `house checks` as the lookup table (`docs/IMPROVEMENTS.md` 4.1, 4.22).
+  The three newest are the first that relate an object to the *background* it stands in
+  rather than to its own fields, which is what writing a house by hand turned out to need.
 - A level-set concept: **Original** (the 22 shipped houses) and **New** (ours), chosen in
   the house-selection UI. **DONE:** `internal/shell/sets.go`. A set is declared by the
   *source* a house was walked from, never by the file and never by a list of names, so the

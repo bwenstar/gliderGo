@@ -3488,7 +3488,7 @@ they stand — `glidertool render <house>` and `glidertool house <subcommand> <f
 clone every house has a path (`assets/extracted/houses/` is committed and `make levels` writes
 `assets/levels/`). They would still be worth revisiting if either grew a `-house NAME` form.
 
-### 4.21 The paragraph justifying the linter's severities cites four examples: one has no instance in the corpus, and one is calibrated as an error and fails it — **note; found writing the second house, 2.4**
+### 4.21 The paragraph justifying the linter's severities cites four examples: one has no instance in the corpus, and one is calibrated as an error and fails it — **found and DONE, 2.4; the narrower rule it yielded is what calibrated 4.22**
 
 `internal/house/lint.go:19-24` is the argument for how the severities were chosen, and the argument
 is a good one:
@@ -3525,11 +3525,15 @@ measurement of these 22 files, and it is not one.
 $ bin/glidertool house lint assets/extracted/houses/*.house
     error link-slot-range   room 72 "Let's Roll" slot 22: kMailboxRt links to slot 35 of room 72,
                             which holds 24 slots ...
-total: 22 files, 634 notes, 48 warnings, 1 errors
+total: 22 files, 637 notes, 48 warnings, 1 errors
 glidertool: a finding reached error
 $ echo $?
 1
 ```
+
+(The note total was 634 when this was filed and is 637 now: 4.22's `starfield-tiles` fires three
+times on Leviathan. Updated here rather than left as written, because a transcript nobody can re-run
+is the defect this entry is about.)
 
 One file, `CD Demo House.house`, one object — exactly the "holds exactly one of these" the check's own
 message claims (`lint.go:692-699`). So the sentence's conclusion is false of the code it introduces,
@@ -3554,8 +3558,27 @@ for any stair rule, which is why the other half went unexamined for as long as i
 **Done, 2.4:** three rows added — `stairs-no-room` 0, `stairs-unpaired` 0, `stairs-doubled` 0 — so the
 header's claim is now a number a change has to argue with. They are safe to pin at zero because
 `TestLintStairs` exercises all four rules on houses written to provoke them, so a zero in the corpus
-row is a fact about the corpus rather than a dead check. **Still to do:** the comment itself — state
-the narrower calibration rule, and drop or attribute the staircase example.
+row is a fact about the corpus rather than a dead check.
+
+**Done, 2.4 (the other half):** `internal/house/lint.go:19-39` rewritten. Three changes, and the
+middle one is the point:
+
+- The staircase example is **dropped**, with a sentence saying it was there and why it was wrong —
+  the phrase belonged to `CheckForStaircasePairs` existing, not to these 22 files. Dropped rather
+  than rewritten because at note and warn those rules need no corpus evidence to justify them, so
+  there is nothing for a replacement example to do.
+- The narrower rule is now **stated**: *a class the corpus exercises deliberately cannot be an
+  error; a class it exercises by overrunning a buffer can.* That is what the code has always done,
+  and writing it down is what makes the next check's severity a decision rather than a guess — it
+  is the rule 4.22's three new checks were calibrated with, one week later.
+- The `who` is no longer offered as a class that *cannot* be an error. It is named as the one
+  instance of the second kind, with `House.c:577, :600` for why, and the paragraph now says plainly
+  that `house lint` exits 1 on the originals **by design**. A reader who runs the command gets the
+  documented answer instead of a contradiction.
+
+The lesson generalises past this file: the sentence was wrong because it argued from a list of
+examples, and a list of examples goes stale silently. Two of the four were still true. What would
+have caught it at the time is what caught it in the end — running the command the prose implies.
 
 Worth keeping as a pattern: **a comment that cites evidence should cite it precisely enough to be
 re-run.** Both defects here sit in examples that read exactly like the two sound ones, and both
@@ -3563,7 +3586,7 @@ surfaced only by running the commands the prose implies. What prompted it was wr
 eight staircase pairs, which meant reading the stair checks closely enough to wonder what they had
 ever caught.
 
-### 4.22 The linter has no check that an object makes sense for the background it stands in, and the two rules a house author gets wrong first are both in that class — **note; found by getting both wrong, 2.4**
+### 4.22 The linter has no check that an object makes sense for the background it stands in, and the two rules a house author gets wrong first are both in that class — **found and DONE, 2.4; the census widened one rule from three objects to twelve and demoted the other to a note**
 
 `glidertool house lint` has 29 checks and all of them are about a room's *own* fields being legal:
 `what` in range, links resolving, `tiles[]` inside the background picture, names fitting `Str27`. Not
@@ -3602,6 +3625,139 @@ every other check here. Both should be **warn**, not error, on the evidence: zer
 rooms means no shipped house is made to fail, and a warning is what `-min warn` shows an author by
 default. Worth doing at the same time as 4.16's `glidertool house stats`, since both are "what a house
 author needs before they have a failing test" and both want the same walk.
+
+**Done, 2.4 — three checks, and the census moved two of the three decisions above.** `mount-no-floor`
+and `mount-no-ceiling` at warn, `starfield-tiles` at note, with `TestLintMounting` and
+`TestLintStarfieldTiles` firing each on houses written to provoke them and three new rows in
+`TestLintCorpus` pinning 0, 0 and 3. The corpus note total moves 634 → 637; `README.md`,
+`CONTRIBUTING.md` and `docs/PLAN.md` are updated, and so is 4.21's transcript.
+
+What the entry above got right: the floor rule is real and the corpus is unanimous about it. What
+measuring changed:
+
+**The object set is twelve types, not three, and the classification is not a guess from the names.**
+Each of these occupies exactly **one** vertical coordinate across all 4,070 corpus rooms, and that
+coordinate plus the height of its artwork puts it against one surface or the other:
+
+| floor-standing | v | height | foot | ceiling-hung | v | height |
+|---|---|---|---|---|---|---|
+| `kFloorVent` | 305 | 11 | 316 | `kCeilingVent` | 8 | 11 |
+| `kFloorBlower` | 304 | 15 | 319 | `kCeilingBlower` | 5 | 15 |
+| `kSewerGrate` | 303 | 17 | 320 | `kCeilingLight` | 4 | 20 |
+| `kGrecoVent` | 303 | 18 | 321 | `kFlourescent` | 12 | 12 |
+| `kSewerBlower` | 292 | 12 | 304 | `kTrackLight` | 5 | 24 |
+| `kHipLamp` | 23 | 276 | 299 | | | |
+| `kDecoLamp` | 91 | 212 | 303 | | | |
+
+The two lamps are the interesting entries. `kHipLamp` is 276 pixels tall and `kDecoLamp` 212, so both
+are *standing* lamps whose feet land on the floor line — a name-based rule would have filed them with
+the ceiling fixtures and been wrong twice. `kTableLamp`, `kLightBulb` and `kInvisLight` are in neither
+set precisely because their v *does* vary: a table lamp sits on whatever furniture the author put
+under it. The five updraughts and two downdraughts are also exactly how `CreateActiveRects` groups
+them (`internal/game/hotspots.go`, from `ObjectRects.c`), so the two halves of the classification
+agree from independent directions.
+
+**The five flames are deliberately excluded**, and this is the case that would have made the check
+fail the corpus. `kTaper`, `kCandle`, `kStubby`, `kTiki` and `kBBQ` make a thermal column the same way
+an updraught does, so a rule derived from the physics would include them — but 18 `kTiki` and 9 `kBBQ`
+stand in corpus rooms with no ceiling, and one `kCandle` and one `kStubby` in rooms with no floor. A
+torch on a lawn is a torch on a lawn.
+
+**`kRoof` is in the ceiling list and not the floor list**, which is why the two are separate maps
+rather than one predicate. A roof has a floor — you walk on it — and no ceiling. And `kSkywalk` and
+`kDirt` are in neither despite looking outdoor, which is a fact about `Room.c:1138-1206` and not
+something a check derived from how a background looks would get right.
+
+That also retracts the **1,084** above: it is the count of `kRoof` + `kSky` + `kStratosphere` +
+`kStars` rooms, and `kRoof` does not belong in a floor tally. The floorless corpus is **903** rooms
+and the ceilingless one **1,220**, which are the two numbers the findings quote. The original figure
+was assembled by reading the backgrounds that look outdoor rather than by reading
+`DoesRoomHaveFloor`, and it is the smaller version of the same mistake the object classification
+would have made from the names.
+
+**The second rule was wrong about severity, and measuring inverted it.** The entry above asks for
+warn on "`kStars` with anything but the identity tiling". Two measurements say note:
+
+- Every built-in background is exactly 512 pixels wide — eight `TileWide` columns — so `tiles[]`
+  selects eight of eight and can never be out of range in a built-in room. `tile-column` cannot fire
+  on one, which is *why* nothing caught the generator's mistake.
+- The corpus is not unanimous, and the exceptions look deliberate: 62 of 62 `kStratosphere` rooms are
+  the identity, but only 243 of 246 `kStars` rooms, and all three exceptions are Leviathan's — rooms
+  172, 206 and 221, one a straight reversal of 0..7. By the rule 4.21 just made explicit, a class the
+  corpus exercises deliberately cannot be more than a note.
+
+So the finding is worded to fire without accusing, and each background quotes *its own* tally rather
+than one standing in for the other. That distinction only exists because the census was run per
+background; a single "243 of 246" in the message would have been the imprecise citation 4.21 is about,
+in a check added to settle 4.21.
+
+**One documented limit: only built-in backgrounds are checked.** A user-art room's openings come from
+its own `bounds` field, or the background's `'bnds'` resource when that field is 0 (`boundsCode`), and
+`internal/house` has `PictSize` but nothing analogous for `'bnds'`. Rather than check half the rule on
+half the rooms, `mounting` returns early outside 2000–2017 and `TestLintMounting` has a row asserting
+it stays silent there. That is a false negative by choice; a false positive would be a bug.
+
+**Still open, and now a separate finding — see 4.23.** The table above is a stronger fact than the
+check uses. Every one of those twelve types sits at one v in 1,458 `kFloorVent`, 507 `kSewerGrate` and
+so on down — so a vent at v 200 in an ordinary room is floating art, and nothing in the toolchain says
+so. That is the more likely authoring mistake and it is *not* what these checks catch.
+
+### 4.23 Twelve object types occupy exactly one vertical coordinate in all 4,070 shipped rooms, and nothing in the toolchain knows it — **note; found by measuring 4.22, 2.4**
+
+4.22's census produced a fact it did not need and could not use. Across all 22 houses, every placement
+of each of these is at one `v` and no other — not clustered, not mostly, **one value**:
+
+```
+kFloorVent      1458 placements, all at v 305        kCeilingLight   160, all at v  4
+kSewerGrate      507 placements, all at v 303        kFlourescent    115, all at v 12
+kSewerBlower     191 placements, all at v 292        kTrackLight      81, all at v  5
+kGrecoVent       116 placements, all at v 303        kCeilingVent     28, all at v  8
+kFloorBlower      83 placements, all at v 304        kCeilingBlower   12, all at v  5
+kDecoLamp         62 placements, all at v  91
+kHipLamp          26 placements, all at v  23
+```
+
+That is 2,839 placements with zero exceptions, across 22 houses credited to four authors. It is not a
+coincidence and it is not house style: `GetObjectRect` places these at the absolute coordinates they
+store (`ObjectRects.c:32-273`), and every built-in background is the same 512×322 picture size — so the
+floor line and the ceiling line fall in the same place in every room, and an object resting against
+either one has exactly one `v` available to it.
+
+The two lamps are what make that argument checkable rather than assumed. Their `v` is 23 and 91, nowhere
+near the five updraughts' 292–305 — but they are 276 and 212 pixels tall, so their *bottoms* are 299 and
+303, which lands them inside that same band. Two objects whose top edges say "ceiling" and whose bottom
+edges say "floor", agreeing with the vents once their height is taken into account, is the one thing in
+this census that could not have come out right by accident.
+
+**Why this is worth a check and 4.22's rules do not cover it.** 4.22 catches a vent in a room with no
+floor. It says nothing about a vent at `v 200` in an ordinary room, which is *floating art* — and that
+is the far more likely mistake, because it is what a typo or an off-by-one in a generator produces. The
+port's own `Boarding House` generator had both bugs available to it; only the background one happened
+to fire. `glidertool render` draws the room happily, the lift column is computed from the object's own
+data so the vent works, and `make check` cannot fail.
+
+The three objects deliberately **not** in the list are the evidence that the rule is real rather than an
+artefact of counting: `kTableLamp` (70 placements, v 29..245), `kLightBulb` (252, v 0..294) and
+`kInvisLight` (1,764, v 0..306) all vary freely, and they are exactly the three that do not rest against
+a room surface — a table lamp sits on whatever furniture the author put under it. A census that found
+*everything* fixed would mean the census was wrong.
+
+**What has to be settled before this becomes a check, and why it is filed rather than written.** The
+numbers above are a measurement of 22 files, not a citation of the C, and 4.21 is the entry about
+exactly that distinction — a rule argued from examples goes stale silently. Before a `object-v` check
+ships, two things need finding:
+
+1. **Where the floor line actually is**, in the C, as a constant rather than as seven bottom edges that
+   nearly agree. `internal/render/view_test.go:16` already names `kFloorVentTop 305` and
+   `kShadowTop 306` as authored-against values, which is a start and not a derivation.
+2. **Whether the original's editor enforced it.** If the room editor snapped these objects to the floor
+   — which would explain 2,839 of 2,839 — then the check is restating a tool's behaviour and should say
+   so, and its severity follows from that rather than from the count. `HouseLegal.c` does not do it;
+   whether `ObjectEdit.c` or the palette does is unread.
+
+Until then the honest status is a note with the numbers in it. **Severity if it ships:** warn, by the
+rule 4.21 made explicit — zero corpus exceptions means no shipped house is made to fail, and an object
+drawn floating is something a player sees.
 
 ---
 
@@ -4092,6 +4248,15 @@ alone for a stated reason rather than missed.
 | 4.14 `internal/shell/sets.go`: a level set is declared by the source a house was walked from, so the claim is "where this was found" and never "what is in it" | 2.2 | this stage |
 | `Library.Discover` is variadic and accumulates, which `internal/assetfs` deliberately still does not — houses add, art replaces, and 5.3's deferred union lands in exactly one of the two | 2.2 | this stage |
 | The picker's set strip, on the title's own line because the apparently-empty row below it is the first house's selection bar; one set draws the identical screen it drew before, so `internal/fidelity`'s reference stays a picture of 1994 | 2.2 | this stage |
+| 4.14 (the built-in half) The `New` set ships *inside* the executable — `assets/levels.zip` embedded, `go test ./assets` rebuilding every authored house from its text and comparing bytes | 2.3 | this stage |
+| 4.16 (the Go half) `internal/replay/profile_test.go` walks a house and holds it to the tier bands in `docs/analysis/original-houses.md` §10.2, instead of the bands being measured by hand | 2.3 | this stage |
+| 4.19 A house's `timestamp` and file *name* are the keys its saved games and high scores hang on, pinned by a test carrying the published numbers | 2.3 | this stage |
+| 4.20 `glidertool replay`'s `house` line takes a name as well as a path, because a house that lives in the binary has no path to give | 2.3 | this stage |
+| `levels/Open House.house.txt`, the first house this port wrote, built from text by `make levels` and lint-clean | 2.3 | this stage |
+| 4.16 (the dark-room row) The row declared uncomputable was three lines in `internal/replay`, which already imports both packages the argument said could not be joined | 2.4 | this stage |
+| `levels/Boarding House.house.txt`: 51 rooms at the small tier, all eighteen built-in backgrounds, and a per-background histogram pinned because moving one room out of `kRoof` falsified four figures in its own header while every profile row stayed green | 2.4 | this stage |
+| 4.21 `lint.go`'s calibration paragraph rewritten around a narrower rule — a class the corpus exercises deliberately cannot be an error; a class it exercises by overrunning a buffer can — with the staircase example dropped because it fires zero times | 2.4 | this stage |
+| 4.22 `mount-no-floor`, `mount-no-ceiling` and `starfield-tiles`: the first three checks that relate an object to the background it stands in, classified by a census rather than by the objects' names | 2.4 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

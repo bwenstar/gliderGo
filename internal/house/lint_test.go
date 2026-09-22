@@ -55,6 +55,19 @@ func star() Object { return Object{What: codeStar} }
 
 func plain(name string) Object { return Object{What: mustCode(name)} }
 
+// bgRoom is testRoom with a background, and with the identity tiling rather than
+// testRoom's all-zeroes -- tiles[] of 0 0 0 0 0 0 0 0 is a legal permutation that
+// draws one column eight times, so leaving it would trip starfield-tiles in every
+// room the mounting tests build and make their assertions mean something else.
+func bgRoom(name string, bg, floor, suite int16, objs ...Object) Room {
+	r := testRoom(name, floor, suite, objs...)
+	r.Background = bg
+	for i := range r.Tiles {
+		r.Tiles[i] = int16(i)
+	}
+	return r
+}
+
 // transportTo and switchTo write a link through the member the original writes it
 // through, rather than poking the aliased bytes directly -- the point of the
 // LinkWhere/LinkWho distinction is that the two families are addressed separately
@@ -73,12 +86,19 @@ func switchTo(name string, where int16, who byte) Object {
 
 // fullOptions supplies both predicates so that no check is skipped. The art tree
 // it pretends to be holds one 640-pixel picture, PICT 1000, which is ten tile
-// columns; everything else is absent.
+// columns; everything else is absent except the eighteen built-in backgrounds,
+// which every real asset tree has and which are all 512x322 -- measured, not
+// assumed, from assets/extracted/art/bg. Without them a room with a built-in
+// background would raise background-pict and no test about such a room could
+// assert "exactly one finding".
 func fullOptions() LintOptions {
 	return LintOptions{
 		PictSize: func(id int16) (int, int, bool) {
 			if id == 1000 {
 				return 640, 480, true
+			}
+			if id >= FirstBuiltInBackground && id <= LastBuiltInBackground {
+				return 512, 322, true
 			}
 			return 0, 0, false
 		},
@@ -379,6 +399,170 @@ func TestLintBackground(t *testing.T) {
 	h.Rooms[0].Background = 0
 	if got := h.Lint(fullOptions()); len(got) != 0 {
 		t.Errorf("background 0 should be left alone, got:\n%s", findingLines(got))
+	}
+}
+
+// TestLintMounting is the first check in this file that relates an object to the room
+// it stands in rather than to the room's own fields.
+//
+// It is also the first that can only be justified by the corpus, because nothing goes
+// wrong mechanically: GetObjectRect places these objects at absolute coordinates, the
+// lift column is computed from the object's data, and the art composes. So the cases
+// below are paired -- every "this is wrong" row has a "this is the same object in a
+// room that has the surface" row beside it, because a check with no negative case is
+// a check that might be firing on the object alone.
+func TestLintMounting(t *testing.T) {
+	tests := []struct {
+		name  string
+		bg    int16
+		obj   string
+		want  string
+		about string
+	}{
+		// The floor rule. kSky, kStratosphere and kStars are DoesRoomHaveFloor's three.
+		{"floor vent in the sky", 2015, "kFloorVent",
+			"warn/mount-no-floor=1", "no floor at all"},
+		{"sewer grate in the stratosphere", 2016, "kSewerGrate",
+			"warn/mount-no-floor=1", "kStratosphere"},
+		{"greco vent among the stars", 2017, "kGrecoVent",
+			"warn/mount-no-floor=1", "kStars"},
+		// A standing lamp is in the set for the same reason a vent is: kHipLamp is 276
+		// pixels tall and its v is 23 in all 26 corpus placements, so its foot is on the
+		// floor line and not its head on the ceiling.
+		{"hip lamp in the sky", 2015, "kHipLamp",
+			"warn/mount-no-floor=1", "rests on the floor"},
+		{"deco lamp in the sky", 2015, "kDecoLamp",
+			"warn/mount-no-floor=1", "rests on the floor"},
+
+		// kRoof is the one that catches a reader out, and it is why the two lists are
+		// separate maps rather than one predicate: a roof has a floor -- you walk on it --
+		// and no ceiling. So a vent on a roof is odd but not floorless, and the linter
+		// says nothing, which is also what the corpus does with its 181 kRoof rooms.
+		{"floor vent on a roof", 2014, "kFloorVent", "", ""},
+		{"floor vent in a simple room", 2000, "kFloorVent", "", ""},
+		{"sewer grate in a meadow", 2012, "kSewerGrate", "", ""},
+
+		// The ceiling rule, over seven backgrounds rather than three.
+		{"ceiling vent in the sky", 2015, "kCeilingVent",
+			"warn/mount-no-ceiling=1", "no ceiling"},
+		{"ceiling blower on a roof", 2014, "kCeilingBlower",
+			"warn/mount-no-ceiling=1", "kRoof"},
+		{"ceiling light in a garden", 2009, "kCeilingLight",
+			"warn/mount-no-ceiling=1", "kGarden"},
+		{"flourescent in a meadow", 2012, "kFlourescent",
+			"warn/mount-no-ceiling=1", "kMeadow"},
+		{"track light in a field", 2013, "kTrackLight",
+			"warn/mount-no-ceiling=1", "kField"},
+		{"ceiling light in a simple room", 2000, "kCeilingLight", "", ""},
+		{"ceiling vent in a basement", 2001, "kCeilingVent", "", ""},
+
+		// kSkywalk and kDirt look outdoor and are not: both are in neither list, which
+		// is a fact about Room.c and not a guess, and a check derived from how a
+		// background looks would get both wrong.
+		{"ceiling light on a skywalk", 2010, "kCeilingLight", "", ""},
+		{"floor vent in the dirt", 2011, "kFloorVent", "", ""},
+
+		// A room with no floor *and* no ceiling holding one of each: two findings from
+		// one room, because the two rules are independent and a room can fail both.
+		{"both at once", 2015, "", "", ""},
+
+		// The five flames are deliberately in neither set. 18 kTiki stand in corpus
+		// rooms with no ceiling and 1 kStubby in a room with no floor, so a rule that
+		// included them would fail the corpus on houses that meant it.
+		{"tiki on a roof", 2014, "kTiki", "", ""},
+		{"candle in the sky", 2015, "kCandle", "", ""},
+		{"table lamp in the sky", 2015, "kTableLamp", "", ""},
+
+		// User art is out of scope and silently so: its openings come from the room's
+		// own bounds field or the background's 'bnds' resource, neither of which this
+		// package can read. A false negative here is the documented limit
+		// (docs/IMPROVEMENTS.md 4.22); a false positive would be a bug.
+		//
+		// background-pict is expected and is not the subject: fullOptions' stub tree
+		// carries no PICT 3000, and a house that really carried its own art would not
+		// raise it. It is asserted rather than suppressed because a row whose want is
+		// "" would have to be read as "the mount checks are silent", and this one says
+		// the stronger thing -- the only finding is the one about the missing picture.
+		{"floor vent in user art", 3000, "kFloorVent", "warn/background-pict=1", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var objs []Object
+			if tc.obj == "" {
+				objs = []Object{star(), plain("kFloorVent"), plain("kCeilingVent")}
+			} else {
+				objs = []Object{star(), plain(tc.obj)}
+			}
+			h := testHouse(bgRoom("Up High", tc.bg, 0, 0, objs...))
+			want := tc.want
+			if tc.obj == "" {
+				want = "warn/mount-no-ceiling=1 warn/mount-no-floor=1"
+			}
+			got := h.Lint(fullOptions())
+			if checkIDs(got) != want {
+				t.Fatalf("got %q, want %q\n%s", checkIDs(got), want, findingLines(got))
+			}
+			if tc.about != "" && !strings.Contains(got[0].Message, tc.about) {
+				t.Errorf("message does not mention %q: %s", tc.about, got[0].Message)
+			}
+		})
+	}
+}
+
+// TestLintStarfieldTiles pins the weakest of the three background checks, and the one
+// whose severity moved while it was being written.
+//
+// Permuting a starfield's columns is harmless -- that is the whole finding -- so what
+// the note has to do is fire on the permutation without claiming it is a defect. The
+// wording matters more than usual here and is asserted, not just the count.
+func TestLintStarfieldTiles(t *testing.T) {
+	tests := []struct {
+		name  string
+		bg    int16
+		tiles [NumTiles]int16
+		want  string
+		about string
+	}{
+		{"stars, identity", 2017, [NumTiles]int16{0, 1, 2, 3, 4, 5, 6, 7}, "", ""},
+		{"stratosphere, identity", 2016, [NumTiles]int16{0, 1, 2, 3, 4, 5, 6, 7}, "", ""},
+		// Leviathan room 221's actual tiling, which is the clearest of the corpus's
+		// three exceptions that the author meant it.
+		{"stars, reversed", 2017, [NumTiles]int16{7, 6, 5, 4, 3, 2, 1, 0},
+			"note/starfield-tiles=1", "243 of the corpus's 246 kStars rooms"},
+		// One column out of place is the same finding: the rule is the identity, not
+		// "mostly the identity", because a leftover tiling rarely differs in one place.
+		{"stars, one column swapped", 2017, [NumTiles]int16{0, 1, 2, 3, 4, 5, 7, 6},
+			"note/starfield-tiles=1", "star field either way"},
+		// Each background quotes its own tally. kStratosphere is 62 of 62 and kStars
+		// 243 of 246, and a message that gave one house's numbers for the other would
+		// be exactly the imprecise citation IMPROVEMENTS 4.21 is about.
+		{"stratosphere, shuffled", 2016, [NumTiles]int16{1, 0, 2, 3, 4, 5, 6, 7},
+			"note/starfield-tiles=1", "62 of the corpus's 62 kStratosphere rooms"},
+		// All zeroes is a legal permutation -- it draws column 0 eight times -- and is
+		// the shape a hand-written or generated room starts out in, which is the case
+		// this check exists to catch.
+		{"stars, all zeroes", 2017, [NumTiles]int16{},
+			"note/starfield-tiles=1", "background changed after the tiles"},
+		// kSky is not a starfield and is the reason the set has two members and not
+		// three: its 595 corpus rooms use 98 distinct patterns and none is the identity,
+		// because rearranging cloud columns is how one picture becomes 595 skies.
+		{"sky, shuffled", 2015, [NumTiles]int16{5, 2, 7, 0, 1, 1, 3, 4}, "", ""},
+		{"sky, all zeroes", 2015, [NumTiles]int16{}, "", ""},
+		{"simple room, shuffled", 2000, [NumTiles]int16{5, 2, 7, 0, 1, 1, 3, 4}, "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			room := testRoom("Up High", 0, 0, star())
+			room.Background = tc.bg
+			room.Tiles = tc.tiles
+			got := testHouse(room).Lint(fullOptions())
+			if checkIDs(got) != tc.want {
+				t.Fatalf("got %q, want %q\n%s", checkIDs(got), tc.want, findingLines(got))
+			}
+			if tc.about != "" && !strings.Contains(got[0].Message, tc.about) {
+				t.Errorf("message does not mention %q: %s", tc.about, got[0].Message)
+			}
+		})
 	}
 }
 
@@ -852,6 +1036,34 @@ func TestLintCorpus(t *testing.T) {
 		{"stairs-doubled", 0,
 			"no shipped room holds two kUpStairs or two kDownStairs, so GetUpStairsRightEdge " +
 				"and GetDownStairsLeftEdge breaking on the first match is never observable"},
+		// The three background checks, and these rows are the reason they exist. The two
+		// mount rules are calibrated at warn on being zero here: a warning that fired on
+		// the originals would be the linter telling a reader something false about a 1994
+		// house, and IMPROVEMENTS 4.22 proposed warn on exactly this measurement.
+		//
+		// The zeroes cover real placements rather than an empty search -- 903 kFloorVent,
+		// 336 kSewerGrate, 105 kSewerBlower, 70 kFloorBlower, 40 kDecoLamp, 25 kGrecoVent
+		// and 23 kHipLamp in built-in-background rooms for the floor rule, and 112
+		// kCeilingLight, 79 kFlourescent, 23 kCeilingVent, 21 kTrackLight and 11
+		// kCeilingBlower for the ceiling rule, against 903 floorless and 1,220 ceilingless
+		// rooms for them to have landed in. TestLintMounting fires both on houses written
+		// to provoke them, so these are facts about the corpus and not dead checks.
+		{"mount-no-floor", 0,
+			"no floor-standing object stands in any of the corpus's 903 kSky, kStratosphere " +
+				"or kStars rooms; zero of 903 is not a house style, it is a rule every " +
+				"author in 1994 followed without being told"},
+		{"mount-no-ceiling", 0,
+			"no ceiling fixture hangs in any of the corpus's 1,220 rooms with no ceiling, " +
+				"the seven backgrounds of DoesRoomHaveCeiling (Room.c:1172-1206)"},
+		// starfield-tiles is the one of the three that is not zero, and its three are why
+		// it is a note. All three are Leviathan's -- rooms 172, 206 and 221 -- and one is
+		// a straight reversal of 0..7, which is a choice and not a leftover. A class the
+		// corpus exercises deliberately cannot be more than a note; that is the rule
+		// lint.go's own header now states, and this row is what holds it to it.
+		{"starfield-tiles", 3,
+			"Leviathan permutes the star field in three rooms and no other shipped house " +
+				"does it once; 62 of 62 kStratosphere rooms and 243 of 246 kStars rooms are " +
+				"the identity tiling"},
 		{"undefined-what", 0,
 			"no shipped house contains a `what` outside the nine ranges"},
 		{"room-count", 0,

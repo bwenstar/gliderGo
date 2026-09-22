@@ -18,10 +18,25 @@
 //
 // Severity is calibrated against the 22 shipped houses rather than against an
 // ideal, because those houses are the specification of what a playable Glider PRO
-// house is. They contain 189 dangling links, an out-of-range `who`, staircases that
-// lead nowhere and a basement you cannot climb out of -- so none of those classes
-// can be an error without making the corpus fail its own linter, which would make
-// the linter useless on the day it shipped.
+// house is. They contain 189 dangling links and a basement you cannot climb out of
+// -- Slumberland's, and deliberate, with a test of its own -- so neither of those
+// classes can be an error without failing the corpus on its own linter.
+//
+// The rule is narrower than "whatever the corpus does is legal", and the difference
+// is the whole of it: **a class the corpus exercises deliberately cannot be an error;
+// a class it exercises by overrunning a buffer can.** There is exactly one of the
+// latter. CD Demo House room 72 holds a link whose `who` is 35, GenerateRetroLinks
+// indexes retroLinkList[who] with no bound check (House.c:577, :600), and the C
+// therefore reads into the following room's record. So `link-slot-range` is
+// SeverityError and `house lint` does exit 1 on the originals, by design rather than
+// by accident, and TestLintCorpus pins that count at 1 so it stays deliberate.
+//
+// An earlier draft of this paragraph also cited "staircases that lead nowhere". The
+// four stair rules fire zero times across all 4,070 corpus rooms: the phrase belonged
+// to CheckForStaircasePairs (HouseLegal.c:961-1045) existing -- Calhoun wrote a repair
+// pass, so he had seen the problem -- and not to these 22 files, which it read as a
+// measurement of. Dropped rather than rewritten, because at note and warn those rules
+// need no corpus evidence to justify them. docs/IMPROVEMENTS.md 4.21 has the numbers.
 package house
 
 import (
@@ -145,7 +160,87 @@ var (
 	// wire the trigger to whatever room that number happened to name.
 	linkSwitches = codeSet("kLightSwitch", "kMachineSwitch", "kThermostat",
 		"kPowerSwitch", "kKnifeSwitch", "kInvisSwitch", "kTrigger", "kLgTrigger")
+
+	// The objects that stand on the floor, and the objects that hang from the
+	// ceiling. Membership is not a guess from the names: each of these twelve
+	// occupies exactly **one** vertical coordinate across all 4,070 corpus rooms,
+	// and that coordinate plus the height of its artwork puts it against one
+	// surface or the other.
+	//
+	//	kFloorVent     v 305 + 11 = 316    kCeilingVent    v  8, 11 tall
+	//	kFloorBlower   v 304 + 15 = 319    kCeilingBlower  v  5, 15 tall
+	//	kSewerGrate    v 303 + 17 = 320    kCeilingLight   v  4, 20 tall
+	//	kGrecoVent     v 303 + 18 = 321    kFlourescent    v 12, 12 tall
+	//	kSewerBlower   v 292 + 12 = 304    kTrackLight     v  5, 24 tall
+	//	kHipLamp       v  23 + 276 = 299
+	//	kDecoLamp      v  91 + 212 = 303
+	//
+	// The two lamps earn their place there rather than here for the same reason:
+	// kHipLamp is 276 pixels tall and kDecoLamp 212, so both are standing lamps
+	// whose bottoms land on the floor line, not pendants. kTableLamp, kLightBulb
+	// and kInvisLight are deliberately in neither set -- their v does vary, because
+	// a table lamp sits on whatever furniture the author put under it.
+	//
+	// The five updraughts and the two downdraughts are also exactly how
+	// CreateActiveRects groups them (hotspots.go, from ObjectRects.c): an
+	// updraught's lift column runs from `distance` pixels *above* the object down
+	// to its top edge, a downdraught's runs down from its bottom. The five flames
+	// -- kTaper, kCandle, kStubby, kTiki, kBBQ -- make a thermal column the same
+	// way and are still left out, because the corpus does put them outdoors: 18
+	// kTiki and 9 kBBQ stand in rooms with no ceiling, and one kCandle and one
+	// kStubby in rooms with no floor. A torch on a lawn is a torch on a lawn.
+	floorMounted = codeSet("kFloorVent", "kFloorBlower", "kSewerGrate",
+		"kGrecoVent", "kSewerBlower", "kHipLamp", "kDecoLamp")
+
+	ceilingMounted = codeSet("kCeilingVent", "kCeilingBlower", "kCeilingLight",
+		"kFlourescent", "kTrackLight")
 )
+
+// The built-in background range: ids the application's own resource fork supplies,
+// as against FirstUserBackground and up, which the house file carries itself
+// (docs/analysis/house-format.md 4.2).
+//
+// Two properties of the range matter to the checks below. Every one of the 18 is
+// exactly 512 pixels wide -- eight TileWide columns -- so a tiles[] entry in a
+// built-in room can never be out of range and `tile-column` can never fire on one.
+// And whether a room has a floor or a ceiling is decided by a fixed list of these
+// ids, where a user-art room reads its own `bounds` field or the background's 'bnds'
+// resource instead (Room.c:1138-1206).
+const (
+	FirstBuiltInBackground int16 = 2000
+	LastBuiltInBackground  int16 = 2017
+	FirstUserBackground    int16 = 3000
+)
+
+// floorlessBackgrounds is DoesRoomHaveFloor's list (Room.c:1138-1168): the built-in
+// backgrounds a glider falls out of the bottom of. Named rather than bare ids so a
+// finding can say kSky.
+var floorlessBackgrounds = map[int16]string{
+	2015: "kSky", 2016: "kStratosphere", 2017: "kStars",
+}
+
+// ceilinglessBackgrounds is DoesRoomHaveCeiling's list (Room.c:1172-1206): the three
+// above, plus kRoof -- which has a floor, because a roof is one -- plus the three
+// ground levels. So a garden is closed at the bottom and open at the top, and a sky
+// room is open at both.
+var ceilinglessBackgrounds = map[int16]string{
+	2009: "kGarden", 2012: "kMeadow", 2013: "kField", 2014: "kRoof",
+	2015: "kSky", 2016: "kStratosphere", 2017: "kStars",
+}
+
+// starfieldBackgrounds are the two built-ins whose eight columns are interchangeable,
+// so that permuting tiles[] neither breaks nor improves them. See starfieldTiles.
+//
+// Each carries its own corpus tally because the two are not equally unanimous, and a
+// finding that quoted one house's numbers at the other would be the kind of imprecise
+// citation docs/IMPROVEMENTS.md 4.21 is about.
+var starfieldBackgrounds = map[int16]struct {
+	name            string
+	identity, rooms int
+}{
+	2016: {"kStratosphere", 62, 62},
+	2017: {"kStars", 243, 246},
+}
 
 func mustCode(name string) int16 {
 	c, ok := ObjectCode(name)
@@ -525,6 +620,7 @@ func (l *linter) room(i int) {
 	}
 
 	l.background(i, rm)
+	l.starfieldTiles(i, rm)
 
 	// The per-room tallies. Two sound triggers cannot both work, and a doubled
 	// staircase is decided by slot order rather than by position.
@@ -572,6 +668,7 @@ func (l *linter) room(i int) {
 			}
 		}
 
+		l.mounting(i, rm, slot, o)
 		l.link(i, slot, o)
 	}
 
@@ -627,6 +724,95 @@ func (l *linter) background(i int, rm *Room) {
 
 // TileWide is kTileWide: the width of one background column (GliderDefines.h:497).
 const TileWide = 64
+
+// starfieldTiles notes a kStratosphere or kStars room tiled other than 0..7.
+//
+// This is the weakest of the three background checks and it is a note for a reason
+// worth writing down, because the reasoning went the other way first.
+//
+// Every built-in background is one 512-pixel picture, so tiles[] selects eight
+// columns out of eight: for most backgrounds that is the whole point -- kSky's 595
+// corpus rooms use 98 distinct patterns and not one of them is the identity, because
+// rearranging cloud columns is how one picture becomes 595 different skies. For the
+// two starfields it is not, because their columns are interchangeable. A permuted
+// star field is another star field. The corpus agrees, unanimously for one of them:
+// 62 of 62 kStratosphere rooms are the identity, and 243 of 246 kStars rooms.
+//
+// So a permutation here is harmless, which is exactly why it is worth a note: harmless
+// is what a leftover looks like. The three exceptions are all Leviathan's -- rooms 172,
+// 206 and 221, one of them a straight reversal -- and they are the author's choice.
+// What this catches is the other case, which is a room whose background was changed to
+// kStars after its tiles were authored for something else; the port's own generator did
+// precisely that and nothing in the toolchain objected (docs/IMPROVEMENTS.md 4.22).
+//
+// Not a warning, by the rule this file's header states: the corpus exercises the class
+// deliberately, so the finding cannot claim more than "look at this".
+func (l *linter) starfieldTiles(i int, rm *Room) {
+	bg, ok := starfieldBackgrounds[rm.Background]
+	if !ok {
+		return
+	}
+	for t, col := range rm.Tiles {
+		if int(col) != t {
+			l.add(SeverityNote, "starfield-tiles", i, -1,
+				"background is %s (PICT %d) and tiles[] is %v rather than the identity; "+
+					"its eight columns are interchangeable, so this draws a star field "+
+					"either way -- but %d of the corpus's %d %s rooms are the identity, and "+
+					"the usual cause of a permuted one is a background changed after the "+
+					"tiles were authored", bg.name, rm.Background, rm.Tiles,
+				bg.identity, bg.rooms, bg.name)
+			return
+		}
+	}
+}
+
+// mounting reports an object standing against a surface the room does not have.
+//
+// The two rules are the mirror of each other and neither is in the original's
+// validator, which has no check that relates an object to its background at all --
+// CheckHouseForProblems asks only whether each room's own fields are legal. Nothing
+// breaks at play time either: GetObjectRect places every one of these objects at the
+// absolute coordinates it stores (ObjectRects.c:32-273, no term in it derives from the
+// room's openings), LiftIt reads the object and not the floor, and the art composes
+// fine. The room draws, the house lints, the lift works, and a player sees a ventilation
+// grille bolted to the open sky.
+//
+// Warn rather than error, and warn rather than note, on the corpus: across the 2,273
+// rooms with a built-in background -- 903 with no floor and 1,220 with no ceiling --
+// there is not one instance of either rule. Zero of 903 for the floor rule covers 903
+// kFloorVent, 336 kSewerGrate, 105 kSewerBlower, 70 kFloorBlower, 25 kGrecoVent, 40
+// kDecoLamp and 23 kHipLamp placements; zero of 1,220 for the ceiling rule covers 112
+// kCeilingLight, 79 kFlourescent, 23 kCeilingVent, 21 kTrackLight and 11 kCeilingBlower.
+// That is not a house style, it is a rule every author in 1994 followed
+// without being told, so no shipped house is made to fail by saying it out loud -- and
+// warn is what `-min warn` shows an author who has not asked for notes.
+//
+// Only built-in backgrounds are checked. A user-art room's openings come from its own
+// `bounds` field, or from the background's 'bnds' resource when that field is 0
+// (Room.c:1138-1206, boundsCode), and this package cannot read a resource fork -- it
+// has PictSize and nothing analogous for 'bnds'. Rather than check half the rule on
+// half the rooms, the limit is stated here and in docs/IMPROVEMENTS.md 4.22.
+func (l *linter) mounting(i int, rm *Room, slot int, o Object) {
+	if rm.Background < FirstBuiltInBackground || rm.Background > LastBuiltInBackground {
+		return
+	}
+	if name, ok := floorlessBackgrounds[rm.Background]; ok && floorMounted[o.What] {
+		l.add(SeverityWarn, "mount-no-floor", i, slot,
+			"%s rests on the floor and this room's background is %s (PICT %d), which "+
+				"DoesRoomHaveFloor gives no floor at all (Room.c:1138-1168); the object "+
+				"draws and works, so the only symptom is machinery standing on open air. "+
+				"No floor-mounted object appears in any of the corpus's %d floorless rooms",
+			ObjectName(o.What), name, rm.Background, 903)
+	}
+	if name, ok := ceilinglessBackgrounds[rm.Background]; ok && ceilingMounted[o.What] {
+		l.add(SeverityWarn, "mount-no-ceiling", i, slot,
+			"%s hangs from the ceiling and this room's background is %s (PICT %d), which "+
+				"DoesRoomHaveCeiling gives no ceiling (Room.c:1172-1206); the object draws "+
+				"and works, so the only symptom is a fixture suspended from nothing. No "+
+				"ceiling-mounted object appears in any of the corpus's %d ceilingless rooms",
+			ObjectName(o.What), name, rm.Background, 1220)
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Object-level checks
@@ -865,6 +1051,8 @@ func LintChecks() []LintCheck {
 		{"link-slot-range", SeverityError, "a link to a slot past the 24 a room holds"},
 		{"link-target-kind", SeverityNote, "a transport linked to something that is not a transport"},
 		{"link-unlinked", SeverityWarn, "a transit object or switch with no destination"},
+		{"mount-no-ceiling", SeverityWarn, "a ceiling fixture in a background that has no ceiling"},
+		{"mount-no-floor", SeverityWarn, "a floor-standing object in a background that has no floor"},
 		{"name-length", SeverityError, "the room name's length byte runs past Str27"},
 		{"no-rooms", SeverityError, "the house has no rooms at all"},
 		{"no-stars", SeverityWarn, "no kStar anywhere, so the house cannot be won"},
@@ -876,6 +1064,7 @@ func LintChecks() []LintCheck {
 		{"stairs-doubled", SeverityNote, "two staircases of one kind in a room; the lower slot wins"},
 		{"stairs-no-room", SeverityWarn, "a staircase leading to a floor with no room on it"},
 		{"stairs-unpaired", SeverityWarn, "a staircase whose destination has no counterpart to arrive on"},
+		{"starfield-tiles", SeverityNote, "a kStars or kStratosphere room tiled other than 0..7"},
 		{"tile-column", SeverityWarn, "a tiles[] column is past the right edge of the background"},
 		{"undefined-what", SeverityError, "an object code that selects no union variant"},
 		{"untitled-room", SeverityNote, "the room is still called Untitled Room"},

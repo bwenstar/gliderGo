@@ -135,7 +135,7 @@ resource forks attached. `assets/extracted/` is that tree decoded, and it is wha
 game read.)
 
 The text format is documented by the header `house dump` writes. A new house should lint clean —
-over the 22 shipped houses the linter reports 634 notes, 48 warnings and exactly one error, and
+over the 22 shipped houses the linter reports 637 notes, 48 warnings and exactly one error, and
 that calibration is deliberate: a warning means "an author probably did not mean this", so new work
 has no excuse for one.
 

@@ -17,6 +17,81 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### An object is now read against the background it stands in, and the paragraph that justified the severities was audited first (2026-09-22)
+
+Three new lint checks — `mount-no-floor` and `mount-no-ceiling` at warn, `starfield-tiles` at note —
+which brings `glidertool house lint` to **32 checks** producing **637 notes, 48 warnings and exactly
+one error** over the 22 shipped houses. They are the first checks in the linter that relate an object
+to anything outside its own record. Every existing check asks whether a room's own fields are legal:
+`what` in range, links resolving, `tiles[]` inside the picture, names fitting `Str27`. None of them
+could see a floor vent bolted to the sky.
+
+That was found by making the mistake. `Boarding House`'s generator produced a `kStars` room carrying
+`kSky`'s `tiles[]` *and* a `kFloorBlower` — one room, two defects — and nothing in the toolchain
+objected. The reason the tiling half got through is worth stating, because it is a gap and not an
+oversight: every built-in background is exactly 512 pixels wide, eight `TileWide` columns, so a
+built-in room's `tiles[]` selects eight of eight and `tile-column` **can never fire on one**. The
+check that looks like it covers this is structurally incapable of it.
+
+**The first half of the work was auditing the paragraph that sets the severities, not adding
+anything.** `lint.go`'s header justifies calibrating against the originals with four examples, and two
+of them were wrong. "Staircases that lead nowhere" has **zero** instances: the four stair rules fire
+not once across all 4,070 corpus rooms, so the phrase belonged to `CheckForStaircasePairs`
+(`HouseLegal.c:961-1045`) existing — Calhoun wrote a repair pass, so he had seen the problem — and not
+to these 22 files, which it read as a measurement of. And the paragraph implied the corpus lints
+clean, which it does not: `link-slot-range` is an error and CD Demo House room 72 trips it. Three
+stair rows and the correction are now in `TestLintCorpus`, and the header states the rule it was
+reaching for:
+
+> a class the corpus exercises deliberately cannot be an error; a class it exercises by overrunning a
+> buffer can
+
+There is exactly one of the latter. Room 72's link has `who` 35, `GenerateRetroLinks` indexes
+`retroLinkList[who]` with no bound check (`House.c:577`, `:600`), and the C reads into the next room's
+record. So `house lint` exits 1 on the originals by design, and a test pins that count at 1 so it
+stays deliberate.
+
+**That rule is what calibrated the new checks, and it changed two of the three decisions the filed
+entry had made.** `docs/IMPROVEMENTS.md` 4.22 asked for two rules over three object types. Measuring
+the corpus first gave twelve types and inverted one severity.
+
+The classification is a census, not a reading of the names. Each of these twelve occupies exactly
+**one** vertical coordinate in all 4,070 rooms — 1,458 `kFloorVent` all at v 305, 507 `kSewerGrate`
+all at 303, on down to 12 `kCeilingBlower` all at 5; 2,839 placements with no exceptions. The two
+lamps are why that is evidence rather than trivia: `kHipLamp` sits at v 23 and `kDecoLamp` at 91,
+nowhere near the vents, but they are 276 and 212 pixels tall, so their *feet* land at 299 and 303 —
+inside the updraughts' own 292–305 band. They are standing lamps. A rule written from the names would
+have filed both with the pendant fixtures and been wrong twice. The five updraughts and two
+downdraughts are also exactly how `CreateActiveRects` groups them (`internal/game/hotspots.go`, from
+`ObjectRects.c`), so the two halves agree from independent directions.
+
+**The five flames are excluded on purpose, and that is the case that would have failed the corpus.**
+`kTaper`, `kCandle`, `kStubby`, `kTiki` and `kBBQ` make a thermal lift column the same way an
+updraught does, so a rule derived from the physics would include them — and 18 `kTiki` and 9 `kBBQ`
+stand in rooms with no ceiling, one `kCandle` and one `kStubby` in rooms with no floor. A torch on a
+lawn is a torch on a lawn. For the same reason the two background maps are separate rather than one
+predicate: `kRoof` has a floor — you walk on it — and no ceiling, while `kSkywalk` and `kDirt` have
+both despite looking outdoor. Those are facts about `Room.c:1138-1206`, not about how a picture looks.
+
+**The tiling rule went from warn to note because the corpus is not unanimous.** 62 of 62
+`kStratosphere` rooms are the identity tiling but only 243 of 246 `kStars` rooms, and all three
+exceptions are Leviathan's — rooms 172, 206 and 221, one of them a straight reversal of 0..7. By the
+rule above, that is a note. Each background also quotes its own tally in the finding rather than one
+standing in for the other, and a test asserts the wording, because a single "243 of 246" covering both
+would have been the imprecise citation this stage is about, in the check added to settle it.
+
+**One limit, chosen and documented.** Only backgrounds 2000–2017 are checked. A user-art room's
+openings come from its `bounds` field or the background's `'bnds'` resource, and `internal/house` has
+`PictSize` and nothing analogous — so `mounting` returns early outside that range, with a test row
+asserting it stays silent. A false negative by choice; a false positive would be a bug.
+
+The stronger fact the census turned up is filed as 4.23 and deliberately not implemented. A vent at
+v 200 in an ordinary room is floating art, and that is the likelier authoring mistake than a vent in a
+floorless room — but the numbers above are a measurement of 22 files, not a citation, and 4.21 is the
+entry about exactly that distinction. Two things need finding first: where the floor line is in the C
+as a constant, and whether the 1994 room editor snapped these objects, which would make the check a
+restatement of a tool's behaviour and change what its severity rests on.
+
 ### A second house, at a tier the first one could not reach, and the roof tiles that turned out to be physics (2026-09-22)
 
 `levels/Boarding House.house.txt` is 51 rooms on a 7×13 grid, and the reason it exists is not "more

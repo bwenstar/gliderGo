@@ -307,9 +307,9 @@ carries.
 codecs; `house lint` asks whether the house will *play* — a transporter whose link points at a room
 that does not exist, a staircase with nothing to arrive on, a sound trigger naming a `snd ` the
 house does not carry. None of those is a crash in the original: the player simply cannot get out of
-the room, which is exactly why it is worth catching before anybody plays it. Twenty-nine checks at
+the room, which is exactly why it is worth catching before anybody plays it. Thirty-two checks at
 three severities, `-fail warn` for a CI step, and `house checks` prints the table so a finding can
-be looked up. Run over the 22 shipped houses it reports 634 notes, 48 warnings and one error, and
+be looked up. Run over the 22 shipped houses it reports 637 notes, 48 warnings and one error, and
 that is the calibration: the originals have to lint clean enough for the exit code to mean
 something.
 
