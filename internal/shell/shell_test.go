@@ -430,7 +430,7 @@ func TestHouseThatSniffsButWillNotLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lib, err := Discover(os.DirFS(root), root)
+	lib, err := Discover(dirSource(root))
 	if err != nil {
 		t.Fatal(err)
 	}

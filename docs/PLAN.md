@@ -1236,7 +1236,13 @@ that, and what it left open.
   `glidertool house lint` — 29 checks, calibrated so the 22 shipped houses produce one error
   between them, with `house checks` as the lookup table (`docs/IMPROVEMENTS.md` 4.1).
 - A level-set concept: **Original** (the 22 shipped houses) and **New** (ours), chosen in
-  the house-selection UI.
+  the house-selection UI. **DONE:** `internal/shell/sets.go`. A set is declared by the
+  *source* a house was walked from, never by the file and never by a list of names, so the
+  claim a set makes is "where this house was found" and not "what is in it"
+  (`docs/IMPROVEMENTS.md` 4.14). `Library.Discover` takes any number of sources and
+  accumulates; the picker draws a strip of sets with their counts on the title line, Tab
+  cycles it, and with one set on the shelf it draws exactly the screen it drew before, which
+  is what keeps `internal/fidelity`'s reference image the original's dialog.
 - New houses designed against the quantitative profile of the originals in
   `docs/analysis/original-houses.md` — comparable room counts, object vocabulary and
   difficulty curve, not just "some rooms".

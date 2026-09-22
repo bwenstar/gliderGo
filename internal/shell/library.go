@@ -23,6 +23,27 @@ package shell
 // appeared, which is the least helpful thing a picker can do (docs/IMPROVEMENTS.md
 // 2.33).
 //
+// That sentence about the new houses is now load-bearing rather than an intention.
+// Discover takes a *list* of sources and walks all of them into one list, which is
+// the union the four asset flags deliberately do not do (docs/IMPROVEMENTS.md 5.3
+// left it to Stage 2, saying a union should be designed rather than fall out of a
+// resolution order nobody wrote down). The union is here and not there because the
+// two things are different: an art root *replaces* the built-in one, because two
+// copies of PICT 1000 have to resolve to one picture; houses do not resolve, they
+// accumulate, and a player with four of their own and the twenty-two wants
+// twenty-six. What tells them apart on screen is the set each source declares --
+// see sets.go, which has the whole argument for why the source is what declares it.
+//
+// Accumulating is not the new part, which is worth saying because it would be easy
+// to present it as one. BuildHouseList already walked *two* sources into one flat
+// list: up to kMaxExtraHouses (8) specs handed in by AddExtraHouse -- a house
+// double-clicked or dropped on the application, which may be anywhere on any volume
+// -- copied in first, and then DoDirSearch's walk for the rest
+// (SelectHouse.c:650-664, 668-675). So a list of houses from more than one place is
+// the original's own design. What the original does not do is say which place any
+// row came from: the eight and the forty-eight sort together by name and the dialog
+// draws the same row for both. The set is that missing sentence and nothing more.
+//
 // One original behaviour is deliberately not reproduced. SortHouseList's duplicate
 // removal collapses two houses with the same name in different folders into one,
 // through a pair of self-comparison bugs at SelectHouse.c:527-528 that reduce its
@@ -49,15 +70,24 @@ import (
 // thisHouseName). Rel is the path relative to the library root and is what
 // distinguishes two houses that share a name.
 //
-// **Rel and not Path is what opens the file**, against the Library's own FS. Path is
-// Rel with the library's label in front of it and exists for messages: it is a real
-// path when the library is a directory and reads "built-in:houses/Titanic.house" when
-// the houses are the ones inside the executable, which is not something to hand to
-// os.Open.
+// **FS and Rel together are what opens the file** -- house.LoadFS(h.FS, h.Rel), which is what
+// Library.Open does. They travel on the house rather than on the library because a library is
+// a union of sources now and there is no single filesystem to resolve Rel against; a house
+// that did not carry its own would be a row in a list that nothing could load.
+//
+// Path is Rel with the source's label in front of it and exists for messages: it is a real
+// path when the source is a directory and reads "built-in:houses/Titanic.house" when the
+// houses are the ones inside the executable, which is not something to hand to os.Open.
 type House struct {
-	Name   string
-	Rel    string
-	Path   string
+	Name string
+	Rel  string
+	Path string
+
+	// FS is the source's filesystem, and Set is the source's declared set. Both are copied
+	// from the Source this house was found in; see sets.go.
+	FS  fs.FS
+	Set Set
+
 	Rooms  int16
 	Locked bool // the editor cannot change it; the low bit of the timestamp
 	Demo   bool // named "Demo House": the original's attract-mode house
@@ -74,19 +104,21 @@ type Skip struct {
 	Why  error
 }
 
-// Library is a directory tree's worth of houses, sorted.
+// Library is every house Discover found, from every source, in one sorted list.
 //
-// FS is where they are and is what a caller loads one from -- house.LoadFS(lib.FS,
-// h.Rel). Root is what to call that place on a terminal.
+// Sources is what it was asked to walk, in the order it was given them. Root is those
+// sources' labels joined, for the one message that has to name where the houses were looked
+// for -- which is a sentence and not a path, and is why it is a string rather than a slice
+// somebody would be tempted to index.
 type Library struct {
 	Root    string
-	FS      fs.FS
+	Sources []Source
 	Houses  []House
 	Skipped []Skip
 }
 
-// Open reads one of the listed houses.
-func (l *Library) Open(h House) (*house.House, error) { return house.LoadFS(l.FS, h.Rel) }
+// Open reads one of the listed houses, from the source it was found in.
+func (l *Library) Open(h House) (*house.House, error) { return house.LoadFS(h.FS, h.Rel) }
 
 // DemoHouse is the file name the original's attract mode looks for, verbatim
 // (SelectHouse.c:641). demoHouseIndex is -1 when it is absent, which is the one
@@ -101,28 +133,60 @@ const DemoHouse = "Demo House"
 // report useless.
 var houseExts = map[string]bool{"": true, ".house": true, ".glh": true}
 
-// Discover walks a filesystem and returns every house in it.
+// Discover walks every source it is given and returns one sorted list of the houses in all
+// of them.
 //
-// A tree rather than a single directory because the port has more than one source of
-// houses -- the 22 inside the executable, the new houses of Stage 2, and whatever the
-// player drops in -- and because a directory is the obvious way to group them. Hidden
-// directories are skipped, and so is the walk's own error on any single entry: one
-// unreadable file in a tree of houses is not a reason to have no house list.
+// Each source is walked as a *tree* rather than as a single directory, because a directory is
+// the obvious way to group houses and always was -- the 22 inside the executable, the new
+// houses of Stage 2, and whatever the player drops in. Hidden directories are skipped, and so
+// is the walk's own error on any single entry: one unreadable file in a tree of houses is not
+// a reason to have no house list.
 //
-// fsys is the houses root: assets.Tree() sub "houses" for the built-in set, os.DirFS of
-// whatever -houses named otherwise. label is for messages and for House.Path.
-func Discover(fsys fs.FS, label string) (*Library, error) {
-	lib := &Library{Root: label, FS: fsys}
-	if fsys == nil {
+// **A source that cannot be read is an error and the rest are still walked.** The returned
+// library holds every house that was found and the error names every root that failed, joined,
+// so a caller can report the failure and still show a list -- which is what cmd/glidergo does,
+// because a missing houses directory belongs on the screen the player is looking at and not
+// only on a terminal they may never see (docs/IMPROVEMENTS.md 2.6). A caller that gives no
+// sources at all gets the error and an empty library, which is what a build carrying no assets
+// with no flags set hands over.
+func Discover(sources ...Source) (*Library, error) {
+	lib := &Library{Sources: sources}
+
+	labels := make([]string, 0, len(sources))
+	for _, src := range sources {
+		if src.Label != "" {
+			labels = append(labels, src.Label)
+		}
+	}
+	lib.Root = strings.Join(labels, ", ")
+
+	if len(sources) == 0 {
 		return lib, errors.New("shell: no houses directory")
 	}
-	if st, err := fs.Stat(fsys, "."); err != nil {
-		return lib, err
-	} else if !st.IsDir() {
-		return lib, errors.New("shell: " + label + " is not a directory")
+	var errs []error
+	for _, src := range sources {
+		if err := lib.walk(src); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	err := fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, err error) error {
+	lib.Sort()
+	return lib, errors.Join(errs...)
+}
+
+// walk is Discover for one source, appending what it finds.
+func (l *Library) walk(src Source) error {
+	fsys, label := src.FS, src.Label
+	if fsys == nil {
+		return errors.New("shell: no houses directory")
+	}
+	if st, err := fs.Stat(fsys, "."); err != nil {
+		return err
+	} else if !st.IsDir() {
+		return errors.New("shell: " + label + " is not a directory")
+	}
+
+	return fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // an unreadable entry, not an unreadable tree
 		}
@@ -140,14 +204,16 @@ func Discover(fsys fs.FS, label string) (*Library, error) {
 		}
 		sum, err := house.PeekFS(fsys, rel)
 		if err != nil {
-			lib.Skipped = append(lib.Skipped, Skip{Path: path.Join(label, rel), Why: err})
+			l.Skipped = append(l.Skipped, Skip{Path: path.Join(label, rel), Why: err})
 			return nil
 		}
 		name := strings.TrimSuffix(d.Name(), path.Ext(d.Name()))
-		lib.Houses = append(lib.Houses, House{
+		l.Houses = append(l.Houses, House{
 			Name:   name,
 			Rel:    rel,
 			Path:   path.Join(label, rel),
+			FS:     fsys,
+			Set:    src.Set,
 			Rooms:  sum.NRooms,
 			Locked: !sum.Unlocked,
 			Demo:   name == DemoHouse,
@@ -157,24 +223,26 @@ func Discover(fsys fs.FS, label string) (*Library, error) {
 		})
 		return nil
 	})
-	if err != nil {
-		return lib, err
-	}
-
-	lib.Sort()
-	return lib, nil
 }
 
 // Sort puts the list in SortHouseList's order.
 func (l *Library) Sort() {
 	sort.SliceStable(l.Houses, func(i, j int) bool {
-		if l.Houses[i].Name != l.Houses[j].Name {
-			return NameFirst(l.Houses[i].Name, l.Houses[j].Name)
+		a, b := &l.Houses[i], &l.Houses[j]
+		if a.Name != b.Name {
+			return NameFirst(a.Name, b.Name)
 		}
-		// Two houses of the same name in different directories. The original
-		// loses one of them; this keeps both and orders them by where they came
-		// from, so the list is stable and the picker can show the difference.
-		return l.Houses[i].Rel < l.Houses[j].Rel
+		// Two houses of the same name, which the original loses one of
+		// (SelectHouse.c:527-528) and this keeps both of. Ordered by set first, so a
+		// shipped Slumberland sits above somebody else's, and by path within a set,
+		// so the list is stable and the picker can show the difference. Name first
+		// and set second and not the other way round: the list is sorted by name,
+		// and grouping it by set would hide a new house among twenty-two originals
+		// from the player who was looking for it where its name belongs.
+		if a.Set != b.Set {
+			return a.Set < b.Set
+		}
+		return a.Rel < b.Rel
 	})
 	sort.SliceStable(l.Skipped, func(i, j int) bool { return l.Skipped[i].Path < l.Skipped[j].Path })
 }

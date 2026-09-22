@@ -17,6 +17,65 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Level sets: Original, New, and a set that says where a house was found rather than what is in it (2026-09-22)
+
+Stage 2 adds houses, and the picker they land in is one flat alphabetical list. That is faithful —
+`BuildHouseList` produces exactly that — and it is also a list that would put "Bakery" between
+"Asylum Pro" and "CD Demo House" and let it read as something Jonathan Chin or Ward Hartenstein
+built in 1994. Wrong in both directions: it takes credit from the five people `docs/IMPROVEMENTS.md`
+1.2 names, and it lends the originals our mistakes, because a room the glider cannot leave is a bug
+in a 2026 port and evidence about the 1994 game if you believe 1994 wrote it.
+
+**A set is declared by the source a house was walked from.** Not by the file — `houseType` has no
+field for it, the 866-byte header is full, and inventing one means writing a house the 1994 program
+cannot open. And not by a list of the twenty-two names, which is the tempting answer and wrong
+twice: it puts the truth about the shipped set in a second place that can drift from
+`assets/extracted/houses`, and it answers confidently in the one case that matters, because a house
+opened in an editor and saved back as "Slumberland" is not the 1994 Slumberland and the name is
+exactly the part that did not change. A provenance claim that cannot fail is not a provenance claim.
+
+So what a set claims is deliberately narrow: **where a house was found, not what is in it.**
+`-houses some/dir` lists as `Other`, because the game cannot know what a player put in a directory;
+the built-in root is `Original`; the new `-levels DIR` is `New`. The picker prints each root's label
+beside its count, so the claim is always checkable against the place it came from.
+
+`Library.Discover` now takes any number of sources and walks all of them into one sorted list, which
+is the union 5.3 deferred to this stage — and it lands in the houses and not in the asset roots,
+because an art root has to *replace* the built-in one (two copies of PICT 1000 must resolve to one
+picture) while houses accumulate: four of your own and the twenty-two is twenty-six. A source that
+cannot be read is an error *and the rest are still walked*, so a mistyped `-levels` names itself on
+screen and still leaves a list to play from. Accumulating is not the new part, incidentally: the
+original already merged up to eight dropped-on-the-application houses with its folder scan
+(`SelectHouse.c:650-664`) and simply never said which row came from where.
+
+On screen: a strip of set names with their counts on the picker's title line, the one showing in
+inverse video, **Tab** to cycle, the set in the footer when the list is mixed, and the status band
+reading `24 houses: 22 Original, 2 New`. Three decisions in there are not obvious and are argued in
+4.14 — the filter opens on *All* rather than on the selected house's set, because a fresh install
+selects Slumberland and defaulting to its set would hide every new house from the player who has not
+yet found the chooser; the cursor stays an index into the whole library, so changing the filter
+changes what is drawn and never what is chosen; and Tab was taken rather than found, having been an
+undocumented second Escape here and an undocumented alias of the right arrow in 1994.
+
+The strip sits on the title's own baseline because the 32-row gap below the title is not empty: the
+first house's inverse-video selection bar rises into it and leaves six free rows where a scale-1 word
+needs ten. That was got wrong first, measured against the first row's glyph ink instead of its
+selection bar, and caught by a test counting 2,602 cream pixels that a one-set library must not draw
+— the wrong measurement is now in the comment on `pickSetsV` so the next person to want a row there
+learns why there isn't one.
+
+**With one set on the shelf the picker draws exactly the screen it drew before**: no strip, no title
+suffix, no `Tab set` in the footer. That is what keeps `internal/fidelity`'s reference image a
+picture of the 1994 dialog, and it is asserted both ways — a one-set library renders an identical
+whole screen whichever set it is, and `make fidelity` passes with `screens.hashes` and the golden
+`houses.png` untouched.
+
+Where the new houses that ship *inside* the executable will live is filed rather than pre-built:
+`assets/extracted/houses/` is barred by two contracts that exist for good reasons (`make
+assets-check`'s recursive diff and `assetpack.Compare`), `//go:embed` cannot reach outside `assets/`,
+and the recommendation is a second archive packed by the `tools/packassets` that already exists. See
+4.14. Until then `-levels DIR` is the whole of the New set, which is enough to author against.
+
 ### The receipts, checked: 17,800 citations into the 1994 C, and the documents that were wrong about this project (2026-09-22)
 
 This port's whole claim is that it behaves like the original, and the claim is made in pieces — about

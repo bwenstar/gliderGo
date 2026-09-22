@@ -35,6 +35,14 @@ func write(t *testing.T, path string, b []byte) {
 	}
 }
 
+// dirSource is one directory as a Source, labelled with its own path.
+//
+// It declares no set, which is SetOriginal, and that is the right default for every test that
+// is about discovery rather than about sets: a library with one set behaves exactly as the
+// library did before sets existed, which is the property these tests were written against. The
+// tests that are about sets are in sets_test.go and name theirs.
+func dirSource(root string) Source { return Source{FS: os.DirFS(root), Label: root} }
+
 // testLibrary lays out a directory with one of everything Discover has to cope
 // with, and returns it.
 func testLibrary(t *testing.T) (root string, lib *Library) {
@@ -57,7 +65,7 @@ func testLibrary(t *testing.T) (root string, lib *Library) {
 	}())
 	write(t, filepath.Join(root, "tiny.house"), make([]byte, 100))
 
-	lib, err := Discover(os.DirFS(root), root)
+	lib, err := Discover(dirSource(root))
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
@@ -146,15 +154,18 @@ func TestDiscoverBadRoot(t *testing.T) {
 	// No filesystem at all, which is what a build with no houses inside it and no -houses
 	// flag hands over. It has to be an error rather than an empty list, because "this build
 	// has no houses" and "your directory has none in it" are two different things to say.
-	if _, err := Discover(nil, ""); err == nil {
+	if _, err := Discover(); err == nil {
+		t.Error("no sources at all should be an error")
+	}
+	if _, err := Discover(Source{}); err == nil {
 		t.Error("no houses filesystem should be an error")
 	}
-	if _, err := Discover(os.DirFS(filepath.Join(t.TempDir(), "nope")), "nope"); err == nil {
+	if _, err := Discover(dirSource(filepath.Join(t.TempDir(), "nope"))); err == nil {
 		t.Error("a missing root should be an error")
 	}
 	f := filepath.Join(t.TempDir(), "afile")
 	write(t, f, []byte("x"))
-	if _, err := Discover(os.DirFS(f), f); err == nil {
+	if _, err := Discover(dirSource(f)); err == nil {
 		t.Error("a root that is a file should be an error")
 	}
 }
@@ -205,7 +216,7 @@ func TestSameNameInTwoDirectories(t *testing.T) {
 	write(t, filepath.Join(root, "a", "Demo House"), houseBytes(t, 1))
 	write(t, filepath.Join(root, "b", "Demo House"), houseBytes(t, 2))
 
-	lib, err := Discover(os.DirFS(root), root)
+	lib, err := Discover(dirSource(root))
 	if err != nil {
 		t.Fatal(err)
 	}

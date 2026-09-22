@@ -142,6 +142,12 @@ type options struct {
 	artDir   string
 	houseArt string
 
+	// levels is the fifth root and the only one that is *added* to another rather than
+	// replacing it: the houses written for this port, listed in the picker beside the
+	// twenty-two as a separate level set. See sources below, and internal/shell/sets.go for
+	// what a set claims.
+	levels string
+
 	// tree is the built-in tree the four empty roots resolve against: assets.Tree(). It is a
 	// field and not a package call so that a test can build an options with none.
 	tree fs.FS
@@ -183,7 +189,41 @@ type options struct {
 func (o *options) artRoot() (fs.FS, string)      { return assetfs.Root(o.tree, o.artDir, "art") }
 func (o *options) houseArtRoot() (fs.FS, string) { return assetfs.Root(o.tree, o.houseArt, "houseart") }
 func (o *options) housesRoot() (fs.FS, string)   { return assetfs.Root(o.tree, o.houses, "houses") }
+func (o *options) levelsRoot() (fs.FS, string)   { return assetfs.Root(o.tree, o.levels, "levels") }
 func (o *options) soundRoot() (fs.FS, string)    { return assetfs.Root(o.tree, o.sounds, "sound") }
+
+// sources is the list of places the picker's houses come from, and the set each one declares.
+// It is the one place in the program that decides what a level set *means*, so it is worth
+// reading the three decisions in it.
+//
+// The houses root is Original when it is the built-in one and Other when -houses named a
+// directory. That is not caution for its own sake: the game cannot know what somebody put in a
+// directory, and a list that called an arbitrary folder "Original" would be making a
+// provenance claim out of a flag. Other is the true answer, and the picker shows the root's
+// label beside the count so it is checkable.
+//
+// The levels root is added rather than substituted, because two houses do not resolve against
+// each other the way two copies of PICT 1000 do -- see internal/shell/library.go. And it is
+// added only when there is something there: a build with no new houses in it and no -levels
+// flag has one set, and a picker with one set draws no chooser at all, so nothing about this
+// shows up until there is something for it to show.
+func (o *options) sources() []shell.Source {
+	housesFS, housesName := o.housesRoot()
+	set := shell.SetOriginal
+	if o.houses != "" {
+		set = shell.SetOther
+	}
+	out := []shell.Source{{FS: housesFS, Label: housesName, Set: set}}
+
+	// A -levels directory that is missing is still listed, so Discover reports it by name:
+	// somebody who typed the flag wants the error rather than a silently unchanged picker.
+	// A built-in levels root that is absent is not an error and not mentioned, because no
+	// caller asked for it.
+	if levelsFS, levelsName := o.levelsRoot(); o.levels != "" || assetfs.IsDir(levelsFS, ".") {
+		out = append(out, shell.Source{FS: levelsFS, Label: levelsName, Set: shell.SetNew})
+	}
+	return out
+}
 
 // printVersion answers -version. It prints more than the version string because the
 // thing it is for is the first line of a bug report, and the four facts underneath
@@ -221,17 +261,31 @@ func printVersion(o *options) {
 	soundFS, soundName := o.soundRoot()
 	housesFS, housesName := o.housesRoot()
 	houseArtFS, houseArtName := o.houseArtRoot()
-	for _, t := range []struct {
+	// A named type and not an anonymous one, because the levels row below is appended
+	// conditionally and an anonymous struct would have to be spelled out twice to do it.
+	type row struct {
 		what  string
 		flag  string
 		ok    bool
 		where string
-	}{
+	}
+	rows := []row{
 		{"art", "art", assetfs.Exists(artFS, "manifest.json"), artName},
 		{"sound", "sounds", assetfs.Exists(soundFS, "manifest.tsv"), soundName},
 		{"houses", "houses", assetfs.IsDir(housesFS, "."), housesName},
 		{"houseart", "houseart", assetfs.IsDir(houseArtFS, "."), houseArtName},
-	} {
+	}
+
+	// The fifth root, and only when there is one. It is conditional where the other four are
+	// unconditional because it is the only *optional* root: a build with no new houses in it
+	// is complete, and a "levels none" row on every one of them would read as something
+	// missing rather than as something not asked for. When -levels names a directory the row
+	// appears whether or not the directory is there, which is the case it is for.
+	if levelsFS, levelsName := o.levelsRoot(); o.levels != "" || assetfs.IsDir(levelsFS, ".") {
+		rows = append(rows, row{"levels", "levels", assetfs.IsDir(levelsFS, "."), levelsName})
+	}
+
+	for _, t := range rows {
 		switch {
 		case t.where == "":
 			fmt.Printf("  %-9s none -- name a directory with -%s\n", t.what, t.flag)
@@ -411,6 +465,7 @@ func parseFlags() (*options, error) {
 	o := &options{tree: assets.Tree()}
 	flag.StringVar(&o.house, "house", "", "play this house at once instead of showing the title screen (name or path; default "+defaultHouse+" for -frames/-bench/-dump)")
 	flag.StringVar(&o.houses, "houses", "", "directory to search for houses instead of the ones built in")
+	flag.StringVar(&o.levels, "levels", "", "directory of extra houses to list as the New level set, alongside the ones built in")
 	flag.StringVar(&o.artDir, "art", "", "extracted application art tree to use instead of the one built in")
 	flag.StringVar(&o.houseArt, "houseart", "", "extracted per-house resource forks to use instead of the ones built in")
 	flag.IntVar(&o.roomNum, "room", -1, "start in this room number instead of the house's first")
@@ -607,8 +662,7 @@ func run() error {
 
 // runShell is the ordinary one: a window, a title screen, and games started from it.
 func runShell(o *options, p *prefs.Prefs, canSave bool) error {
-	housesFS, housesName := o.housesRoot()
-	lib, err := shell.Discover(housesFS, housesName)
+	lib, err := shell.Discover(o.sources()...)
 	if err != nil {
 		// **Not fatal.** A missing or empty houses directory is what a fresh clone
 		// has, and the useful place to say so is the screen the player is looking at
@@ -639,8 +693,11 @@ func runShell(o *options, p *prefs.Prefs, canSave bool) error {
 	// `wasDefaultName` (Main.c:130), shipped as Slumberland. A name that is no longer
 	// there is not an error -- houses are files and files get moved -- so it falls back
 	// to the shipped default and says what happened.
+	// lib.Root and not the houses root: with a levels root as well there is more than one
+	// place the house could have been, and naming only the first would send somebody looking
+	// in the wrong one.
 	if p.House != "" && !sh.Select(p.House) {
-		fmt.Fprintf(os.Stderr, "glidergo: %s is not in %s any more\n", p.House, housesName)
+		fmt.Fprintf(os.Stderr, "glidergo: %s is not in %s any more\n", p.House, lib.Root)
 		sh.Select(defaultHouse)
 	} else if p.House == "" {
 		sh.Select(defaultHouse)
@@ -699,8 +756,7 @@ func playDirect(o *options, p *prefs.Prefs) error {
 // (-frames with -dump); this is the same idea for the part of the program that is not
 // the game.
 func shot(o *options, p *prefs.Prefs) error {
-	housesFS, housesName := o.housesRoot()
-	lib, err := shell.Discover(housesFS, housesName)
+	lib, err := shell.Discover(o.sources()...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 	}
@@ -774,7 +830,6 @@ func (a *app) shellHost() shell.Host {
 	view := render.DefaultView()
 	scr := render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
 	artFS, _ := a.o.artRoot()
-	housesFS, _ := a.o.housesRoot()
 
 	// dead is how a failed present reaches a shell that has no error path: the next
 	// poll reports the window closed, which is true, and the shell stops. A void hook
@@ -839,10 +894,12 @@ func (a *app) shellHost() shell.Host {
 			// coming out of one channel is the one thing here a player could hear
 			// going wrong. music.go has the whole trade.
 			a.stopTitleMusic()
-			// The library's own filesystem, not the picked house's Path: Path is a
-			// message ("built-in:houses/Titanic.house" for a house inside the
-			// executable) and Rel is what opens the file. See shell.House.
-			out, err := a.play(libraryHouse(housesFS, c.House), c.TwoPlayer, c.Resume)
+			// The house's own filesystem, not its Path: Path is a message
+			// ("built-in:houses/Titanic.house" for a house inside the executable) and
+			// FS-and-Rel are what open the file. The FS travels on the house because
+			// a library is a union of roots now and the houses root is not the only
+			// one a listed house can have come from. See shell.House.
+			out, err := a.play(libraryHouse(c.House), c.TwoPlayer, c.Resume)
 			a.startTitleMusic()
 			return out, err
 		},
@@ -905,9 +962,10 @@ func (a *app) shellHost() shell.Host {
 
 // houseRef is one house and where to read it from.
 //
-// FS and Rel are the pair that opens the file: the houses root -- a directory, or the copy
-// built into this executable -- and the name within it. FS nil means Path is a file on this
-// machine and nothing but Path opens it, which is the case a player who typed a path is in.
+// FS and Rel are the pair that opens the file: one of the houses roots -- a directory, or a
+// subtree of the copy built into this executable -- and the name within it. FS nil means Path
+// is a file on this machine and nothing but Path opens it, which is the case a player who typed
+// a path is in.
 //
 // Name is the house's name, its file name without the extension, and it is not decoration:
 // the high-score side-car, the saved game and the house's own 'snd ' resources are all keyed
@@ -935,9 +993,24 @@ func (r houseRef) peek() (*house.Summary, error) {
 	return house.PeekFS(r.FS, r.Rel)
 }
 
-// libraryHouse is a house the picker listed, in the library's own filesystem.
-func libraryHouse(fsys fs.FS, h shell.House) houseRef {
-	return houseRef{Name: h.Name, FS: fsys, Rel: h.Rel, Path: h.Path}
+// libraryHouse is a house the picker listed, in the root it was found in. It takes no
+// filesystem because the house carries its own: a library is a union of roots, and the one the
+// caller happens to have at hand is not necessarily the one this house came out of.
+func libraryHouse(h shell.House) houseRef {
+	return houseRef{Name: h.Name, FS: h.FS, Rel: h.Rel, Path: h.Path}
+}
+
+// inSources looks for one file name in each houses root in turn and answers the first that has
+// it. The order is sources' order, so an original beats a new house of the same name -- which
+// is the tie the picker's sort breaks the same way (internal/shell/library.go).
+func inSources(o *options, rel string) (houseRef, bool) {
+	for _, src := range o.sources() {
+		if assetfs.Exists(src.FS, rel) {
+			return houseRef{Name: houseName(rel), FS: src.FS, Rel: rel,
+				Path: assetfs.Name(src.Label, rel)}, true
+		}
+	}
+	return houseRef{}, false
 }
 
 // diskHouse is a house named by a path on this machine: no filesystem, so nothing but the path
@@ -946,9 +1019,15 @@ func diskHouse(path string) houseRef {
 	return houseRef{Name: houseName(path), Path: path}
 }
 
-// resolveHouse turns whatever -house was given into one of those. A name is looked up in the
+// resolveHouse turns whatever -house was given into one of those. A name is looked up in every
 // houses root; anything with a separator or an extension in it is taken as a path, so a house
 // sitting anywhere on the disk can be played without moving it.
+//
+// **Every root, and not just the houses one**, because the picker lists the new houses beside
+// the originals and a flag that could not name one of them would make -house a way of playing
+// some of the list. That also means -house is the one place a level set is invisible: a house
+// is a house, and which collection it came from is a thing the picker says and not a thing that
+// decides whether it can be played.
 //
 // The extension test needs the fallback below, because `-house Titanic.house` is what somebody
 // who has just listed the houses will type, and it has an extension and no separator -- so the
@@ -960,20 +1039,25 @@ func resolveHouse(o *options, name string) (houseRef, error) {
 		return diskHouse(name), nil
 	}
 
-	fsys, label := o.housesRoot()
 	if filepath.Ext(name) != "" {
 		if _, err := os.Stat(name); err == nil {
 			return diskHouse(name), nil
 		}
-		if assetfs.Exists(fsys, name) {
-			return houseRef{Name: houseName(name), FS: fsys, Rel: name,
-				Path: assetfs.Name(label, name)}, nil
+		if ref, ok := inSources(o, name); ok {
+			return ref, nil
 		}
 		// Neither. Report the path the player named rather than the one they did not, so
 		// the error names something they can go and look for.
 		return diskHouse(name), nil
 	}
 
+	rel := name + ".house"
+	if ref, ok := inSources(o, rel); ok {
+		ref.Name = name // the name as typed, so the score board and the saved game key on it
+		return ref, nil
+	}
+
+	fsys, label := o.housesRoot()
 	if fsys == nil {
 		// No houses root at all: every flag was empty and this build carries no assets.
 		// Saying so beats `open Slumberland.house: no such file or directory`, which sends
@@ -981,7 +1065,9 @@ func resolveHouse(o *options, name string) (houseRef, error) {
 		return houseRef{}, fmt.Errorf("no houses to look for %s in: this build has none "+
 			"built in, so -houses has to name a directory", name)
 	}
-	rel := name + ".house"
+	// Nowhere has it. Point at the houses root anyway rather than erroring here, so the
+	// failure comes out of the open with the path in it -- which is the message that says
+	// where the game looked, and is what it said before there was more than one root.
 	return houseRef{Name: name, FS: fsys, Rel: rel, Path: assetfs.Name(label, rel)}, nil
 }
 

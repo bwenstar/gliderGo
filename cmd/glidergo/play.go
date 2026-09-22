@@ -212,8 +212,7 @@ func (a *app) savedGame(h shell.House) (saved.Info, error) {
 	// one header. A house that will not peek is not reported here: the row's job is to say
 	// whether there is a game to resume, and a house that cannot be read at all is a
 	// problem the moment it is *played*, with a better message than this row has room for.
-	housesFS, _ := a.o.housesRoot()
-	sum, perr := libraryHouse(housesFS, h).peek()
+	sum, perr := libraryHouse(h).peek()
 	if perr != nil || !sum.HasGame {
 		return saved.Info{}, err
 	}

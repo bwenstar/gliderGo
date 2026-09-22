@@ -206,6 +206,18 @@ type Shell struct {
 	msg  string
 	quit bool
 
+	// filter is which level set the picker is showing, or AllSets for no filter. Named for
+	// what it does rather than what it is, because `set` is four lines further down and
+	// belongs to the settings screen.
+	//
+	// It is an index into nothing -- it is the set itself -- and pick stays an index into
+	// the whole of lib.Houses rather than into the filtered view. That is the one decision
+	// in here worth arguing: the alternative, a cursor into the view, has to be translated
+	// every time the filter changes and cannot survive a filter that no longer holds the
+	// house it was on. With pick naming a house, changing the filter is a change to what is
+	// *drawn* and the selection is still whatever the player last put it on.
+	filter Set
+
 	// loading is the one line that outranks everything else on the status band: what the
 	// shell is waiting for while it is not the thing in control. It is set for exactly one
 	// presented frame, by start, and empty every other moment -- which is why it is a
@@ -271,7 +283,11 @@ func New(h Host, lib *Library) (*Shell, error) {
 		lib = &Library{}
 	}
 
-	s := &Shell{host: h, lib: lib, cur: -1, capture: -1}
+	// AllSets and not SetOriginal: the picker opens showing every house it has. A filter is
+	// something a player chooses, and one that is on before they have chosen it hides houses
+	// from somebody who has no way of knowing they are there -- which, for the new houses
+	// this port adds, is precisely the person the level sets exist for.
+	s := &Shell{host: h, lib: lib, cur: -1, capture: -1, filter: AllSets}
 	if len(lib.Houses) > 0 {
 		s.cur = 0
 	}
@@ -620,6 +636,11 @@ func (s *Shell) status() string {
 
 // opening is the status line a fresh shell comes up with: the one place a player is
 // told what is missing before they have pressed anything.
+//
+// With more than one set it says the split -- "26 houses: 22 Original, 4 New" -- because that
+// is the line's whole job. A player who has just installed a build with new houses in it has no
+// other way to find out they are there before opening the picker, and "26 houses" is a number
+// they would read as the twenty-two plus some.
 func (s *Shell) opening() string {
 	switch {
 	case len(s.lib.Houses) == 0:
@@ -627,6 +648,8 @@ func (s *Shell) opening() string {
 	case len(s.lib.Skipped) > 0:
 		return fmt.Sprintf("%d houses, %d files skipped -- press L to see them",
 			len(s.lib.Houses), len(s.lib.Skipped))
+	case len(s.lib.Sets()) > 1:
+		return fmt.Sprintf("%d houses: %s", len(s.lib.Houses), s.lib.Tally())
 	default:
 		return fmt.Sprintf("%d houses", len(s.lib.Houses))
 	}
@@ -648,6 +671,15 @@ func (s *Shell) openPicker() {
 	s.clampPick()
 }
 
+// clampPick puts the cursor back on a house that exists and that the filter is showing.
+//
+// The second half is why this is not two lines of arithmetic. A filter that does not hold the
+// house the cursor is on would draw a list with no cursor in it, and the only way that can
+// happen is the way that matters: the picker is opened on a house selected from a different
+// set -- by the preferences file, by -house, or by the player having filtered to New and then
+// chosen an original from the menu. Widening to AllSets rather than moving the cursor is the
+// answer because the cursor is on the house the player asked for, and the filter is the part
+// they did not.
 func (s *Shell) clampPick() {
 	if s.pick < 0 {
 		s.pick = 0
@@ -655,46 +687,128 @@ func (s *Shell) clampPick() {
 	if s.pick >= len(s.lib.Houses) {
 		s.pick = len(s.lib.Houses) - 1
 	}
+	if s.pick >= 0 && !s.filter.holds(s.lib.Houses[s.pick]) {
+		s.filter = AllSets
+	}
+}
+
+// view is the indices into lib.Houses that the picker is showing, in list order.
+//
+// Recomputed on every draw and every keystroke rather than cached, for the reason menu() is:
+// a filtered list derived from the state at the moment it is used cannot be out of step with
+// the filter, and a cached one can. It is a slice of at most a few dozen ints built sixty
+// times a second, which is nothing next to composing the screen it is for.
+func (s *Shell) view() []int {
+	out := make([]int, 0, len(s.lib.Houses))
+	for i := range s.lib.Houses {
+		if s.filter.holds(s.lib.Houses[i]) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// at is where the cursor sits within a view. A cursor the view does not hold answers 0, which
+// is the row the picker would draw it on anyway.
+func (s *Shell) at(view []int) int {
+	for i, h := range view {
+		if h == s.pick {
+			return i
+		}
+	}
+	return 0
 }
 
 // pickerKey is LoadFilter (SelectHouse.c:435-514, §7.8) with the mouse taken out:
 // the arrows move, Return chooses, Escape leaves, and a letter jumps to the next
 // house that starts with it -- which is the original's type-select, kept because it
 // is the only thing that makes a list of forty houses navigable with a keyboard.
+//
+// Every movement is within the filtered view and not the whole list, which is what makes a
+// filter a filter rather than a highlight: paging past the end of New must not walk into the
+// originals, and typing S while New is showing must not jump to Slumberland.
+//
+// Tab cycles the sets, and it used to be a second Escape. Nothing documented is lost -- the
+// footer said "Esc back" then and says it now, so Tab as a way out was an alias nobody was
+// told about -- and what replaces it is the one keyboard idiom every player already has, on
+// the one screen in this shell that has more than one group of things to look at. The settings
+// screen keeps Tab as its own way out for exactly that reason: it has nothing to switch
+// between.
 func (s *Shell) pickerKey(k platform.Key) {
-	n := len(s.lib.Houses)
-	if n == 0 {
+	view := s.view()
+	if len(view) == 0 {
 		s.mode = modeSplash
 		return
 	}
+	n := len(view)
+	at := s.at(view)
 	switch k {
 	case platform.KeyUp:
-		s.pick = (s.pick + n - 1) % n
+		at = (at + n - 1) % n
 	case platform.KeyDown:
-		s.pick = (s.pick + 1) % n
+		at = (at + 1) % n
 	case platform.KeyLeft:
-		s.pick -= pickerRows
-		if s.pick < 0 {
-			s.pick = 0
+		at -= pickerRows
+		if at < 0 {
+			at = 0
 		}
 	case platform.KeyRight:
-		s.pick += pickerRows
-		if s.pick >= n {
-			s.pick = n - 1
+		at += pickerRows
+		if at >= n {
+			at = n - 1
 		}
 	case platform.KeyReturn:
 		s.commitPick()
 		s.play(false)
+		return
 	case platform.KeySpace:
 		s.commitPick()
 		s.mode = modeSplash
-	case platform.KeyEscape, platform.KeyTab:
+		return
+	case platform.KeyEscape:
 		s.mode = modeSplash
+		return
+	case platform.KeyTab:
+		s.cycleSet()
+		return
 	default:
 		if c, ok := letterOf(k); ok {
 			s.typeSelect(c)
 		}
+		return
 	}
+	s.pick = view[at]
+}
+
+// cycleSet moves to the next filter the library has to offer, and keeps the cursor on the
+// house it was on when the new filter still shows it.
+//
+// A library with one set has nothing to cycle and says so, rather than swallowing the
+// keystroke: the footer only advertises Tab when there is more than one set, so a player
+// pressing it here has guessed, and a guess that produces no visible effect at all is
+// indistinguishable from a key that does not work.
+func (s *Shell) cycleSet() {
+	choices := s.lib.Choices()
+	if len(choices) < 2 {
+		s.msg = s.lib.Tally() + " -- there is no other set to show"
+		return
+	}
+	next := 0
+	for i, c := range choices {
+		if c == s.filter {
+			next = (i + 1) % len(choices)
+			break
+		}
+	}
+	s.filter = choices[next]
+
+	// The cursor follows the house when the new filter holds it and lands on the first row
+	// otherwise, which is the only place it can land: a set the cursor's house is not in has
+	// no row belonging to it.
+	if view := s.view(); len(view) > 0 && s.at(view) == 0 {
+		s.pick = view[0]
+	}
+	s.msg = fmt.Sprintf("%s -- %d houses", s.filter, s.lib.Count(s.filter))
 }
 
 func (s *Shell) commitPick() {
@@ -713,11 +827,20 @@ func (s *Shell) commitPick() {
 // twelve visible names and searches only those (§7.8); searching the whole list is
 // the same idea without the paging accident, so a letter finds a house that is not
 // on this page.
+//
+// It searches the filtered view and not the whole list, for the reason the arrows move within
+// it: a jump to a house the picker is not drawing puts the cursor somewhere the player cannot
+// see, which is worse than the letter finding nothing.
 func (s *Shell) typeSelect(c byte) {
-	n := len(s.lib.Houses)
+	view := s.view()
+	n := len(view)
+	if n == 0 {
+		return
+	}
+	at := s.at(view)
 	want := upperASCII(c)
 	for i := 1; i <= n; i++ {
-		j := (s.pick + i) % n
+		j := view[(at+i)%n]
 		name := s.lib.Houses[j].Name
 		if name != "" && upperASCII(name[0]) == want {
 			s.pick = j

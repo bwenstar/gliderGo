@@ -3047,6 +3047,133 @@ both still true. The `never run` lines in `CHANGELOG.md` are history and stay as
   Neither is a bug and both look exactly like one. This is 5.4's release notes, and it is the single
   most likely reason a first-time player never sees the title screen at all.
 
+### 4.14 The houses this port writes will sit on the same shelf as the 1994 ones, and nothing said which was which — **DONE, 2.2; where the built-in new houses live is filed below**
+
+Stage 2's job is to add houses. The picker they land in is one flat alphabetical list, which is
+faithful — `BuildHouseList` produces exactly that — and the moment this port puts a house of its own
+into it, the list is making a claim it cannot support. "Bakery" between "Asylum Pro" and "CD Demo
+House" reads as something Ward Hartenstein or Jonathan Chin built in 1994. That is wrong in both
+directions and each direction costs something real.
+
+It takes credit that belongs to five named people. Section 1.2 has the table: thirteen of the
+twenty-two houses were designed by someone other than John Calhoun, the whole reason the assets
+needed a decision of their own, and a list that silently mixes ours in with theirs is the one place
+that table cannot be seen from. And it lends the originals our mistakes. A new house with a room
+the glider cannot leave is a bug in a 2026 port; the same room, believed to be 1994's, is evidence
+that the game was always like that. The player has no way to tell, and the port's credibility is
+built entirely on being the kind of thing that tells you.
+
+**A set is declared by the *source* a house was walked from.** Not by the file, and not by a list of
+names. `internal/shell/sets.go` carries the argument in full; the short form is that the other two
+were each tried on paper and each fails in a way worth recording.
+
+The *file* cannot say it. `houseType` has no field for who made it, the 866-byte header is full —
+every byte named, the codec round-trips all 22 shipped files exactly — and inventing a field means
+writing a house the 1994 program cannot open, which is the one thing this port will not do to the
+format it transcribes.
+
+A *list of the twenty-two names* compiled into the port is the tempting one, and it is wrong twice.
+It puts the truth about the shipped set in a second place, so the list and `assets/extracted/houses`
+can drift, and on the day they do the list is what the game believes. Worse, it answers confidently
+in precisely the case where the answer matters: a house opened in an editor, changed, and saved back
+as "Slumberland" is not the 1994 Slumberland, and the name is exactly the part that did not change.
+**A provenance claim that cannot fail is not a provenance claim.**
+
+So the caller that opens a root declares what the root is, and every house found under it inherits
+that. What this claims is deliberately less than it looks, and saying so is the point:
+**a set says where a house was found, not what is in it.** `-houses some/dir` is therefore `Other`
+and not `Original` — the game cannot know what a player put in a directory — and the picker shows
+the root's label beside the count, so the claim is always checkable against the place it came from.
+This is the same habit as the About box printing the upstream commit it was pinned against rather
+than a nicer sentence about provenance it does not have.
+
+One caller is allowed to declare `Original` for a directory, and the exception is instructive rather
+than a loophole. `internal/fidelity`'s `ScreensOpts.houseSource` records the shell's reference images
+from `assets/extracted/houses`, and that directory is the extracted twenty-two *by construction*: the
+`screens.hashes` checked in beside it is a hash of what that produced, so a directory with anything
+else in it changes the hashes and fails. The declaration is true because the test that reads it is
+what makes it true. The difference between the two callers is written where each one is.
+
+**What accumulates and what replaces.** 5.3 deferred union semantics for the asset roots to Stage 2,
+on the grounds that a union should be designed rather than fall out of a resolution order nobody
+wrote down. It is designed here, and it lands in one of the two places and not the other. An art
+root *replaces* the built-in one, because two copies of PICT 1000 have to resolve to one picture.
+Houses do not resolve; they accumulate, and a player with four of their own and the twenty-two wants
+twenty-six. So `Library.Discover` is variadic over sources and `internal/assetfs` is untouched —
+and a source that cannot be read is an error *and the rest are still walked*, so a mistyped
+`-levels` names itself on the screen the player is looking at and still leaves them a list to play
+from.
+
+Accumulating is not the new part. `BuildHouseList` already walked two sources into one list: up to
+eight specs handed in by `AddExtraHouse` — a house dropped on the application, from anywhere on any
+volume — copied in first, then `DoDirSearch` for the rest (`SelectHouse.c:650-664`, `668-675`). What
+the original does not do is say which place a row came from. The set is that missing sentence and
+nothing else.
+
+**The UI, and the three decisions in it that are not obvious.**
+
+The filter opens on `AllSets`, not on the selected house's set. Defaulting to the selection's set
+would hide every new house on a fresh install, because a fresh install selects Slumberland: the
+player would have to discover a chooser in order to discover that there was anything to choose. A
+list that hides houses by default is a list whose player never finds out what is missing.
+
+`pick` stays an index into the whole library rather than into the filtered view, so changing the
+filter changes what is *drawn* and never what is chosen. The one case that needs a rule is opening
+the picker on a house the filter does not hold, and `clampPick` widens the filter to `AllSets`
+instead of moving the cursor — the cursor is on the house the player asked for and the filter is the
+part they did not.
+
+**Tab cycles the sets**, and that is a key taken rather than a key found. In the original's dialog
+Tab is an undocumented alias for the right arrow (`SelectHouse.c:277-278`, the two cases share a
+body); in this port's picker it had become a second Escape, advertised nowhere. Nothing documented
+is lost, and the footer now offers `Tab set` only when there is more than one set to cycle. The
+settings screen keeps Tab as its way out, because it has nothing to switch between.
+
+**The layout mistake is written down because the reasoning was wrong in a way that will recur.** The
+obvious home for a set chooser is the gap between the picker's title and the first house — 32 rows,
+apparently empty. It is not empty. The selected house's inverse-video bar rises `barRise` above its
+baseline, so the first row's bar occupies rows 80 to 104, and the title's shadow reaches row 73. Six
+free rows, where a scale-1 word needs ten. The error was measuring the gap against the first row's
+*glyph ink* at row 86 and not against its *selection bar*, and it was not caught by looking at a
+screenshot — `TestOneSetDrawsNothingNewOnTheTitleLine` counted 2,602 cream pixels where a one-set
+library must draw none. The strip went onto the title's own baseline, which is the row that actually
+has room, and the title lost the set name it had briefly gained, because the strip's highlighted
+entry already says which set is showing. The wrong measurement is in the comment on `pickSetsV` so
+that the next person to want a row there knows why there isn't one.
+
+**With one set on the shelf the picker draws exactly what it drew before** — no strip, no title
+suffix, no `Tab set` in the footer. That is not politeness; it is what keeps `internal/fidelity`'s
+reference image a picture of the 1994 dialog, and it is asserted rather than assumed:
+`TestOneSetDrawsNothingNewOnTheTitleLine` renders a one-set library twice, once as `Original` and
+once as `New`, and requires the two whole screens to be identical. `make fidelity` passes with
+`screens.hashes` and the golden `houses.png` unchanged, which is the same claim made from the other
+end.
+
+**Still open, and filed rather than pre-built.**
+
+- **Where the new houses that ship *inside the executable* live has not been decided**, and the two
+  places a reader would guess are both barred. `assets/extracted/houses/` cannot take them: `make
+  assets-check` is a full recursive `diff -r` against the extractor's output and `assetpack.Compare`
+  asserts `extracted.zip` holds exactly the files in `assets/extracted`, so a new house breaks both
+  contracts — correctly, because that tree's whole value is being byte-for-byte reproducible from
+  1994 data. And `//go:embed` cannot reach outside `assets/`. The recommendation is a second archive,
+  `assets/levels.zip`, packed from `assets/levels/` by the `tools/packassets` that already exists:
+  no new machinery, and the GPLv2 provenance boundary becomes visible in the file names, which is
+  what 1.2 wants anyway. The alternative — generalising `assetpack.Files`/`Create`/`Compare` to pack
+  two trees under prefixes — buys one file at the cost of making both trees' contract read as one.
+  Until then `-levels DIR` is the whole of the New set, which is enough to author and test against.
+- **`docs/PLAN.md` §3's map says `levels/` is "new houses in text form"**, and this entry's flag says
+  `-levels` is a directory of *built* houses. Both can be true and the naming should be stated once
+  rather than inferred twice: `levels/*.house.txt` authored, `assets/levels/` built by `house build`,
+  `assets/levels.zip` embedded, `-levels DIR` to add a directory at run time. 4.13 already notes that
+  PLAN's §3 map names directories that do not exist; `levels/` is one of them, and it is the one
+  about to exist.
+- **The chosen set is not remembered between runs.** The filter resets to `AllSets` every launch,
+  which is the right default but not obviously the right *only* behaviour once there are two large
+  sets. It is one field in `internal/prefs` if anybody asks, and it is deliberately not added on
+  speculation: every row on the settings screen is a row a player has to read past, and nobody has
+  yet had two sets large enough to be annoyed by this.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -3533,6 +3660,9 @@ alone for a stated reason rather than missed.
 | `internal/render`'s duplicate `ExtractFloorSuite`/`GetRoomNumber` deleted in favour of `internal/house`'s, and the dead `kNumUndergroundFloors` beside them | 2.0 | this stage |
 | The pre-2.0 link packing cannot express suite ≥ 100 — it *collides* — written into `house-format.md` §7.2 and asserted rather than avoided | 2.0 | this stage |
 | Two documents claimed every shipped house has a `kStar`; Fun House has none, which is why `no-stars` is a warning | 2.0 | this stage |
+| 4.14 `internal/shell/sets.go`: a level set is declared by the source a house was walked from, so the claim is "where this was found" and never "what is in it" | 2.2 | this stage |
+| `Library.Discover` is variadic and accumulates, which `internal/assetfs` deliberately still does not — houses add, art replaces, and 5.3's deferred union lands in exactly one of the two | 2.2 | this stage |
+| The picker's set strip, on the title's own line because the apparently-empty row below it is the first house's selection bar; one set draws the identical screen it drew before, so `internal/fidelity`'s reference stays a picture of 1994 | 2.2 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

@@ -63,6 +63,25 @@ func (o ScreensOpts) roots() (art fs.FS, artName string, houses fs.FS, housesNam
 	return art, artName, houses, housesName
 }
 
+// houseSource is the one root these recordings read, declared as the Original level set.
+//
+// It declares where cmd/glidergo's -houses cannot, and the difference is worth writing down
+// because it is the whole of what a set claims (internal/shell/sets.go). There, a directory a
+// player named could hold anything, so it is Other. Here, the directory is the extracted
+// twenty-two *by construction*: `make fidelity` records from assets/extracted/houses, the
+// screens.hashes in this package's testdata is a hash of what that produced, and a directory
+// with anything else in it changes the hashes and fails. The declaration is true because the
+// test that reads it is what makes it true.
+//
+// One root and never a levels one: these are the reference images for the 1994 screens, and a
+// recording that changed the moment this port added a house of its own would be measuring the
+// port instead of the original. The picker draws no set chooser with one set, which is what
+// keeps the reference image the original's dialog is compared against.
+func (o ScreensOpts) houseSource() shell.Source {
+	houses, housesName := assetfs.Root(o.Tree, o.HouseDir, "houses")
+	return shell.Source{FS: houses, Label: housesName, Set: shell.SetOriginal}
+}
+
 // RecordScreens composes each screen and hashes it.
 func RecordScreens(o ScreensOpts) (*Reference, error) {
 	if len(o.Screens) == 0 {
@@ -85,8 +104,7 @@ func RecordScreens(o ScreensOpts) (*Reference, error) {
 	// The house count is in the header because the picker draws a list of them: extracting a
 	// seventh house is a legitimate reason for the `houses` row to change, and without this
 	// line that change looks like a layout regression.
-	_, _, housesFS, housesName := o.roots()
-	lib, err := shell.Discover(housesFS, housesName)
+	lib, err := shell.Discover(o.houseSource())
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +133,8 @@ func RecordScreens(o ScreensOpts) (*Reference, error) {
 //   - Present does nothing and Poll returns no events: one Draw is the whole recording, so
 //     there is no frame after this one for an event to affect.
 func Screen(o ScreensOpts, name string) (*render.Surface, error) {
-	artFS, artName, housesFS, housesName := o.roots()
-	lib, err := shell.Discover(housesFS, housesName)
+	artFS, artName, _, housesName := o.roots()
+	lib, err := shell.Discover(o.houseSource())
 	if err != nil {
 		return nil, err
 	}

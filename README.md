@@ -68,8 +68,15 @@ layout this port has never seen — and it needs no cgo, so it cross-compiles fr
 noise is half a game. The port now carries a `waveOut` driver (pure `syscall` again, no cgo), so an
 unzipped `.exe` plays without FFmpeg or anything else installed.
 
-Next is Stage 2, new houses in the spirit of the originals and selectable alongside them, and
-then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
+**Stage 2 is underway.** `glidertool house lint` is the validator new houses have to pass, and the
+picker now keeps **Original** and **New** apart — a house's set is the root it was found in, never a
+guess from its name, so nothing of ours can pass itself off as 1994's. `-levels DIR` adds a
+directory of houses to the list as the New set; with only the originals on the shelf the picker draws
+exactly the screen it always did. Next in that stage are the houses themselves, designed against the
+measured profile of the originals in
+[docs/analysis/original-houses.md](docs/analysis/original-houses.md) rather than just "some rooms".
+
+Then Stage 3, a networked race: one machine hosts, another joins, furthest on one life wins.
 Then the house editor the original had (Stage 5), and macOS and possibly mobile (Stage 6), which
 needs a CoreAudio sink behind the same seam the Windows one arrived through.
 

@@ -127,6 +127,36 @@ const (
 	pickTitleV = 68
 	pickFootV  = 396
 	pickFootV2 = 416
+
+	// The level-set strip shares the title's baseline, between "Load House" and the page
+	// counter, and that is not where it was first put. The obvious place is the gap between
+	// the title and the first house -- 32 rows, apparently empty. It is not empty: the
+	// selected house's inverse-video bar rises barRise above its baseline, so the first row's
+	// bar occupies rows 80 to 104 and the title's shadow reaches row 73. Six rows, and a
+	// scale-1 word needs ten. The strip went on the title's line because that is the row that
+	// actually has room, and a screen that has to be measured before a row can be used is
+	// exactly the screen that needs
+	// TestTheSetStripFitsBetweenTheTitleAndThePageCounter.
+	//
+	// pickSetsH is right of "Load House" at scale 2: pickLeft+20 plus ten glyphs of 12,
+	// plus the shadow, plus a space.
+	pickSetsV = pickTitleV
+	pickSetsH = 216
+
+	// setsRise is barRise's scale-1 equivalent. The picker's row bar is sized for scale-2
+	// names; a scale-1 word needs a bar as tall as a scale-1 glyph, which inks 7 rows up from
+	// the baseline, plus one clear row above it.
+	setsRise = 8
+
+	// setsGap is the blank space between two entries in the strip. Two glyph widths
+	// (render.FontWide is 6), which reads as a clear break at scale 1 without letting
+	// "Original 22" and "New 4" run together when neither has a bar under it.
+	setsGap = 12
+
+	// setsPad is how far a set's bar extends either side of its word, for the same reason
+	// barPad exists: a word touching the edge of its own highlight is harder to read than one
+	// with a margin.
+	setsPad = 3
 )
 
 // The About panel. Its height is not here, because it is not a constant: the plate
@@ -332,14 +362,22 @@ func (s *Shell) drawMenu(scr *render.Surface) {
 // The picker
 // ---------------------------------------------------------------------------
 
+// drawPicker draws the list, one page of pickerRows houses at a time.
+//
+// It draws the *filtered* view rather than lib.Houses, and everything derived from the list is
+// derived from the view with it: the page number, the page count, and which row carries the
+// bar. The cursor is still an index into the library -- see Shell.set for why -- so the row it
+// lands on is its position within the view, which is what s.at computes.
 func (s *Shell) drawPicker(scr *render.Surface) {
 	r := render.SetRect(pickLeft, pickTop, pickRight, pickBottom)
 	panel(scr, r)
 
-	n := len(s.lib.Houses)
+	view := s.view()
+	n := len(view)
+	at := s.at(view)
 	page := 0
 	if pickerRows > 0 {
-		page = s.pick / pickerRows
+		page = at / pickerRows
 	}
 	pages := (n + pickerRows - 1) / pickerRows
 	if pages == 0 {
@@ -348,12 +386,14 @@ func (s *Shell) drawPicker(scr *render.Surface) {
 
 	shadow(scr, pickLeft+20, pickTitleV, "Load House", cream, 2)
 	right(scr, pickRightH, pickTitleV, fmt.Sprintf("page %d of %d", page+1, pages), render.LtGray8, 1)
+	s.drawSets(scr)
 
 	for row := 0; row < pickerRows; row++ {
-		i := page*pickerRows + row
-		if i >= n {
+		at := page*pickerRows + row
+		if at >= n {
 			break
 		}
+		i := view[at]
 		h := s.lib.Houses[i]
 		v := int16(pickFirst + row*pickPitch)
 		name := fit(h.Name, pickRightH-pickNameH-110, pickScale)
@@ -374,6 +414,63 @@ func (s *Shell) drawPicker(scr *render.Surface) {
 	s.drawPickerFooter(scr)
 }
 
+// drawSets is the level-set strip: each set with its count, the one showing in inverse video,
+// on the title's line.
+//
+// It draws nothing at all when there are fewer than two choices, which is the case every build
+// carrying only the 1994 houses is in. That is not a tidiness argument. A chooser with one
+// position in it offers a choice that does not exist, and drawing one would move pixels on a
+// screen the fidelity corpus holds a hash of -- so a port that adds no houses of its own draws
+// the picker unchanged, and the corpus goes on measuring the original rather than this.
+//
+// Each entry carries its count, which is setLabel's whole reason: the strip is the only place
+// on this screen where a player can see that there are four new houses without filtering to
+// them and reading the list. The words are the sets' own String values, so there is no second
+// list of display names to disagree with the first (sets.go).
+func (s *Shell) drawSets(scr *render.Surface) {
+	choices := s.lib.Choices()
+	if len(choices) < 2 {
+		return
+	}
+	h := int16(pickSetsH)
+	for _, set := range choices {
+		text := s.setLabel(set)
+		w := render.StringWidthScaled(text, 1)
+		if set == s.filter {
+			// The same inverse-video bar the house rows use, at scale 1, and drawn without
+			// shadow() for the reason rightScaled exists: a black shadow under black text on
+			// a cream bar only thickens it.
+			scr.Fill(render.SetRect(h-setsPad, pickSetsV-setsRise, h+w+setsPad, pickSetsV+2), cream)
+			scr.DrawString(h, pickSetsV, text, render.Black8)
+		} else {
+			shadow(scr, h, pickSetsV, text, render.LtGray8, 1)
+		}
+		h += w + setsGap
+	}
+}
+
+// setLabel is one entry of the strip: the set's name and how many houses it holds.
+func (s *Shell) setLabel(set Set) string {
+	return fmt.Sprintf("%s %d", set, s.lib.Count(set))
+}
+
+// setsWide is how far the strip reaches, for the layout test and for nothing else. It is a
+// function of the library rather than a constant because the number of sets is.
+func (s *Shell) setsWide() int16 {
+	choices := s.lib.Choices()
+	if len(choices) < 2 {
+		return 0
+	}
+	w := int16(0)
+	for i, set := range choices {
+		if i > 0 {
+			w += setsGap
+		}
+		w += render.StringWidthScaled(s.setLabel(set), 1)
+	}
+	return w + 2*setsPad
+}
+
 // drawPickerFooter is where the picker earns its keep: the two things the original's
 // dialog could not tell you.
 //
@@ -388,28 +485,53 @@ func (s *Shell) drawPicker(scr *render.Surface) {
 // installation has recorded since -- because otherwise the number here and the number on
 // the High Scores screen would disagree about the same house, and the one that disagreed
 // would be the one a player sees first.
+// The two lines are composed by footerBest and footerKeys and drawn here, rather than built
+// inline, so that a test can read what the picker would say without a surface to look at.
+// Both are pure functions of the shell's state, which is the difference between a test that
+// catches a wrong string and one that catches a blank screen.
 func (s *Shell) drawPickerFooter(scr *render.Surface) {
-	best := "no house selected"
-	if h, ok := s.picked(); ok {
-		if who, score, ok := bestOf(s.board(h)); ok {
-			best = fmt.Sprintf("best: %s %d", who, score)
-			if h.Locked {
-				best += "   (locked)"
-			}
-		} else if h.Locked {
-			best = "no scores yet   (locked)"
-		} else {
-			best = "no scores yet"
-		}
-	}
-	shadow(scr, pickLeft+20, pickFootV, fit(best, pickRight-pickLeft-40, 1), cream, 1)
+	w := int16(pickRight - pickLeft - 40)
+	shadow(scr, pickLeft+20, pickFootV, fit(s.footerBest(), w, 1), cream, 1)
+	shadow(scr, pickLeft+20, pickFootV2, fit(s.footerKeys(), w, 1), render.LtGray8, 1)
+}
 
-	second := "arrows move   Return plays   Space selects   Esc back"
-	if n := len(s.lib.Skipped); n > 0 {
-		sk := s.lib.Skipped[0]
-		second = fmt.Sprintf("%d file(s) skipped, e.g. %s", n, sk.Why)
+// footerBest is the first line: what is in the house under the cursor.
+func (s *Shell) footerBest() string {
+	h, ok := s.picked()
+	if !ok {
+		return "no house selected"
 	}
-	shadow(scr, pickLeft+20, pickFootV2, fit(second, pickRight-pickLeft-40, 1), render.LtGray8, 1)
+	best := "no scores yet"
+	if who, score, ok := bestOf(s.board(h)); ok {
+		best = fmt.Sprintf("best: %s %d", who, score)
+	}
+	if h.Locked {
+		best += "   (locked)"
+	}
+	// Which set this house is from, but only while the list is showing all of them: with a
+	// filter on, the title and the strip both already say it, and repeating it here would
+	// spend the one line that tells a player something about the house on something they can
+	// read in two other places.
+	if s.filter == AllSets && len(s.lib.Sets()) > 1 {
+		best += "   [" + h.Set.String() + "]"
+	}
+	return best
+}
+
+// footerKeys is the second line: the keys, or the rejected files if there were any.
+//
+// Tab appears only when there is a set to switch to, which is what makes its repurposing
+// honest -- see pickerKey. The skipped-files message takes the whole line when there is one,
+// because a file the player can see in the folder and cannot see in the list is a question
+// they are already asking and the keys are not.
+func (s *Shell) footerKeys() string {
+	if n := len(s.lib.Skipped); n > 0 {
+		return fmt.Sprintf("%d file(s) skipped, e.g. %s", n, s.lib.Skipped[0].Why)
+	}
+	if len(s.lib.Choices()) > 1 {
+		return "arrows move   Tab set   Return plays   Space selects   Esc back"
+	}
+	return "arrows move   Return plays   Space selects   Esc back"
 }
 
 // picked is the house under the picker's cursor, which is not the selected one
