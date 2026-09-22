@@ -17,6 +17,31 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The release archives now say what Windows and macOS will do to an unsigned download (2026-09-22)
+
+Nothing here is signed, and both operating systems object in a way that is indistinguishable from a
+corrupt download. A Windows player gets Defender SmartScreen's "Windows protected your PC", whose
+only visible button is *Don't run* — *Run anyway* is behind *More info*, which is a click nobody
+makes without being told. Explorer then copies a downloaded zip's Mark of the Web onto every file it
+extracts, so the dialog can return after it has been dismissed once. On macOS a download carries
+`com.apple.quarantine`, and Archive Utility passes it to what it unpacks while `tar xzf` does not.
+Three operating-system behaviours, none of them a fault in the game, all three looking exactly like
+one — and until now neither the release notes nor `HOW-TO-RUN.txt` mentioned any of them.
+
+All three are now named with their click path: in a new "Your computer will try to stop you, once"
+section of the release notes, in a block in the Windows archives' `HOW-TO-RUN.txt`, and in a shorter
+one appended to the macOS archives' `HOW-TO-RUN.txt` alone — the headless text is shared with
+`linux-arm64`, whose reader has no Gatekeeper to hit. Not signing is stated as a decision rather than
+left to look like an oversight, and each section ends on the distinction that matters: none of these
+checks looks at what is *in* the archive, and `SHA256SUMS` already does.
+
+These click paths are documented behaviour rather than something this project has watched, which it
+now says out loud. The Windows half can be rehearsed offline, though, because a browser download is
+an ordinary file with one alternate data stream on it: `docs/windows-first-run.md` has the two
+PowerShell commands that reproduce it, listed alongside the newly-stated fourth gap in that document
+— the `.exe` that ran on Windows Server 2025 arrived over SSH, so it carried no mark and SmartScreen
+never had an opinion about it.
+
 ### Both maps of this tree now have to name paths that exist (2026-09-22)
 
 `docs/PLAN.md` §3 drew the tree as it was imagined before it was written, and the code had since

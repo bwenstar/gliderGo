@@ -43,6 +43,32 @@
 # plays without FFmpeg or anything else installed, and `-audio ffplay` is the way round it if the
 # driver misbehaves (docs/IMPROVEMENTS.md 2.48). The release notes below say all of this in the
 # reader's terms rather than the maintainer's.
+#
+# NOTHING HERE IS SIGNED, AND TWO OPERATING SYSTEMS SAY SO LOUDLY. This is the last thing between a
+# download and the title screen, and until docs/IMPROVEMENTS.md 4.13 filed it neither the notes nor
+# HOW-TO-RUN.txt mentioned it. An unsigned .exe with no download history gets Defender SmartScreen's
+# "Windows protected your PC", whose only visible button is Don't run -- Run anyway is behind More
+# info, which is a click a first-time player has no reason to make. Explorer also copies a
+# downloaded zip's Mark of the Web onto every file it extracts, so the dialog returns after it has
+# been dismissed once. On macOS a download carries com.apple.quarantine, and Archive Utility passes
+# it to what it unpacks while `tar xzf` does not. Three OS behaviours, none of them a bug in this
+# program, all three indistinguishable from one.
+#
+# So the notes and the two HOW-TO-RUN.txt variants now name each of them and give the click path.
+# Not signing is a decision and not an omission: a certificate costs a few hundred dollars a year
+# and has to be issued to a named person or company, which is a thing to do deliberately rather than
+# because a dialog was annoying, and SHA256SUMS is already published for anyone who wants to check
+# what is in the archive rather than who vouched for it.
+#
+# Unverified, and differently from the rest of this file. The other caveats here are about GitHub,
+# which this host cannot reach; these are about client machines nobody here has. The Windows half
+# can be rehearsed offline by anyone with a Windows box, because a browser download is only a file
+# with one alternate data stream on it:
+#
+#     Set-Content -Path .\glidergo.exe -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3"
+#
+# then double-click it in Explorer. Worth doing before the first tag; it is the one caveat in this
+# file that does not need the network to test.
 
 name: Release
 
@@ -401,6 +427,25 @@ jobs:
           is silent or stutters, "${cmd} -audio list" shows what this machine has, "${cmd}
           -audio ffplay" uses FFmpeg instead if you have it, and "${cmd} -wav out.wav" writes
           what you should have heard to a file.
+
+          IF WINDOWS REFUSES TO OPEN IT AT ALL.
+
+          Two things happen to a file that came from the internet, and neither is a fault in
+          this program.
+
+          A blue "Windows protected your PC", whose only visible button says Don't run: that is
+          Defender SmartScreen, and every unsigned program with no download history gets it.
+          Click More info, then Run anyway. There is no Run anyway button until you do.
+
+          The quieter one is Mark of the Web. Windows tags a downloaded zip and Explorer copies
+          the tag onto every file it extracts, so the dialog can come back after you got past
+          it once. Right-click the zip before extracting, Properties, tick Unblock, OK -- or run
+          this in this directory afterwards:
+
+              Get-ChildItem -Recurse | Unblock-File
+
+          Neither one has looked at what is in the .exe. They looked at who signed it, and
+          nobody did. SHA256SUMS on the release page is the check on the contents.
           TXT
             else
               cat > "$stage/HOW-TO-RUN.txt" <<TXT
@@ -415,6 +460,30 @@ jobs:
           32-bit display.
           TXT
             fi
+
+            # One more paragraph if this archive is going to a Mac, and only then: the headless
+            # text above is shared with linux-arm64, whose reader has no Gatekeeper to hit and no
+            # reason to be told about one. Appended rather than branched into the heredoc so the
+            # three-way if stays about what the build can draw, which is what it is sorted by.
+            case "$target" in
+            darwin-*) cat >> "$stage/HOW-TO-RUN.txt" <<TXT
+
+          ONE THING macOS DOES TO DOWNLOADS.
+
+          A file from a browser carries com.apple.quarantine, and how you unpack this decides
+          whether ${cmd} inherits it. Double-clicking the .tar.gz in Finder hands it to Archive
+          Utility, which passes the attribute on; "tar xzf" in a terminal does not, because the
+          attribute is on the archive file rather than stored inside it. So unpack it in a
+          terminal. If you have already met "cannot be opened because the developer cannot be
+          verified", this clears it:
+
+              xattr -d com.apple.quarantine glidergo
+
+          Nothing here is signed, which is what that message is about. It is not a check on what
+          is in the archive; SHA256SUMS on the release page is that.
+          TXT
+            ;;
+            esac
 
             # CRLF for an archive Windows will unpack, so Notepad shows lines and not one line.
             if [ "$format" = zip ]; then
@@ -524,6 +593,46 @@ jobs:
 
           macOS is stage 6. The headless builds are still useful: they run houses, take `-shot`
           screenshots and dump frames as PNGs.
+
+          ### Your computer will try to stop you, once
+
+          Nothing here is signed, and Windows and macOS both say so in a way that reads exactly
+          like a broken download. Neither is a fault in the game and both take one click.
+
+          **Windows: "Windows protected your PC."** A blue dialog whose only visible button says
+          *Don't run*. Click **More info**, then **Run anyway** — there is no Run anyway button
+          until you do. That is Microsoft Defender SmartScreen, and every unsigned program with no
+          download history gets it. The only thing that removes it is a code-signing certificate,
+          which costs a few hundred dollars a year and has to be issued to a named person or
+          company; that is a decision to make on purpose, not because a dialog was in the way.
+
+          **Windows, the quieter half: Mark of the Web.** A zip that came from a browser is
+          tagged, and extracting it in Explorer copies the tag onto every file inside — which is
+          why the dialog can come back after you thought you had got past it. Right-click the zip
+          *before* extracting → Properties → tick **Unblock** → OK clears it once for everything
+          in it. If you have already extracted, run this in the unpacked directory:
+
+          ```
+          Get-ChildItem -Recurse | Unblock-File
+          ```
+
+          **macOS: quarantine.** A download carries `com.apple.quarantine`, and how you unpack it
+          decides whether the binary inherits it. Double-clicking the `.tar.gz` in Finder hands it
+          to Archive Utility, which passes the attribute on; `tar xzf` in a terminal does not,
+          because the attribute is on the archive file rather than stored inside it. So unpack it
+          in a terminal. If you have already met *"cannot be opened because the developer cannot
+          be verified"*:
+
+          ```
+          xattr -d com.apple.quarantine glidergo
+          ```
+
+          None of the three looks at what is *in* the archive. They look at who signed it, and
+          nobody did. `SHA256SUMS`, below, is the check on the contents, and it is the one worth
+          running. These click paths are the documented behaviour rather than something this
+          project has watched happen — it is built on an offline machine with no browser to
+          download anything with — so if one of them has changed, an issue saying so will change
+          this section.
 
           ### If you are on Windows, read this first
 

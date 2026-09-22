@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; seven more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map); the rest filed below**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; eight more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings); only `release.yml`'s `sed` is left, and 5.4 owns it**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3286,6 +3286,43 @@ cost is the part worth remembering:
   no Run anyway button visible until they click More info, and a macOS build is quarantined outright.
   Neither is a bug and both look exactly like one. This is 5.4's release notes, and it is the single
   most likely reason a first-time player never sees the title screen at all.
+
+  *(2.4, **DONE** as far as an offline machine can take it. Three places now say it: a new "Your
+  computer will try to stop you, once" section in `release.yml`'s release notes, placed above the
+  Windows section because it comes first in the reader's day; a block in the zip archives'
+  `HOW-TO-RUN.txt`; and a shorter one appended to the darwin archives' `HOW-TO-RUN.txt` only. That
+  last detail is the reason it is appended rather than written into the heredoc — the headless text
+  is shared with `linux-arm64`, whose reader has no Gatekeeper and no reason to be told about one,
+  and the three-way `if` above it is sorted by what the build can draw, which is a different
+  question.*
+
+  *Each of the three gets the click path and not just the name. `More info` → `Run anyway`, because
+  the button a player needs is the one the dialog hides. For Mark of the Web, right-click the zip
+  **before** extracting → Properties → Unblock, which is the form that clears it once instead of per
+  file, with `Get-ChildItem -Recurse | Unblock-File` for somebody who has already extracted. For
+  macOS, the fact that decides the outcome: Archive Utility propagates `com.apple.quarantine` to what
+  it unpacks and `tar xzf` does not, because the attribute is on the archive file rather than stored
+  inside it — so "unpack it in a terminal" is the whole fix, and `xattr -d` is only for a reader who
+  already did it the other way.*
+
+  *Not signing is stated as a decision rather than left to look like an oversight. A certificate
+  costs a few hundred dollars a year and has to be issued to a named person or company, which is the
+  same argument `internal/project`'s `Copyright` makes about "the gliderGo authors": that is a thing
+  to do deliberately. Each of the three sections ends on the distinction that matters, which is that
+  none of these checks looks at what is in the archive — `SHA256SUMS` does, and it is already
+  published.*
+
+  *What is unverified, and it is a different kind of unverified from the rest of `release.yml`. That
+  file's standing caveat is about GitHub, which this host cannot reach; this is about client machines
+  nobody here has. The Windows half needs no network at all, though, which is the useful discovery: a
+  browser download is an ordinary file with one alternate data stream on it, so
+  ``Set-Content -Path .\glidergo.exe -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3"``
+  and then a double-click in Explorer is the real test. The recipe is in
+  `docs/windows-first-run.md` under "Rehearsing what a download adds, with no download", which is
+  where the next person with a Windows box will look, and it is listed there as gap 4 — the `.exe`
+  that ran on Server 2025 arrived over SSH and so carried no mark and met no SmartScreen. It is worth
+  doing before the first tag: the notes say `Run anyway` is behind `More info` on the authority of
+  documentation, and one double-click would put it on the authority of somebody having seen it.*
 
 ### 4.14 The houses this port writes will sit on the same shelf as the 1994 ones, and nothing said which was which — **DONE, 2.2; the built-in New set followed in 2.3, and the amendment below is where the flag's meaning changed**
 
@@ -4450,6 +4487,15 @@ instant a release page has something on it, and both are the natural home for
 `project.Releases`, deleted in 2.4 because it had no reader and a page with nothing on it is not
 something to point a player at (4.13). Putting it back is one line in `internal/project/project.go`,
 and `TestEveryExportedConstantHereIsReadBySomething` will hold it to having a caller this time.
+
+**And one thing to do before the first tag is pushed.** The release notes now walk a player through
+SmartScreen, Mark of the Web and Gatekeeper quarantine, which 4.13 called the single most likely
+reason a first-time player never reaches the title screen — and they do it from documentation rather
+than from anyone having watched it happen. The Windows half needs no network to check: write a
+`Zone.Identifier` stream onto the `.exe` by hand and double-click it in Explorer.
+`docs/windows-first-run.md`, "Rehearsing what a download adds, with no download", has the two
+commands. It is the only unverified claim in `release.yml` that github.com is not required to settle,
+which makes it the cheapest one on the list and the last one that has an excuse.
 
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; windows/amd64 is now run as well as compiled, macOS and windows/arm64 are still compile-only**
 

@@ -206,7 +206,7 @@ platforms the way it already diffs pixels.
 
 ## What this did not prove
 
-Three gaps, stated plainly because the release notes point here for them.
+Four gaps, stated plainly because the release notes point here for them.
 
 1. **No key was ever pressed.** Every run was driven by `-frames`, so nobody has steered a glider
    through a house on Windows by hand. `internal/platform/win32/keys.go` — the virtual-key table
@@ -217,6 +217,11 @@ Three gaps, stated plainly because the release notes point here for them.
 3. **Nobody touched the window.** No resize, no focus change, no drag, no close-button quit, no
    alt-tab. The window was created, painted 4,320 frames across six runs, and exited on its own
    frame count every time.
+4. **The `.exe` did not arrive the way a player's will.** It was copied over SSH from the machine
+   that built it, so it carried no Mark of the Web and Defender SmartScreen never had an opinion
+   about it. A downloaded zip gets both, and what a first-time player meets is therefore one screen
+   *earlier* than anything on this page — see the section below, which is the one part of this
+   document that can be rehearsed without a download.
 
 Also untested: more than one sound device, a machine with no sound device at all (the code has a
 path for it), any non-US keyboard layout, and a full game played through to a high score.
@@ -262,3 +267,26 @@ exactly one.
 The two flags that matter there: `-prefs none -scores none -saves none` so an existing
 configuration cannot change what is drawn, and **paced rather than `-bench`**, because the window
 has to stay up long enough to photograph.
+
+## Rehearsing what a download adds, with no download
+
+Gap 4 above is the one gap on this page that an airgapped machine can close, because a browser
+download is not a special kind of file — it is an ordinary file with one alternate data stream on
+it. Write the stream by hand and Windows cannot tell the difference:
+
+```
+Set-Content -Path .\glidergo.exe -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3"
+Get-Item -Path .\glidergo.exe -Stream Zone.Identifier
+```
+
+`ZoneId=3` is the internet zone, which is what a browser writes. Then **double-click it in
+Explorer**, which is the path that matters: SmartScreen's prompt comes from the shell's attachment
+check and not from `CreateProcess`, so launching the same file from PowerShell is not the same test
+and may well not prompt at all. What to record: whether the dialog appears, its exact wording, and
+whether *Run anyway* is behind *More info* as
+[`.github/workflows/release.yml`](../.github/workflows/release.yml)'s release notes tell a player it
+is. `Unblock-File .\glidergo.exe` removes the stream again, so the test can be repeated.
+
+Worth doing before the first tag is pushed, because those notes currently describe this from
+documentation rather than from having watched it (`docs/IMPROVEMENTS.md` 4.13). It is also the only
+caveat in that file which does not need github.com to check.
