@@ -17,6 +17,63 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A house of our own can carry pictures of its own, and `-houseart` no longer takes the other houses' away (2026-09-23)
+
+A room's `background` at 3000 or above names a picture the *house* carries rather than one of the
+eighteen the application carries, and twenty of the 22 shipped houses use that — but until now a
+house authored in `levels/` could not, and the flag that looked like the way in was the reason.
+`-houseart DIR` *replaced* the built-in forks rather than adding to them, so the only way to give a
+new house a picture was to point the flag at a directory, which took the shipped houses' pictures
+away for as long as it was pointed there. Both halves of that were filed as `docs/IMPROVEMENTS.md`
+4.15 while writing the first house of our own, and the mechanism for both is closed here.
+
+The lookup is a search list now rather than a substitution. `assetfs.ArtRoots` is an ordered list of
+roots and a house takes its pictures from the first one holding a directory of its name: `-houseart`
+first, then `houseart/` inside the levels tree, then the extracted 1994 forks. So the authoring path
+for a house of our own is a file and no flag — a PNG at `levels/houseart/<House Name>/pict/3000.png`,
+`make levels` to copy the tree in beside the built houses, `make levels-zip` to pack it into the
+archive every executable embeds. A downloaded binary then has the pictures the same way it has the
+house, which is the property `assets/levels.zip` exists for; `assets/extracted/` could not be the
+place for them, because it is byte-for-byte diff-locked against the extractor. `bnds/<id>.bin` is the
+other half of a fork and is read on the same search, so a house-carried background can say which of
+its sides are room openings. One thing had to learn to ignore the new directory: the house library
+walk in `internal/shell/library.go` now skips `houseart` at the top of the levels tree, by that name
+and only there, because a picture is not a house and a room called `pict` is not one either.
+
+Making the flag purely additive would have broken the workflow it exists for, which is testing an
+extraction: a tree missing half its houses would have quietly looked complete. So a root remembers
+whether a *person* named it, and a named root that gets passed over is reported (`no resource fork at
+/tmp/art/Titanic; using built-in:houseart/Titanic`) while a built-in miss stays silent. The levels
+tree is deliberately not a named root even when `-levels` was typed on the command line: what was
+named there is a directory of houses, so a house in it with no art beside it is ordinary rather than a
+mistake worth a line.
+
+The complaint those roots print was itself wrong, which is 4.17, and it was wrong in two ways at
+once. It fired whenever a fork was missing, including for the great majority of houses that do not
+want one, and it existed in two copies that had already drifted apart. There is one copy now,
+`assetfs.Fork.Complaint`, and it asks `house.WantsOwnArt()` rather than guessing: a house wants a fork
+if any room's background is 3000 or above, or any object is a `kCustomPict`. The note that filed 4.17
+listed two more conditions than that and both are wrong. `kTV` wants a QuickTime movie, which this
+port has no support for at all and would not find in a resource fork. `kSoundTrigger` reads the
+*sound* root's shared manifest, keyed by house name, and never looks at the art tree. `kCustomPict`
+counts at any id, including ids under 3000, because Metropolis carries its own PICT 1999 and Fun House
+its own 2014 and 2015. The predicate is checked against the corpus rather than argued: over all 22
+shipped houses `WantsOwnArt()` agrees exactly with whether a fork directory exists on disk.
+
+Two commands stay silent on purpose. `house lint` already reports a missing picture as
+`background-pict`, with the id and the room name, which is a better report than a one-line summary —
+and adding the summary beside it would recreate the two-copies problem that 4.17 was. `house stats`
+is a measurement, and `forkBounded` already counts the rooms a missing fork affected. A replay is
+silent for a third reason: its report is a trace, and a missing picture shows up in the frame hash.
+
+No house of ours carries art yet, and that half of 4.15 stays open, because it is an art task and not
+an engineering one — the share of Open House that would want a painting is nineteen of its 43 rooms,
+and a single new room at background 3000 moves every number `internal/profile`'s tests assert. What
+proves the mechanism instead is an end-to-end test that builds the tree in a temporary directory and
+plays two frames: the back plane's hash differs with the art present and matches what `-houseart`
+produces for the same tree. Sounds are the remaining gap and are now filed as 4.29 — the 22 originals
+carry 63 of them across 13 houses, and a house authored here still cannot carry one.
+
 ### Stage 3, second half: the race is something a player can start, watch and win (2026-09-23)
 
 `-host` waits for another machine, `-join <address>` finds one, and `-port` moves both off 1994. The

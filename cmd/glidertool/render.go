@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/render"
@@ -76,14 +75,14 @@ func renderCmd(args []string) error {
 	//
 	// The house is named by a path here rather than by a name in a library, so the fork is
 	// looked up by that path's base name -- which is what the house is called, on disk and in
-	// the built-in tree alike.
-	houseArtFS, houseArtName := assetRoot(*houseDir, "houseart")
+	// the built-in tree alike. Three roots are searched rather than one; see houseArtRoots.
 	name := strings.TrimSuffix(filepath.Base(path), ".house")
-	fork := assetfs.Name(houseArtName, name)
-	if assetfs.IsDir(houseArtFS, name) {
-		assets.OpenHouseResFork(fork, assetfs.Sub(houseArtFS, name))
-	} else if !*quiet {
-		fmt.Fprintf(os.Stderr, "%s: no extracted resource fork at %s; custom art will fall back\n", prog, fork)
+	fork := houseArtRoots(*houseDir).Fork(name)
+	if fork.Found() {
+		assets.OpenHouseResFork(fork.Label, fork.FS)
+	}
+	if why := fork.Complaint(name, h.WantsOwnArt()); why != "" && !*quiet {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", prog, why)
 	}
 
 	scene := render.NewScene(render.DefaultView(), assets, h)

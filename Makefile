@@ -167,6 +167,14 @@ houses: glidertool
 #
 # replaces the embedded set with whatever is in it, which is how you play a house you are in
 # the middle of writing without repacking anything.
+#
+# A house here may carry pictures of its own, in `levels/houseart/<House Name>/pict/<id>.png`,
+# copied through to the same path under $(LEVELS) and so into the archive and every executable.
+# That is the whole of docs/IMPROVEMENTS.md 4.15: before it, the only way to give a house art was
+# -houseart, and -houseart worked by *replacing* the root that half the 1994 houses read from, so
+# a new house could have pictures or the originals could, never both. Nothing is committed under
+# levels/houseart yet -- the port's two houses are drawn entirely with built-in backgrounds, and
+# painting one is an art task rather than an engineering one -- so today this copies nothing.
 levels: glidertool
 	@mkdir -p $(LEVELS)
 	@# Clear the previous build's houses first, because this directory is compared against the
@@ -176,10 +184,17 @@ levels: glidertool
 	@# the archive, and `go test ./assets` is left to catch a house nobody wrote. The glob is
 	@# narrow on purpose -- only this target's own output, not the directory.
 	@rm -f $(LEVELS)/*.house
+	@# The art goes the same way and for the same reason, except that the whole directory is the
+	@# unit: a picture deleted from levels/houseart/ has to disappear from the archive too, and
+	@# `cp -r` over the top of the old tree would leave it. Removed before the test for the
+	@# source, not after, so that deleting levels/houseart entirely is a complete removal rather
+	@# than a state where the archive keeps the last copy for ever.
+	@rm -rf $(LEVELS)/houseart
+	@if [ -d levels/houseart ]; then cp -r levels/houseart $(LEVELS)/houseart; fi
 	@set -e; for src in levels/*.house.txt; do \
 		out="$(LEVELS)/$$(basename "$$src" .txt)"; \
 		$(BIN)/glidertool house build -o "$$out" "$$src"; \
-		$(BIN)/glidertool house lint -fail warn "$$out"; \
+		$(BIN)/glidertool house lint -fail warn -houseart $(LEVELS)/houseart "$$out"; \
 	done
 	@# Read-only, and the reason it is here rather than in `levels-zip` is that this is the
 	@# moment the two can disagree: the text just changed, the directory has caught up, and the

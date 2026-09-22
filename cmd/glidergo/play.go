@@ -28,7 +28,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
 	"github.com/bwenstar/gliderGo/internal/game"
 	"github.com/bwenstar/gliderGo/internal/game/player"
@@ -460,13 +459,15 @@ func (a *app) play(ref houseRef, two, resume bool) (shell.Outcome, error) {
 	// The house's own resource fork shadows the application's for as long as the
 	// house is open, which is what HouseIO.c does. Without it every custom
 	// background in the house falls back to PICT 2000 and half the shipped houses
-	// look wrong.
-	houseArtFS, houseArtName := o.houseArtRoot()
-	fork := assetfs.Name(houseArtName, name)
-	if assetfs.IsDir(houseArtFS, name) {
-		assets.OpenHouseResFork(fork, assetfs.Sub(houseArtFS, name))
-	} else if !o.quiet {
-		fmt.Fprintf(os.Stderr, "glidergo: no extracted resource fork at %s; custom art will fall back\n", fork)
+	// look wrong. Three roots are searched rather than one, so that a house written
+	// for this port can carry pictures without taking those houses' art away; see
+	// houseArtRoots.
+	fork := o.houseArtRoots().Fork(name)
+	if fork.Found() {
+		assets.OpenHouseResFork(fork.Label, fork.FS)
+	}
+	if why := fork.Complaint(name, h.WantsOwnArt()); why != "" && !o.quiet {
+		fmt.Fprintf(os.Stderr, "glidergo: %s\n", why)
 	}
 
 	view := render.DefaultView()

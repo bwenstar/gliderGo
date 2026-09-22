@@ -134,6 +134,10 @@ const DemoHouse = "Demo House"
 // report useless.
 var houseExts = map[string]bool{"": true, ".house": true, ".glh": true}
 
+// houseArtDir is the one subdirectory name a root can hold that is known not to be houses: the
+// per-house pictures, spelled the same in the levels root and under assets/extracted. See walk.
+const houseArtDir = "houseart"
+
 // Discover walks every source it is given and returns one sorted list of the houses in all
 // of them.
 //
@@ -198,6 +202,21 @@ func (l *Library) walk(src Source) error {
 		}
 		if d.IsDir() {
 			if rel != "." && strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
+			// "houseart" at the top of a root holds pictures, not houses. It is skipped by
+			// name, and only at the top, because that is exactly where the convention puts it
+			// (internal/assetpack.LevelsName): a levels root carries `houseart/<House
+			// Name>/pict/<id>.png` beside its houses. Nothing in there has a house's
+			// extension today, so this changes no listing -- what it stops is a future
+			// extensionless file in somebody's art tree turning up in Skipped as a house that
+			// would not parse, which is a confusing way to be told about a stray file.
+			//
+			// At the top only, and not anywhere: a directory of houses that happens to have a
+			// subdirectory of that name deeper down is not making this claim, and a walker
+			// that silently dropped it would be the picker deciding what a player's own
+			// folders mean.
+			if rel == houseArtDir {
 				return fs.SkipDir
 			}
 			return nil

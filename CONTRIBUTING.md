@@ -186,6 +186,38 @@ back. `make levels` refuses if the archive has gone stale, and `go test ./assets
 authored house and compares the bytes, so a house committed without `make levels-zip` fails there
 rather than shipping as its previous build.
 
+### A house that carries its own pictures
+
+A room's `background` below 3000 names one of the eighteen pictures the application carries. At 3000
+and above it names a picture the *house* carries, and a house authored here carries one by putting a
+PNG under `levels/houseart/`:
+
+```bash
+mkdir -p "levels/houseart/My House/pict"
+cp my-background.png "levels/houseart/My House/pict/3000.png"
+make levels && make levels-zip
+```
+
+One PNG per `PICT` id, `<id>.png`, room-background size (640×460 as the extracted ones are; a
+too-narrow picture is a lint warning, because the tile columns read off the right edge of it). The
+directory name is the house's name, which is its file name without `.house`. `make levels` copies the
+tree into `assets/levels/` beside the built houses and `make levels-zip` packs it into the archive
+every executable embeds — so a downloaded binary has the pictures the same way it has the house, with
+no flag and no files beside it. `bnds/<id>.bin` is the other half of a fork if you need it: it says
+which sides of a background are room openings, and it is read for any room whose `background` is
+3000 or more.
+
+This is a *search*, not a substitution: `-houseart DIR` is looked at first, then the levels tree,
+then the 1994 forks under `assets/extracted/houseart/`. So a house of yours can have pictures without
+taking the shipped houses' pictures away, which is the thing that did not work before
+(`docs/IMPROVEMENTS.md` 4.15). If you point `-houseart` at a tree that does not have the house you are
+playing, you are told — that flag exists for testing an extraction, and a silent fall-through would
+make a half-extracted tree look complete.
+
+**Sounds do not work this way yet.** A `kSoundTrigger` can name a sound the application already has
+and nothing else; custom `snd ` needs a second manifest in the sound root and is filed as
+`docs/IMPROVEMENTS.md` 4.29.
+
 **One field is a promise, not a value.** A house's `timestamp` is the key every saved game of that
 house is checked against (`internal/saved/store.go:401-407`), so changing it on a house that has
 shipped refuses every save any player has made in it — and nothing else notices, because the house

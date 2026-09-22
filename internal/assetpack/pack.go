@@ -63,6 +63,12 @@ const Name = "extracted.zip"
 // It is a plain name and not a prefix: the archive's members are "Open House.house", at its
 // root, the same way the extracted archive's are "houses/Castle o' the Air.house" relative to
 // assets/extracted. A root is a root.
+//
+// At its root, but not only at its root. A house here may carry pictures of its own, and they sit
+// under "houseart/<House Name>/pict/<id>.png" -- the same layout, and the same spelling, as the
+// extracted archive's forks, because an author who has looked at one already knows the other
+// (docs/IMPROVEMENTS.md 4.15). So the levels root has one subdirectory with a meaning, and a house
+// name is still resolved against the top level and nothing else.
 const LevelsName = "levels.zip"
 
 // packTime is the timestamp every entry gets.

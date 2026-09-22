@@ -8,7 +8,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/audio"
 	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
@@ -102,7 +101,9 @@ func houseLint(args []string) error {
 			bank = b
 		}
 	}
-	houseArtFS, houseArtName := assetRoot(*houseDir, "houseart")
+	// Three roots searched rather than one, so that a house of this port's own can be linted
+	// against art of its own without taking the 1994 houses' art away (houseArtRoots).
+	artRoots := houseArtRoots(*houseDir)
 
 	hit := false
 	var totalNotes, totalWarns, totalErrs int
@@ -117,13 +118,18 @@ func houseLint(args []string) error {
 		// the house is open (HouseIO.c's OpenHouseResFork), and the fork is found by
 		// the file's base name -- which is what the house is called on disk and in
 		// the built-in tree alike.
+		//
+		// No Fork.Complaint here, and that is not an omission. The other two callers say "this
+		// house wanted art and there was none" because that is all they can say; lint has
+		// opt.PictSize and so reports the same fact per picture, naming the id that is missing
+		// and the room it is in. A line above the report saying less than the report does
+		// would be the second copy of a message that 4.17 was about there being two of.
 		name := strings.TrimSuffix(filepath.Base(path), ".house")
 		var opt house.LintOptions
 		if assets != nil {
 			assets.CloseHouseResFork()
-			if assetfs.IsDir(houseArtFS, name) {
-				assets.OpenHouseResFork(assetfs.Name(houseArtName, name),
-					assetfs.Sub(houseArtFS, name))
+			if fork := artRoots.Fork(name); fork.Found() {
+				assets.OpenHouseResFork(fork.Label, fork.FS)
 			}
 			opt.PictSize = func(id int16) (int, int, bool) {
 				s := assets.Pict(id)

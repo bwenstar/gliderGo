@@ -62,20 +62,25 @@
 # Two targets are deliberately missed, and both for the same reason.
 #
 # 10.3 step 3's background mix wants 27 % user-structure and 17 % user-open art.
-# This house has none, and may not: a house of ours is restricted to the built-in
-# backgrounds 2000-2017 and the built-in object art -- no kUserBackground (>= 3000),
-# no kCustomPict, no kTV, no custom `snd `. Not because gliderGo cannot read house
-# art: it reads it as plain PNGs named by PICT id under houseart/<name>/pict/, and
-# painting one would be easy. The obstruction is where the bytes may sit.
-# assets/extracted/ is diff-locked against the extractor by `make assets-check`, so
-# our art cannot go in beside 1994's; and the levels archive holds houses and nothing
-# else, while -houseart *replaces* the one art root, so handing this house its own
-# pictures takes that art away from every shipped house. Both halves are
-# filed as docs/IMPROVEMENTS.md 4.15. So the mix here is 72 % indoor, 21 % air and
-# 7 % kDirt where the corpus is 15/22/10 plus 44 % of its own art. Nothing about the
-# *play* depends on it -- and note that three of 10.3's rules (step 4's kInvisLight
-# for user-art rooms, and 10.5's kSoundTrigger and kTV traps) have nothing to apply
-# to here, so they go live the day a house does carry art.
+# This house has none. It *may* now, which it could not when this was written, and the
+# change is worth knowing about before you edit anything below: put a PNG at
+# levels/houseart/Open House/pict/3000.png, give a room `background 3000`, and
+# `make levels` carries it into the archive every executable embeds. Nothing needs a
+# flag and nothing goes near assets/extracted/, which stays diff-locked against the
+# extractor. The mechanism is docs/IMPROVEMENTS.md 4.15 and its closing amendment;
+# what stopped it before was that -houseart *replaced* the single art root, so handing
+# this house its own pictures took that art away from every shipped house, and the fix
+# is that the lookup searches a list of roots instead.
+#
+# So the mix here is 72 % indoor, 21 % air and 7 % kDirt where the corpus is 15/22/10
+# plus 44 % of its own art, and that is now a gap in the painting rather than a gap in
+# the port. Nothing about the *play* depends on it. Two things to know if you close it:
+# 10.3 step 4 -- light every user-art room with a kInvisLight -- is live rather than
+# inapplicable, and so is 10.5's kTV-with-no-movie trap. The one restriction that has
+# not lifted is **no custom `snd `**: house sounds arrive through the sound root's
+# shared houses/manifest.tsv rather than from beside the house, which is a different
+# mechanism and is filed separately as docs/IMPROVEMENTS.md 4.29. A kSoundTrigger here
+# may name a sound the application already has and nothing else.
 #
 # 10.3 step 5 wants interiors filled to 11-13 objects. These hold 3-5. The tutorial
 # tier's 2.2-3.1 objects/room and the 11-13 per interior cannot both be true unless

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/bwenstar/gliderGo/internal/assetfs"
 	"github.com/bwenstar/gliderGo/internal/cliargs"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/profile"
@@ -99,7 +98,7 @@ func houseStats(args []string) error {
 		artFS, an := assetRoot(*artDir, "art")
 		assets, artName = render.NewAssets(artFS), an
 	}
-	houseArtFS, houseArtName := assetRoot(*houseDir, "houseart")
+	artRoots := houseArtRoots(*houseDir)
 
 	// Rooms across this run whose four openings would have come out of a 'bnds' resource.
 	// Counted rather than assumed so that the -no-assets caveat below names a number: for
@@ -113,13 +112,15 @@ func houseStats(args []string) error {
 		}
 
 		// The fork is found by the file's base name, which is what the house is called
-		// on disk and in the built-in tree alike.
+		// on disk and in the built-in tree alike, and it is looked for in each of the three
+		// roots in turn (houseArtRoots). Silent either way: this subcommand's output is a
+		// measurement, and forkBounded below already counts the rooms whose numbers depended
+		// on a fork being there.
 		name := stem(path)
 		if assets != nil {
 			assets.CloseHouseResFork()
-			if assetfs.IsDir(houseArtFS, name) {
-				assets.OpenHouseResFork(assetfs.Name(houseArtName, name),
-					assetfs.Sub(houseArtFS, name))
+			if fork := artRoots.Fork(name); fork.Found() {
+				assets.OpenHouseResFork(fork.Label, fork.FS)
 			}
 		}
 		p := profile.Measure(h, assets)

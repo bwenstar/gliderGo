@@ -3515,7 +3515,7 @@ and committed, `-levels DIR` to replace the built-in root at run time.
   speculation: every row on the settings screen is a row a player has to read past, and nobody has
   yet had two sets large enough to be annoyed by this.
 
-### 4.15 A new house cannot have art of its own, because there is nowhere its pictures are allowed to sit — **note; found writing the first one, 2.3; half the mechanism has since changed**
+### 4.15 A new house cannot have art of its own, because there is nowhere its pictures are allowed to sit — **note; found writing the first one, 2.3; the mechanism is DONE, 2.5 — see the amendment; no house of ours carries art yet, and that half is an art task**
 
 `Open House` (2.3) is drawn entirely with built-in backgrounds 2000-2017 and built-in object art, and
 that was a constraint discovered rather than chosen. §10.3 step 3's target background mix is 15 %
@@ -3567,6 +3567,53 @@ step 4 — "light every user-art room with a `kInvisLight`", the most common aut
 nothing to apply to yet, and §10.5's `kSoundTrigger`-with-no-`snd ` and `kTV`-with-no-`.mov` traps
 are unreachable rather than avoided. Worth knowing when the first house does carry art: three of the
 recipe's rules go live at once.
+
+**Done, 2.5: the mechanism, both halves of it.** A house of this port's own puts its pictures in
+`levels/houseart/<House Name>/pict/<id>.png`; `make levels` copies that tree into `assets/levels/`
+beside the built houses, `make levels-zip` packs it into the archive every executable embeds, and a
+room with `background 3000` draws it with no flag and no files beside the binary. The other half is
+that the lookup now **searches** rather than substitutes. `internal/assetfs.ArtRoots` is an ordered
+list — `-houseart` first, then the levels tree's `houseart/`, then the extracted 1994 forks — and
+`ArtRoots.Fork(house)` returns the first root that holds a directory of that name. Every caller that
+mounts a fork goes through it: `cmd/glidergo/play.go`, `cmd/glidertool`'s `render`, `house lint` and
+`house stats`, and `internal/replay`.
+
+Three decisions in that are worth the words, because each was the alternative that looked simpler.
+
+**A named root that misses still says so, and a built-in one does not.** That is `ArtRoot.Named` and
+`Fork.Passed`. Making `-houseart` merely additive would have been one line and would have taken away
+the thing the flag exists for: somebody testing an extraction points it at their own tree, and a
+search that quietly fell through to the copy inside the binary turns a half-extracted tree into one
+that looks complete. So a *flag's* root that is passed over is reported — `no resource fork at
+/tmp/art/Titanic; using built-in:houseart/Titanic` — while a built-in root that has no fork for a
+house says nothing, because nine of the twenty-two carry no pictures at all and that is not news.
+
+**The levels art root is not `Named`, even when `-levels` is a directory somebody typed.** What they
+named is a root of *houses*; a house in it with no art beside it is the ordinary case rather than a
+mistake worth a line. `Named` is for the flag whose subject is art.
+
+**`houseart` at the top of a root is skipped by the house walker** (`internal/shell/library.go`).
+Nothing in an art tree has a house's extension today, so this changes no listing; what it stops is a
+future stray extensionless file in somebody's `pict/` turning up in the picker's `Skipped` list as a
+house that would not parse, which is a confusing way to be told about a stray file.
+
+The end-to-end proof is `TestAHouseCanCarryArtOfItsOwnInTheLevelsTree`, which gives `Open House`'s
+room 0 a `background 3000` and replays it three times: with the picture in the levels tree, with it
+nowhere, and with it named by `-houseart`. The first and third must draw identical pixels and the
+second must differ — a comparison rather than an assertion about a colour, because a house picture is
+colour-matched into the 1994 palette on the way in and a literal RGB would be a test of the matcher.
+It was checked against its own absence: with the levels root deleted from the search list, all three
+assertions fail.
+
+**Not done: no house of ours carries any art, and that is why this stays open.** The 44 % of rooms
+§10.3 wants painted is the original complaint, and it is an art task — 44 % of 43 rooms is nineteen
+512×322 paintings, which is not something this host can produce and not something engineering can
+substitute for. What has changed is that the obstruction is gone: the header comments of both houses
+now say what is possible rather than what was forbidden, and §10.3 step 4's `kInvisLight` rule and
+§10.5's two traps are live rather than unreachable. The custom `snd ` half of that header restriction
+is *not* closed by this and is filed separately as 4.29 — house sounds arrive through the sound
+root's shared `houses/manifest.tsv` (`internal/audio.Bank.LoadHouse`) rather than through `houseart/`,
+so they need a different mechanism entirely.
 
 ### 4.16 The profile a new house is held to was measured by hand, and two of its fifteen rows cannot be measured at all — **note; the Go half DONE, 2.3; both "impossible" rows turned out to be computable, the second in 2.4 — DONE, see the two amendments**
 
@@ -3718,7 +3765,7 @@ response to a miss is to look at it and then say what you found.
   about the corpus that lives in a `fmt.Printf` has nothing holding it, and this project's habit of
   pinning such claims to a test is what the tool now makes possible for claims about *tiers*.
 
-### 4.17 A house with no custom art is told its custom art will fall back — **note; cosmetic, 2.3**
+### 4.17 A house with no custom art is told its custom art will fall back — **found and DONE, 2.5; the note's own list of what counts was too long by two**
 
 Rendering `Open House` prints `no extracted resource fork at built-in:houseart/Open House; custom
 art will fall back` before every image. It is true and it is useless: the house uses no art above
@@ -3731,6 +3778,29 @@ and over the objects for a `kCustomPict`, `kTV` or `kSoundTrigger`, all of which
 can already see (`lint.go:783` does the `kCustomPict` half). Left as a note because the message is
 suppressed by `-quiet` and misleads nobody who reads the next line, but it is the first thing a new
 house's author sees and it tells them they have done something wrong.
+
+**Done, 2.5, with 4.15 because it is the same two call sites.** The predicate is
+`house.House.WantsOwnArt` and the words are `assetfs.Fork.Complaint`, one copy of each, so the
+condition and the sentence can no longer drift apart in the way that needed this note to name two
+files. `Open House` and `Boarding House` now render and play silently on a complete asset tree, which
+they should always have done.
+
+**The note's own list of objects was wrong, and finding out is most of what the work was.** It said
+`kCustomPict`, `kTV` or `kSoundTrigger`. Only the first belongs. A `kTV` wants a QuickTime movie,
+which this port has no support for at all and draws built-in art instead
+(`internal/game/dynamics_appliances.go`), so a house full of televisions is not a house with missing
+pictures. A `kSoundTrigger` wants a `snd `, which arrives through the sound root's per-house manifest
+(`internal/audio.Bank.LoadHouse`) and not through `houseart/` — a different root, a different file
+format and a different gap, now filed as 4.29. Counting either would have reproduced the bug this
+item is about in a new place: a warning about pictures, on a house whose pictures are all present.
+
+The other correction runs the other way. `kCustomPict` counts **whatever id it names**, including one
+the application also has, and the reason is in the 1994 data: Metropolis carries its own `PICT` 1999
+and Fun House its own 2014 and 2015, all three shadowing application art. So "below 3000" is no
+evidence that the fork is unwanted, and the only exact test — "is this id in the application's chain
+and not in the house's" — needs the very fork whose absence is being reported.
+`TestWantsOwnArtAgreesWithTheShippedForks` holds the result against the corpus: for all 22 shipped
+houses, `WantsOwnArt` and "has a directory under `assets/extracted/houseart`" agree exactly.
 
 ### 4.18 §10.3's construction procedure and §10.2's tier table contradict each other, and a tutorial house cannot satisfy both — **note; found by following them, 2.3; narrowed to the tutorial column by the second house, 2.4**
 
@@ -4500,6 +4570,39 @@ was written on, is both of them. It is filed rather than fixed so that it is not
 somebody on Windows wondering where the two-player mode went. LAN discovery, which `docs/PLAN.md`
 Stage 3 already calls a nice-to-have, belongs to the same dialog: the reason a player needs to know an
 IP address at all is that nothing offers them a list.
+
+### 4.29 A new house can carry pictures now, and still cannot carry a sound — **note; found closing 4.15, 2.5**
+
+4.15 is closed for art: a house of this port's own puts PNGs in
+`levels/houseart/<House Name>/pict/`, they ride into the embedded archive, and `background 3000`
+draws them. **Sounds do not work that way and were never going to.** `internal/audio.Bank.LoadHouse`
+takes a house *name* and reads the **sound root's** `houses/manifest.tsv` — one shared file listing
+every house's `snd ` resources across all twenty-two — rather than looking beside the house for a
+directory of its own. So `levels/houseart/<House Name>/snd/` would be read by nothing, and the sound
+root is `assets/extracted/sound`, which is diff-locked against the extractor for exactly the reason
+4.15 says the art tree is: being byte-for-byte reproducible from the 1994 CD is that tree's whole
+value.
+
+The consequence for an author is one line of the header comment that has not changed: **no custom
+`snd `**. A `kSoundTrigger` in a house of ours can name a sound the application already has and
+nothing else, which is the narrower half of §10.5's `kSoundTrigger`-with-no-`snd ` trap — the trap is
+now reachable for art and still not for sound.
+
+**What it would take, and why the art fix does not generalise.** Art is looked up per picture, by id,
+through a chain of filesystems, so adding a filesystem to the chain was the whole change. Sound is
+looked up per house through a manifest, so the equivalent is a *second manifest*: `Bank.LoadHouse`
+would have to search a list of sound roots the way `ArtRoots` searches art roots, each root carrying
+its own `houses/manifest.tsv`, and merge rather than substitute — which is a shape decision about
+whether a new house may shadow an original's sound as well as add its own. The levels tree would then
+carry `sound/houses/manifest.tsv` plus the WAVs beside it, and `make levels` would copy it the way it
+now copies `houseart/`.
+
+**Filed rather than built, and the reason is that nothing wants it yet.** The two houses of ours use
+built-in sounds only, and unlike art there is no §10.3 row saying how much custom sound a house of a
+given tier ought to have — the corpus's own use of it is thin and lopsided: 63 sounds across 13 of
+the 22 houses, half of them in `Leviathan`, `CD Demo House` and `Art Museum`, and nine houses with
+none at all. So this is the smaller half of the same complaint, waiting on the same thing 4.15 is
+waiting on: somebody with a house that wants it.
 
 ---
 

@@ -14,6 +14,12 @@
 // Five, not four, and the fifth arrives by a different door: -levels resolves against a second
 // embedded archive rather than a subdirectory of the first, which is what Whole is for.
 //
+// One root is one answer, with one exception: the per-house art. A house's own pictures are
+// looked up by the house's *name*, so several roots can hold art for different houses without
+// ever meaning two things by one path, and a new house must be able to carry pictures without
+// taking the twenty-two originals' art away. That is ArtRoots, which searches rather than
+// substitutes, and it is the only thing here that takes a list.
+//
 // Nothing here imports the assets package, and nor does anything else under internal/. The
 // built-in tree arrives as an fs.FS argument from whichever command was built with it, so a
 // test binary links none of it and reads the working copy instead -- which is where a
@@ -21,6 +27,7 @@
 package assetfs
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -66,6 +73,107 @@ func Whole(tree fs.FS, dir, name string) (fs.FS, string) {
 		return nil, ""
 	}
 	return tree, Label(name)
+}
+
+// ArtRoot is one place a house's own PICTs may sit: the houseart root of some tree, plus the
+// label that names it on a terminal.
+//
+// Named says the root came from a flag rather than from the built-in tree, and it is carried here
+// because it changes what a *miss* means. A built-in root that has no fork for a house is the
+// ordinary case -- nine of the twenty-two shipped houses carry no PICTs at all -- and is worth no
+// words. A directory somebody typed that has no fork for the house they are playing is worth one
+// line, because the commonest reason to type it is to test an extraction, and a search that
+// quietly fell through to the built-in copy would turn a half-extracted tree into a tree that
+// looked complete (docs/IMPROVEMENTS.md 4.15).
+type ArtRoot struct {
+	FS    fs.FS
+	Label string
+	Named bool
+}
+
+// ArtRoots is the ordered search list for one house's art: first hit wins.
+//
+// A list and not a root, because a new house has to be able to carry pictures without taking the
+// twenty-two originals' art away, and -houseart used to be the only way to hand a house art of
+// its own -- by *replacing* the root that half the shipped houses need. Searching instead of
+// substituting costs nothing, since the lookup was already per house by name and two houses of
+// the same name in two roots is a collision the picker has to resolve anyway
+// (docs/IMPROVEMENTS.md 4.15).
+type ArtRoots []ArtRoot
+
+// Fork is where one house's own PICTs were found, and what to say about it.
+type Fork struct {
+	// FS is the house's own subtree -- pict/<id>.png and bnds/<id>.bin -- or nil if no root in
+	// the list holds one. Nil is what render.Assets.OpenHouseResFork treats as "this house has
+	// no art of its own", which is a legitimate state and not an error.
+	FS fs.FS
+	// Label names it for cache keys and messages: "built-in:houseart/Titanic". When nothing was
+	// found it names every root that was searched, so the message says where to put a fork
+	// rather than only that there is not one.
+	Label string
+	// Passed are the labels of the *named* roots searched before the one that answered, in
+	// order. Empty in every ordinary run: it takes a flag to fill it.
+	Passed []string
+}
+
+// Found reports whether any root in the list holds this house's fork.
+func (f Fork) Found() bool { return f.FS != nil }
+
+// Complaint is what to say out loud about this lookup, or "" for the usual case of nothing.
+//
+// wants is whether the house names a picture only its own fork could supply
+// (house.House.WantsOwnArt). It decides the whole of the "found nothing" message, and that is
+// docs/IMPROVEMENTS.md 4.17: warning on "there is no fork here" rather than on "there is no fork
+// here *and* this house needed one" meant that `Open House` -- drawn entirely with built-in
+// backgrounds, and so the one house in the library that provably needs no warning -- was the only
+// house to get one on a complete asset tree.
+//
+// The words live here, in one place, because the two commands that mount a fork used to carry a
+// copy each and 4.17 had to name both files.
+func (f Fork) Complaint(house string, wants bool) string {
+	switch {
+	case !f.Found() && !wants:
+		return ""
+	case !f.Found():
+		return fmt.Sprintf("%s has no resource fork in %s, so its custom art will fall back",
+			house, f.Label)
+	case len(f.Passed) > 0:
+		// A flag named a root that does not have this house, and something else did. Said even
+		// when the house wants no art, because the claim being checked is about the directory
+		// rather than about the house: this is how a half-extracted tree is caught being passed
+		// off as a complete one.
+		return fmt.Sprintf("no resource fork at %s; using %s",
+			strings.Join(f.Passed, ", "), f.Label)
+	}
+	return ""
+}
+
+// NamedArt is the root a flag pointed at: the value *is* the root and there is nothing to resolve
+// out of a tree, which is Root's `dir != ""` arm without the argument it has no use for. It is
+// here rather than at the call site so that os.DirFS stays inside the package whose whole subject
+// is which of the two it should be.
+func NamedArt(dir string) ArtRoot { return ArtRoot{FS: os.DirFS(dir), Label: dir, Named: true} }
+
+// Fork searches the list for the house's own art and reports what it found.
+//
+// The test is IsDir and not "does pict/ exist", because that is the test this lookup has always
+// made and a fork holding only 'bnds' records is a real thing: `bnds` describes which sides of a
+// *built-in* background are room boundaries, so a house can carry one and no pictures at all.
+func (r ArtRoots) Fork(house string) Fork {
+	var passed, searched []string
+	for _, root := range r {
+		if root.FS == nil {
+			continue
+		}
+		searched = append(searched, root.Label)
+		if IsDir(root.FS, house) {
+			return Fork{FS: Sub(root.FS, house), Label: Name(root.Label, house), Passed: passed}
+		}
+		if root.Named {
+			passed = append(passed, Name(root.Label, house))
+		}
+	}
+	return Fork{Label: strings.Join(searched, ", ")}
 }
 
 // Label is how a built-in root is named on a terminal: "built-in:art".

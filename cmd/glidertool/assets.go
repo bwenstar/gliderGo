@@ -25,6 +25,42 @@ func assetRoot(dir, sub string) (fs.FS, string) {
 	return assetfs.Root(assets.Tree(), dir, sub)
 }
 
+// houseArtRoots is the search list for one house's own pictures: -houseart first because it is
+// the explicit one, then the port's own houses' art, then the extracted 1994 forks.
+//
+// A list rather than a root, and the whole of docs/IMPROVEMENTS.md 4.15 is in that: -houseart used
+// to be the only way to hand a house art of its own, and it worked by *replacing* the root that
+// half the twenty-two shipped houses need. Searching costs nothing, since the lookup was always by
+// house name, and it is what lets `glidertool house lint` check a house of this port's own against
+// this port's own pictures without pretending Titanic has none.
+//
+// glidertool has no -levels flag and does not need one to search the levels art: the tool is
+// shipped in the same archive as the game and carries both embedded trees, so the middle root is
+// always the built-in one. Somebody linting art they have just written, before `make levels-zip`
+// has put it in the archive, names it with -houseart -- which is what the Makefile's own `levels`
+// target does, and why a *named* root that misses is worth a line while a built-in one is not.
+func houseArtRoots(dir string) assetfs.ArtRoots {
+	roots := make(assetfs.ArtRoots, 0, 3)
+	if dir != "" {
+		roots = append(roots, assetfs.NamedArt(dir))
+	}
+	if sub := assetfs.Sub(assets.Levels(), houseArtDir); sub != nil {
+		roots = append(roots, assetfs.ArtRoot{FS: sub,
+			Label: assetfs.Name(assetfs.Label("levels"), houseArtDir)})
+	}
+	if tree := assets.Tree(); tree != nil {
+		roots = append(roots, assetfs.ArtRoot{FS: assetfs.Sub(tree, houseArtDir),
+			Label: assetfs.Label(houseArtDir)})
+	}
+	return roots
+}
+
+// houseArtDir is the subdirectory holding per-house forks, in both trees that have one: it is
+// `houseart` under assets/extracted and `houseart` at the top of the levels root. One spelling,
+// because the second was chosen to match the first. cmd/glidergo has the same constant for the
+// same reason neither binary imports the other's package.
+const houseArtDir = "houseart"
+
 // builtinTree is the whole built-in tree, for the one caller that hands it on rather than
 // resolving a root out of it: a replay.Script carries it so that internal/replay can resolve the
 // same four roots the same way, without importing the assets package either.

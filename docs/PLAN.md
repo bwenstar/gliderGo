@@ -1295,16 +1295,25 @@ that, and what it left open.
     It is also the first house in the repository, ours or 1994's, to use **all eighteen**
     built-in backgrounds — which made `kRoof` the background where a tile turns out to be physics
     rather than decoration, four of its eight tiles having no collision surface at all.
-  - Eleven gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.25; six are
-    closed, and closing the sixth filed a twelfth (4.27, a bug in the 1994 editor rather than a gap
-    in this port). 4.15 (a new house cannot
-    carry art of its own: the levels archive holds houses and nothing else, and `-houseart DIR`
-    replaces the one art root rather than adding to it, so pointing it at a new house's pictures
-    takes the twenty-two originals' art away), 4.16 (**done**: nothing computed §10.2 for an
+  - Eleven gaps found in the writing are filed, `docs/IMPROVEMENTS.md` 4.15 through 4.25; eight are
+    closed, and closing two of them filed two more (4.27, a bug in the 1994 editor rather than a gap
+    in this port, and 4.29, the sound half of 4.15). 4.15 (**the mechanism done**: a house of ours
+    puts pictures in `levels/houseart/<House Name>/pict/<id>.png`, `make levels` carries that tree
+    into the embedded archive, and the fork lookup now *searches* an ordered list of art roots
+    instead of letting `-houseart` substitute for the one — so a new house can have art without
+    taking the twenty-two originals' art away. Still open for the art itself, which is nineteen
+    512×322 paintings and not an engineering task; and the custom-`snd ` half of the same header
+    restriction is 4.29, because house sounds arrive through a shared manifest in the sound root
+    rather than beside the house), 4.16 (**done**: nothing computed §10.2 for an
     author before they had a passing test, and two of its rows were filed as uncomputable. Both
     were computable — the dark-room half in three lines, eccentricity in a static room graph —
     and the answer turned out to be `internal/profile` plus `glidertool house stats` rather than
-    more test code), 4.17, 4.18 (narrowed by the second house: §10.3's
+    more test code), 4.17 (**done** with 4.15, being the same two call sites: the warning that a
+    house's custom art will fall back now fires on "this house asked for a picture only its own fork
+    could supply" rather than on "there is no fork directory", so the one house in the library that
+    provably needs no warning has stopped being the only one to get it. The note's own list of what
+    counts was too long by two — a `kTV` wants a QuickTime movie this port has no support for and a
+    `kSoundTrigger` wants a `snd ` from a different root entirely), 4.18 (narrowed by the second house: §10.3's
     absolute object counts contradict §10.2's *tutorial* column specifically, because that column
     is the outlier and the small tier is the corpus mean), 4.19, 4.20 (**done**), 4.21 (**done**:
     the paragraph calibrating the linter's severities cited four corpus defects, one with no

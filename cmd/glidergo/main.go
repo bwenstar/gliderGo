@@ -212,6 +212,45 @@ func (o *options) housesRoot() (fs.FS, string)   { return assetfs.Root(o.tree, o
 func (o *options) levelsRoot() (fs.FS, string)   { return assetfs.Whole(o.levelTree, o.levels, "levels") }
 func (o *options) soundRoot() (fs.FS, string)    { return assetfs.Root(o.tree, o.sounds, "sound") }
 
+// houseArtRoots is the search list for one house's own pictures, and the one root above that is
+// a list rather than a root. -houseart first because it is the explicit one, then the levels
+// tree's own houseart/, then the extracted 1994 forks.
+//
+// The middle one is what lets a house written for this port carry art at all: the levels archive
+// holds `houseart/<House Name>/pict/<id>.png` beside the houses, so a downloaded executable
+// carries a new house's pictures the same way it carries the house (docs/IMPROVEMENTS.md 4.15).
+// It resolves against whatever -levels resolved to, so `make levels` then
+// `-levels assets/levels` plays a house and its art straight out of the build directory.
+//
+// houseArtRoot remains, and is not the first element of this list by accident: -version reports
+// which *root* a flag named or failed to name, and the lookup searches all three. Those are two
+// different questions and the row that answers the first has a transcript in
+// docs/windows-first-run.md.
+func (o *options) houseArtRoots() assetfs.ArtRoots {
+	roots := make(assetfs.ArtRoots, 0, 3)
+	if o.houseArt != "" {
+		roots = append(roots, assetfs.NamedArt(o.houseArt))
+	}
+	// Not Named, even when -levels is a directory somebody typed: what they named is a root of
+	// *houses*, and a house in it with no art beside it is the ordinary case rather than a
+	// mistake worth a line. Named is for the flag that means art.
+	levelsFS, levelsName := o.levelsRoot()
+	if sub := assetfs.Sub(levelsFS, houseArtDir); sub != nil {
+		roots = append(roots, assetfs.ArtRoot{FS: sub, Label: assetfs.Name(levelsName, houseArtDir)})
+	}
+	if o.tree != nil {
+		roots = append(roots, assetfs.ArtRoot{FS: assetfs.Sub(o.tree, houseArtDir),
+			Label: assetfs.Label(houseArtDir)})
+	}
+	return roots
+}
+
+// houseArtDir is the subdirectory holding per-house forks, in both trees that have one: it is
+// `houseart` under assets/extracted and `houseart` at the top of the levels root. One spelling,
+// because the second was chosen to match the first -- a fork is a fork, and an author who has
+// looked at assets/extracted/houseart/Titanic/pict/3000.png already knows the layout.
+const houseArtDir = "houseart"
+
 // sources is the list of places the picker's houses come from, and the set each one declares.
 // It is the one place in the program that decides what a level set *means*, so it is worth
 // reading the three decisions in it.

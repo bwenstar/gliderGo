@@ -80,10 +80,14 @@
 # 0-4 %, so the band did not catch it and the profile row printed green. What caught it
 # was reading the number rather than the verdict.
 #
-# One target is deliberately missed, and it is Open House's: 10.3 step 3 wants 27 %
-# user-structure and 17 % user-open art, and a house of ours may not carry any, because
-# assets/extracted/ is diff-locked by `make assets-check` and -houseart replaces the
-# single art root rather than adding to it. Both halves are docs/IMPROVEMENTS.md 4.15.
+# One target is missed, and it is Open House's: 10.3 step 3 wants 27 % user-structure
+# and 17 % user-open art, and this house carries none. It may -- a PNG at
+# levels/houseart/Boarding House/pict/3000.png and a room with `background 3000` is the
+# whole of it, and `make levels` carries the tree into the embedded archive. That was
+# not true when this was written, when -houseart replaced the single art root rather
+# than adding to it and so could not give a new house pictures without taking the
+# twenty-two originals' away; docs/IMPROVEMENTS.md 4.15 is the note and its closing
+# amendment is the mechanism. Custom `snd ` is still not possible and is 4.29.
 # The mix here is 59 % indoor art and 41 % outdoor -- 30 rooms in 2000-2008 against 21
 # in 2009-2017 -- where the corpus's own figures are 15/22/10 plus 44 % user art.
 #

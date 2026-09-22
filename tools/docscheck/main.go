@@ -226,6 +226,30 @@ var rules = map[string]rule{
 		skip: "opens a window and plays until the player quits",
 	},
 
+	// CONTRIBUTING's house-art block, and all three lines are skipped for one reason that is
+	// worth stating once: the scratch directory is a symlink per top-level entry, so `levels` in
+	// there *is* the repository's levels/, and a line that writes under it writes into the working
+	// tree. That is the one property the package comment promises this program does not have. The
+	// first line is the sharp end of it -- `mkdir -p` under levels/houseart would leave an empty
+	// directory git does not track and cannot show, and the next `make levels` would copy it into
+	// assets/levels/ and fail the archive comparison for a reason nobody could see.
+	//
+	// The mechanism these three lines describe is covered instead by
+	// internal/replay.TestAHouseCanCarryArtOfItsOwnInTheLevelsTree, which builds the same tree in
+	// a temporary directory and proves a house draws a picture out of it, and by hand on this
+	// repository once -- see docs/IMPROVEMENTS.md 4.15.
+	`mkdir -p "levels/houseart/My House/pict"`: {
+		skip: "writes into the repository's own levels/ through the scratch directory's symlink, " +
+			"and leaves an empty directory git cannot show",
+	},
+	`cp my-background.png "levels/houseart/My House/pict/3000.png"`: {
+		skip: "names a picture the reader painted, and writes it into the repository's levels/",
+	},
+	"make levels && make levels-zip": {
+		skip: "both halves are skipped on their own above: `levels` is a target `make check` runs " +
+			"itself, and `levels-zip` rewrites the committed archive",
+	},
+
 	// README's race block. Neither line can run here, and for once the reason is not the window:
 	// each of these waits for the *other* one, on a second machine, and a check that ran one of
 	// them would be a check that waits thirty seconds to discover that it is alone. The pair is

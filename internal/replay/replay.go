@@ -115,6 +115,12 @@ type Script struct {
 	// built into the executable**, which is what Tree and Levels carry and what every
 	// release binary runs from; a run that names a directory reads that instead. See
 	// internal/assetfs.
+	//
+	// Four of the five substitute. HouseArtDir is the exception: it is searched *before* the
+	// built-in forks rather than instead of them, because the port's own houses keep their
+	// pictures in the levels tree and a replay that named a directory of art used to lose
+	// them (docs/IMPROVEMENTS.md 4.15). A named directory still wins any house it does hold,
+	// which is the extractor's workflow the flag was added for.
 	HouseDir    string
 	ArtDir      string
 	HouseArtDir string
@@ -614,6 +620,34 @@ func loadDemo(s *Script) (demo.Stream, error) {
 	return nil, err
 }
 
+// artRoots is the search list for the replayed house's own pictures: HouseArtDir first because it
+// is the explicit one, then the levels tree's houseart/, then the built-in 1994 forks.
+//
+// It takes the resolved levels root rather than reading s.LevelDir itself so that there is one
+// answer to "which levels tree is this run using" -- a script that names a directory of houses
+// gets that directory's art, and a `-house "Open House"` played out of the embedded archive gets
+// the archive's. See internal/assetfs.ArtRoots and docs/IMPROVEMENTS.md 4.15.
+//
+// Nothing here complains. The two commands that mount a fork tell the person in front of them
+// when a house wanted art that was not there; a replay's report is a trace, and a line on stderr
+// in the middle of one is a line in the middle of the evidence. A picture that is missing shows up
+// in the trace already, as PICT 2000 in the frame hash.
+func artRoots(s *Script, levelsFS fs.FS, levelsName string) assetfs.ArtRoots {
+	roots := make(assetfs.ArtRoots, 0, 3)
+	if s.HouseArtDir != "" {
+		roots = append(roots, assetfs.NamedArt(s.HouseArtDir))
+	}
+	if sub := assetfs.Sub(levelsFS, "houseart"); sub != nil {
+		roots = append(roots, assetfs.ArtRoot{FS: sub,
+			Label: assetfs.Name(levelsName, "houseart")})
+	}
+	if s.Tree != nil {
+		roots = append(roots, assetfs.ArtRoot{FS: assetfs.Sub(s.Tree, "houseart"),
+			Label: assetfs.Label("houseart")})
+	}
+	return roots
+}
+
 // Run plays a script and returns its trace. The audio is mixed and hashed and then discarded,
 // which is what a test wants; RunTo is how a caller keeps it.
 func Run(s *Script) (*Result, error) { return RunWatching(s, nil, nil) }
@@ -681,9 +715,9 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 	// The four asset roots this function needs, resolved once: a directory the script
 	// named, or the built-in copy. The sound root is resolved where the bank is loaded.
 	artFS, _ := assetfs.Root(s.Tree, s.ArtDir, "art")
-	houseArtFS, _ := assetfs.Root(s.Tree, s.HouseArtDir, "houseart")
 	housesFS, housesName := assetfs.Root(s.Tree, s.HouseDir, "houses")
 	levelsFS, levelsName := assetfs.Whole(s.Levels, s.LevelDir, "levels")
+	houseArt := artRoots(s, levelsFS, levelsName)
 
 	// A house is a name -- looked up in the houses root and then the levels root, wherever
 	// those are -- or a path on this machine ending in ".house", which is how a house nobody
@@ -730,8 +764,8 @@ func RunWatching(s *Script, sink audio.Sink, watch Watch) (*Result, error) {
 	}
 
 	assets := render.NewAssets(artFS)
-	if assetfs.IsDir(houseArtFS, name) {
-		assets.OpenHouseResFork(name, assetfs.Sub(houseArtFS, name))
+	if fork := houseArt.Fork(name); fork.Found() {
+		assets.OpenHouseResFork(fork.Label, fork.FS)
 	}
 
 	scene := render.NewScene(render.DefaultView(), assets, h)
