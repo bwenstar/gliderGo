@@ -2923,7 +2923,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; six more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`); the rest filed below**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; seven more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map); the rest filed below**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3242,6 +3242,45 @@ cost is the part worth remembering:
 - **`docs/PLAN.md` §3's architecture map names directories that do not exist.** It was written before
   the tree settled and has not been revisited. Unlike the README's map, which 4.12 now sweeps,
   nothing checks PLAN's — and the two disagree, which is worse than either being wrong alone.
+
+  *(2.4, **DONE**. Four nonexistent directories, and the pattern in them is worth naming: every one
+  was a guess about how the code would be organised, made before it was written, and left standing
+  after the code disagreed. `internal/ui/` became `internal/shell/`. `internal/assets/` was never
+  written at all — the embedding lives in two hand-written files at `assets/`'s top, which is a
+  better answer and is why nobody missed the package. `internal/game/objects/` and
+  `internal/game/room/` were a decomposition the simulation never wanted; `internal/game` kept both
+  in itself. A fifth line was wrong in the other direction: `internal/platform/backend/` exists, is
+  the build-tag selector every binary goes through, and the map that claimed to show the port layer
+  did not have it.*
+
+  *There was also a stale `[DONE, never run]` on `win32`, a stage after it had been run on Windows
+  Server 2025. A plan is allowed to be out of date about the future. Being out of date about the
+  present is how a reader learns to stop reading it, and that one line undersold the single most
+  expensive thing the previous stage did.*
+
+  *Fixed by deleting the duplication rather than by synchronising it, which is the same call 4.26
+  made about `make check`'s step list. The README's "What is in here" table is the exhaustive map and
+  already has `TestEveryPackageInTheTreeIsOnTheMapTheReadmeDraws` holding it to the tree; PLAN's
+  fence keeps only the layering the three rules under it depend on, plus the three directories that
+  do not exist yet with the stage that owns each. Two maps of the same tree is the defect; one map
+  and one diagram of it is not.*
+
+  *The check is `TestEveryPathTheArchitectureMapNamesExists` in `internal/citations`, and it reads
+  the fence as the indented tree it is: a line's path is its first field joined onto its ancestors'.
+  A `[stage N]` marker exempts a line from having to exist — and requires that it does not, because a
+  marker left on a directory that has since been written is the `win32` defect exactly. The one line
+  that says "not committed" (`assets/levels/`, which `make levels` builds) is checked against
+  `.gitignore` instead of against the filesystem: it is present here and absent from a fresh clone,
+  and `make check` runs `test` five steps before `levels`, so requiring it would have made the
+  result depend on whose checkout it ran in.*
+
+  *Carried along: the README's map was only ever checked in one direction. Every `internal/` package
+  had to appear in the table; nothing said a path in the table had to exist. Those are different
+  failures and only the first one looks like a hole — a row for a directory that has been renamed
+  away reads as complete and sends the reader somewhere that is not there.
+  `TestEveryPathTheReadmeMapNamesExists` closes it, resolving the 34 paths the table names. A
+  backticked token counts as a path if it has a slash and no space, which excludes the table's
+  commands, build directives, resource types and the one 1994 filename with a space in it.*
 - **Nothing in the release archives mentions SmartScreen, Mark of the Web, or Gatekeeper
   quarantine.** A player who downloads an unsigned Windows zip gets "Windows protected your PC" with
   no Run anyway button visible until they click More info, and a macOS build is quarantined outright.

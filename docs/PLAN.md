@@ -51,32 +51,40 @@ pins the upstream commit every citation resolves against.
 ```
 cmd/
   glidergo/            the game
-  glideredit/          (stage 5) house editor
   glidertool/          asset + house inspection CLI, useful for debugging fidelity
+  glideredit/          house editor                                      [stage 5]
 internal/
-  platform/            port layer: Framebuffer, Window, Key, AudioSink  [DONE]
-    x11/               Linux backend, cgo + Xlib                        [DONE]
+  platform/            port layer: Framebuffer, Window, Key, AudioSink   [DONE]
+    backend/           which of the three below a build gets, by build tag
+    x11/               Linux backend, cgo + Xlib                         [DONE]
+    win32/             Windows backend, pure Go syscall to gdi32         [DONE, and run]
     null/              headless: PNG frames + WAV audio, for tests       [DONE]
-    win32/             Windows backend, pure Go syscall to gdi32        [DONE, never run]
-    sdl2/              macOS/iOS/Android backend, hand-written cgo      [stage 6]
+    sdl2/              macOS/iOS/Android backend, hand-written cgo       [stage 6]
   house/               House/Room/Object model; binary loader + text loader/writer
-  assets/              extracted sprite sheets, palettes, sounds; sprite atlas indexing
   game/                the simulation: player, objects, collision, room transitions
     player/            glider state machine and physics
-    objects/           per-class object behaviour
-    room/              room state, links, persistence of taken bonuses etc.
   render/              the original's draw order over a Framebuffer
   audio/               mixer over AudioSink; sound event table
-  ui/                  menus, dialogs, scoreboard, house selection, high scores
-  net/                 (stage 3) host/join, progress protocol
+  shell/               everything before a room: title, picker, settings, about, scores
   fidelity/            frame-diff and trace-diff harness against reference data
-tools/                 python3 extractors (PICT, snd, BinHex, house dump)
+  net/                 host/join, progress protocol                      [stage 3]
+tools/                 the python3 extractors, and the two Go commands `make` runs
 levels/                new houses in text form, authored and version-controlled  [DONE]
 assets/levels/         those built by `make levels`; not committed, `-levels` can point here
 assets/levels.zip      that directory packed for go:embed — committed, and what ships  [DONE]
 assets/extracted/      generated but committed — reproducible from GliderPRO/ via tools/
 assets/extracted.zip   that tree packed for go:embed — what every binary carries
 ```
+
+That is the layering and **not** a directory listing. `internal/` has twenty-one packages; the
+exhaustive one is `README.md`'s "What is in here" table, which
+`TestEveryPackageInTheTreeIsOnTheMapTheReadmeDraws` holds to the tree package by package. What is
+above is the shape the three rules below depend on, plus the three directories that do not exist yet
+and which stage owns each — and every other line of it is a path that exists, because
+`TestEveryPathTheArchitectureMapNamesExists` fails on one that does not. That check is here because
+this map had rotted: it named `internal/ui/` for what is `internal/shell/`, an `internal/assets/`
+that was never written, two `internal/game/` subpackages that the simulation never grew, and
+`win32` as "never run" a stage after it was run.
 
 The three `levels` lines are one pipeline and the naming is stated here because it is otherwise
 inferred twice: `levels/X.house.txt` is authored, `house build` turns it into

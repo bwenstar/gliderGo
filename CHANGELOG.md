@@ -17,6 +17,26 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Both maps of this tree now have to name paths that exist (2026-09-22)
+
+`docs/PLAN.md` §3 drew the tree as it was imagined before it was written, and the code had since
+disagreed with it in four places: `internal/ui/` for what is `internal/shell/`, an
+`internal/assets/` that was never written because the embedding turned out to want two files at
+`assets/`'s top instead, and `internal/game/objects/` and `internal/game/room/` for a decomposition
+the simulation never grew. It was also missing `internal/platform/backend/`, the build-tag selector
+every binary actually goes through, and still called the Windows backend "never run" a stage after it
+was run on Windows Server 2025.
+
+The map is no longer an exhaustive listing — `README.md`'s "What is in here" table is that, and has
+been swept package by package since 2.4 — so PLAN keeps the layering, the three directories that do
+not exist yet with the stage that owns each, and the `levels` pipeline. What is new is that both maps
+are now checked. `TestEveryPathTheArchitectureMapNamesExists` walks PLAN's fence as the indented tree
+it is and resolves all 25 paths; a `[stage N]` line is exempt from existing and is required *not* to,
+so a marker left behind on a directory that has since been written fails the way `win32`'s did.
+`TestEveryPathTheReadmeMapNamesExists` closes the direction the README's sweep never had: every
+package had to be on the table, but nothing said a path on the table had to exist, and a row for a
+directory that has been renamed away reads exactly as complete as one that has not.
+
 ### A constant in `internal/project` that nothing reads is now a test failure (2026-09-22)
 
 That package holds the handful of facts the About box, `-version`, both tools' usage text, the issue

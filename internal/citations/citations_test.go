@@ -811,6 +811,179 @@ func mapTable(readme string) string {
 	return rest
 }
 
+// TestEveryPathTheReadmeMapNamesExists is the other direction of the test above, and it was missing
+// for a reason worth writing down: a map can be wrong by omitting a package *or* by naming one that
+// is not there, and only the first of those looks like a hole. A row for a directory that has been
+// renamed away reads as complete, sends a reader to a path that does not exist, and passes every
+// check in this file.
+//
+// A backticked token with a slash in it and no spaces is a repository path. That is narrow on
+// purpose: the table's other code spans are commands (`make levels`), build directives (`go:embed`),
+// resource types (`'snd '`) and one 1994 filename with a space in it, and none of them are things
+// this test has any business resolving.
+func TestEveryPathTheReadmeMapNamesExists(t *testing.T) {
+	root := repoRoot(t)
+	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatalf("reading README.md: %v", err)
+	}
+	table := mapTable(string(readme))
+	if table == "" {
+		t.Fatal(`README.md has no "What is in here" table, or its heading has been reworded`)
+	}
+
+	n := 0
+	for _, m := range regexp.MustCompile("`([^`]+)`").FindAllStringSubmatch(table, -1) {
+		p := m[1]
+		if !strings.Contains(p, "/") || strings.Contains(p, " ") {
+			continue
+		}
+		n++
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(p))); err != nil {
+			t.Errorf("README.md's map has a row for %s and there is no such path; a map that "+
+				"names something absent reads exactly as complete as one that does not", p)
+		}
+	}
+	if n < 20 {
+		t.Errorf("only %d paths found in the README's map, which has a row for every package in "+
+			"internal/ alone; the code-span pattern is no longer matching the table", n)
+	}
+	t.Logf("resolved %d paths named on the README's map", n)
+}
+
+// TestEveryPathTheArchitectureMapNamesExists does the same for docs/PLAN.md §3, which is the other
+// map of this tree and the one that had nothing checking it.
+//
+// It was filed in docs/IMPROVEMENTS.md 4.13 as naming directories that do not exist, and it named
+// four: `internal/ui/` for what is `internal/shell/`, an `internal/assets/` that was never written,
+// and `internal/game/objects/` and `internal/game/room/` for behaviour the simulation keeps in
+// `internal/game` itself. It also carried `win32` as "never run" a stage after it had been run on a
+// Windows Server 2025 desktop. A plan is allowed to be out of date about the future; being out of
+// date about the present is how a reader learns to stop trusting it.
+//
+// The map is an indented tree, so a path is a line's first field joined onto its ancestors'. Two
+// spaces per level, which is what the fence has always used, and a line whose first field neither
+// ends in `/` nor contains a `.` is prose and skipped.
+//
+// A line carrying a `[stage N]` marker is exempt, because naming a directory that does not exist yet
+// is the one thing a plan is for. The exemption runs both ways: if the directory *does* exist, the
+// marker is the stale claim, and that is the `win32` defect again.
+//
+// One line is exempt for the opposite reason. `assets/levels/` is what `make levels` builds and the
+// map says so -- "not committed" -- so it is present on a machine that has run the build and absent
+// from a fresh clone, and `make check` runs `test` five steps before `levels`. Requiring it would
+// make this test's result depend on whose checkout it ran in, which is the mistake skipDirs above
+// records for stage15-raw. So a line that says "not committed" is checked against .gitignore
+// instead: the claim is that git does not carry it, and .gitignore is the file that makes that true.
+func TestEveryPathTheArchitectureMapNamesExists(t *testing.T) {
+	root := repoRoot(t)
+	b, err := os.ReadFile(filepath.Join(root, "docs", "PLAN.md"))
+	if err != nil {
+		t.Fatalf("reading docs/PLAN.md: %v", err)
+	}
+	fence := architectureMap(string(b))
+	if fence == "" {
+		t.Fatal(`docs/PLAN.md has no fenced tree under "## 3. Architecture", or the heading has ` +
+			"been reworded; this test reads that fence and cannot fall back to the prose")
+	}
+	ignored, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+
+	type frame struct {
+		indent int
+		path   string
+	}
+	var stack []frame
+	n := 0
+	for _, line := range strings.Split(fence, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		tok := strings.Fields(line)[0]
+		if !strings.HasSuffix(tok, "/") && !strings.Contains(tok, ".") {
+			continue
+		}
+		for len(stack) > 0 && stack[len(stack)-1].indent >= indent {
+			stack = stack[:len(stack)-1]
+		}
+		full := tok
+		if len(stack) > 0 {
+			full = stack[len(stack)-1].path + tok
+		}
+		stack = append(stack, frame{indent, full})
+		n++
+
+		_, statErr := os.Stat(filepath.Join(root, filepath.FromSlash(full)))
+		switch {
+		case strings.Contains(line, "not committed"):
+			if !gitignores(string(ignored), full) {
+				t.Errorf("docs/PLAN.md §3 says %s is not committed and .gitignore does not "+
+					"exclude it; one of the two is wrong, and the map is the one a reader "+
+					"believes", full)
+			}
+		case strings.Contains(line, "[stage "):
+			if statErr == nil {
+				t.Errorf("docs/PLAN.md §3 marks %s as future work and it exists; the marker is "+
+					"now the wrong half of the line", strings.TrimSuffix(full, "/"))
+			}
+		default:
+			if statErr != nil {
+				t.Errorf("docs/PLAN.md §3 names %s and there is no such path; either the tree "+
+					"moved or the line is waiting on a stage and should say which", full)
+			}
+		}
+	}
+	if n < 15 {
+		t.Errorf("only %d paths found in PLAN.md §3's tree, which lists both commands, the four "+
+			"backends and the top-level asset paths; the fence is no longer being read", n)
+	}
+	t.Logf("resolved %d paths named on PLAN.md's architecture map", n)
+}
+
+// gitignores reports whether .gitignore has an entry for exactly this path. Not a gitignore engine
+// -- no globs, no negation, no directory inheritance -- because the one claim being checked is a
+// literal directory the build writes, and a half-implemented matcher would answer "yes" to things
+// git says no to, which is worse than answering only the question asked.
+func gitignores(gitignore, path string) bool {
+	want := strings.Trim(path, "/")
+	for _, l := range strings.Split(gitignore, "\n") {
+		if strings.Trim(strings.TrimSpace(l), "/") == want {
+			return true
+		}
+	}
+	return false
+}
+
+// architectureMap returns the body of the first fenced block under docs/PLAN.md's "## 3.
+// Architecture", or "" if either is gone. Crude for the same reason mapTable is.
+func architectureMap(plan string) string {
+	const heading = "## 3. Architecture"
+	i := strings.Index(plan, heading)
+	if i < 0 {
+		return ""
+	}
+	rest := plan[i+len(heading):]
+	if j := strings.Index(rest, "\n## "); j >= 0 {
+		rest = rest[:j]
+	}
+	open := strings.Index(rest, "```")
+	if open < 0 {
+		return ""
+	}
+	rest = rest[open+3:]
+	if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
+		rest = rest[nl+1:]
+	}
+	end := strings.Index(rest, "```")
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
+}
+
 // ---------------------------------------------------------------------------
 // class 3: the test names the prose quotes
 // ---------------------------------------------------------------------------
