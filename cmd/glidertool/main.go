@@ -153,6 +153,7 @@ func versionCmd(w io.Writer) {
 	fmt.Fprintf(w, "  home      %s\n", project.Home)
 	fmt.Fprintf(w, "  bugs      %s\n", project.Issues)
 	fmt.Fprintf(w, "  licence   %s\n", project.Licence)
+	fmt.Fprintf(w, "  go        %s\n", project.GoLicence)
 	fmt.Fprintf(w, "  reads     %s data -- %s / %s, %s\n", project.Original,
 		project.OriginalAuthor, project.OriginalPublisher, project.OriginalYear)
 	fmt.Fprintf(w, "  from      %s @ %s\n", project.Upstream, project.UpstreamCommit)

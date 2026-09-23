@@ -180,7 +180,7 @@ What a public repository is actually missing:
   2.0**, plus a third issue form for fidelity differences, which is the report this project most
   wants; 5.7 records what each one says and why the covenant is still the odd one out.
 
-### 1.4 The archives ship Go's runtime and standard library without Go's licence — **planned, before the next tag**
+### 1.4 The archives ship Go's runtime and standard library without Go's licence — **DONE, the release gate's first step, as `THIRD-PARTY-NOTICES.txt` in every archive and a `-version` line; rehearsed on this host, unrun on a runner until the next tag**
 
 Every archive has the Go runtime and standard library compiled into both of its binaries: the cgo
 linux-amd64 build, the five CGO_ENABLED=0 builds, and every `glidertool`. That code is BSD-3-Clause,
@@ -214,8 +214,8 @@ The fix is a few lines in the package loop, next to `cp LICENSE CHANGELOG.md`:
 
 The text comes from `go env GOROOT` rather than a committed copy. Under `GOTOOLCHAIN: local` that is
 the toolchain that built these exact binaries, so the notice can't drift from them. The zip branch's
-CRLF `sed` (`:496`) should convert this file as well as HOW-TO-RUN.txt, for the same Notepad reason.
-The pre-seal assertions (`:506`) get one more line,
+CRLF `sed` (`:507`) should convert this file as well as HOW-TO-RUN.txt, for the same Notepad reason.
+The pre-seal assertions (`:517`) get one more line,
 `grep -q 'Copyright (c) 2009 The Go Authors' "$stage/THIRD-PARTY-NOTICES.txt"`. Then a runner
 toolchain with no LICENSE, or a later edit that drops the file, fails the build instead of shipping.
 This has been rehearsed against go1.23.12: `$HOME/.local/opt/go/LICENSE` is there (1,479 bytes), and
@@ -226,7 +226,7 @@ condition.
 
 Two sentences go with the file:
 
-- **In the release notes' `### Licence` (`:714`) and in README's Licence section, which is in every
+- **In the release notes' `### Licence` (`:736`) and in README's Licence section, which is in every
   archive.** "The Go runtime and standard library compiled into both binaries are BSD-3-Clause, ©
   The Go Authors; every release archive carries their licence as THIRD-PARTY-NOTICES.txt."
 - **Optionally, a `-version` line.** `go  BSD-3-Clause, © The Go Authors`, beside the existing
@@ -237,6 +237,57 @@ The licence only requires the file. The `-version` line is a courtesy. If a line
 `credits.txt` as well, make it a note under `[this port]`, not a new section:
 `TestTheFileParsesIntoSectionsWithRows` pins the four section titles, and `People()` skips notes, so
 no exemption needs editing.
+
+**Done: the file in all six archives, and a check that fails without it.** The block above is in
+the package loop at `release.yml:367-372`, after the `GliderPRO/` copies, with its two header lines
+reworded. As proposed, "They are distributed under the licence below" followed a sentence whose
+subject was glidergo and glidertool, so it could be read as putting the binaries under BSD-3-Clause.
+The header now calls the runtime and standard library "That code" and points at LICENSE for
+gliderGo's own. The zip branch's `sed` converts the file to CRLF along with HOW-TO-RUN.txt
+(`:507`). The assertion is at `:543`, after the README check. Its pattern is `2009 The Go Authors`,
+not the `Copyright (c) 2009 The Go Authors` proposed above. go1.23.12's own LICENSE has the "(c)".
+The x/telemetry copy vendored in the same toolchain (`src/cmd/vendor/golang.org/x/telemetry/LICENSE`)
+already has the 2024 wording, `Copyright 2009 The Go Authors.`, and 5.11 moves releases to a newer
+minor. If Go's own LICENSE has changed the same way, the longer pattern would fail the first release
+built on that minor, although the notice was there. The shorter one matches both wordings. The
+release notes' `### Licence` (`:741-743`) and README's Licence section (`README.md:454-456`) carry
+the sentence above, naming `glidergo` and `glidertool` where it said "both binaries". The notes call
+the download one file and never mention glidertool, so "both" had nothing to refer to.
+
+The whole "Package the archives" step was rehearsed the way 4.13 did it. Its `run:` block was taken
+out of release.yml with a YAML parser and run against this host's `bin/cross/` with go1.23.12. All
+six archives hold `THIRD-PARTY-NOTICES.txt`: 1,651 bytes in the four tarballs, and 1,681 with CRLF
+in the two zips. Past the three header lines it is byte-identical to `$GOROOT/LICENSE`. `glidergo`
+also links one package that GOROOT vendors, `vendor/golang.org/x/net/dns/dnsmessage`, on linux and
+windows alike (`go list -deps ./cmd/glidergo`). Its LICENSE is byte-identical to `$GOROOT/LICENSE`
+as well, so the same file covers it. With the block deleted, the step stops at the assertion on the
+first target, exits 2 and seals nothing. With a GOROOT that has no LICENSE, `cat` stops it first.
+The notes step renders the new paragraph with no `VERSION` left in it.
+
+**Found on the way: the README assertion could never fail.** `! grep -q '](docs/' "$stage/README.md"`
+sat in the middle of a `set -e` script, and bash does not exit on a command whose status is inverted
+with `!`. A rehearsal that appended a `](docs/` link to the staged README sealed all six archives
+and exited 0. It is an `if` that exits 1 now (`:533-536`), and the same rehearsal stops at the first
+target with `README.md still links into docs/`. The planted link has to be one the rewrite cannot
+match, such as `](docs/` with no closing parenthesis, or the `sed` rewrites it and the check passes.
+No archive shipped a bad link because of this. README.md at each of the 35 commits from `56fab17`,
+which added the pipeline, to `12bd322` comes out of the rewrite with no `](docs/` left, and 4.13's
+rehearsals found none to catch.
+
+**And the `-version` line, the same day.** Both programs print `go        BSD-3-Clause, © The Go
+Authors` under `licence` (`cmd/glidergo/main.go:420`, `cmd/glidertool/main.go:156`), so a binary
+copied to `~/bin` without its archive still names the licence of the code compiled into it. The text
+is `project.GoLicence`, which makes the two lines one string. `TestTheReadmeAndTheGameAgree` holds
+README's Licence sentence to it, and README now says `-version` prints it. The licence does not ask
+for this line. It is a courtesy.
+
+**What this does not cover.**
+- release.yml cannot run on this airgapped host. Whether setup-go's GOROOT on a GitHub runner has a
+  LICENSE, and what it says, stays unverified until the next tag's workflow runs. The assertion is
+  what makes a surprise there loud.
+- Nothing went into `credits.txt`. The licence does not ask for it.
+- No Go test reads release.yml or the staged file list, and none was added. The pre-seal
+  assertion is the check, and it runs only on a runner.
 
 ---
 
@@ -3887,8 +3938,10 @@ cost is the part worth remembering:
   and `SHA256SUMS` comes out with bare filenames. The link rewrite does what its comment claims: the
   README's three screenshots become `/raw/` links and its thirteen documents `/blob/` links, every
   one pinned at the 40-character SHA rather than at a branch, and the `! grep -q '](docs/'` assertion
-  underneath finds nothing left behind. The CRLF `sed` and the `VERSION` `sed` in the notes step were
-  run the same way. Four `sed`s, none of them unrun now.*
+  underneath finds nothing left behind. (Had it found something, the step would have gone on:
+  `set -e` ignores a command inverted with `!`, so that assertion could never fail. It has been an
+  `if` since 1.4 was done, `release.yml:533-536`.) The CRLF `sed` and the `VERSION` `sed` in the
+  notes step were run the same way. Four `sed`s, none of them unrun now.*
 
   *The cost of rehearsing it is 150 MB in `/dist/`, which `.gitignore` already excludes and says is
   for exactly this. What it still cannot reach is `gh release create`, which is 5.4's and needs
@@ -6215,7 +6268,7 @@ Its commands are fenced as non-bash, so `docs-check` leaves them alone. That too
 documents, and a dozen skip rules would defeat it.
 
 **The Linux archive's glibc floor, stated and asserted.**
-- `release.yml:185` (the build job; `:112` and `:569` do not affect the shipped binary) is pinned
+- `release.yml:185` (the build job; `:112` and `:591` do not affect the shipped binary) is pinned
   to `ubuntu-24.04`. That keeps today's measured floor of GLIBC_2.34. 22.04 and bookworm give the
   same 2.34, so neither lowers it, and `-tags netgo,osusergo` removes only `res_search`.
 - After `make cross`, a step takes the highest `GLIBC_x.y` from
@@ -6493,9 +6546,9 @@ Public binaries are built on GitHub runners, so they embed runner paths, not the
 and a bench under xvfb, and hands the binary to the packaging job. So `linux-arm64` draws instead of
 being `-headless`.
 
-It is not a one-line change. The build job both cross-compiles and packages (`release.yml:183-547`),
+It is not a one-line change. The build job both cross-compiles and packages (`release.yml:183-569`),
 so it needs `needs:` plus `download-artifact`, `:317` becoming `linux-arm64|-x11||tar`, and
-rewritten text at `:30-35`, `:408-410` and README `:52`. The runner is free only for public
+rewritten text at `:30-35`, `:419-421` and README `:52`. The runner is free only for public
 repositories. It carries the same GLIBC_2.34 floor: Pi OS Bookworm is fine and Bullseye is not. It
 shares its runner-label edits with 5.4's glibc amendment.
 
@@ -6572,7 +6625,7 @@ source of truth", but its two readers do different things with it.
   minors raise, are unverified here; "Windows 10 or Server 2016 since 1.21" is remembered, not
   checked. Copy them from the chosen minor's release notes ("Ports") when `GO_RELEASE` is written,
   and re-check them at every bump. They go into README's "Getting a build", the release notes (which
-  today say only "Windows needs nothing at all", `release.yml:699`), both HOW-TO-RUN.txt variants
+  today say only "Windows needs nothing at all", `release.yml:721`), both HOW-TO-RUN.txt variants
   and the platform tiers in PLAN §4's release policy. `otool -l` on `macos-latest` can assert the
   macOS one.
 - **The documents.** This goes into 5.7's rewrite. In SECURITY.md, "Dependencies" names the Go minor
@@ -6592,7 +6645,7 @@ or on the first double-click, and no dialog offers a Run anyway button. The play
 directory with `glidergo.exe` missing, or a double-click that does nothing and a "Threats found"
 notification. Nothing in `release.yml`'s notes, either `HOW-TO-RUN.txt`, README, SECURITY.md or
 `docs/windows-first-run.md` mentions antivirus. One sentence in the notes points the wrong way.
-"None of the three looks at what is *in* the archive" (`release.yml:636`) is true of the three it
+"None of the three looks at what is *in* the archive" (`release.yml:658`) is true of the three it
 names, and a reader will take it to cover the fourth. Defender does look.
 
 The Windows binary has most of the traits that Defender's machine-learning detections
@@ -6674,7 +6727,7 @@ What to do:
      administrator;
    - and that a report should be an issue quoting the detection name.
 
-   `release.yml:636` also gets reworded so it no longer reads as covering antivirus.
+   `release.yml:658` also gets reworded so it no longer reads as covering antivirus.
 4. **Later, and only by measurement.** Nobody has tested whether 4.42's VERSIONINFO and icon,
    `-H windowsgui` (4.35's separate note) or a smaller embedded archive changes the verdict. Until
    someone does, these are folklore. Once step 1 has run there is a baseline, and each change can be

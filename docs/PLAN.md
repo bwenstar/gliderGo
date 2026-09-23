@@ -1529,10 +1529,11 @@ means the tag is better with it and does not wait.
    - **Gate.** The demo floor catches nothing: it is still 573, and the demo now consumes all 1117
      records. Every document that quotes the old run is corrected with it (2.18's amendment lists
      them; this file's 1.8b bullet is corrected already).
-   - **Gate.** No archive carries Go's own licence, although both binaries in every archive have
-     Go's BSD-3-Clause runtime and standard library compiled in. The fix is a
-     `THIRD-PARTY-NOTICES.txt` written from the building toolchain's `GOROOT`, a few lines in the
-     package loop (1.4).
+   - **Gate, DONE.** No archive carried Go's own licence, although both binaries in every archive
+     have Go's BSD-3-Clause runtime and standard library compiled in. The package loop now writes
+     `THIRD-PARTY-NOTICES.txt` from the building toolchain's `GOROOT`, and the step fails if the
+     file lacks the Go Authors' notice. The step was rehearsed here against go1.23.12. It has not
+     run on a runner yet, and the next tag is the first time it will (1.4).
 2. **The race chain, in this order, and nothing in `cmd/glidergo/race.go` before the first.**
    - **Should, and first.** An app-level loopback race under `-race` (4.34), as the net for
      everything after it.
@@ -1570,7 +1571,7 @@ means the tag is better with it and does not wait.
    - **Gate.** SECURITY.md stops saying there is no listener, and names the Go that builds
      releases (5.7's amendment, 5.11).
    - **Gate.** The release notes and `HOW-TO-RUN.txt` say what to do if Defender quarantines the
-     exe, and `release.yml:636` stops reading as if it covers antivirus (5.12, step 3).
+     exe, and `release.yml:658` stops reading as if it covers antivirus (5.12, step 3).
    - **Should.** The glibc floor is stated and asserted (5.4's amendment), CONTRIBUTING gets
      house-licence rules (4.43, first half), README lists the per-OS data paths (2.75, docs half),
      3.2's premise is corrected (3.2's amendment), and 4.1's status is corrected (4.1's amendment).

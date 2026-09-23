@@ -48,6 +48,12 @@ const (
 	// and does not ask anybody to be a legal entity, and a name written into a constant is
 	// harder to get out of a released binary than to put in.
 	Copyright = "© 2026 the gliderGo authors"
+
+	// GoLicence is the notice for the Go runtime and standard library, which every binary
+	// has compiled in. The licence itself travels as THIRD-PARTY-NOTICES.txt in each release
+	// archive; this is the line -version prints for a binary copied out of one
+	// (docs/IMPROVEMENTS.md 1.4).
+	GoLicence = "BSD-3-Clause, © The Go Authors"
 )
 
 // What this is a port of. Separate block because these are facts about 1994 rather than about

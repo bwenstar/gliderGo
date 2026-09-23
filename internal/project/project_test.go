@@ -185,6 +185,7 @@ func TestTheReadmeAndTheGameAgree(t *testing.T) {
 		{"OriginalPublisher", OriginalPublisher},
 		{"OriginalYear", OriginalYear},
 		{"Copyright", Copyright},
+		{"GoLicence", GoLicence},
 	} {
 		if !strings.Contains(readme, c.value) {
 			t.Errorf("README.md does not mention project.%s (%q), so the game and the "+

@@ -449,6 +449,10 @@ Upstream's grant is exact and has no "or any later version" clause, so this is G
 the Free Software Foundation."* gliderGo is transcribed from that source function by function, is
 unambiguously a derivative work, and carries the same licence.
 
+The Go runtime and standard library compiled into `glidergo` and `glidertool` are
+BSD-3-Clause, © The Go Authors; every release archive carries their licence as
+`THIRD-PARTY-NOTICES.txt`, and `-version` prints the line.
+
 One caveat, stated plainly because it is the last thing standing between this and a release
 someone else can rely on: **the assets are not the source.** That grant is about code. The houses
 are credited to five other authors, two PICT resources derive from illustrations by John R.

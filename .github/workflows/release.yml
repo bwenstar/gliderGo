@@ -360,6 +360,17 @@ jobs:
             cp "GliderPRO/README.md"        "$stage/GliderPRO/README.md"
             cp "GliderPRO/GPLv2-LICENSE.md" "$stage/GliderPRO/GPLv2-LICENSE.md"
 
+            # Both binaries have the Go runtime and standard library compiled in, and that code is
+            # BSD-3-Clause: a binary redistribution must reproduce its notice (docs/IMPROVEMENTS.md
+            # 1.4). Read from GOROOT rather than committed, because under GOTOOLCHAIN: local that is
+            # the toolchain that built these exact binaries, so the notice cannot drift from them.
+            {
+              echo "glidergo and glidertool have $(go env GOVERSION)'s runtime and standard library compiled in."
+              echo "That code is distributed under the licence below. gliderGo's own licence is in LICENSE."
+              echo
+              cat "$(go env GOROOT)/LICENSE"
+            } > "$stage/THIRD-PARTY-NOTICES.txt"
+
             # How to actually start it, next to the thing you just unpacked. Written for the
             # only reader who matters here: somebody who has this archive open and does not
             # know that three of the six cannot draw, or that one of the three that can
@@ -493,7 +504,7 @@ jobs:
 
             # CRLF for an archive Windows will unpack, so Notepad shows lines and not one line.
             if [ "$format" = zip ]; then
-              sed -i 's/$/\r/' "$stage/HOW-TO-RUN.txt"
+              sed -i 's/$/\r/' "$stage/HOW-TO-RUN.txt" "$stage/THIRD-PARTY-NOTICES.txt"
             fi
 
             # Every archive is verified to hold a binary with its assets in it before it is
@@ -517,8 +528,19 @@ jobs:
 
             # And that the link rewrite above actually fired. A README whose sed silently missed
             # ships broken images to every downloader, which is exactly the kind of failure
-            # nobody reports.
-            ! grep -q '](docs/' "$stage/README.md"
+            # nobody reports. An `if` and not `! grep`: set -e ignores a command whose status is
+            # inverted with `!`, so the bare form could never fail this step.
+            if grep -q '](docs/' "$stage/README.md"; then
+              echo "$name: README.md still links into docs/" >&2
+              exit 1
+            fi
+
+            # And that Go's licence went in. A runner toolchain with no LICENSE, or a later edit
+            # that drops the file, fails the build here instead of shipping an archive that owes a
+            # notice it does not carry. The pattern leaves out go1.23's "(c)": the 2024 wording,
+            # which the x/telemetry copy vendored in go1.23.12 already has, is "Copyright 2009 The
+            # Go Authors.", and a newer release toolchain is expected (IMPROVEMENTS 5.11).
+            grep -q '2009 The Go Authors' "$stage/THIRD-PARTY-NOTICES.txt"
 
             case "$format" in
               tar) tar -C dist -czf "dist/${name}.tar.gz" "$name" ;;
@@ -715,6 +737,10 @@ jobs:
 
           GPLv2, inherited from Calhoun's own source release. The art, sounds and houses are
           his and his house authors'; see `GliderPRO/README.md` in any archive for the credits.
+
+          The Go runtime and standard library compiled into `glidergo` and `glidertool` are
+          BSD-3-Clause, © The Go Authors; every release archive carries their licence as
+          `THIRD-PARTY-NOTICES.txt`.
           HEADER
           sed -i "s/VERSION/${VERSION}/g" notes.md
           echo '--- notes.md ---'; cat notes.md

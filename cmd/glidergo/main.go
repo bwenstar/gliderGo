@@ -417,6 +417,7 @@ func printVersion(o *options) {
 	fmt.Printf("  home      %s\n", project.Home)
 	fmt.Printf("  bugs      %s\n", project.Issues)
 	fmt.Printf("  licence   %s\n", project.Licence)
+	fmt.Printf("  go        %s\n", project.GoLicence)
 	fmt.Printf("  port of   %s -- %s / %s, %s\n", project.Original, project.OriginalAuthor,
 		project.OriginalPublisher, project.OriginalYear)
 	fmt.Printf("  from      %s @ %s\n", project.Upstream, project.UpstreamCommit)

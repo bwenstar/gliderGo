@@ -17,6 +17,37 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Every release archive carries Go's licence, and the README link check can fail (2026-09-23)
+
+Both binaries in every archive have the Go runtime and standard library compiled in, and that code
+is BSD-3-Clause. Its second clause says a binary redistribution must reproduce the notice, and no
+archive did. The package loop in `.github/workflows/release.yml` now writes
+`THIRD-PARTY-NOTICES.txt` beside `LICENSE` (`release.yml:367-372`). It is two lines naming the Go
+that built the binaries and saying the licence below covers that code, not gliderGo, then
+`$(go env GOROOT)/LICENSE`. Under `GOTOOLCHAIN: local` that is the toolchain that built these exact
+binaries, so the notice cannot drift from them. The zip branch converts it to CRLF along with
+HOW-TO-RUN.txt. A pre-seal `grep -q '2009 The Go Authors'` (`:543`) fails the build if the file is
+missing or lacks the notice. The pattern leaves out go1.23's "(c)", because the 2024 wording drops
+it and the x/telemetry copy vendored in go1.23.12 already uses it. The release notes' Licence
+section and README's now name the file. Filed as `docs/IMPROVEMENTS.md` 1.4, one of the release
+gate's same-day fixes.
+
+The README check beside it could never fail. `! grep -q '](docs/' "$stage/README.md"` sat in the
+middle of a `set -e` script, and bash does not exit on a command whose status is inverted with `!`.
+It is an `if` that exits 1 now (`:533-536`).
+
+release.yml cannot run on this airgapped host. Its package step was taken out with a YAML parser
+and run against the local `bin/cross/` with go1.23.12, the way 4.13 rehearsed it. All six archives
+hold the file: 1,651 bytes in the tarballs and 1,681 with CRLF in the zips. After its header the
+file is byte-identical to the toolchain's LICENSE. With the block deleted, the step exits 2 at the
+assertion before sealing anything. With a `](docs/` link planted in the staged README it now exits
+with status 1. The old form sealed all six archives and exited 0. What setup-go's GOROOT holds on
+a GitHub runner stays unverified until the next tag's workflow runs.
+
+`glidergo -version` and `glidertool version` print a `go` line under `licence`, "BSD-3-Clause, ©
+The Go Authors", for a binary copied out of its archive. It is one constant, `project.GoLicence`,
+and `TestTheReadmeAndTheGameAgree` holds README's sentence to it.
+
 ### A shredded glider falls as confetti, and the game no longer ends by asking to be reported (2026-09-23)
 
 `World.RenderShreds` asked `Assets.Sheet` for `"shred"`, and `shred` is not a sheet. It is
