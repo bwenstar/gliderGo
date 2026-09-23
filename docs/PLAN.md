@@ -59,7 +59,7 @@ internal/
     x11/               Linux backend, cgo + Xlib                         [DONE]
     win32/             Windows backend, pure Go syscall to gdi32         [DONE, and run]
     null/              headless: PNG frames + WAV audio, for tests       [DONE]
-    sdl2/              macOS/iOS/Android backend, hand-written cgo       [stage 6]
+    cocoa/             macOS backend, cgo + AppKit                       [stage 6]
   house/               House/Room/Object model; binary loader + text loader/writer
   game/                the simulation: player, objects, collision, room transitions
     player/            glider state machine and physics
@@ -1004,17 +1004,23 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     - **There is no `glidertool demo build`.** A hand-authored input stream is what a replay
       script's `at` lines already are, and they are better at it — two players, all seven keys, no
       six-byte encoding to get wrong. The only streams worth writing are ones a game recorded.
-    - What building it pinned: **the demo is a fidelity oracle, and the port fails it.** The run
-      does not fly the recorded path — the glider dies three times in the start room, 573 of the
-      1117 records in, and the game ends at frame 1775 instead of the stream's 3414. Nothing about
-      the recording excuses that. `qd.randSeed` cannot be the cause on two independent grounds:
-      `toolbox-primitives.md` §1.12 proves the shipped demo is RNG-independent (Demo House contains
-      no sparkle, no coffee maker, no chimes and no phone, and `Player.c` never draws), and this
-      port's own runs confirm it — seeds 0, 1, 7 and 12345 all die on the same three frames, only
-      the pixel digests differing. So 573 of 1117 is a physics defect and it is the sharpest
-      fidelity target the project has (IMPROVEMENTS 2.18). The determinism half is what the
-      harness test asserts, and it deliberately does not pin the death frames: the day the physics
-      improve, the test that fails should be a fidelity test.
+    - What building it pinned: **the demo is a fidelity oracle, and the port now passes every
+      check the recording can support.** When this bullet was written the glider died three
+      times in the start room, 573 of the 1117 records in. The `'bnds'` fix (`03d0cf0`,
+      IMPROVEMENTS 4.24) changed that: the run now consumes all 1117 records and the game ends at
+      frame 3417, three frames after the stream's last record at 3414. The recorder logs nothing
+      once `gameOver` is set, and nothing while the glider burns. So a game over just after the
+      stream's end, and a burn right after the record at f2015 that lines up with the stream's
+      41-frame silence there, are both what a 1994 session ending in a game over would leave
+      behind. That is an inference, not a measurement. The recording supports no further oracle,
+      and the next one needs a trace from a real Mac (IMPROVEMENTS 2.18). `qd.randSeed` was never
+      the cause of the old deaths, on two independent grounds: `toolbox-primitives.md` §1.12
+      proves the shipped demo is RNG-independent (Demo House contains no sparkle, no coffee maker,
+      no chimes and no phone, and `Player.c` never draws), and this port's own runs confirm it —
+      seeds 0, 1, 7 and 12345 died on the same three frames then and lose their gliders on the
+      same three frames now (f1781, f2043, f3417), only the pixel and sound digests differing. The
+      determinism half is what the harness test asserts, and it deliberately does not pin the
+      death frames: the day the physics improve, the test that fails should be a fidelity test.
       - The seeding is worth getting right because 1.8b got it wrong first. `ToolBoxInit` does
         `GetDateTime((UInt32 *)&qd.randSeed)` at `Utilities.c:61` — but **inside
         `#if !TARGET_CARBON`**, and `GliderPRO/Prefix.h:1` sets `TARGET_CARBON 1`. So the build
@@ -1343,6 +1349,8 @@ that, and what it left open.
   the house from the checked-in text rather than from a build product, so a stale binary cannot
   pass for one. **Not met: nobody has played either.** A scripted run proves a route exists, not
   that the route is one a human would find or enjoy, and that is the half this host cannot answer.
+  That clause is now owned by §5's "checked by a person" row (a planned `RELEASE_TESTING.md`
+  beside this file), which gives it a place to be marked done.
 
 ### Stage 3 — 2-player race
 
@@ -1375,6 +1383,9 @@ here is genuinely just transport.
   so a mismatch is refused rather than producing a bogus race).
 - Each side simulates only its own glider and sends a progress record on every meaningful
   change: room index, floor/suite, score, lives, alive/dead, finished.
+  *(Amended: as built, a standing goes out on every simulated frame, because `Frame` is part of
+  the struct `Report` compares — about 30 a second, ~1 KB/s. That is harmless on a LAN and wrong
+  in four comments; IMPROVEMENTS 4.37 makes it true.)*
 - "Furthest on one life wins": the winner is decided by the agreed progress metric when both
   runs have ended; ties broken by score, then by time. **The metric is rooms visited** — which
   is not invented for the race: it is what the original's own high-score table records in
@@ -1438,6 +1449,17 @@ here is genuinely just transport.
   committed. That is a handshake change and belongs with LAN discovery, which is where a guest would
   be *offered* a house rather than asked for one.
 
+  **What the first public race needs, and what can follow it.** The review ahead of the next tag
+  (the release gate below) found that the handshake has to carry the release and the engine it was
+  built from before a build that speaks it is public (IMPROVEMENTS 4.31). It found a host that
+  stops hosting after one stray connection (4.32), a join that fails off the edge of the screen and
+  blames the wrong thing (4.33), and a README sentence — *"whose machine dies has forfeited: the
+  other one wins on the spot"* — that holds for a killed process and not for a power cut, a
+  sleeping laptop or a pulled cable, where nothing is sent and no read has a deadline. That
+  sentence is corrected before the tag. The heartbeat that would make a deadline possible is 4.37,
+  after it. `cmd/glidergo/race.go` has about 13% statement coverage and no app-level test, so 4.34
+  lands before any of these touch it.
+
 ### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 
 Brought forward ahead of Stages 2 and 3 for one reason: the release pipeline (5.4) already
@@ -1483,17 +1505,178 @@ this early.
   identical command differ from each other in ~122,000, so it is the mixer's wall clock and not
   the platform (`docs/IMPROVEMENTS.md` 4.11).
 
+### Release gate — what the next tag needs before it is pointed at strangers — **proposed; the list is the user's to confirm**
+
+`v0.1.0` and `v0.1.1` are tagged and published (`CHANGELOG.md:5`), and neither carries
+`internal/netplay` or the New houses. The next tag is therefore the first a stranger meets with a
+listening socket in it, and the first after which some things can never be changed cleanly. The
+race's `Hello` layout and `Meet`'s refusal rules are a wire format: a build in the wild cannot be
+taught to refuse a newer peer. Whether that tag is called 1.0 is **decision needed**. The list
+holds either way.
+
+Each line names the register item that owns it. **Gate** means the tag waits for it. **Should**
+means the tag is better with it and does not wait.
+
+1. **Same-day fixes, a few lines each.**
+   - **Gate, DONE.** Shredded gliders drew no confetti, and `glidergo` exited 1 with a bug-report
+     footer, in 13 of the 22 shipped houses. `RenderShreds` asks for a strip now, and two new tests
+     cover the two reasons nothing saw it: a replay that shreds a glider with the art loaded, and a
+     static check of every constant art name against its table (IMPROVEMENTS 2.73).
+   - **Gate, DONE.** A held key repeated its action 25–33 times a second on Linux, because X11
+     auto-repeat is undetectable until it is asked for. `x11.New` asks now, and a held key does one
+     thing, as on Windows, tracked per physical key so that accented keys and Delete-with-Backspace
+     agree with Windows too (2.72).
+   - **Gate.** The demo floor catches nothing: it is still 573, and the demo now consumes all 1117
+     records. Every document that quotes the old run is corrected with it (2.18's amendment lists
+     them; this file's 1.8b bullet is corrected already).
+   - **Gate.** No archive carries Go's own licence, although both binaries in every archive have
+     Go's BSD-3-Clause runtime and standard library compiled in. The fix is a
+     `THIRD-PARTY-NOTICES.txt` written from the building toolchain's `GOROOT`, a few lines in the
+     package loop (1.4).
+2. **The race chain, in this order, and nothing in `cmd/glidergo/race.go` before the first.**
+   - **Should, and first.** An app-level loopback race under `-race` (4.34), as the net for
+     everything after it.
+   - **Gate, because the window closes at the tag.** Release, engine fingerprint and rules in
+     `Hello`, and `Meet` refusing disjoint `Versions` (4.31). If commit-reveal or 4.28's second
+     half is wanted at all, it goes in this same `Meet` change (4.38).
+   - **Should.** The host keeps listening after a connection that is not a race, and both
+     handshakes get a deadline (4.32).
+   - **Gate.** A failed join says why, on the plate, in words that fit. The Windows firewall is
+     named where a host meets it (4.33), and the refusal leads with the host's house (4.28's
+     amendment).
+3. **Hostile input.**
+   - **Gate.** A PNG dimension cap before decoding (4.36).
+   - **Gate.** Releases are built with a Go minor that Go still patches, not the `go 1.23` floor
+     `go.mod` names, and `govulncheck` is clean on that minor under `GOOS=linux` and
+     `GOOS=windows`. The listener and the PNG decoder are the standard library's, so its fixes
+     are this port's (5.11).
+   - **Should.** Fuzz seeds for the decoders that read outside data, and a bounded hostile-house
+     soak, with at least `netplay` `Recv`/`Meet` before the tag (4.30).
+4. **A stranger's first minute.**
+   - **Gate.** The first window is sized from the monitor, and a saved scale that no longer fits
+     is clamped (2.1's amendment). Until a 4× bench row meets the budget 2.76 states on both
+     backends, auto resolves to at most 3×; an explicit 4×–8× stays the player's choice. The
+     bench row lands with the cap (2.76).
+   - **Should.** A present that sends only the rows that changed (2.76). If that and 2.76's
+     server-side row repeat land first, the cap is never written.
+   - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
+5. **One docs truth pass.** It is cheap and has no dependencies. SECURITY.md is rewritten last,
+   because it points at 4.32 and 4.36.
+   - **Gate.** README's opening and a Releases link, 5.1 and 5.4 made true, and `RELEASING.md`
+     (5.1, 5.4, 4.13, 1.3 amendments).
+   - **Gate.** The board sorts on points, not rooms: README and `world.go` (3.1 lists them, and
+     is corrected already).
+   - **Gate.** README's "wins on the spot" holds only for a killed process (Stage 3's amendment).
+   - **Gate.** SECURITY.md stops saying there is no listener, and names the Go that builds
+     releases (5.7's amendment, 5.11).
+   - **Gate.** The release notes and `HOW-TO-RUN.txt` say what to do if Defender quarantines the
+     exe, and `release.yml:636` stops reading as if it covers antivirus (5.12, step 3).
+   - **Should.** The glibc floor is stated and asserted (5.4's amendment), CONTRIBUTING gets
+     house-licence rules (4.43, first half), README lists the per-OS data paths (2.75, docs half),
+     3.2's premise is corrected (3.2's amendment), and 4.1's status is corrected (4.1's amendment).
+   - **Should.** README gets an "Other ports" paragraph that names Aerofoil and claims only what
+     this port's own tests check. Every fact about Aerofoil in it is confirmed on a connected
+     host first, or cut (5.13).
+6. **Checked by a person, after the rest** (§5's new row, and the `RELEASE_TESTING.md` it plans).
+   The Windows subset runs on the Windows test host, next to 5.4's `Zone.Identifier` rehearsal:
+   keys pressed, window closed and resized, a race hosted behind the Windows firewall, and 2.1's
+   auto scale looked at. Anything it finds goes back into 4.33's wording before the tag. Defender's
+   verdict cannot be had there, because the test host is offline and the verdict that matters is
+   cloud-delivered; its offline scan came back clean, which rules out a local signature and nothing
+   more. So both `.exe`s are looked up on VirusTotal, and one zip is downloaded through
+   Edge on a connected Windows machine with cloud protection on (5.12, step 1). The quarantine
+   paragraph is step 5's.
+7. **Announced, last.** After step 6 and after 5.1's connected-host checks, because the
+   announcement is when strangers arrive. Where to announce is the user's call. Package-manager
+   manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag and run into 5.4's
+   unsigned-binary warnings, so they come later and are not part of the gate (5.13).
+
+**What the next tag does not need**, written down so that it is not argued again: Stage 5 and
+Stage 6; 2.10's presentation split; 2.37's movie decoder; 3.5's translation; 4.15's art task;
+gamepads (2.3, reworded from "owed" to "wanted"); settings pages (3.9); records and replays of real
+play (4.39, the first item after the tag).
+
+#### After the gate: what a version number promises — **decision needed**
+
+- **Formats freeze at the tag, additively.** From the first race-bearing tag, the prefs file,
+  saved games, score side-cars, replay scripts and the race protocol change only by addition.
+  A new field or keyword has a default an older file does not carry, and a new wire field
+  trails the ones before it. A change that cannot be additive gets a version bump that the
+  reader refuses by name, never silently. Replay scripts stay open to new keywords until 4.39's
+  grammar lands.
+- **Semantic versioning, and a CHANGELOG section per tag, from the next tag.** The v0.1.x
+  commits are only on GitHub (`git tag -l` is empty here), so splitting the existing
+  `Unreleased` section waits for someone to fetch the tags.
+- **Platform tiers, as the release notes already state them.** linux-amd64 (x11) and
+  windows-amd64 are played. windows-arm64 is built and has never run. The three `-headless`
+  archives run the whole game, draw nothing, and are for `-shot` and scripted runs. Stating the
+  tier is the fix; dropping the headless archives would lose their documented use. Each tier
+  also names the oldest OS it runs on, taken from the Go that builds releases rather than from
+  memory and re-checked when that Go moves (5.11), and linux-amd64 names its glibc floor as well
+  (5.4's amendment).
+- **A status table at the top of this file**, one row per stage, checked against the stage
+  headings by one `internal/citations` test that IMPROVEMENTS' status grammar (4.45) can share.
+- **A README "Known differences from 1994" list** of about fifteen lines, drawn from 2.3, 2.4,
+  2.9, 2.37, 2.43, 2.47, 2.49, 2.68 and 2.69. 2.33 is a footnote, not a player-visible
+  difference.
+
 ### Stage 5 — house editor
 
-- Port the original's editor (`docs/analysis/editor.md`) as `cmd/glideredit`: tools palette,
-  object placement, room/house info, linking, the map view, validation.
-- Writes the text format; can also import a binary house for editing.
+Four sub-stages, because "port the editor" hides three pieces of work that each stand alone.
+
+- **5a — the authoring loop from a download.** `glidertool house dump|info|lint|stats` and
+  `render` find a built-in house by name the way `replay` already does (4.20): the houses root,
+  then the levels root, then the embedded copies. Today a player with only a release archive
+  cannot dump a starting house, so README's authoring example (`README.md:336`) fails for them.
+  Small, and worth doing before 1.0 as an amendment to 4.20. `-room N` already jumps to a room,
+  and a relaunch costs about a second, so an in-session reload is optional.
+- **5b — a headless editing core, `internal/edit`.** `ObjectAdd`, the `DragObject`/`DragHandle`
+  constraints, `Link.c`, and `KeepObjectLegal` as constraints and repairs. It shares
+  `internal/house/lint.go`'s existing tables (`fixedTops`, `fixedLefts`, the link encoding)
+  rather than keeping a second copy, and is tested against `docs/analysis/editor.md`.
+- **5c — pointer input.** A pointer event for the x11, win32 and null backends, with window
+  coordinates mapped to the 640×480 framebuffer under `-scale` and under win32's resized window.
+  Every later backend owes the same event.
+- **5d — the in-window editor.** A property panel in place of `ObjectInfo.c`'s thirteen
+  object-info dialogs plus `RoomInfo.c`'s and `HouseInfo.c`'s own.
+
+*Acceptance:*
+- binary → dump → build gives back the same binary;
+- **saving an unedited shipped house changes no bytes**, or the repairs allowed to fire are
+  listed, because the editor's save runs `KeepObjectLegal` over every object
+  (`HouseIO.c:469-470`, `HouseLegal.c:919-939`) and 4.27 says a shipped house is the
+  specification;
+- the output lints clean;
+- IMPROVEMENTS 2.26, 2.36, 2.38 action 3, 2.40 and 2.44 are closed, and 4.23 and 4.27 are
+  honoured as constraints.
 
 ### Stage 6 — macOS, then maybe iOS/Android
 
-- `internal/platform/sdl2` with a hand-written cgo binding (SDL2 is the one C dependency
-  obtainable here, and it covers all three targets).
-- Requires a Mac build host for signing and testing; treat as a separate project phase.
+- **macOS: `internal/platform/cocoa`**, cgo plus a small `.m` file against AppKit and
+  CoreGraphics. It covers the window, a `CGImage` blit, positional `keyCode`s with
+  `flagsChanged`, `Event.Text` from `[NSEvent characters]` (or high-score entry breaks), focus,
+  and `runtime.LockOSThread` in the package's `init`, because AppKit must run on thread 0. Audio
+  is an AudioQueue sink behind `internal/audio/device.go`'s seam (2.48), narrowing
+  `device_other.go`'s tag. The key table, geometry and `platform.Expand` use go in untagged Go
+  files that can be tested on Linux, the way `waveout.go` is split from `waveout_windows.go`.
+- **Why not SDL2 for macOS.** It works, and it is zlib-licensed. But it would make macOS the only
+  build carrying a third-party redistributable, against README's "no SDL binding … nothing to
+  install" and DEV_ENVIRONMENT §4's "no supply chain". Notarisation is not a reason either way,
+  because not signing is already decided (CHANGELOG).
+- **Nothing here compiles on the development host** (no clang, and `CGO_ENABLED=0` excludes the
+  file). The only compile gate is `ci.yml`'s existing `macos-latest` job, which picks up a
+  `darwin && cgo` backend unchanged, and CI results are not visible from this host. Keep the
+  Objective-C surface minimal. A playable release also needs a macOS job in `release.yml`: the
+  arm64 slice native, amd64 via `CC="clang -arch x86_64"`, then `lipo`, a minimal `.app`, and a
+  hand-off to `publish`. `make cross` from Linux will always produce headless darwin binaries.
+- **iOS/Android, maybe:** SDL2 stays the one-backend candidate here, with a hand-written cgo
+  binding.
+- **Not yet changed to match: the places that still name SDL2 as the macOS backend.** They are
+  `internal/platform/platform.go:21`, DEV_ENVIRONMENT `:140`, `:228`, `:276`, `:288-291` and
+  `:411`, and `internal/platform/backend/doc.go:32`. Each should say macOS is `cocoa/`, and that
+  SDL2 is the iOS/Android candidate.
+- Land IMPROVEMENTS 2.74 (physical keys) first, so Mac and Linux bind letters the same way.
+- Requires a Mac for signing and testing; treat it as a separate project phase.
 
 ---
 
@@ -1510,11 +1693,32 @@ good intentions:
 | **Object behaviour tests**, one per class, from the spec docs | subtle trigger/effect mistakes in the long tail of object types |
 | **Constant audit** — a generated table diffed against `docs/analysis/constants.md` | a mistyped literal silently changing feel |
 | **Headless completability runs** per house | levels that cannot actually be finished |
+| **Fuzz seeds + hostile-house soak** — `testing.F` targets seeded from shipped data, replayed by plain `go test`; mutated houses run through `replay.Run` (IMPROVEMENTS 4.30) | panics on hostile input, and sticky asset errors on paths no golden replay visits |
+| **Loopback race** — two in-process apps over 127.0.0.1 under `-race` (4.34) | connect/cancel/deadline hangs, disconnect handling, two machines scoring different results |
+| **Checked by a person** — `RELEASE_TESTING.md` (planned), one numbered list with an expected result and a last-run column per step | everything above that needs hands: a house played through, Windows keys, the Windows firewall, a race between two real machines |
+| **Flash scan** — WCAG 2.3.1 over every replay's frames, with a negative control that must trip it (IMPROVEMENTS 3.3) | a house or a change that makes the screen strobe |
 
 Reference data is derived from the *source*, not from a running Mac (there is no Mac and
 no emulator here). Where the source is ambiguous, the ambiguity is recorded in the
 doc's "Open questions" and the chosen reading is pinned by a test so a later correction
 is a one-line change with a visible blast radius.
+
+`RELEASE_TESTING.md` is a new file, planned for `docs/` beside this one and linked from
+CONTRIBUTING and the release notes. Until it exists it is named here without its directory,
+because `TestEveryReferenceToOurOwnTreeResolves` fails a path that does not resolve. Its first
+entries:
+
+- play Open House and Boarding House through by hand;
+- on Windows, steer, pause, enter a high-score name on a non-US layout, resize, alt-tab and close
+  the window, and link to 5.4's existing `Zone.Identifier` step rather than restating it;
+- race between two machines by hand with **Windows as the host**, because that is where the
+  firewall allow dialog appears (Linux hosting and Windows joining never binds on Windows);
+- check a house-feedback issue template, once there is one: `.github/ISSUE_TEMPLATE/` holds only
+  a bug report and a fidelity-difference form today.
+
+An unattended cross-OS race comes later: a Linux host and a Windows guest on the same LAN, the
+Windows side a `GOOS=windows -tags nullbackend` build. It tests two network stacks, not two
+compilers. A per-session `docs/playtests/` directory and a SendInput driver are not wanted.
 
 ---
 

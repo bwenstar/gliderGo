@@ -168,16 +168,75 @@ rather than outstanding.
 What a public repository is actually missing:
 
 - `CHANGELOG.md` — **done**, at the end of Stage 1: one section per stage, each naming the
-  commit that closed it, with an `Unreleased` heading because there are no tags yet.
+  commit that closed it, with an `Unreleased` heading because the file has not yet been split per
+  tag (PLAN §4's release policy, "After the gate").
 - A project page. Deferred until there is a release to link to; 5.4 owns tagging, versioning
-  and artefacts. `VERSION` in the Makefile is `git describe --tags --always --dirty`, and with
-  no tags at all it resolves to a bare short hash, so every build so far is stamped that way.
+  and artefacts. `VERSION` in the Makefile is `git describe --tags --always --dirty`, and a
+  clone with no tags fetched resolves to a bare short hash, so a build from one is stamped that way.
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and issue and pull-request templates:
   none exist. Cheap and conventional, but all four are about *other people*, and they should be
   written when the repository is actually public and there is somebody to address — recorded
   here so that their absence is a decision. See 5.7. **All but the code of conduct written at
   2.0**, plus a third issue form for fidelity differences, which is the report this project most
   wants; 5.7 records what each one says and why the covenant is still the odd one out.
+
+### 1.4 The archives ship Go's runtime and standard library without Go's licence — **planned, before the next tag**
+
+Every archive has the Go runtime and standard library compiled into both of its binaries: the cgo
+linux-amd64 build, the five CGO_ENABLED=0 builds, and every `glidertool`. That code is BSD-3-Clause,
+and its second clause is about exactly this. A binary redistribution must "reproduce the above
+copyright notice, this list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution". Nothing in a gliderGo archive does that. The
+packaging step (`release.yml:352-361`) stages the rewritten README, `LICENSE`, `CHANGELOG.md`,
+`GliderPRO/README.md` and `GliderPRO/GPLv2-LICENSE.md`, then writes `HOW-TO-RUN.txt`. None of them
+names the Go Authors. `-version` prints `built by go1.23.12` and `licence GPL-2.0-only` and stops
+there, and `glidertool version` does the same. `credits.txt` has no line for Go, and the release
+notes' Licence section mentions only GPLv2. SECURITY.md already says the standard library is the
+only third-party code in a binary, so this is the one notice the archives owe, and they don't
+include it.
+
+Nothing else is owed. `go.mod` has no `require`, so no other Go code is linked in. The linux-amd64
+binary loads libX11, libxcb and glibc dynamically from the player's own system, and an archive that
+doesn't ship them owes them nothing. GPLv2 does not conflict either: BSD-3-Clause is compatible with
+it, provided the notice goes with the binary. 1.1 settled the port's own licence and 1.2 settled the
+1994 assets. Nothing so far has covered the toolchain.
+
+The fix is a few lines in the package loop, next to `cp LICENSE CHANGELOG.md`:
+
+```sh
+{
+  echo "glidergo and glidertool are built with $(go env GOVERSION), whose runtime and standard"
+  echo "library are compiled into both. They are distributed under the licence below."
+  echo
+  cat "$(go env GOROOT)/LICENSE"
+} > "$stage/THIRD-PARTY-NOTICES.txt"
+```
+
+The text comes from `go env GOROOT` rather than a committed copy. Under `GOTOOLCHAIN: local` that is
+the toolchain that built these exact binaries, so the notice can't drift from them. The zip branch's
+CRLF `sed` (`:496`) should convert this file as well as HOW-TO-RUN.txt, for the same Notepad reason.
+The pre-seal assertions (`:506`) get one more line,
+`grep -q 'Copyright (c) 2009 The Go Authors' "$stage/THIRD-PARTY-NOTICES.txt"`. Then a runner
+toolchain with no LICENSE, or a later edit that drops the file, fails the build instead of shipping.
+This has been rehearsed against go1.23.12: `$HOME/.local/opt/go/LICENSE` is there (1,479 bytes), and
+the block above writes a 1,635-byte file that the grep matches. Whether setup-go's GOROOT on a
+GitHub runner has the same file is unverified, like the rest of release.yml, and the grep is what
+makes a surprise there loud. Go's `PATENTS` does not need to ship, because it is a grant and not a
+condition.
+
+Two sentences go with the file:
+
+- **In the release notes' `### Licence` (`:714`) and in README's Licence section, which is in every
+  archive.** "The Go runtime and standard library compiled into both binaries are BSD-3-Clause, ©
+  The Go Authors; every release archive carries their licence as THIRD-PARTY-NOTICES.txt."
+- **Optionally, a `-version` line.** `go  BSD-3-Clause, © The Go Authors`, beside the existing
+  `licence` line (`cmd/glidergo/main.go:419`, `cmd/glidertool/main.go:155`). It covers the one-file
+  binary a player copies to `~/bin` without its archive.
+
+The licence only requires the file. The `-version` line is a courtesy. If a line goes into
+`credits.txt` as well, make it a note under `[this port]`, not a new section:
+`TestTheFileParsesIntoSectionsWithRows` pins the four section titles, and `People()` skips notes, so
+no exemption needs editing.
 
 ---
 
@@ -221,6 +280,47 @@ already decoupled — the risk is a future "derive it from the window like the o
 change reintroducing the coupling. It should become an explicit setting, documented as
 affecting gameplay and not just how much you can see.
 
+**The next step, before the next tag: the first window fits the monitor.** A per-monitor-DPI-aware
+640×480 window is small on 1080p and 1/27 of the area of a 4K panel. The window cannot be resized,
+so a saved scale bigger than the screen runs the playfield off it. It is recoverable (`-scale 1`,
+editing prefs, or the settings row if it lands on screen), and effectively lost only for a large
+mismatch such as 8× on a laptop.
+
+- **`prefs.Scale` 0 means auto, and is the default in a new prefs file.** It is stored as 0 and
+  resolved at every launch to the largest N in 1..8 whose 640N×480N client area plus frame fits the
+  work area, capped at 3× for now (next bullet). The resolved number is **never** written into
+  `p.Scale`, because prefs are re-saved when the shell notices a different house (PLAN `:838-840`),
+  and a stored number would stop the next launch re-fitting. `Validate` accepts 0..8. The settings
+  row steps auto, 1×…8×, shows "auto (2×)", and Defaults resets to auto.
+- **Auto stops at 3× until 4× is shown to be affordable (2.76).** Until 2.76's 4× bench row meets
+  its stated budget on both backends, auto resolves to at most 3×, and an explicit 4×–8× is still
+  the player's choice. If 2.76's changed-rows upload and server-side row repeat land first, the
+  cap is never written.
+- **An explicit saved scale that no longer fits is capped for this window only**, a local in
+  `openWindow`, with one stderr line from `cmd/glidergo`. It does not go through `p.note`, which a
+  backend cannot reach and which `Validate` has run before the screen is known.
+- **The fit is one backend-level query** (null returns 1), not `Config.Scale=0` hidden inside
+  `New`, because cmd needs the number for the banner (`play.go:1005`) and the row. The
+  `platform.Config` comment changes with it.
+- **Windows:** `MonitorFromPoint`/`MonitorFromWindow` plus `GetMonitorInfoW`'s `rcWork`, the
+  existing `AdjustWindowRect` (`win32.go:289-294`), and the window placed inside `rcWork`, centred,
+  instead of `CW_USEDEFAULT`. The cascade can put a fitting 2× window under the taskbar at 1080p.
+  `SPI_GETWORKAREA` covers the primary monitor only. All of these are user32, a KnownDLL, so the
+  preloading rule holds. Unverified here, so it is checked on the Windows test host in 5.4's
+  pre-tag rehearsal.
+- **X11:** mutter's per-monitor `_GTK_WORKAREAS_D<desktop>` first (present on this host), then
+  `_NET_WORKAREA`, then `DisplayWidth/Height`. The last two span every monitor, so a laptop plus a
+  4K screen picks 4× for the laptop. Per-monitor geometry needs Xrandr or Xinerama, which breaks
+  "only libX11", so the limitation is written down instead. The frame is unknown before mapping:
+  use `_NET_REQUEST_FRAME_EXTENTS` or a fixed allowance (35–49 px of title measured here).
+- `-shot` keeps reading `-scale`, whose default stays 1.
+- The fidelity `settings` hash changes if Default shows "auto (…)". It is regenerated on purpose,
+  with a deterministic headless value.
+- `NumNeighbors` is not touched. This entry's own trap stands.
+
+This does not close 3.3's text-scaling item: a low-vision player on 1366×768 still gets 1× or 2×.
+3.3 gets a cross-reference.
+
 ### 2.2 The simulation is frame-locked at 30.07 fps and stays that way — **policy; interpolation is 1.7 or later**
 
 `kTicksPerFrame = 2` Mac ticks on a 60.15 Hz clock, i.e. 30.07 frames a second, and every
@@ -256,8 +356,30 @@ directory. Three things about the shape of that are deliberate:
   because the settings screen is only reachable from the title screen. So a rebind can never
   be half applied to a game in progress.
 
-Still owed for a release: gamepad support, which the original had no concept of and which
+Wanted, but not scheduled: gamepad support, which the original had no concept of and which
 `internal/platform` has no device layer for.
+
+**The route, when it is wanted.** There are two layers, not two alternatives.
+
+- **The device layer, `internal/platform/pad`.**
+  - Linux: `/dev/input/js*` as 8-byte `js_event` records, with `JSIOCGBTNMAP` through `syscall`
+    to find `BTN_SOUTH`/`BTN_EAST`/`BTN_START`, because joydev numbering is per device. The
+    `/dev/input/js*` glob is re-read every 1–2 s; inotify is not needed.
+  - Windows: `XInputGetState` from `xinput1_4.dll`, loaded by absolute path, with winmm
+    `joyGetPosEx` as a fallback for HID pads XInput does not see.
+- **The seam: a Window decorator, focus-gated.** It answers `KeyDown` for named pad keys
+  (`pad1_a`, `pad1_left`). It ORs a fixed per-player overlay into `KeyPoll`: pad1 to P1, pad2 to
+  P2, d-pad or stick past a deadzone to Left/Right, two face buttons to Batt/Band, Start to pause.
+  It is keyed to the player, not to the arrow keys, or a pad could only ever drive P1.
+- **In menus**, A confirms and B goes back. B must do nothing on the title screen, where Escape
+  quits with no question. Back/Select maps to the pause screen's give-up.
+- **The settings capture sees raw pad names**, not a translated Return/Escape. Otherwise binding
+  A binds "return", which `Validate` rejects, and B cancels the rebind.
+- The game, the replay format and netplay never learn a pad exists. Text entry still needs a
+  keyboard.
+
+Nothing here can be run on hardware this project has, which is the reason it is "wanted" and not
+scheduled.
 
 ### 2.4 Transitions run at memory speed, so a wipe is a blink — **planned, 1.7**
 
@@ -373,7 +495,7 @@ art is there. `internal/game/pause.go` is the only place `internal/game` draws t
 `TestPausePanelIsDrawnWithoutArt` and `TestPausePanelNamesTheKeyThatResumes` are what keep the
 fallback from quietly becoming a blank rect.
 
-### 2.7 No way to quit that a stranger would find — **DONE, 1.7a and 1.7b**
+### 2.7 No way to quit that a stranger would find — **DONE, 1.7a and 1.7b; closing the window mid-game is reopened as a follow-up, next**
 
 `cmd/glidergo` maps Escape to quit and that is undiscoverable. The original's answer was a
 menu bar, which a port does not have. A release needs a title screen with a Quit item
@@ -403,6 +525,26 @@ drawn. Two things fell out of it:
 - **The give-up key is not the quit key.** Q ends the game and hands the title screen back;
   closing the window ends the process. `shell.Outcome.Closed` is still what tells those two
   apart, because they look identical to the `World`.
+
+**Reopened as a follow-up: closing the window mid-game discards the run.** Closing during a
+saveable one-player game ends the run and the process at the next poll, and saves nothing
+(reproduced: frame 41, `Outcome.Closed=true`, no save file).
+
+The follow-up: the first close in such a game pauses on the existing placard and asks the quit
+form of the existing `asking` question. Y saves, then quits. N quits. The pause key keeps playing.
+A second close quits without saving.
+
+- **These still quit on the first close:** a race (an explicit `netRace != nil` check, because
+  `CanSaveGame` is true in a race), `-frames`/`-bench`/`-dump`, the game-over countdown, the
+  `Wait` screens and the dialogs. Nothing unsaved is at risk in any of them.
+- **It all lives in `cmd/glidergo/play.go`.** Each `WM_CLOSE` or `WM_DELETE_WINDOW` already
+  arrives as its own `EventQuit`, and the backends' latches have no production reader.
+- **The pause is injected through `KeyPoll`'s Pause bit** (a `pendingPause` flag), because the
+  Pause hook calls `PlayEvent` itself.
+- **A close while switched out clears `SwitchedOut`**, as the arm already does.
+
+This is a new behaviour of the port. The original's app-level quit mid-game does not prompt. It
+follows this entry's own Escape-pauses precedent. README `:218` changes in the same commit.
 
 ### 2.8 The scale transform belongs at the present step and nowhere else — **planned, 1.7**
 
@@ -598,7 +740,7 @@ was meant to recover. That is frame-pacing work, it belongs with 1.8's timing pa
 setting that is written down and honest about being inert is cheaper to finish than one that
 has to be invented later along with the file-format change to carry it.
 
-### 2.18 The random stream is unverified against real hardware — **premise disproved, 1.8b; the table test is 1.8c; the physics gap it exposed is open**
+### 2.18 The random stream is unverified against real hardware — **premise disproved, 1.8b; the table test is 1.8c; the demo now plays to its end, and the recording supports no further oracle**
 
 `internal/game/rand.go` transcribes the original's linear congruential generator, and the
 demo replay in 1.8 depends on it bit for bit. It has not been checked against a trace from
@@ -635,6 +777,33 @@ against anything. §1.6 tabulates 24 verified draws from seed 1 — state, `Rand
 it. That closes it as far as it can be closed without a Mac to ask; what remains open after that is
 only whether Apple's trap really was Park-Miller, which §1.5 argues from the documentation and
 §1.13 bounds the cost of.
+
+**Amended at `03d0cf0`'s follow-up: the gap this entry called the sharpest target is closed as far
+as the recording can say.** The `'bnds'` fix (4.24) took the demo from 573 to all 1117 records
+consumed. The game now ends at frame 3417, three frames after the last record at 3414, with deaths
+at f1781, f2043 and f3417. Nothing shows those are wrong, and the stream points the other way.
+
+- **The game over fits.** A game over with `kInitialGliders = 2` needs three deaths unless a
+  glider is picked up, and the recorder stops logging when `gameOver` is set.
+- **The burn fits.** The recorder logs nothing while the glider burns, and the port's burn right
+  after the record at f2015 lines up with the 41-frame silence in the stream there.
+
+So all 1117 consumed, a game over just after the stream's end, and no record on a burning frame
+are every check this recording can support. What is left is not "raise a number". The next oracle
+is a trace from a real Mac. That is an inference, and it is written as one.
+
+Everything that quotes the old run is still to be corrected, with the demo floor (PLAN's gate):
+- this entry's `:760`, `:770`, `:815`, `:820`, `:826` and `:838` (the heading is already
+  re-titled; the seed result still holds, now with 1117 and 3432);
+- 4.7's `:3371-3376` — the "day the demo flies to the end of its stream" has come, and `128.bin`
+  is tracked, so a demo corpus row is buildable from a fresh clone;
+- README `:318-320` and the `demo.script` header (PLAN 1.8b is corrected already);
+- `demoRecordsFloor`, which becomes `demo.ShippedRecords`, with its dead "raise the floor" branch
+  dropped.
+
+The port's own death frames are **not** pinned as an expectation, because that would be a golden
+of the port and not of 1994. Two things are acceptable as the next step: 4.7's short-prefix demo
+corpus row, or a fidelity test asserting only what the stream implies.
 
 **What the demo replay does measure, and the number to beat.** The port does not fly the recorded
 path. Replaying the shipped stream against Demo House:
@@ -1306,7 +1475,7 @@ room change in the original, so a set switched on in one room restarts the movie
 later room that has one — that is 1994 behaviour to reproduce, not a bug to fix, and it is
 the field comment on `World.TVOn` that says so.
 
-### 2.38 A switch wired to a star makes a house impossible to finish — **fix planned, Stage 2 (needed before new houses ship); the linter is 4.1**
+### 2.38 A switch wired to a star makes a house impossible to finish — **fix planned, Stage 2 (needed before new houses ship), its shape now a decision; the linter check, left out of 4.1, planned next**
 
 `switchLinkedObject` (`internal/game/switches.go`) groups `kStar` with the eight other
 prizes, so a star removed by a switch gets the background restore and the puff of light and
@@ -1345,6 +1514,34 @@ Three actions, in the order they are needed:
    unwinnable; a linter that already walks the object graph should report any switch or
    trigger link that can remove a star, and should do it whether or not the runtime is fixed.
 3. **Stage 5, the editor:** the link picker should not offer a star as a switch target at all.
+
+**The linter half, which 4.1 was marked DONE without.** `link-removes-star`, an error in `link()`
+(`internal/house/lint.go`) with its `LintChecks` entry. It flags any of the six *switch* types
+(`kLightSwitch`, `kMachineSwitch`, `kThermostat`, `kPowerSwitch`, `kKnifeSwitch`, `kInvisSwitch`)
+whose link resolves to a `kStar`, local or remote. Triggers are excluded. A trigger wired straight
+to a star is inert (`FireTrigger`'s local arm falls to its default, and its remote half handles
+only grease), so flagging it would be a false error. A trigger that throws a switch wired to a star
+is caught by that switch's own link. Zero shipped links fire it, so `make levels` and CI gate new
+houses on it at no cost.
+
+**The runtime half is a decision, and the recipe above misses a case.** A switch whose star is
+outside the nine-room locale (`LocalLink -1`) never reaches `switchLinkedObject`. `SetObjectState`
+clears the star in the house copy and `StarsLeft` stays one short (reproduced). So a fix keys on
+`SetObjectState` having cleared a star, in `HandleSwitches` whatever `linkIndex` is, with
+`StopStar` only when the star is local.
+
+"`StarsLeft--`" is also not `HandleRewards`, which pays `StarPoints` and calls `FlagGameOver` at
+zero (else `DisplayStarsRemaining`). There are two options:
+- **The switch "collects" the star**, running the whole tail, so the last star wins the house.
+- **The switch refuses a star target** and the star stays collectible. This matches the 1994
+  editor, which never offers a star as a switch target (`Link.c:82-91`).
+
+Third-party 1990s houses loaded with `-levels` could plausibly reach this, because `DeleteObject`
+leaves forward links at an emptied slot (unverified). So the runtime half is a
+`fixes.switch_star` opt-in, and its bit belongs in 4.31's rules byte.
+
+The comment above `TestSwitchOnAStarStrandsTheHouse` ("fixing it changes what a shipped house
+does") is contradicted by the corpus survey and is rewritten.
 
 ### 2.39 The switch's spurious corner sparkle fires 145 times in the shipped houses — **DONE as an opt-in fix, 1.7b**
 
@@ -2181,6 +2378,27 @@ which is the same loop a player that dies at once needs to fall out of. Until th
 line still says `pw-play stopped taking samples`, which is the after-the-fact version of the same
 fact.
 
+**The test half, which lands with or before the fall-through.** A fake player in `internal/audio`
+that is the test binary itself, re-executed (the helper-process pattern `os/exec`'s own tests use),
+stdlib only, about 100 lines. An internal test replaces the package `players` var with the test
+binary's absolute path, and the mode comes from arguments after `--`.
+
+Four modes:
+- **discard**, **exit at once** and **exit after N bytes.** All three pass against today's code:
+  `Write` never blocks, a dead child is reported through `Err()` as EPIPE, and `Close` reaps. They
+  are regression cover.
+- **stall** — alive, never reads. This one finds a hang. `Close` waits for `pump` before it closes
+  `w`, and `pump` is stuck writing to a full 64 KiB pipe, so **quitting freezes the game**. `aplay`
+  without `-N` on a busy device does exactly this (its man page says so). The fix goes in the same
+  change: `Close` closes `w`, or kills the child after a short deadline, before waiting on `done`.
+  `Dropped` only shows up in this mode.
+
+**The two-candidate test is this entry's acceptance test**, and it fails today: the first fake
+exits at once, and `OpenPipe` must land on the second.
+
+`sink.go:184`'s "nil in the tests, which have no child process" describes tests that never existed
+(`git log -S newPipe(`). The package joins `make race` once a test starts the pump (4.34).
+
 ### 2.72 X11 auto-repeat is undetectable, so every `!ev.Repeat` guard is dead on Linux — **DONE, the release gate's first step, with `Repeat` tracked by keycode**
 
 `platform.Event.Repeat` exists so that a held key does one thing, and the shell and the game test it
@@ -2336,16 +2554,180 @@ this bug and nine other kinds of mistake, and requires each back at its line.
   tests. That is not a bug, but both are dead accessors today.
 - 4.30's soak, which found this, is not in the tree yet, so it has not been re-run against the fix.
 
+### 2.74 The glider is bound to what a key types, not where it is — **planned, soon after the next tag; before any prefs freeze**
+
+Four comments (`platform.go`, `x11.go`, `win32/keys.go` and `prefs.go`'s "one canonical name for
+the physical key") say bindings are physical. They are not. x11 reads
+`XkbKeycodeToKeysym(…, 0, 0)`, which is the *first configured* XKB group, not the active one, so
+behaviour depends on the order of the layout list. Win32 reads the VK code, and layout DLLs assign
+VKs per layout (on French, the US-`;` position is `VK_M`). So `win32/keys.go`'s "a VK_OEM_n code
+identifies a position" is itself false.
+
+The players who lose are French and Belgian AZERTY users. Player 2's cluster scatters and the digit
+keys break. QWERTZ only swaps Y and Z. Player 1 is on the arrows and capture-rebinding works, so
+nobody is locked out.
+
+**The fix:**
+- x11: the hardware keycode, looked up by XKB key name (`XkbGetNames` with `XkbKeyNamesMask`, so
+  `AC01` maps to A) rather than "evdev + 8", which is wrong on XQuartz.
+- Win32: the `lParam` scancode plus the extended bit.
+- `XLookupString` and `WM_CHAR` text stay exactly as they are.
+
+**The regression side, and why this is M.** Everything that uses a key as a *letter* works on
+AZERTY today and would break: the title-menu letters (`shell.go:520-547`), the picker's
+type-select (`letterOf`, `:921-931`), the Y/N give-up prompt (`play.go:690-695`), and every key
+name drawn on screen (About's `controlsLine`, the settings capture, the pause hint). All of them
+move to `Event.Text`, which is what the original's menus dispatched on (`charCode`). A new optional
+`KeyLabel(Key) string` per backend labels bindings through the host layout: x11 through
+`XkbKeycodeToKeysym` at the current group from `XkbGetState`, Win32 through `MapVirtualKeyW` or
+`GetKeyNameTextW`, and null with US names. Only the glider controls, pause, Delete and the paused
+Q/S stay physical, as they are in `Input.c`.
+
+A stored name like `"a"` comes to mean the A *position*. `legacy.go`'s Mac import is already
+physical, and only lines up with the port after this change. Land it before 5.10 and Stage 6, so
+every backend shares one meaning.
+
+### 2.75 The startup facts that change behaviour are on stderr only — **note; the README half rides the next docs pass**
+
+Three facts change what a player gets, and they are said only on stderr:
+- no sound (with `audio.installHint`'s per-OS advice, already written at `sink.go:271-282`);
+- the prefs file was unreadable or moved to `.bad`, so the bindings are back to defaults;
+- the remembered house is gone.
+
+On Windows the console is visible, and on Linux the documented launch is a terminal, so for the
+first release this is a gap only for a file-manager launch. It becomes real for a desktop launcher,
+a `-H windowsgui` build or a macOS `.app`. Then these facts join the opening status line through a
+new `Host` field (say `Notes []string`) that is combined with `opening()`, not substituted for it,
+or "24 houses" is lost. `Shell.status()` lets a menu row's note win over `msg`, and that ordering
+has to be decided.
+
+Score-board repair notes stay on stderr, as `highscore.go:309-313` decided. Chrome art failures are
+already on screen (2.6). The settings footer already shows the resolved prefs path; the one nit is
+that with `-prefs none` it could say "this session only".
+
+**Now, docs only:** README "Settings, scores and saves" lists the Windows and macOS paths next to
+the Linux ones and says `glidergo -version` prints the resolved paths. The Linux `HOW-TO-RUN` says
+sound needs `pw-play`, `paplay` or `aplay`.
+
+### 2.76 Every frame uploads the whole magnified window, and auto scale will make that 4× — **planned; the bench row and 2.1's cap before the next tag, the changed-rows upload with it if it fits**
+
+Both backends present the same way. `platform.Expand` writes the full pw×ph surface, then
+`XPutImage` (`x11.go:215`) or `StretchDIBits` (`win32.go:601`) sends all of it. That happens every
+frame, whether anything moved or not. At 4× it is 19.7 MB a frame, about 590 MB/s at 30.07 fps.
+
+Every figure behind "fast enough" was taken at 1× or 2×:
+- `x11.go:6-8`'s 533 fps;
+- DEV_ENVIRONMENT §6's "Rendering is not a risk";
+- `BenchmarkExpand` at 1–3× against a 16.7 ms frame (`expand_test.go:150-155`), which calls those
+  "the three scales the shell offers" when `MaxScale` is 8;
+- `windows-first-run.md:116-119`, at `-scale 2` only.
+
+`make bench` is hermetic (2.53), so it always runs at 1×.
+
+Measured on this host (Xeon 8488C, 8 cores), HEAD `12bd322`, `Xephyr :57 -screen 2600x1980x24`.
+Unpaced is `-frames 300 -bench`, three runs each. Paced is `-frames 240`, with CPU taken from
+`/usr/bin/time` and from Xephyr's `/proc/<pid>/stat`:
+
+| Scale | Unpaced | Paced, glidergo | Paced, X server |
+|---|---|---|---|
+| 1× | 636–666 fps | 9% of a core | 1.8% |
+| 2× | 135–141 fps | 18% | — |
+| 3× | 67–70 fps | 29% | — |
+| 4× | 40–45 fps | 42% | 19% |
+
+An earlier run under less load reached 49 fps at 4×. So 4× has 1.3–1.6× headroom over 30.07 fps, and
+that is on a fast server core. A 4× frame takes about 24 ms. `Expand` is 4.6 ms of it, and the
+engine and compositing about 1.5 ms. A bare C `XPutImage` + `XSync` of 2560×1920 on the same Xephyr
+takes 16 ms (62 fps), so the upload is about two thirds of the frame.
+
+**Why it matters now.** 2.1's amendment makes auto the default, and auto picks by monitor:
+- 4× on 3840×2160, where 1920 plus the frame fits a 2112–2128 px work area;
+- 3× on 2560×1600;
+- 2× on 1080p, and on 2560×1440, where 1440 plus a 32–48 px bar does not fit.
+
+Every 1080p player's default therefore goes from 1× to 2×, about 4.7× the cost of a frame. A frame
+that overruns makes the game slower rather than skipping (2.17). So a 4K screen on a CPU much slower
+than this one gives a game that runs slow, and nothing on screen says so. 2.10's 60/144 Hz
+presentation multiplies every figure here. 5.10's pure-Go client sends the same bytes, and its
+"speed is not a risk" is a 1× figure. Battery use is not measured, but 40–60% of a core for a 30 fps
+game from 1994 is enough to run a laptop's fan.
+
+**`Expand` is not where the time goes.** It already copies whole rows for the scale−1 repeated
+lines. The only per-pixel work is one 4-byte `copy()` per output pixel of the first line in each
+block. A `uint32` loop takes 4× from 4.6 ms to 1.7 ms, with byte-identical output at 1–8×, measured
+in a copy of `expand.go`. That is worth doing, but it is 3 ms of 24.
+
+What to do. All of it is stdlib, core X protocol and gdi32, it stays inside the backends, and none
+of it touches a game coordinate (2.8):
+
+1. **Send only the rows that changed.** The backend keeps a copy of the last 640×480 it presented.
+   Comparing 1.2 MB row by row costs tens of µs. Only the runs of changed rows are then expanded and
+   sent: `XPutImage` takes a sub-rectangle of the `XImage`, and `StretchDIBits` takes a source and a
+   destination rect. An expose, a map, `WM_PAINT` or a fresh window forces the next Present to send
+   the whole frame.
+
+   Tried on a no-input 300-frame Slumberland run (`-tags nullbackend -dump`). Per frame, a median of
+   17 of the 480 rows changed (p90 30, max 460), and the changed bounding box was a median 0.3% of
+   the frame. A frame that did not change, such as a title screen or a pause, sends nothing. This
+   needs nothing from `internal/game`, although its dirty-rect lists are there if a finer cut is
+   ever wanted.
+2. **On X11, let the server repeat the rows.** This is for the frames that do change a lot, such as
+   entering a room or a shell screen. Send the frame widened only horizontally (2560×480 at 4×) to a
+   `Pixmap`. Then `XCopyArea` each row `scale` times, which at 4× is 1,920 requests of 28 bytes. The
+   GC needs `XSetGraphicsExposures(False)`.
+
+   In a C probe on the same Xephyr:
+   - 4× went from 62 to 138–158 fps;
+   - 3× from 120 to 245–257;
+   - 2× from 270–300 to 460–484.
+
+   At 1× this is slower (920 against 1200), so 1× keeps the plain path. Repeating columns on the
+   server as well was slower still (233 fps at 2×). It adds no library, and a core-protocol client
+   (5.10) can do the same.
+3. **On Windows, stop expanding.** Call `SetStretchBltMode(hdc, COLORONCOLOR)`, then `StretchDIBits`
+   straight from a 640×480 DIB into the pw×ph destination. For an integer magnification only
+   `HALFTONE` averages pixels, so `win32.go:577-579`'s "GDI's own stretch would smooth" is true of
+   `HALFTONE` only. This is unverified here. Read the window back on the Windows test host and
+   compare it byte for byte with `Expand` at 2–4× before `Expand` is dropped from that path. The
+   same readback checks item 1's rect arithmetic on a top-down DIB.
+4. **Present nothing while the window is unmapped or minimised.** `StructureNotifyMask` is already
+   selected (`x11.go:149`), but `UnmapNotify` is thrown away. On Windows, use `IsIconic`.
+
+MIT-SHM stays out. It needs libXext headers at build time (DEV_ENVIRONMENT.md:138), and items 1 and
+2 take away most of what it would save.
+
+**The budget becomes a bench row.** `-bench`'s summary line reports the process's CPU time next to
+its frame rate: `syscall.Getrusage` on Linux, `syscall.GetProcessTimes` on Windows. It also reports
+the slowest frame, because item 1 makes the average flatter than the worst case. `make bench` runs
+`-scale 1` and `-scale 4`. CI's `xvfb-run -s '-screen 0 640x480x24'` (`ci.yml:143`,
+`release.yml:173`) is too small to show a 4× window, so it becomes `2600x1980x24`.
+
+Proposed budget, on the dev host:
+- paced 4× under 15% of one core;
+- unpaced 4× at 120 fps or more (four times the target), so that a machine a third as fast still
+  keeps game time.
+
+The comments at `x11.go:6-8`, DEV_ENVIRONMENT §6 and `expand_test.go:150-155` are corrected in the
+same change.
+
+**2.1's amendment carries the cap:** until the 4× row meets that budget on both backends, auto
+resolves to at most 3×, and an explicit 4×–8× is still the player's choice. If items 1 and 2 land
+first, the cap is never written.
+
+Not measured: bare Xorg or XWayland (Xephyr copies every frame again into its host window), win32
+above 2×, any laptop, any battery.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
 
 ### 3.1 High scores — **DONE, 1.7c**
 
-The original does keep them (`internal/house.Scores`, and the board sorts on rooms
-visited, not points). A release needs them persisted somewhere sane — XDG
-`$XDG_DATA_HOME/glidergo/` on Linux, not next to the binary — and it must not corrupt or
-crash on a truncated or hand-edited file.
+The original does keep them (`internal/house.Scores`, and the board sorts on **score alone** —
+`scores.go` `Sort`, `HighScores.c:281-318`, `docs/analysis/scoring.md` §7.2 fact 4 — while
+*rooms visited* is what `levels[]` records and what the race ranks on). A release needs them
+persisted somewhere sane — XDG `$XDG_DATA_HOME/glidergo/` on Linux, not next to the binary —
+and it must not corrupt or crash on a truncated or hand-edited file.
 
 **1.7c delivered all three.** `internal/scores.Store` writes one side-car per house under
 `$XDG_DATA_HOME/glidergo/` (`-scores` moves it; `-scores none` plays without recording), the 22
@@ -2358,6 +2740,27 @@ banner, in the original's own two dialogs.
 Two things a release still wants, both noted above rather than done: the footer is illegible
 (2.56) and the dates the board already stores are never shown (2.57).
 
+**The first paragraph's sort order is corrected in place. README and `world.go` are still to be
+corrected, before the next tag (PLAN's release gate, step 5).** README `:288`'s "sorted on rooms
+visited before points" becomes "sorted on points". README `:290`'s "from 1995" becomes "from
+1995–2000", because Art Museum and Davis Station carry 1996 rows and Sampler's and Slumberland's
+top rows are 2000-05-11. `internal/game/world.go:225-226` loses "Rooms visited, not points, is what
+the high-score board sorts on".
+
+**The picker footer shows the shipped "Your Name 10800" (2000-05-11) row as though it were the
+player's best on the default house.** `footerBest` keeps "record:" as the top of the merged board
+(name, score, rooms, year), so the picker and the H screen still agree on the top row. It adds a
+"you:" part only for the best row that is *absent from `h.Scores`*. On a fresh install Slumberland
+reads "record: Your Name 10800, 25 rooms (2000)" and no personal line. The label and the year are
+what tell it from the player.
+
+This breaks, on purpose, PLAN 1.7c's invariant (`:904-906`) and
+`TestThePickerFooterShowsTheMergedBoard` (`internal/shell/scores_test.go:281-309`), which require a
+footer from a side-car row to be pixel-identical to one from the same row in the house file. Both
+are rewritten around the new rule, and `sets_test.go:587-599` is checked. Record, you, "(locked)"
+and "[Original]" on one line come to about 94 characters, about 564 px, against 488, which is why
+this lands with 3.7.
+
 ### 3.2 Difficulty is brutal by modern convention — **decision needed, Stage 2 at the earliest**
 
 Glider PRO is a 1994 game: limited lives, no checkpoints, and death sends you a long way
@@ -2366,12 +2769,96 @@ per-room restarts — would widen the audience a lot. It cannot go in Stage 1, w
 contract is exact fidelity, and it must default to off. Worth deciding at Stage 2 when
 the new houses are being designed, because the houses can be designed for either.
 
+**The premise above is wrong, and is corrected before anything is decided on it.** A death does not
+send the player back. `OffAMortal` respawns the glider in the same room at `EnteredRect`
+(`mortal.go:98-110`, reproduced), so "per-room restarts" are already the 1994 death rule. The loss
+is at game over, after three gliders, when a new game starts in the house's first room. And in one
+player, S from the pause already saves an unlimited checkpoint that is never consumed
+(`store.go:198-206`), at the cost of high-score eligibility through `ResumedSavedGame`.
+
+**What is left to decide, and the two options on file.** Both are opt-in and off by default. Both
+set **one shared ineligibility flag** that `TestHighScore` treats like `ResumedSavedGame`, which
+arguably `-room` should set too (today it still reaches the board). Both are refused or forced off
+in a race, as `raceRefusals` treats `-resume` and `-room`.
+
+- **Assists** (`prefs.Assists`):
+  - **Game speed** (50/66/75/100%) by scaling only the host's 60.15 Hz `TickCount`. It is not free.
+    The live mixer runs on the wall clock and continuous sounds are timed to frames, so at 50% the
+    helium hiss (0.133 s) is asked for every 0.266 s and is silent half the time, and about 25% of
+    the time at 75%. The item has to choose: accept the stutter, retrigger on a wall-clock cadence,
+    or slow the mixer.
+  - **Extra or infinite gliders.** This changes simulation state (`Mortals`), so a replay recorded
+    with it needs the flag.
+
+  The wording of alert 1046 appears where the assist is switched on, as the original does before a
+  resume (`Menu.c:319`), not after the game, because PLAN `:943` keeps it unreachable at game end.
+  Slow motion was not ineligible on a slow 1994 Mac (`determinism.md:228`), so making it
+  ineligible is a new choice that has to be argued. The rows need 3.9's pages, and they reverse
+  `settings.go:113-115`'s policy openly.
+- **"Continue from the last room".** The host keeps one automatic snapshot in `internal/saved`'s
+  format, under its own key so that it never touches the manual save. It is taken once the glider
+  has settled after `R.RoomNumber` changes: `Visited` is set on *leaving*, and a snapshot on the
+  transition frame can resume at a slot mouth. It is written outside the frame loop (a full
+  snapshot is `110 + 292×rooms` bytes, 155 KB for Teddy World), and offered on the port's own
+  title screen. A multi-room practice picker comes later if at all, since it brings back 2.69's
+  "which one?".
+
+Both stay "decision needed" and are the user's call under the gameplay non-goal. Neither gates a
+tag.
+
 ### 3.3 Accessibility — **planned, 1.7 onward**
 
 Nothing in the original addresses it. The cheap wins: a colour-blind-safe option for the
 glider/shadow contrast (which is already low on some backgrounds), a "hold instead of
 tap" input option, and not relying on sound alone for any warning. The expensive one is
 scaling text, which interacts with 2.1.
+
+**The window-size half of text scaling is 2.1's auto scale**; this item's own text-scaling part
+stays open for low-vision players on small screens.
+
+**Photosensitivity, as a measured claim (*next*).** A flash-scan test in `internal/replay` using
+WCAG 2.3.1's real rule:
+- relative luminance through `render.Palette`;
+- a flash area over 25% of a sliding ⅓×⅓ field (8,533 px at 640×480);
+- more than three opposing-transition *pairs* in any 30 frames fails.
+
+The current five-script corpus passes. Only room changes cross the area threshold, at most two a
+second. The outlet zap (384 px) and 2.19's flame (240 px) are 20–35× under it, so this settles
+nothing about 2.19's default.
+
+The corpus gains a **negative control that must trip it**: a toggle light switch under a
+vent-pinned glider strobes the room at 2.5 Hz, and two out-of-phase switches at 5 Hz, unattended
+and in faithful mode. Reproduced. No probed shipped room does it; Stage 2 houses and user houses
+can.
+
+A README note is then scoped to what was measured: the scripted runs plus a probe of the shipped
+switches, and "a house can make the lights strobe". It does not say "safe". Follow-on: a
+switch-over-vent lint note in 4.1.
+
+**"Hold instead of tap" means toggle instead of hold (*later*).** Opt-in `latch_steer` and
+`latch_battery`, applied as a filter inside `cmd/glidergo`'s `KeyPoll`. The band stays one-shot.
+The filter needs explicit rules:
+- an opposite press clears the other latch on the same frame;
+- both keys physically down pass through as both, for the about-face;
+- the battery latch clears when `BatteryTotal()` reaches 0, or a new battery (or helium) engages
+  at once.
+
+These are unit-tested directly, because replay scripts bypass the filter. Any future recorder
+(4.39) or pad layer (2.3) must record what `KeyPoll` *returned*. It helps endurance, not dexterity:
+the number of presses and their timing are unchanged. It is prefs-only until 3.9's pages exist.
+2.72 matters here, because a split repeat pair would read as a tap.
+
+**Music volume separate from effects (*later*).** `music_volume` 0..7, default 7. `Mix` scales the
+music channel's sample before the sum, and the master volume stays where it is.
+- At 7 it is byte-identical to today (demo mix digest to frame 1775: `913492dc2deb5974`).
+- At 0 it matches `-music=false` (`329040786a50acdb`).
+- Both digests are pinned in a test, plus a music-only unit test like `TestVolumeScales`.
+
+It needs wiring through `Validate`, the legacy import default of 7, the R reset (`settings.go:283`),
+`ApplyPrefs` (`main.go:1061`), `Engine.SetMusicVolume`, and a flag next to `-volume`. It also needs
+a decision on whether 0 makes `MusicAvailable` refuse the score. It is pitched as a standard
+option, **not** a clipping fix: the default's clipping is unchanged and faithful
+(`engine.go:122-125`), and 4/7 only takes it from 6,853 to 5,835 samples. The row waits for 3.9.
 
 ### 3.4 There is no way in to the game — **DONE, 1.7a; the credits DONE, 1.7c**
 
@@ -2446,11 +2933,88 @@ Two separate things follow, and neither is a fidelity change:
 Deliberately not fixed: the vents stay off, the trigger box stays 112x32, and the basement stays a
 trap. Stage 1's contract is the 1994 behaviour, and this *is* the 1994 behaviour.
 
+### 3.7 The house picker says nothing about what a house is, and points a newcomer nowhere — **planned, soon after the next tag; one commit with 3.1's footer half**
+
+**Three changes and one warning.**
+
+- **Drop "(locked)" from the picker footer.** It is the 1994 editor's write-protect bit, this port
+  has no editor until Stage 5, and it shows on 15 of the 22 originals, including the default
+  Slumberland. It has not been reported, but "locked" reads as "unplayable" in modern games, and
+  nothing a player does depends on it.
+- **The first-launch nudge goes on the opening status line, not the footer.** "new to Glider? try
+  Demo House, the 1994 tutorial, or Open House." The splash preselects New Game on Slumberland (383
+  rooms, dark rooms, a known basement trap), so a newcomer who presses Return never sees the
+  picker. First launch is not detected today, so a `FirstRun` bit comes from prefs through the
+  `Host`. "No prefs file" clears after the first save, so a sturdier gate is "no house has a
+  side-car score yet".
+- **The house's banner, where there is one.** Up to two wrapped, ellipsised scale-1 lines in the
+  empty band at y≈362–384. Banners use `\r` separators and run up to seven source lines, so `\r`
+  becomes a space, `internal/scores/entry.go:423`'s `wrap` moves somewhere shared, and `fit()`
+  ellipsises. **13 of the 22 originals have no banner**, and of the nine that do, five say what
+  the house is (Demo House, Empty House, California or Bust!, Titanic, CD Demo House), so this is
+  worth less than it sounds.
+- **The footer's record and the player's own best are split** (3.1's amendment). This is why it is
+  one commit.
+
+The layout: banner lines in the empty band; line 396 holds the scores line, which dropping
+"(locked)" makes room for, and "[Set]" goes when it is crowded; line 416 stays the keys. The
+`houses` fidelity hash is re-recorded once, PLAN Stage 2's "one set draws the identical picker"
+sentence is amended on purpose in the same change, and `docs/screenshots/house-picker.png` is
+retaken. It is not a fidelity breach: the original's dialog had no footer.
+
+### 3.8 A player's own progress per house — **note; after 4.39's recorder**
+
+`internal/records`: one JSON side-car per house under the data directory, keyed on house name as
+saves are (`saved.Store.Path`), with `HouseHash`, `TimeStamp` and the gliderGo version as gates. It
+records:
+- how many times the house was finished;
+- the fastest *fresh* finish in simulated frames, with its replay beside it (resumed runs are
+  excluded, because `Frame` resets to 0 on resume and a script cannot carry a save's object state);
+- the best rooms;
+- the union of rooms ever entered, resumed runs included.
+
+Categories split on players, fixes, assists and resumed-or-fresh.
+
+The picker shows a finished tick and "seen N" **only when a record exists**, so the `houses` hash
+holds on a fresh profile. The denominator is never `nRooms`: Teddy World has 401 of 531 rooms
+reachable, so a meter over 531 can never fill. It uses `house stats`' reachable count, frozen per
+house hash, or no denominator at all. `finalStanding` lives in package `main` (`race.go:529`) and
+moves somewhere shared.
+
+Two more pieces:
+- `glidertool replay` gains a finished/died/quit verdict and in-game seconds, which is the gap its
+  output actually has.
+- An opt-in frame timer is a top-level display pref next to `scale` (`show_timer`), not a new
+  `extras` block, because it only draws pixels. `fixes` stays for 1994 defect corrections and
+  `assists` for rule changes that make a run ineligible.
+
+### 3.9 The settings screen is full, and the next row has nowhere to go — **planned, before the first new row lands**
+
+`settings.go:50-56` says a fifteenth row does not fit, and nothing enforces it: a fifteenth row
+would draw over the footer with no test failing. The rows the register backs are 3.3's latch and
+colour-blind options, 2.56's colour (once it is its own flag), 2.1's fullscreen (possibly one more
+step on the magnification row), and 3.2's assists if they are decided. `KeepRealTime` gets no row
+until something reads it.
+
+**Two or three pages, not four:** say Controls | Game and sound | 1994 fixes. Tab cycles pages
+instead of closing the screen, and Esc still closes and saves. **Every page name stays on screen**
+as a strip like the picker's, or this brings back exactly what `settings.go:17-24`'s "one list, not
+five panes" argues against.
+
+The fixes page carries a "1994 exactly / modern / custom" preset over the four existing
+`prefs.Fixes` rows. A two-state preset over per-item rows needs the third state, and the item needs
+a rule for what R does to the fixes. 2.56's colour joins the preset once 2.56 is its own flag.
+
+This reverses two written decisions, which are amended in the same change: `settings.go:17-24`,
+and PLAN `:842-847`'s "offers less than the file holds". The `settings` reference hash is
+regenerated. That is routine, because the screen has no 1994 original. A test holds every page's
+last baseline above `setFootV`, and that test can land now, alone.
+
 ---
 
 ## 4. Tooling and content
 
-### 4.1 A house linter — **DONE, 2.0**
+### 4.1 A house linter — **DONE, 2.0; except 2.38's link-removes-star check, which is 2.38's amendment**
 
 `glidertool house check` already round-trips and sanity-checks a house. Stage 2 authors new
 houses, and the failure modes it should catch first are the ones the shipped houses
@@ -2899,6 +3463,18 @@ re-establishing it by hand. It is left as a note rather than written now because
 empty today and a check with an empty allow-list is indistinguishable from a grep, and because the
 honest place for it is beside 4.5's cross-machine digest rather than bolted onto `make check`.
 
+**The standing check, when it is wired in.** `make fma-check`, run after `cross` in `check`. It
+builds `./...` — the whole module, not "physics and replay": the simulation is integer-only, and
+both past fusions were in `render` and `audio` (putting the old `stepFor` back gives an `FMADDD` at
+`audio/bank.go:200`). It builds for `darwin/arm64` and `windows/arm64`, the second because it
+compiles the win32 and waveOut files. It uses `-gcflags=-S` and fails on
+`\bFN?M(ADD|SUB)[SD]\b` at any `file:line` not on an allow-list, which is empty today. It also
+fails if the build fails or prints no assembly. About 15 s cold, 0.2 s warm.
+
+The recipe above, `grep FMADD`, misses FMSUBD, FNMSUBD and FNMADDD, and CHANGELOG repeats it.
+Both are corrected. The goldens already run on arm64 in `ci.yml`'s `macos-latest` job; they just
+cannot see a latent fusion.
+
 ---
 
 ### 4.10 Two tests spelled a path the way Linux spells one and asserted it was universal — **DONE; the CI half is done too**
@@ -3078,7 +3654,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — the only command line in this repository nobody has run is `gh release create`, which needs github.com and is 5.4's**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — and `gh release create`, the last command line nobody had run, has since run, twice, for `v0.1.0` and `v0.1.1` (5.4)**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -3390,6 +3966,9 @@ cost is the part worth remembering:
   which is **true today** and is the single best thing that paragraph could say. Pointing a player
   at an empty releases page, in a repository whose 4.13 is a list of documented instructions that
   did not work, would have been the same defect wearing a nicer hat.*
+
+  *(Superseded: two tags are out, the page has archives on it, and 5.4's amendment brings the
+  constant back.)*
 
   *What the deletion cost had to be weighed, because the obvious objection is that 5.4 will want the
   string back within one command of tagging. It is one line, and the reason it is safe to lose is
@@ -4786,6 +5365,34 @@ shell was called "most of the work", and they have not moved and should not. The
 place the program is allowed to block on a socket, which is precisely what a package with no `net`
 import cannot hold.
 
+**The guest can learn the host's house from the refusal, and redial, without a handshake change.**
+`Meet` refuses a mismatch after both `Hello`s are exchanged, so the guest *has* the host's house
+name and hash. It just throws them into a formatted string, and the status band cuts that string
+off before "theirs is".
+
+- **Before the tag:** the refusal leads with the host's house ("the host is racing Demo House"), in
+  4.33's wrap work.
+- **After 4.32:** `ErrHouse` becomes a typed `HouseError` carrying both `Hello`s (it still unwraps
+  to `ErrHouse`). The guest looks the host's hash up in the library it would play from —
+  `options.sources()`, meaning `-houses` *in place of* the 1994 set, plus the New set; about 14 ms
+  for all 22 — and redials with the match. Or it says "you don't have Demo House", or "you have a
+  different build of Fun House" when the name matches and the hash does not.
+
+**Match by hash only. `peer.HouseName` is never passed to `resolveHouse`**, which opens a disk path
+when the name holds a separator or an extension (`main.go:1161-1175`). The peer's name is for
+display.
+
+Changes that go with it:
+- the Race screen's Join side reads "you race whatever the host opened";
+- `Outcome` carries the house actually played, because `shell.go:666`'s result line names the
+  shell's selection;
+- `internal/shell/race.go`'s header and `:256` are amended;
+- the next CHANGELOG entry corrects the old one.
+
+LAN discovery, if it comes: the guest broadcasts a query and hosts reply by unicast (msgType 0x31
+or 0x40). Hosts do not beacon, because a listening guest would need an inbound UDP socket and might
+meet a firewall prompt too (unverified; the Windows test host would settle it).
+
 ### 4.29 A new house can carry pictures now, and still cannot carry a sound — **note; found closing 4.15, 2.5**
 
 4.15 is closed for art: a house of this port's own puts PNGs in
@@ -4819,6 +5426,471 @@ the 22 houses, half of them in `Leviathan`, `CD Demo House` and `Art Museum`, an
 none at all. So this is the smaller half of the same complaint, waiting on the same thing 4.15 is
 waiting on: somebody with a house that wants it.
 
+### 4.30 Nothing feeds hostile bytes to the decoders on purpose — **planned; the netplay targets before the next tag, the rest right behind**
+
+`SECURITY.md` names parsing other people's files as the whole attack surface, and the race now puts
+a socket in front of a decoder too. There are no fuzz targets anywhere in the tree.
+
+**Stdlib `testing.F` targets, seeded from shipped data**, so plain `go test` replays the seeds:
+- `house.Load`, with a Save/Load/WriteText/ParseText round trip;
+- `ParseText` plus `Lint`;
+- `DecodeSavedGame` and `DecodeScores`;
+- `netplay` `Recv` and `Meet` over an in-memory `ReadWriter`, with wire-frame seeds under
+  `testdata/fuzz`;
+- `replay.Parse`. Its round-trip property skips `House==""`, a documented precondition ("House is
+  required", and the only `Write` caller guards it). At most `Write` could return an error for it.
+
+`demo.Decode`, `prefs.LoadFile` and `ImportLegacy` are near-zero value and are left out.
+
+**A hostile-house soak, bounded.** It mutates the shipped houses and runs them through
+`replay.Run` with `ArtDir`/`HouseArtDir`/`HouseDir` pointed at `assets/extracted`. It fails on a
+panic, on a run that does not return in bounded time, and on **any non-nil `Run` error**. It does
+**not** assert `Diag.Guarded == 0`. The guards are the designed, reported response to a malformed
+house (2.33), and a mutator that is any good trips them (11 of 4,554 plays here). The committed
+default is tens of plays; 4,554 plays of 200 frames took 100 s. The soak found 2.73 on its first
+honest run, because the earlier runs had ignored `Run`'s return.
+
+**`make fuzz FUZZTIME=30s`, opt-in**, which leaves `make check` alone. Go's `-fuzz` takes one target
+per invocation, so it loops over the ten or so targets (about 5 minutes at 30 s) and passes a small
+`-fuzzminimizetime`, or the shipped-house seeds spend the budget minimising (7–9 execs in 21 s,
+measured). PLAN §5's testing table gains the row. Short runs found no crash, because the dangerous
+inputs are size-driven (4.36).
+
+### 4.31 A race handshake that cannot say which release or engine is on the other end — **planned; must land before the first tag that carries `internal/netplay`, or never cleanly**
+
+`Hello` carries a `Versions` bitmap, a nonce, the house name and hash, and `Meet` ignores the
+bitmap: a peer advertising only v2 is accepted without error. Nothing says which release or engine
+the peer is, or which rules it plays under. Once a build that speaks this is public, it can never
+refuse a newer peer cleanly, and it is worse than that. Measured: if the gate lands later, a
+first-generation build that is player 1 completes `Meet` before the newer peer refuses; the newer
+peer hangs up, and the old build scores that as a forfeit and shows its player a **false win**.
+Landing it before the tag means both sides refuse, each for itself.
+
+**Three mandatory fields in the v1 `Hello`**, still under header version 1. No public build speaks
+the race yet, so this is the layout, not an optional extension. A version bump would gain nothing
+now, and after the tag it would give old builds a bare `ErrVersion` naming no release.
+- **The release string** (`main.version`).
+- **A simulation-only engine fingerprint**, computed under a fixed configuration (built-in assets,
+  fixed seed, sound on, 9 neighbours, never the player's prefs). It comes from the built-in Demo
+  House demo plus the duct script and the other cheap test scripts (0.06–0.12 s each). The demo
+  alone never leaves room 0 before its first death and the duct script covers one route, so a
+  physics change elsewhere would pass. Alternatively, a hand-bumped constant that a test ties to
+  the checked-in golden traces.
+- **A rules byte:** a fixes bitmask plus a reserved assisted bit.
+
+**`Meet` then:**
+- refuses a fingerprint mismatch, naming both releases;
+- refuses `local.Versions & peer.Versions == 0`, naming both releases;
+- gates only on fixes marked as simulation-affecting — none of today's four are, since
+  `MirrorFoil` and `Player2GiveUp` act only in two-player games (which a race refuses),
+  `MirrorFlame` is render-only and `SwitchSparkle` draws no random number — and shows the rest as
+  information.
+
+Sound on/off is not a gate: a `kSoundIt` hot spot only plays a sound (`interactions.go:288-294`).
+
+A test pins that `Hello`, `MatchStart`, `Standing` and `Bye` all accept trailing bytes, and the rule
+"`Hello` is always sent with header version 1" is written in the package comment. `Hello`'s field
+list lives in `determinism-networking.md` §10.4's amended table as well as in the code (PLAN
+Stage 3's own rule).
+
+**This is the one protocol freeze on the list.** Anything else wanted in the handshake before the
+tag goes in this change: 4.38's commit-reveal, and 4.28's asymmetric second half if it is
+attempted. The replay-side `fix <name>` and build lines belong to 4.39, whose grammar is defined
+once with this item's fields.
+
+### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **planned, before the next tag if it fits; before 4.28's redial regardless**
+
+`openRace` accepts once and closes the listener, and `Meet` has no read deadline. So:
+- **a house-mismatched guest ends hosting** (measured: a Fun House guest against a Slumberland
+  host leaves no listener, and on the command line the host exits with the bug-report footer).
+  4.28 says a guest who typed a different house is the commonest way the gate fires;
+- **a silent connection blocks the host until Escape**, while the real guest is refused;
+- **a guest that dials something that accepts and never speaks hangs** on JOINING with no note
+  (measured against `http.server`). Something that speaks first gets "protocol violation" and the
+  footer (measured with an SSH banner).
+
+**The fix:**
+- Loop on `Accept` in `meetRace` (or a `netplay.Listener` helper). Each connection gets a ~5 s
+  handshake deadline, cleared once `Meet` succeeds.
+- **Any `Meet` error before a match exists drops that connection**, is shown through
+  `rc.note`/`lastNote`, and the loop continues. That includes `ErrVersion`, the nonce tie and
+  write errors, with no list of which errors count. The listener closes only after a `Meet`
+  succeeds.
+- The guest's `Meet` gets a longer deadline (~15 s). A sequential host loop can leave the real
+  guest in the kernel backlog while a silent connection times out, so the guest's deadline must be
+  longer than the host's.
+- An out-of-range first length is reported as `ErrMagic` ("not a gliderGo peer"), wrapped together
+  with `ErrProtocol` (Go 1.23's multiple `%w`), without the footer.
+
+**Tests:** `TestASecondGuestFindsThePortShut` is rewritten to "shut after the first *match*", and
+`TestFrameRejectsImpossibleLengths` (`netplay_test.go:182`) still sees `ErrProtocol`. `dial_test`
+gains a stray HTTP request, a silent connection, and a house-mismatched guest followed by a matching
+one. Internet play with port forwarding is not a stated goal. The argument is the LAN.
+
+### 4.33 A failed join runs off the screen and blames the other machine — **planned, before the next tag (the UPnP half is a separate note, not planned)**
+
+`netplay.Join`'s one piece of advice for every failure is "the other machine has to be hosting"
+(`race.go:238`). The error line starts on the plate's left frame and runs off the right edge of the
+screen, and on a refusal the word "refused" is itself cut off. Nothing in the repository mentions a
+firewall.
+
+**Sorted by cause:**
+- **refused** — the machine answered but is not hosting yet;
+- **no such host** — check the spelling;
+- **unreachable** — the address cannot be reached from this network;
+- **timeout** — no answer. That is *either* not hosting yet *or* a firewall or router dropping port
+  1994 (on Windows, allow gliderGo when asked, on the network you are on).
+
+A timeout does not mean a firewall. A Windows guest waits about 2 s before a closed port reports
+refused (Go's `fd_windows.go`), and `joinTimeout` is 1 s. A Windows host, and a Linux host with ufw
+or firewalld, drop connections to closed ports silently. So:
+- the dial goes through `net.Dialer.DialContext`, cancelled by `rc.cancel`, so the timeout can
+  grow to about 3 s without slowing Escape;
+- the firewall line gets prominent only after repeated timeouts.
+
+**The Windows file.** The stdlib has no `WSA*` constants for these, and `syscall.ECONNREFUSED`
+never matches 10061. So a windows-only file compares `syscall.Errno(10061)`, `(10065)` and
+`(10051)`, table-tested, and kept tiny because nothing here can exercise it.
+
+**The rest:**
+- The line wraps inside the plate. The plate is 200 px of a 480 px screen and can grow; with two
+  addresses the hosting screen uses 8 of its 9 slots.
+- The hosting screen lists the default-route address first and marks `IsPrivate` addresses "this
+  network only". It does **not** mark 100.64/10 as CGNAT: a local interface there is almost always
+  Tailscale, exactly the overlay the README will recommend.
+- The refusal leads with the host's house (4.28's amendment), in the same wrap work.
+- **Docs:** firewall text in the Windows `HOW-TO-RUN`, and a README section on racing beyond your
+  network (port forwarding, either side can host, VPNs work, IPv6 avoids forwarding but home
+  routers and the host's own firewall usually block incoming). SECURITY.md changes in the same
+  commit (5.7), because the port-forwarding advice is exposure.
+
+**UPnP, NAT-PMP and PCP — a note, not a plan.** The stdlib has no portable routing-table read for
+the gateway, many routers speak PCP rather than NAT-PMP, UPnP comes in several service versions,
+and none of it can be tested against a router from here. It also widens exposure, and it would need
+4.32, a handshake deadline and 4.30's netplay fuzzing first. L, and not wanted until someone asks.
+
+### 4.34 `race.go` has no app-level test, and four changes are about to edit it — **planned, first in the race chain**
+
+**An app-level loopback race in `cmd/glidergo`.** Two in-process apps (`newApp`, an idle Window,
+`platform.NewFramebuffer`, bench plus a short frame limit) meet over 127.0.0.1 through `a.play`
+with `shell.Race{Host}` and `shell.Race{Join}`. It covers three cases:
+- **a normal race**, where both sides agree on the match and the outcome. A scratch prototype
+  passed under `-race` in 4.2 s. Frame-limited runs both score as "left", so a decided winner needs
+  a house the idle glider can finish or die in.
+- **a guest that drops mid-race**, played by a raw netplay peer that closes its socket with no
+  goodbye. A process cannot be killed in-process.
+- **a host that accepts and never speaks.**
+
+**The seams it needs:**
+- a hook for the listen address or the resolved port, because `openRace` binds
+  `netplay.Listen("", o.port)` on every interface and with port 0 the guest cannot learn the port.
+  Binding 127.0.0.1 also avoids firewall prompts on the Windows and macOS CI matrix;
+- `raceConnectWait` and `raceSettleWait` turned from consts into vars;
+- an idle window, because `fakeWin` sends `EventQuit` when its script runs out.
+
+**`make race` gains `cmd/glidergo`, filtered with `-run 'Race|Loopback'`.** Unfiltered, `make race`
+goes from about 1.8 s to about 21 s warm, and `make check` runs it at `-count=2`. `internal/audio`
+joins once 2.71's harness starts the pump; `waveout_windows.go:290` is a third goroutine no Linux
+run can check.
+
+The claim that one package has goroutines is corrected in three places: `Makefile:418-436`,
+`Makefile:557` and `CONTRIBUTING.md:46-49`. CHANGELOG `:362` is history and stays. `race.go` is
+about 13% covered by statements.
+
+### 4.35 A double-clicked crash on Windows leaves nothing behind — **planned, before the next tag if it fits**
+
+Double-clicking the `.exe` is a documented way to launch it, and when the process exits the console
+closes with it, taking any panic trace or error. This first Windows release is a field test in which
+no key has been pressed, and this is the maintainer's only telemetry from it.
+
+**On the interactive paths only.** Never on `-frames`/`-bench`/`-shot`/`-dump` (2.53's hermetic
+rule, including CI's windows `-frames 300 -bench` step), and only after the `-version`,
+`-audio list` and `-import-prefs` early returns:
+1. Read the previous run's `<datadir>/crash.log`. If it holds anything after its header
+   ("panic:", "fatal error:", "Exception"), rename it `crash-last.log` and put "the last run
+   crashed; details in <path>" plus the issue URL on the status band.
+2. Reopen `crash.log` `O_TRUNC|O_APPEND`, so two local race instances interleave. Write the whole
+   `-version` block as its header (`printVersion` takes an `io.Writer`), and call
+   `runtime/debug.SetCrashOutput`. Appending a timestamp to a persistent file would make "it grew"
+   true after every clean run (34 bytes, measured).
+3. `-version`'s state rows list the path.
+
+`SetCrashOutput` records only unrecovered panics and runtime fatal errors. Most of what `main`
+prints are errors returned by `run()`, so on Windows, when `GetConsoleProcessList` returns 1 and
+the exit is non-zero, it waits for Enter. That keeps every earlier stderr note visible, which a
+`MessageBoxW` of the last error would not. On Linux `main` also appends the error line to the file.
+
+`-H windowsgui` with `AttachConsole` belongs in a **separate M note in §5**, not yet written, to be
+done after 2.75 lands. It needs stdout and stderr reopened on `CONOUT$`, cmd and PowerShell return
+to the prompt before a GUI-subsystem program prints (which spoils the `-version` paste the footer
+asks for), and it removes the console the release notes call the diagnostic channel.
+
+### 4.36 A picture under 1 MB can cost 2 GB — **planned; the PNG cap before the next tag, the rest as Stage 2 hygiene**
+
+`housepict.go`'s `loadHousePict` and `assets.go`'s `load` decode whatever PNG they are given. A
+300–800 KB file declaring 16384×16384 costs 0.5–2.1 GB (reproduced; about 20 fps after a 9 s
+stall). It is reachable today through the documented `-levels`/`-houseart`/`-art` flags.
+
+**The fix:** `png.DecodeConfig` first (re-opening the file, because zip entries cannot seek). Refuse
+anything over about 4 Mpx — 14× the largest shipped picture — with a looser side cap of about 4096,
+through the existing `a.fail` path. 2048 would leave only 1.33× over the application art's 1536 px
+strip, and `-art` loads that tree too. A test builds the 16384² PNG at runtime.
+
+**Smaller, and they can follow:**
+- the `0x7FFF` room check moves into `text.go`'s `beginRoom`, because an 11.9 MB text allocates
+  1.9 GB before it is rejected. Only `glidertool house build` reaches the parser;
+- a `Stat` size refusal above 11,403,984 bytes (866 + 348×32767 + 2) in `house` `peek`, so the
+  file is never listed, and in `LoadFile`/`LoadFS`, with `io.LimitReader` for `fs.FS`.
+  Binary reads cost 1× the file size and then refuse trailing bytes, so this is minor.
+
+The library walk is **not** a threat: `Discover` calls `PeekFS`, which reads 866 bytes. Demo files
+arrive only through glidertool and expand about 2.7×. A zip-entry cap is a stated requirement on
+4.41's packs, since no user-supplied zip is read today. SECURITY.md (5.7) points at this item for
+its size limits.
+
+### 4.37 The race sends a standing every frame and nothing when the other side goes quiet — **planned, after the next tag (the README correction goes before it)**
+
+`Report` compares whole standings, `Frame` included, so the "on change" test fires every frame:
+about 30 messages a second and ~1 KB/s. `netplay.go:9`, `standing.go:179` ("a few hundred bytes a
+minute"), `conn.go:28`, PLAN Stage 3's driver bullet and CHANGELOG `:344` say otherwise. The
+bandwidth is harmless. The comments are wrong, and the waiting screen is blind.
+
+**The fix:**
+- The change test leaves `Frame` out, but `Report` keeps the newest standing with its current
+  `Frame` even when it does not wake the writer.
+- Race's writer resends that standing about once a second, and the reader records when it last
+  heard from the peer.
+- The waiting screen shows the opponent line plus "flying", "paused N s" or "last heard N s ago".
+  **Display only.** Turning silence into a forfeit would let a network split score two different
+  results, which breaks the rule that both peers agree without a referee.
+
+A `Report` test runs with a rising `Frame` and an injectable heartbeat interval.
+`TestReportSendsNothingWhenNothingChanged` still guards a real case (116–160 `Present`s in one
+frame during a wipe).
+
+A heartbeat is what would make a read deadline possible at all (`conn.go:32-35`). That is why
+README `:264-265`'s "wins on the spot" is corrected now and the deadline is a later decision.
+
+**A separate finding filed here:** when this side quits (Quit, a forfeit), `finishRace` still waits
+on `Settled`. The repro host printed "player 2 wins: by forfeit" and then "the other player never
+finished, so there is no result".
+
+### 4.38 The race takes each peer's word for its result — **the honour-system line and the state-machine fix before the next tag; re-simulation much later**
+
+A peer can report any standing it likes. **What is done now:**
+- README's race section and SECURITY.md (5.7) say results are on the honour system.
+- `checkSlot` refuses:
+  - any standing after an `Ended` one — a real hole: it reopens a settled race and turns the
+    honest side's screen into NO RESULT;
+  - `Rooms` going down, or above the house's room count;
+  - more than 2 standings per `Frame`. It has to be at least 2, because every honest run ends with
+    its final standing on the same frame as the last one in flight.
+- **"Neither peer can choose the seed" is false** (`handshake.go:289`, CHANGELOG `:312-314`). 16
+  bits of the seed were set in about 15k tries, and all 31 bits of `RandSeed` are reachable in
+  seconds. The gain is small (both players fly the same seed, and the slot does not affect
+  `Winner`), so the claim is reworded, or commit-reveal goes into 4.31's `Meet` change and nowhere
+  else.
+
+**Dropped:** a wall-time rate check. `Winner` rewards *fewer* frames (`standing.go:328`), so a liar
+sends a small `Frame` that such a check allows. It would also reject honest unpaced `-bench` races
+(300 frames in 0.41 s, measured).
+
+None of this stops one 28-byte message (Finished, plausible Rooms, large Score) from winning. Only
+re-simulation closes that: each side sends its input log right after its own final standing and
+before `Bye`, because `finishRace` sends `Bye` before `awaitSettled`. That waits on 4.39 and 4.31.
+It proves "this engine produced this run", not "a person flew it", since a headless bot at about
+90× real time passes.
+
+### 4.39 A game somebody played cannot be replayed — **planned, the first item after the next tag**
+
+4.2 built the bug-report format, and nothing records a real game in it. The proposal:
+- Wrap `World.KeyPoll` in `cmd/glidergo/play.go` so that it appends a `replay.Hold` whenever the
+  keys change.
+- When a game ends, write a `replay.Script` from a `defer`, so a closed window or a panic still
+  leaves it (a hang does not). It goes to `<datadir>/replays/last-<house>.replay`, and to
+  `-record FILE` when that flag is given.
+
+A scratch version reproduced three sessions exactly, one of them paced.
+
+**The script carries:**
+- house, the seed given to `NewWorld`, players, neighbours, the start clock;
+- `sound` = whether the bank loaded (`a.eng != nil`). It must not come from `-sound` or
+  `prefs.Sound`, because `openAudio` builds the engine on a Discard sink when no device opens, and
+  `SetSoundOn(false)` keeps the trigger hot spots;
+- `room N` and the directory lines when `-room`, `-houses`, `-art`, `-houseart`, `-sounds` or
+  `-levels` were used;
+- **`frames`: the last frame + 1 when the game ended on its own**, otherwise the last frame. The
+  replay's `w.Frame >= s.Frames` stop otherwise cuts off the ending (measured: `rand` differed at
+  frame 460, and +1 made all 461 match).
+
+The grammar is extended once, together with 4.31's fields: `fix <name> on`, `househash`, and a
+build line. `RunWatching` learns to apply `w.Fix`, which it never sets today; only `Player2GiveUp`
+changes physics, but all four need lines. Resumed games are refused or marked.
+
+**The acceptance test compares simulation fields frame by frame between the live loop and the
+replay**, with sound off or `snd=` excluded. The live mixer is wall-clocked (4.11): under `-bench`,
+24 of 25 events differed. It also checks that `glidertool replay -digest FILE` equals the digest
+computed in-process from the same file (measured equal).
+
+`bug_report.yml` asks for the file. 3.8, 4.44 and 4.38's re-simulation build on this.
+
+### 4.40 A house with any tail but 0 or 2 bytes is refused, where the original and D3 accept it — **planned, Stage 2; before 4.41's packs and 4.43's importer**
+
+The 1994 `ReadHouse` keeps any number of bytes after the last room, and
+`docs/analysis/format-decisions.md` D3 decided the port would too. `house.Load` accepts only 0 or 2.
+
+**The fix:**
+- `Load` keeps any tail as `Slack`, and `Save` and the text format carry any length back
+  byte-exact. That touches `binary.go:194-205` and `:347-350`, and `text.go:641`, which requires
+  exactly 2 hex bytes.
+- Lint and `house info` add a note for a tail other than 0 or 2, saying that 348 bytes or more is
+  what the 1994 editor's `ValidateNumberOfRooms` (`HouseLegal.c:629-636`) would re-read as extra
+  rooms. That changes the "34 checks" in PLAN Stage 2's
+  `glidertool house lint` bullet.
+- The three tests pinning the rejection change: `peek_test.go:99-110`, `text_test.go:349` and
+  `shell_test.go:424-458`.
+- The stale comments go: `binary.go:171-179`, `house.go:53-55` and `:106-107`, `peek.go:25-37`,
+  `text.go:186`, PLAN `:157-158` and `:177-180`, and glidertool `house.go:219-221` ("a PowerPC
+  save").
+- The loader's error message cites §12.4, which is a hexdump. The rule is §2.5 (`:427-430`) and
+  D3. `house-format.md`'s own "up to 2" at `:2778-2780` and `:4166-4168` is fixed in the same
+  change.
+
+**`Discover` is left alone.** Once the tail is accepted, every binary house `PeekFile` lists also
+loads, so the listed-but-unopenable case goes away without the full-load scan the design rejects.
+`TestHouseThatSniffsButWillNotLoad` is repurposed as "anything `PeekFile` accepts, `Load` accepts".
+PLAN `:771`'s "a truncated house sniffs as one" is already false.
+
+D5's "clamp `nRooms` to what the file holds, never reject a short file" is a related gap, out of
+scope here.
+
+### 4.41 The text format README shows off cannot be opened, and a downloaded house has nowhere to go — **planned; the suffix fix any time, the folder next, packs after 4.40**
+
+In order of value:
+1. **`.house.txt` opens and lists.** `Discover`'s whitelist (`library.go:135`: "", `.house`,
+   `.glh`) skips it on purpose, and a text house passed directly fails with "need 3931008 bytes".
+   `Discover`, `PeekFS`, `LoadFS` and `houseName` learn the compound suffix `.house.txt`. Bare
+   `.txt` would put every README into Skipped, and trimming only the last extension would name the
+   house "Open House.house".
+2. **Size caps first** (4.36), and 4.30's targets.
+3. **`<datadir>/houses/` as an additive source.** It is an explicit subdirectory, because
+   `datadir.Dir("houses")` returns `GLIDERGO_DATA` verbatim with no subdirectory, and in a portable
+   install that would be the scores directory. It is silent when missing (`walk()` turns a missing
+   root into an on-screen error), and skipped in hermetic modes (2.53). A byte-identical copy of a
+   built-in house is skipped, because two rows would share one save/score side-car keyed on
+   name + timestamp (`store.go:401-407`). That is 4.14's hazard.
+4. **Zip packs in the same layout**, with art resolved from the house's own pack first:
+   `ArtRoots.Fork` is a global first-match by name, so a pack house named like a built-in one
+   would otherwise get the wrong pictures.
+5. **A pack manifest** is shown in the picker as the pack's own claim, and never in the credits,
+   which 4.14's provenance rule forbids.
+
+A single-set release already draws two sets, so the claim is narrower: an empty folder adds no
+strip entry.
+
+### 4.42 The game has no icon, no class and no version resource — **planned, after the next tag**
+
+The original 1994 application icon (`icl8`/`ICN#` 128, with `ics8`/`ics#` 128 for 16×16) is
+already in the embedded archive. Runtime Go decodes its 1.3 KB through `render.Palette` and the
+mask, and the backend gets it through `platform.Config`, not by importing render.
+
+- **X11:** `_NET_WM_ICON` passed to `XChangeProperty` as a C `unsigned long` array (8 bytes per
+  pixel on LP64; passing `uint32` is the classic bug). Also `WM_CLASS` "glidergo"/"gliderGo", and
+  `_NET_WM_PID` with `WM_CLIENT_MACHINE` via `XSetWMProperties`.
+- **Win32:** a committed, deterministic, icon-only `rsrc_windows_{amd64,arm64}.syso` in
+  `cmd/glidergo`, with `RT_ICON`/`RT_GROUP_ICON` at 16/32/48/256. 48 comes from 16×3 and 256 from
+  32×8, nearest-neighbour, so this is not "upscaled art". A `-check` mode guards it the way
+  `packassets` is guarded. `LoadImageW(instance, 1, IMAGE_ICON, …)` goes into
+  `wndClassExW.icon`/`iconSm`. The release job regenerates the `.syso` with a `VERSIONINFO`,
+  because the version is known only at build time. It names gliderGo, its version and licence,
+  and credits the original. `CompanyName` is not "Casady & Greene".
+
+No manifest: DPI is set at runtime (`win32.go:404`) and nothing uses Common Controls. A `.desktop`
+file is optional, because nothing installs it and `Exec` needs an absolute path. If a pure-Go X11
+client lands (5.10), the X11 half goes into it. The macOS `.icns` comes from the same decoder in
+Stage 6.
+
+### 4.43 Houses that are not the project's: the rules for contributing one, and an importer for the 1990s ones — **the rules before the next tag; the importer later**
+
+**The rules, in CONTRIBUTING's Houses and Licence sections (now).**
+- The project never bundles third-party houses.
+- A house contributed to `levels/` must be the contributor's own work, and its author gets a
+  credits line.
+- `credits.txt`'s "None of that work is ours" is corrected, because two houses now are.
+
+A public repository invites exactly the contribution that would undo 1.2.
+
+**`glidertool house import` (after Stage 3, before the Stage 5 editor, which reuses it).**
+- It decodes BinHex 4.0, MacBinary and AppleDouble.
+- It rejects StuffIt by its magic with "unstuff it first". Most 1990s houses travelled as
+  `.sit.hqx`, and today they fail with "file truncated". An optional first step is recognising
+  these magics in the loader and naming the format.
+- It converts version-1 houses (`peek.go` refuses anything but 0x0200, and `house-format.md` §3.2
+  says the conversion is two lines) or refuses them by name. Glider 4 non-PRO houses are out of
+  scope.
+- It decodes `'Date'` resources the same way as PICT, or at least reports them. The docs disagree
+  about them (`rendering.md` §4.4 against `graphics-assets.md` OQ1).
+- The embedded filename goes through `datadir.FileName` and is never used as a path, which is
+  SECURITY.md's own named risk. The importer brings its own fuzz targets.
+- It writes `X.house` plus `houseart/X/pict` (and `bnds`), which `-levels DIR` already plays.
+- Aerofoil's converted layout (`.gpd`/`.gpa`/`.gpf`) is not on this list. 5.13 refuses it by name
+  first, and adds it here only if one checked sample shows it is cheap.
+
+**Acceptance:** pixel-exact against the 919 extracted PNGs from the 22 vendored `.binhex` files.
+MacBinary and AppleDouble have no samples in the tree and need made-up test files. The sound half
+waits for 4.29 and a Go `'snd '` decoder. Until then the importer says how many sounds it dropped.
+`house-format.md` §13.3 already recommends this import. What was missing was the plan step and the
+rules. Depends hard on 4.40.
+
+### 4.44 The race needs a second machine, and a recording could be the other player — **note; after 4.39 and 3.8**
+
+The player races a recorded run offline on the existing panel: their own best, or a friend's file.
+
+**How it runs:**
+- The recording is re-simulated headlessly with the same `World` → `Standing` mapping the race
+  uses, storing only the frames where the standing changes. Counting distinct `Sample.Room` values
+  reads one room ahead, because a room is marked visited on *leaving* (`transit.go:195-217`).
+- The recording is refused unless it ends in Finished or Died and reproduces the result line it
+  carries. A Quit scores as a forfeit, and running out of frames never settles.
+- The live `World` is seeded from it, and it is settled with `netplay.Winner`. The race treats it
+  as a race: rooms before frames. It is not a speedrun, so "race your best" picks the run `Winner`
+  ranks highest.
+- A small interface (`Opponent`, `Report`, `Close`, `Settled`, `Result`, `Match`, `Err`) replaces
+  `*netplay.Race` across `wrapPresentRace`, `finishRace`, `awaitSettled`, `showRaceResult` and
+  `theirsAsScored`.
+
+**A friend's file is untrusted.** The loader accepts only the recorder's own keywords: house by name
+plus `househash`, seed, neighbours, sound, music, players 1, clock, capped frames, and `at` lines.
+It takes no paths, no `room`/`where`/`gliders`/`stars`, and it stops re-simulating at game over.
+Verification proves the engine can produce the run, not that a person flew it.
+
+Entry points: a `-challenge FILE` flag first (`-ghost` would promise a sprite this rejects), then a
+Race-screen row listing recordings from the data directory. That changes the race screen's hash.
+M, given 4.39.
+
+### 4.45 The register's statuses are prose, and some point at stages that have closed — **note; after the next tag**
+
+A hand re-triage comes first. Close 2.8, 2.12 and 2.34 (both halves have Done rows), and the
+table-test clause of 2.18. Narrow 2.13 to per-sound loading plus separate volumes, and restate 4.8.
+Retarget 2.2, 2.4, 2.10, 2.11, 2.17, 2.29, 2.37, 2.57, 2.58, 3.3 and 4.3. Give the open halves that
+name no stage (2.1, 2.14, 2.18, 2.22, 2.23, 2.49, 2.71, 4.28, 4.29, 5.5) a stage or "decision
+needed". Several of these hide player-visible work that has quietly left the schedule (2.4's wipes,
+3.3).
+
+**Then, optionally:**
+- The rule at the top of this file admits **note** as a fourth form, and "decision taken" is
+  allowed. 34 of the 147 statuses start with "note". A test of the three forms as written would fail
+  64 headings the day it landed, and 28 even with both of those admitted. Each heading gets a fixed
+  leading status token, because statuses are compound.
+- The Done table's "2.N" labels are commit labels, not Stage 2 sub-stages. 2.5 and 2.6 come after
+  Stage 3's netplay commits, and "2.0" also collides with the Glider PRO house format. A
+  label-to-commit map replaces "this stage" mechanically; digging 126 cells out of history is the
+  costliest and least valuable part.
+- `internal/citations` gains tests: every open clause names an open stage, and every DONE heading
+  has a Done row. They share the stage-status parser that PLAN §4's release policy proposes for its
+  status table.
+- A generated `OPEN.md` is the lowest-value extra.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -4827,7 +5899,7 @@ Everything above is about the game. This section is about the fact that the game
 written on one airgapped host and is meant to end up on GitHub, and that those two things have
 different failure modes. Added when the public build path was put in beside the private one.
 
-### 5.1 The public build path cannot be tested from the machine that wrote it — **note; needs one connected host, before the first public push**
+### 5.1 The public build path cannot be tested from the machine that wrote it — **note; check 1 retired, check 3 answered by the Actions log, check 2 and the whole `--source public` path still open**
 
 `scripts/bootstrap-dev-env.sh --source public` and `.github/workflows/ci.yml` are the two
 pieces of this repository that have **never run**. They cannot: this host cannot resolve
@@ -4857,6 +5929,19 @@ wrong:
 
 None of this blocks Stage 1. It blocks the first push to a public remote, which is where it
 will announce itself loudly and cheaply.
+
+**Amended after `v0.1.0` and `v0.1.1`.** Two tags have been built and published by `release.yml`,
+so this entry is partly answered and partly not. From this host it is **unknown** whether either
+tag needed a correction.
+
+1. The action versions ran. `actions/cache@v4` is listed and nothing uses it, so it comes off the
+   list.
+2. **Still open.** No workflow runs `scripts/bootstrap-dev-env.sh`, because CI gets Go from
+   `setup-go`. The go.dev index parse, and the whole `--source public` path in this entry's first
+   paragraph, have still never run. Closing them needs someone on a connected host to run
+   `scripts/bootstrap-dev-env.sh --source public` (or `--dry-run`).
+3. Answered by the Actions log, in the `check` job's "On-screen bench under Xvfb" step and in
+   `release.yml`'s `verify` job. The line is pasted here when someone reads it.
 
 ### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **found, planned, and DONE, 2.4 — all four consequences, and the fix turned out to have a fifth property nobody asked for**
 
@@ -5039,7 +6124,7 @@ only way to reach it). `make assets` still re-derives the tree from `GliderPRO/`
 the archive after it. And the Makefile grew an `embedded` guard: every build target refuses to
 build without `assets/extracted.zip` rather than producing an executable that comes up empty.
 
-### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`; no tag has been pushed yet**
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0` and `v0.1.1` are published**
 
 `.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
 list as future work: `make cross` plus the host's cgo build, six archives of two binaries each
@@ -5095,6 +6180,57 @@ than from anyone having watched it happen. The Windows half needs no network to 
 commands. It is the only unverified claim in `release.yml` that github.com is not required to settle,
 which makes it the cheapest one on the list and the last one that has an excuse.
 
+**Amended: it has executed, twice.** "It has never executed" and `release.yml:3-9`'s "it has never
+run … Expect the first tag to need a correction" are history now. They are rewritten to say what is
+known and what is not: whether either tag needed a correction is not recorded on this host.
+"**Five** of the six archives cannot draw" is **three**.
+
+**The moment-of-the-first-tag item is overdue, and is done next, before the next tag.**
+- `project.Releases` comes back, read by `-version`/`-help`. It is not read by the About box or
+  the title screen, which are faithful, so fidelity is untouched.
+- `.github/ISSUE_TEMPLATE/config.yml` gets one `contact_link` to it. `bug_report.yml` already asks
+  "Where the build came from", with a "Releases page" option, so the templates need a link and not
+  a rewrite.
+- **README's opening** stops saying "for Linux" and "Clone it and `make run`", and links the
+  Releases page, which has Windows zips on it.
+
+**`RELEASING.md` at the root**, the one record on the tree of the steps that happen off this host.
+- Pre-tag:
+  - an rc tag or `workflow_dispatch`;
+  - the hand-written `Zone.Identifier` double-click on the Windows test host (the paragraph
+    above);
+  - on a connected machine, both `.exe` hashes on VirusTotal and a Defender download check with
+    cloud protection on (5.12), because the test host cannot see Defender's cloud verdict;
+  - `govulncheck ./...` clean on `GO_RELEASE`, under `GOOS=linux` and `GOOS=windows` (5.11);
+  - a CHANGELOG section for the tag.
+- Post-tag, each marked **"needs a connected machine"**:
+  - download from Releases and `sha256sum -c`;
+  - run on a clean distro;
+  - optionally `objdump` the glibc floor;
+  - a real-download Mark-of-the-Web check on a connected Windows machine (the Windows test host is
+    airgapped and `scp` strips the stream, so there the hand-written stream is the only option);
+  - record the run URL.
+
+Its commands are fenced as non-bash, so `docs-check` leaves them alone. That tool is for front-door
+documents, and a dozen skip rules would defeat it.
+
+**The Linux archive's glibc floor, stated and asserted.**
+- `release.yml:185` (the build job; `:112` and `:569` do not affect the shipped binary) is pinned
+  to `ubuntu-24.04`. That keeps today's measured floor of GLIBC_2.34. 22.04 and bookworm give the
+  same 2.34, so neither lowers it, and `-tags netgo,osusergo` removes only `res_search`.
+- After `make cross`, a step takes the highest `GLIBC_x.y` from
+  `objdump -T bin/cross/glidergo-linux-amd64-x11` and fails above 2.34. That is the part worth
+  most: a code change can raise the floor on an unchanged runner (`__isoc23_strtol@GLIBC_2.38`),
+  and a pin cannot catch that.
+- The Linux `HOW-TO-RUN`, the release notes and README's "Getting a build" say "needs glibc 2.34
+  or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or later) and libX11".
+- Actually lowering the floor is a separate M decision. It needs an EL8 container (glibc 2.28,
+  supported to 2029), because Debian 11 LTS has ended. GitHub runners cannot reach a private
+  registry, so a mirror on one is only for rehearsing locally with podman.
+
+**Pre-tag, in addition to the `Zone.Identifier` rehearsal:** the gate list in PLAN §4's release
+gate.
+
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; windows/amd64 is now run as well as compiled, macOS and windows/arm64 are still compile-only**
 
 `make cross` builds `windows/amd64`, `windows/arm64`, `darwin/amd64`, `darwin/arm64`,
@@ -5133,6 +6269,20 @@ is stdlib-only python3 that has only ever run on Linux, and a failure is a findi
 rather than a reason to hide the step.
 
 macOS is still Stage 6, and there "it compiles" remains the whole claim.
+
+**Next step: account for skips across the whole suite, natively.** No CI job does that today; Linux
+enforces it only for `internal/fidelity` and `internal/citations`. `tools/skipcheck`, stdlib, reads
+`go test -json ./...`. It echoes the output as text, so the existing failure-summary step's grep
+still works, and `go test`'s exit status still fails the step under `pipefail`. It compares every
+skip (package, test and subtests) with a committed per-OS allowlist, in two classes:
+- **must-skip** — the 4 `internal/citations` tests on every CI OS, and the 2 XDG tests on Windows
+  and macOS. It fails if one of these stops skipping;
+- **may-skip** — `TestWaveOutPlaysSilence`, and netplay's TEST-NET-3 and two-listener skips.
+
+It fails on any skip not listed. The lists are seeded from the static census and corrected after
+one GitHub run, since they cannot be confirmed from here. It lands after the fresh-clone citations
+failure (`TestEveryReferenceToOurOwnTreeResolves` against the gitignored `scripts/env.sh` and
+`scripts/local-source.sh`) is fixed.
 
 ### 5.6 Is a fresh checkout playable? — **audited and yes; four defects found and fixed, 1.10a**
 
@@ -5186,7 +6336,7 @@ instead was to remove the question: commit the decoded assets, so the first comm
 `git clone` is `make run`. That is 1.2's route (a) and it retires the extraction step from the
 quick start entirely.
 
-### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent**
+### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent; `SECURITY.md` reopened by Stage 3, its rewrite planned before the next tag**
 
 1.3 records that `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and the issue and
 pull-request templates do not exist. This is where the reasoning lives, because "add the standard
@@ -5241,6 +6391,34 @@ default, which is not what the document is for. Left absent rather than boilerpl
 to write it is a second maintainer, not the public push; that is who the reporting clause would
 name.
 
+**Reopened by Stage 3.** SECURITY.md `:14` ("a game with no network code") and `:33-37` ("there is
+no network listener … this section will need rewriting when it does") are false: `-host`, or
+Race… › Host, listens. The rewrite states what the shipped build does:
+
+- **The listener.** TCP on every interface, IPv4 and IPv6, port 1994 or `-port`, only while the
+  waiting screen is up. The first connection gets the only slot and learns the house name, hash and
+  nonce before sending a byte. After 4.32, the listener closes after the first *match*, and a
+  connection that stays silent is dropped after a deadline.
+- **What a peer can send, and what is checked.** Frames are capped at `MaxMsg` (1 MiB), checked
+  before allocating. Every field that decides something is validated (slot, state, matchID,
+  lengths, the `MatchStart` seed and delay). Informational fields and standing values are taken as
+  sent, and the house name is printed with `%q`. No file contents ever cross the wire. The surface
+  is symmetric: a hostile host can send a guest exactly what a hostile guest can send a host, so
+  the text says "peer".
+- **What the hash gate is.** A check against honest mismatches, **not authentication**. `Hello`
+  goes out before the peer's arrives, so a hostile peer can echo it. Results are on the honour
+  system (4.38).
+- **Files, more precisely.** `fs.FS` stops a path taken from file contents escaping, but `os.DirFS`
+  follows symlinks inside a shared `-levels`, `-houseart` or `-art` tree, and only the house listing
+  skips them. Size limits are 4.36's.
+- **Not changed:** the bind default. A loopback default breaks the feature, and "LAN only" is not a
+  bind address. An optional future `-listen` is listed at most.
+- **Dependencies and Versions.** The Go minor that builds releases, and what a Go security fix
+  between tags means (5.11).
+
+This is also the file 4.33's port-forwarding advice points at, so both change in one commit.
+CHANGELOG gets a line.
+
 ### 5.8 What the fresh-checkout audit found and deliberately did not fix — **notes, 1.10a**
 
 Recorded so that none of these is rediscovered as a surprise. Each one is small; each was left
@@ -5286,6 +6464,312 @@ alone for a stated reason rather than missed.
 - **Audio still shells out to an external player on Linux and has no sink at all elsewhere.**
   Already 2.48. The audit's only addition is that `-version` prints the backend, so a report from
   a null-backend build is identifiable as one.
+
+### 5.9 A release binary cannot be checked by rebuilding it — **planned; the flag at the next Makefile touch, the rest optional**
+
+`-trimpath` is a `go build` flag: `BUILDFLAGS := -trimpath`, passed in the `build`, `glidertool`,
+`headless` and `cross` targets. It does not go in `STAMPED`, which is `-ldflags`, and the linker
+rejects it (exit 2, tested). It does not go in an exported `GOFLAGS` either, which would override
+`scripts/env.sh`'s `-mod=mod`. Without the flag all 13 cross binaries differ between two checkouts;
+with it they match.
+
+- **Optional:** a CI step that rebuilds `make cross` in a second checkout and compares
+  `bin/cross/*`.
+- **The "verify a release" note says what can actually be checked.** Run `go version -m` on the
+  downloaded binary, clone the tag clean (vcs.revision and vcs.modified are stamped), rebuild with
+  that exact patch release and `VERSION`, and compare the **extracted binary's** hash.
+  `SHA256SUMS` hashes the archives, which record mtimes and owners, so it cannot be reproduced
+  unless packaging is made deterministic (`tar --sort=name --mtime=@<commit> --owner=0 --group=0
+  --numeric-owner | gzip -n`; `touch -d` plus `zip -X`). That is extra work, and the packaging step
+  would need re-rehearsing.
+- **The cgo `linux-amd64-x11` binary** is reproducible only on a pinned runner image (5.4's
+  glibc amendment), because its bytes also depend on gcc, binutils and libX11-dev.
+
+Public binaries are built on GitHub runners, so they embed runner paths, not the developer's.
+
+### 5.10 linux-arm64 cannot draw, and every Linux binary carries a glibc floor — **the arm64 job next; a pure-Go X11 client much later, opt-in**
+
+**Next (S, off-host).** A native `ubuntu-24.04-arm` job builds the cgo x11 binary, runs `go test`
+and a bench under xvfb, and hands the binary to the packaging job. So `linux-arm64` draws instead of
+being `-headless`.
+
+It is not a one-line change. The build job both cross-compiles and packages (`release.yml:183-547`),
+so it needs `needs:` plus `download-artifact`, `:317` becoming `linux-arm64|-x11||tar`, and
+rewritten text at `:30-35`, `:408-410` and README `:52`. The runner is free only for public
+repositories. It carries the same GLIBC_2.34 floor: Pi OS Bookworm is fine and Bullseye is not. It
+shares its runner-label edits with 5.4's glibc amendment.
+
+**Later (L): `internal/platform/x11wire`, a stdlib X11 client** over the unix socket or TCP (for
+`ssh -X`, `localhost:10`), with MIT-MAGIC-COOKIE-1 from `$XAUTHORITY` or `~/.Xauthority`. It would
+give static `CGO_ENABLED=0` Linux binaries for every architecture and libc, with no glibc floor. It
+has to rebuild everything `XLookupString` gives today:
+- `GetKeyboardMapping` and `GetModifierMapping` (Shift, Lock, Mode_switch/level 3);
+- the core-protocol keysym column rules, keysym to Latin-1, and a refresh on `MappingNotify`;
+- `InternAtom` for `WM_PROTOCOLS`/`WM_DELETE_WINDOW`, and `ConfigureNotify` and `FocusIn`;
+- XKB `QueryExtension`/`UseExtension`/`PerClientFlags` for 2.72's repeat semantics.
+
+The guard is **new**. `-shot` draws through no Window backend, so comparing `-shot` output proves
+nothing. One test `GetImage`s the window after `Present` and compares it byte for byte with
+`platform.Expand`. Another runs the client against an in-process fake X server over `net.Pipe`,
+which covers request encoding, strip splitting and event decoding on headless CI. Speed is not a
+risk either way: the probe did 466–508 fps and Xlib 502–504 fps on the same Xephyr.
+
+It ships behind a build tag or backend flag first, and becomes the default only after runs on
+GNOME/XWayland, KDE and a Raspberry Pi. It absorbs 4.42's X11 half and 2.74's keycode work, and it
+is not Stage 6.
+
+### 5.11 Releases are built with Go 1.23, which Go no longer patches, and nothing scans them — **planned; the toolchain line and a govulncheck step before the race-bearing tag, the OS floors with them**
+
+`go.mod` says `go 1.23`, and every `setup-go` step reads it with `go-version-file: go.mod`
+(`ci.yml:99`, `:205`, `:276`, `:319`; `release.yml:127` and `:208`). So every release is built with
+some 1.23.x. Which patch the runner picks is in the Actions log, not on this host. Go supports "the
+past two Go releases" (`$(go env GOROOT)/SECURITY.md:5`), so 1.23 stopped getting fixes when 1.25
+shipped. That mattered less while the game only read files. The race-bearing tag listens on TCP
+(`internal/netplay/dial.go:65`) and decodes the PNGs a shared house carries
+(`internal/render/housepict.go:359`). SECURITY.md says the standard library is "the only third-party
+code in a gliderGo binary" (`:48`), so the toolchain *is* the supply chain, and nobody has looked at
+it. `govulncheck` has never run, and nothing says which later `net` or `image/png` fix a 1.23 build
+is missing.
+
+The `go` line sets the lowest Go that can build this code. It does not have to be the Go that builds
+a release. `GOTOOLCHAIN=local` stops this airgapped host from trying to download a newer Go
+(DEV_ENVIRONMENT §3). On a runner it only means "keep the Go that setup-go installed" (`ci.yml:66`).
+A newer toolchain builds this module unchanged and keeps 1.23's GODEBUG defaults, because those
+follow the `go` line (`doc/godebug.md`, "Default GODEBUG Values"). So security fixes land and
+GODEBUG-gated behaviour changes do not. The repo already makes this choice for contributors:
+`bootstrap-dev-env.sh --source public` installs the newest stable Go at or above the floor, "because
+a patch release is where security fixes live" (`:273-275`). `ci.yml:96` calls the `go` line "one
+source of truth", but its two readers do different things with it.
+
+- **The toolchain.** Set `GO_RELEASE: "1.NN.x"` once in each workflow's `env`. `1.NN` is a minor Go
+  still supports, chosen on a connected host. `release.yml`'s `verify` and `build` and `ci.yml`'s
+  `cross` and `native` use `go-version: ${{ env.GO_RELEASE }}`. `check` and `citations` stay on
+  `go-version-file: go.mod`, so README's "Go 1.23 or newer" is still tested on the Go this host has.
+  `go.mod`, `GOTOOLCHAIN=local` and `GOPROXY=off` do not change. The patch floats on purpose, and
+  5.9's rebuild recipe reads the exact one from `go version -m`. The minor moves when Go drops it,
+  every six months.
+- **The scan.** Add a `vuln` job to `ci.yml` and a step to `release.yml`'s `verify`, both on
+  `GO_RELEASE`. Only the install step gets `GOPROXY=https://proxy.golang.org`, for a pinned
+  `go install golang.org/x/vuln/cmd/govulncheck@vX.Y.Z`. That installs a tool and writes no
+  `require`, so `internal/module` still passes. Then run `govulncheck ./...` under `GOOS=linux` and
+  under `GOOS=windows`, because netplay's sockets and the audio sinks differ per OS. In
+  `release.yml` a finding stops the tag. In CI it fails the job and gets an entry here saying
+  whether netplay or a decoder reaches it. `ci.yml` has no `schedule:` today. A weekly one catches a
+  Go security release that lands between tags. None of this can run here, because this host has no
+  vulnerability database and no proxy.
+- **The floors, taken from the toolchain.** Here is what 1.23.12 sets, measured on this host:
+  - macOS: a `CGO_ENABLED=0` darwin build carries `LC_BUILD_VERSION` minos 11.0.0, which the Go
+    linker hard-codes (`ld/macho.go:489` in the toolchain's source).
+  - Windows: a windows/amd64 PE header says 6.1, which is Windows 7, so the Windows loader never
+    refuses the file. But `runtime/os_windows.go:270` looks up `ProcessPrng` by name, and `randinit`
+    calls it at startup without checking it was found (`runtime/rand.go:51`, `os_windows.go:503`).
+    On a Windows that lacks it, the game dies inside the runtime before it can say anything. What
+    the player actually sees is unverified.
+  - Linux: the kernel floor in this source is 2.6.32 (`syscall/syscall_linux_accept.go:5`). An x11
+    player meets the glibc 2.34 floor (5.4's amendment) before that.
+
+  This GOROOT carries no release notes. So which Windows versions lack `ProcessPrng`, and what later
+  minors raise, are unverified here; "Windows 10 or Server 2016 since 1.21" is remembered, not
+  checked. Copy them from the chosen minor's release notes ("Ports") when `GO_RELEASE` is written,
+  and re-check them at every bump. They go into README's "Getting a build", the release notes (which
+  today say only "Windows needs nothing at all", `release.yml:699`), both HOW-TO-RUN.txt variants
+  and the platform tiers in PLAN §4's release policy. `otool -l` on `macos-latest` can assert the
+  macOS one.
+- **The documents.** This goes into 5.7's rewrite. In SECURITY.md, "Dependencies" names the Go minor
+  that builds releases and says `go version -m` shows it. "Versions" says a Go security fix that
+  reaches gliderGo is reason enough for a release. RELEASING.md's pre-tag list (5.4's amendment) and
+  PLAN §4's release gate get one line: govulncheck is clean on `GO_RELEASE`.
+
+This host does not have to leave 1.23, because `check` keeps the floor honest. If it ever should,
+DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm`.
+
+### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the connected-machine check before the next tag, the resource experiments after 4.42**
+
+4.13 and 5.4 prepare a player for SmartScreen, Mark of the Web and Gatekeeper. All three are
+warnings with a way past them. Microsoft Defender Antivirus is a different component, and it does a
+different thing. When it decides a file is malware it quarantines it, either as the zip is extracted
+or on the first double-click, and no dialog offers a Run anyway button. The player sees an unpacked
+directory with `glidergo.exe` missing, or a double-click that does nothing and a "Threats found"
+notification. Nothing in `release.yml`'s notes, either `HOW-TO-RUN.txt`, README, SECURITY.md or
+`docs/windows-first-run.md` mentions antivirus. One sentence in the notes points the wrong way.
+"None of the three looks at what is *in* the archive" (`release.yml:636`) is true of the three it
+names, and a reader will take it to cover the fourth. Defender does look.
+
+The Windows binary has most of the traits that Defender's machine-learning detections
+(`Trojan:Win32/Wacatac.B!ml` and its relatives, which the Go FAQ's entry on virus scanners exists to
+answer) tend to key on. Measured on `bin/cross/glidergo-windows-amd64.exe` at 12bd322:
+
+- it is unsigned and new, so it has no reputation;
+- it has no `.rsrc` section at all: no VERSIONINFO, no icon, no manifest;
+- its import table names `kernel32.dll` only. `user32`, `gdi32` and `winmm` are resolved at run time
+  through `LoadLibraryExW` and `GetProcAddress` (`syscall.NewLazyDLL` in `win32.go:76-78`,
+  `syscall.LoadDLL` in `waveout_windows.go:122`). That is ordinary Go, and it is also what a loader
+  does;
+- 11.4 MB of its 15.7 MB is `.data` at 7.98 bits per byte. That is `assets/extracted.zip`, and to a
+  heuristic it looks like a packed payload. `glidertool.exe` carries the same bytes;
+- it is linked `-s -w` and is a console program;
+- and from the tag that carries `internal/netplay`, it calls `net.Listen("tcp", …)`.
+
+None of that is wrong. Whether this build is actually flagged is **unknown**, and the Windows test
+host cannot settle it. The verdicts that matter come from cloud-delivered protection and Block at
+First Sight. Those only run on a file carrying Mark of the Web, on a machine that can reach
+Microsoft. The test host is offline, and `scp` strips the stream. A
+`MpCmdRun.exe -Scan -ScanType 3 -File` there checks local signatures only, so a clean result says
+nothing about the ML verdict. The host did not answer on any port while this item was written, and
+that weak version has since run, with the result below.
+
+**Measured on the Windows test host, 2026-09-23: nothing fired, which answers a narrower question
+than a player's machine will ask.** The probe was `make cross`'s `glidergo-windows-amd64.exe`:
+15,716,352 bytes, sha256 `66c459714811f8dc92c6ae4f006fc7b3754a22c0b51dcd841489489cfd87f3f1`, stamped
+`9becf4b-dirty` because it was built nineteen seconds before 12bd322 was committed, and copied there
+with `scp`. The host is Windows Server 2025, with Defender platform 4.18.26030.3011 and engine
+1.1.26030.3008. Real-time, on-access, IOAV and behaviour monitoring are on and there are no
+exclusions. MAPS is at Advanced, `SubmitSamplesConsent` is 1, and Block at First Sight is left
+enabled. Those are the defaults, so the policy is a player's. Tamper Protection is off, where
+consumer Windows turns it on, and that does not change what is detected. Only the connectivity is
+not a player's.
+- The file was still on disk with its hash intact 32 s after the on-write scan, and no Defender
+  event had been logged.
+- `MpCmdRun -Scan -ScanType 3 -File … -DisableRemediation` reported "found no threats" and exited 0.
+  So did a second copy carrying a hand-written `Zone.Identifier` of `ZoneId=3`, and the 2026-09-21
+  build that had been run on that host.
+- `Get-MpThreatDetection` and `Get-MpThreat` are empty. The Operational log has no detection event
+  anywhere in its history back to 2026-04-17, a span that includes the 2026-09-21 build's run with
+  behaviour monitoring on.
+
+That rules out a local signature or client-side heuristic that matches this code today. It cannot
+rule out the verdicts that matter for a public download, because every one of them happens in the
+cloud, and this host has not reached the cloud since 2026-04-17. Its signatures are 1.449.140.0, 159
+days old, and every update since has timed out with 0x80072ee2. `MpCmdRun -ValidateMapsConnection`
+fails with 0x800705b4 and dates the last good MAPS connection to the same day. So the cloud ML
+behind the `Trojan:Win32/Wacatac…!ml` verdicts that unsigned Go binaries are known for went
+untested. So did Block at First Sight's upload of a never-seen executable, and SmartScreen's app
+reputation. All three are keyed to a hash nobody has yet: the tag build stamps its own version, so
+what players download is not these bytes. Nor was the file downloaded through a browser, so the Mark
+of the Web was never written by the path that writes it for a player. Step 1 below is still the
+check that settles it, and until somebody has run it, "Defender leaves it alone" has been observed
+offline and nowhere else.
+
+What to do:
+
+1. **Before the tag, on a connected machine.** This is the line in 5.4's `RELEASING.md` pre-tag list
+   next to the `Zone.Identifier` rehearsal. Take the rc or `workflow_dispatch` zips. Look up both
+   `.exe` hashes on VirusTotal, and upload them if nobody has. The line that matters is Microsoft's.
+   A handful of small engines flag most fresh Go binaries, so a hit from one of those is recorded,
+   not chased. Then use a Windows machine with real-time and cloud protection on:
+   `Get-MpComputerStatus` shows `RealTimeProtectionEnabled`, and `Get-MpPreference` shows a non-zero
+   `MAPSReporting`. Download the zip in Edge, extract it in Explorer and double-click the exe. The
+   expected result is the SmartScreen dialog and nothing from Defender.
+2. **If Microsoft flags either file,** submit it at
+   `https://www.microsoft.com/en-us/wdsi/filesubmission` as a software developer, marked incorrectly
+   detected. Give the release URL, the tag and the `SHA256SUMS` line. Record the submission ID, and
+   the date the verdict cleared, in `RELEASING.md`. A clearance applies to one file, and every tag
+   produces new files, so this is a step for every tag, not a one-time fix.
+3. **One paragraph in the release notes and the zip's `HOW-TO-RUN.txt`,** under "Your computer will
+   try to stop you, once". It should say:
+   - what quarantine looks like;
+   - that a name ending in `!ml` is a model's guess, not a match against known malware;
+   - that the check to run is the file's hash against `SHA256SUMS`;
+   - that Windows Security → Protection history → Restore brings the file back and needs an
+     administrator;
+   - and that a report should be an issue quoting the detection name.
+
+   `release.yml:636` also gets reworded so it no longer reads as covering antivirus.
+4. **Later, and only by measurement.** Nobody has tested whether 4.42's VERSIONINFO and icon,
+   `-H windowsgui` (4.35's separate note) or a smaller embedded archive changes the verdict. Until
+   someone does, these are folklore. Once step 1 has run there is a baseline, and each change can be
+   compared by VirusTotal result on an rc build. 4.35's `crash.log` is an ordinary file write in the
+   data directory and is not worth an experiment.
+5. **Price the unsigned decision fully.** Add one sentence to the decision in 4.13 and
+   `release.yml:47-61`. Signing is also what lets reputation carry from one release to the next.
+   Unsigned, every tag's binaries start at none, and step 2 may be needed each time. The decision
+   can stand, but the price stated for it should be the whole price.
+
+### 5.13 A Glider PRO port with a public page and not a word about Aerofoil — **note; the README paragraph with the gate's docs pass, the refusal with 4.43, the facts about Aerofoil off-host**
+
+At 12bd322, `grep -rniE 'aerofoil|lasota'` over the whole tree returned nothing: not the README, not
+PLAN, not this file, not a code comment. Aerofoil is Eric Lasota's port of the same GPLv2 source release, and
+it has been public since about 2020. Somebody who has played Glider PRO in the last few years has
+most likely played it there, so the first question they bring to this README is "why this one?", and
+nothing here answers it. The README has no section that compares gliderGo with anything.
+
+**What can be said, sorted by how far it can be trusted.** This host cannot open Aerofoil's
+repository, so every claim about it below is labelled.
+
+- *Checked here, about gliderGo:*
+  - It is a transcription: about 17,800 citations checked by `internal/citations`, a per-frame hash
+    corpus, and the demo replay (README "How faithful is it?").
+  - It uses only the standard library, asserted by `internal/module/stdlib_test.go`.
+  - It has a two-machine race the original never had (README "Two players, two machines").
+  - It has two houses of its own in `levels/`.
+  - It draws on Linux/X11 and Windows only, and macOS runs headless. That belongs in the same
+    paragraph.
+- *Known with confidence, to be confirmed before it is printed:* Aerofoil is Eric Lasota's, at
+  `github.com/elasota/Aerofoil`. It is C++ and reimplements the parts of the Mac Toolbox it needs.
+  Windows was its first platform.
+- *Believed, not checked:* it keeps the original's C game logic rather than rewriting it; it has
+  Android and browser builds; it keeps the 1994 house editor, which here is Stage 5; it has no
+  network play; it is GPLv2; it stores houses in a layout of its own (below).
+- *Not known at all:* what it says about the art and the houses, whether its releases carry them,
+  and whether Lasota asked John Calhoun.
+
+**The README must not claim a difference nobody has measured.** "More faithful than Aerofoil" is
+exactly that kind of claim. If Aerofoil kept the original's C game logic, which nobody here has
+checked, its physics may be as faithful as ours. What gliderGo can claim is its method: its fidelity
+is checked by a test suite. The paragraph below is for the release gate's docs pass (PLAN §4, step
+5), and goes beside the "Known differences from 1994" list that PLAN §4's release policy proposes.
+Fill in the bracketed parts once checked, or cut them:
+
+> **Other ports.** [Aerofoil][aerofoil], by Eric Lasota, is a port of the same source release [that
+> runs on more platforms than this one: confirm the list]. gliderGo is a different kind of project.
+> It is a transcription into Go, cited line by line against the 1994 C and held to a per-frame pixel
+> corpus. It uses nothing but the Go standard library. It adds a race between two machines, which
+> the original never had, and houses of its own. [If you want Glider PRO on a phone, in a browser or
+> with its house editor, use Aerofoil: confirm each.]
+
+`[aerofoil]` is the repository address above with `https://` in front, and it is left out of the
+draft on purpose. `internal/project`'s `TestEveryGitHubLinkIsOneWeMean` fails on any GitHub link
+that is neither this project nor the upstream C, this file included, so the link goes into that
+test's allowlist in the same change that puts the paragraph in README.
+
+This is a Should, not a Gate.
+
+**4.43's importer does not read Aerofoil's layout, and today that layout is ignored without a
+word.** *(Believed, not checked.)* Aerofoil converts Mac houses ahead of time into a `.gpd` data
+fork, a `.gpa` resource archive (a zip) and a `.gpf` metadata file. A player coming from an Aerofoil
+install may have houses in that form rather than as `.sit.hqx`. `houseExts`
+(`internal/shell/library.go:135`) is `""`, `.house` and `.glh`, so a `.gpd` is never listed and
+never complained about. What to do:
+
+1. **Refuse it by name first.** `Discover` and the path loader recognise `.gpd`/`.gpa` and say that
+   this is an Aerofoil house and gliderGo cannot read it yet. That needs no knowledge of the layout,
+   and it is the same move as 4.43's StuffIt rejection.
+2. **Check one converted house on a connected host.** If the `.gpd` is the data fork byte for byte,
+   `peek.go`'s header check says so in one read, and the data half of the import is a rename. The
+   `.gpa` half means listing its entries. BMP pictures would need a small decoder of our own,
+   because `image/bmp` is `golang.org/x/image`, not the standard library.
+3. **Add the layout to 4.43's list only if step 2 says it is cheap.** Otherwise the refusal stays.
+   Houses in their 1990s wrappers (unverified which kind is commoner) are already 4.43's.
+
+If the importer is ever written from Aerofoil's source rather than from sample files, its comments
+say so, the way the port cites upstream.
+
+**1.2 route (c) has a precedent that nobody here has read.** Aerofoil faced the same question:
+shipping somebody else's art and houses in a new form. What it did is the closest precedent (c) has,
+and finding out takes ten minutes on a connected host. Read its README and licence files, see
+whether its release archives carry the houses, and see whether it records any permission from
+Calhoun. If it records a grant, that is the template for (c). If not, it is a second project on
+route (a), which changes nothing about (c). Either way, 1.2 gets one sentence citing what was found.
+
+**What is owed.** No Aerofoil code or data is in this tree, so there is no licence obligation and no
+`credits.txt` line. The courtesy is the README paragraph itself. If 4.43 ever reads Aerofoil's
+layout, the importer credits the format. The announcement does not go in Aerofoil's issue tracker.
+
+**The announcement is a step in the gate.** PLAN §4's release gate ends its order of work with a
+seventh step, "Announced, last", after step 6's check by a person and after 5.1's connected-host
+checks, because the announcement is when strangers arrive. Where to announce is the user's call.
+Package-manager manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag, and they
+run into 5.4's unsigned-binary warnings, so they are later and not part of the gate.
 
 ---
 
