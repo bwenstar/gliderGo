@@ -191,6 +191,11 @@ type Outcome struct {
 	// Closed says the window went away during the game. The shell quits rather
 	// than coming back to a title screen nobody can see.
 	Closed bool
+
+	// Race is a race's result in words -- "race: you win, more rooms visited" -- and
+	// empty after a game that was not one. The status line shows it instead of the
+	// score, which in a race is only a tie-break.
+	Race string
 }
 
 // mode is which screen is up. It is not the original's theMode -- that is
@@ -661,6 +666,10 @@ func (s *Shell) start(c Choice) {
 	}
 	if out.Closed {
 		s.quit = true
+		return
+	}
+	if out.Race != "" {
+		s.msg = h.Name + " -- " + out.Race
 		return
 	}
 	s.msg = fmt.Sprintf("%s -- score %d, %d stars left", h.Name, out.Score, out.StarsLeft)

@@ -17,6 +17,45 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A race is tested end to end, and the sound no longer holds up quitting (2026-09-23)
+
+`cmd/glidergo/loopback_test.go` runs both ends of a race in one process, through the same `play`
+a player's race goes through, over 127.0.0.1 in Grand Prix. It has four races:
+
+- An ordinary race. Both sides must agree on the match, on each other's runs and on the winner.
+- Two idle gliders from one seed. They fly the same run to the frame, and it is a draw.
+- A guest that hangs up mid-race. The host wins by forfeit and flies on to the end of its own run.
+- A host that accepts and says nothing. The guest gives up and lets go of the socket.
+
+The four take 0.3 s under the race detector, and `race.go` goes from 13% to 71% statement coverage
+(`docs/IMPROVEMENTS.md` 4.34). The race comes out differently in three ways:
+
+- **A race both players left is headed "NO RESULT"**, not "A DRAW". A draw is two runs that
+  compared equal, and nobody earned this one.
+- **The result is taken once.** The stdout line, the result screen and the score had each read the
+  other player's standing for themselves. A report that arrived between two of those reads, which
+  can happen when the wait ends unsettled, could print one run and score another.
+- **The title screen keeps the result.** After a race started from `Race...`, the status line says
+  `Slumberland -- race: you win, more rooms visited` rather than the score, which in a race only
+  breaks ties.
+
+`make race` covers the three places that start a goroutine now: `internal/netplay`, the audio pipe
+and the race tests in `cmd/glidergo`. The Makefile and CONTRIBUTING.md had said there was one.
+Putting the audio pipe there took its first tests, in `internal/audio/pipe_test.go`, which re-run
+the test binary as the sound player. They found two bugs in the pipe to `pw-play`, `aplay` and the
+rest (`docs/IMPROVEMENTS.md` 2.71's amendment):
+
+- **A player that stopped reading froze the game on quit.** `aplay` on a busy device does that.
+  `Close` waited for the pump to finish a write that could never finish. It now waits two
+  seconds and then stops the player. That is well past the 0.62 s a healthy `aplay` takes to play
+  out its own buffer, so a working player still ends on its last note.
+- **A write after `Close` panicked.** It sent on a closed channel. The Windows sink had a guard
+  for exactly that, with a comment saying why; the pipe had none. It drops the block now.
+
+Two things were found and left for the change that owns them. A mid-race disconnect is reported in
+Go's words ("write: broken pipe"), and a guest whose host goes silent is told it "could not join"
+a race it joined. Both are in 4.33's amendment.
+
 ### The title screen says GliderGo, and names who ported it (2026-09-23)
 
 The splash is PICT 1000, Calhoun's own title art, and its logo said "Glider PRO". The shell now

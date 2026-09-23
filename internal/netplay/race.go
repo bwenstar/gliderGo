@@ -204,10 +204,16 @@ func (r *Race) read() {
 	for {
 		msg, err := r.c.Recv()
 		if err != nil {
-			// io.EOF is the peer's process ending, which is a forfeit and not a fault, so
+			// io.EOF is the peer closing its end, which is a forfeit and not a fault, so
 			// it is not reported as an error. Everything else is: a protocol violation or
 			// a broken connection is worth putting on the screen next to the result,
 			// because a race decided by one is a race somebody will ask about.
+			//
+			// A peer whose process ends mid-race is usually the second kind and not the
+			// first. It dies with this side's standings unread, and a socket closed with
+			// data unread is reset rather than closed -- so what arrives is a reset here, or
+			// a refused write in the writer, and it is reported. cmd/glidergo's
+			// loopback_test.go is where that was found.
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}

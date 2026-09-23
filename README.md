@@ -271,7 +271,9 @@ screen — usually two builds of one house, which is why the hashes are there. B
 random seed between themselves, so `-seed` is refused, as are `-two` and `-resume`, each with a
 sentence saying why. A small panel in the top-left corner shows where the other player is while you
 fly, and it goes away when your run ends so that the game-over and high-score screens are the
-original's. The race itself is not over until both runs are, however far ahead you finish.
+original's. The race itself is not over until both runs are, however far ahead you finish. Then
+both machines show the same result, and a race started from `Race...` leaves it on the title
+screen's status line, where a game leaves its score.
 
 ## Settings, scores and saves
 

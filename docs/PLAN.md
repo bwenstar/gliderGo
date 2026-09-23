@@ -1459,8 +1459,9 @@ here is genuinely just transport.
   other one wins on the spot"* — that holds for a killed process and not for a power cut, a
   sleeping laptop or a pulled cable, where nothing is sent and no read has a deadline. That
   sentence is corrected before the tag. The heartbeat that would make a deadline possible is 4.37,
-  after it. `cmd/glidergo/race.go` has about 13% statement coverage and no app-level test, so 4.34
-  lands before any of these touch it.
+  after it. `cmd/glidergo/race.go` had about 13% statement coverage and no app-level test, so 4.34
+  landed before any of these touch it. It is four races through `a.play` over 127.0.0.1, under
+  `-race` in `make race`, and `race.go` is 71% covered now.
 
 ### Stage 4 — Windows — **done, out of order: window, audio, and one run on a Windows desktop**
 
@@ -1539,8 +1540,13 @@ means the tag is better with it and does not wait.
      file lacks the Go Authors' notice. The step was rehearsed here against go1.23.12. It has not
      run on a runner yet, and the next tag is the first time it will (1.4).
 2. **The race chain, in this order, and nothing in `cmd/glidergo/race.go` before the first.**
-   - **Should, and first.** An app-level loopback race under `-race` (4.34), as the net for
-     everything after it.
+   - **Should, and first, DONE.** An app-level loopback race under `-race` (4.34), as the net for
+     everything after it. Four races run through `a.play`: a normal one, a draw, a guest that hangs
+     up and a host that never speaks, in 0.3 s under the detector. They found a both-left race
+     headed "A DRAW", a result read three times, and a title screen that forgot the race.
+     `make race` now covers all three places that start a goroutine. `internal/audio` joined it,
+     and its harness found a `Close` that hung on a stalled player and a `Write` that panicked
+     after `Close` (2.71's amendment).
    - **Gate, because the window closes at the tag.** Release, engine fingerprint and rules in
      `Hello`, and `Meet` refusing disjoint `Versions` (4.31). If commit-reveal or 4.28's second
      half is wanted at all, it goes in this same `Meet` change (4.38).

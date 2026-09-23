@@ -92,6 +92,18 @@ type app struct {
 	// reported rather than returned mid-session, because losing a finished game's
 	// score to a missing PICT would be a worse trade than a line on stderr.
 	artErr error
+
+	// listen binds the port a hosted race waits on, and nil -- every interface, on -port --
+	// is the only value the program itself uses (hostListener). It is here for loopback_test.go,
+	// which runs both ends of a race in one process: that needs the host on 127.0.0.1, which
+	// raises no firewall prompt on the Windows and macOS runners, and on a port the kernel
+	// picks, told to the test before its guest dials.
+	listen func(port string) (*netplay.Listener, error)
+
+	// raced is how this session's last race came out, from this side, or nil if it has not
+	// had one. play hands the shell its words (shell.Outcome.Race); the rest is for
+	// loopback_test.go, which holds the two sides of one race against each other.
+	raced *raceResult
 }
 
 func newApp(o *options, p *prefs.Prefs, canSave bool) *app {
@@ -1022,8 +1034,10 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 	// not.** The other player may still be flying, so this side reports how its run ended, says
 	// goodbye, and waits to hear -- and only then is there a result for either machine to show.
 	// finishRace is the whole of it, including the screens.
+	var raceWords string
 	if netRace != nil {
-		a.finishRace(w, netRace, finalStanding(w), closed)
+		res := a.finishRace(w, netRace, finalStanding(w), closed)
+		a.raced, raceWords = &res, res.band()
 	}
 
 	// NewGame's teardown has just started the idle score on this World, which is about to
@@ -1064,6 +1078,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 		StarsLeft: w.StarsLeft,
 		Frames:    w.Frame,
 		Closed:    closed,
+		Race:      raceWords,
 	}, nil
 }
 

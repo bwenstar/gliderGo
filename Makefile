@@ -415,14 +415,22 @@ cross: embedded
 test:
 	$(GO) test $(PKG)
 
-## race: run the one package that has goroutines under the race detector
+## race: run the code that starts goroutines under the race detector
 #
-# One package, because one package starts a goroutine: `internal/netplay` reads on one and sends
-# from another for the whole of a match, and nothing else in here is concurrent at all. That is
-# why `test` above does not pass -race and should not -- the detector needs cgo and a C compiler,
-# it costs an order of magnitude on a suite that takes six seconds, and it would buy nothing on
-# the other twenty-one packages. Keeping the concurrency inside one small package is what makes
-# this affordable, and is the reason it was designed that way rather than the consequence.
+# Three places start one, and this runs the tests that reach each of them:
+#
+#   - `internal/netplay` reads on one goroutine and sends from another for the whole of a match;
+#   - `internal/audio`'s Pipe writes to the player on its own, so that the game never waits on a
+#     sound server (pipe_test.go; WaveOut, the Windows twin, cannot be raced from here);
+#   - `cmd/glidergo` shakes hands on one behind the race's waiting screen, and drives netplay
+#     from the frame loop -- the loopback tests, and only those, because the rest of that
+#     package is single-threaded and takes twenty seconds without the detector.
+#
+# Nothing else is concurrent. That is why `test` above does not pass -race and should not -- the
+# detector needs cgo and a C compiler, it costs an order of magnitude, and it would buy nothing on
+# the other packages. Keeping the concurrency in a few small places is what makes this
+# affordable, and is the reason it was designed that way rather than the consequence. A patch that
+# starts a goroutine anywhere else adds its package here in the same patch.
 #
 # -count=2 because the detector only reports races it observes, and a scheduler that happened to
 # interleave two goroutines safely once will not say so. Two runs is not a proof; it is the
@@ -433,7 +441,8 @@ test:
 # end so that a green run does not claim it.
 race:
 	@if $(CAN_RACE); then \
-		$(GO) test -race -count=2 ./internal/netplay/; \
+		$(GO) test -race -count=2 ./internal/netplay/ ./internal/audio/ && \
+		$(GO) test -race -count=2 -run 'Race|Loopback' ./cmd/glidergo/; \
 	else \
 		echo "race: skipped -- the detector needs cgo and a C compiler, and this machine has"; \
 		echo "      CGO_ENABLED=$$($(GO) env CGO_ENABLED) with CC=$$($(GO) env CC)"; \
@@ -554,8 +563,8 @@ check-caveats:
 		echo "    backend and cgo makes no difference to that"; n=1;; \
 	esac; \
 	if ! $(CAN_RACE); then \
-		echo "  - the race detector did NOT run, so the one package with goroutines"; \
-		echo "    (internal/netplay) was only tested single-threaded"; n=1; \
+		echo "  - the race detector did NOT run, so the code with goroutines (internal/netplay,"; \
+		echo "    internal/audio's Pipe and the race in cmd/glidergo) was not checked for races"; n=1; \
 	fi; \
 	if ! $(HAVE_HOUSES) || ! $(HAVE_ART) || ! $(HAVE_SOUND); then \
 		echo "  - no extracted asset tree: the house round-trip and the pixel corpus were NOT"; \

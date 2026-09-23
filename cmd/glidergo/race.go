@@ -97,7 +97,11 @@ const (
 //
 // hermetic (cmd/glidergo/prefs.go) is the test for which kind of run this is. It is that
 // function and not a fresh condition because "is this a measurement" already had one name.
-const (
+//
+// Variables rather than constants for one reader, loopback_test.go, whose races have nobody at
+// them either and which should not spend thirty seconds learning that a host built to say nothing
+// has said nothing.
+var (
 	raceConnectWait = 30 * time.Second
 	raceSettleWait  = 10 * time.Second
 )
@@ -226,7 +230,7 @@ func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.R
 	var heading string
 	var where []string
 	if race.Host {
-		if l, err = netplay.Listen("", o.port); err != nil {
+		if l, err = a.hostListener(o.port); err != nil {
 			return nil, nil, err
 		}
 		heading = "WAITING FOR THE OTHER PLAYER"
@@ -261,6 +265,15 @@ func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.R
 			met.m.Slot+1, met.m.ID, met.m.RandSeed(), met.m.PeerHouseName, met.m.PeerNeighbors)
 	}
 	return r, met.trans, nil
+}
+
+// hostListener binds the port a hosted race waits on: every interface, because the other player
+// is on another machine -- unless a test has set a.listen, which binds loopback instead.
+func (a *app) hostListener(port string) (*netplay.Listener, error) {
+	if a.listen != nil {
+		return a.listen(port)
+	}
+	return netplay.Listen("", port)
 }
 
 // meetRace is the connecting goroutine: accept or dial, then shake hands. Everything in it
@@ -636,6 +649,52 @@ func opponentLine(s netplay.Standing, gone bool) string {
 // After the run
 // ---------------------------------------------------------------------------
 
+// raceResult is how one race came out, as this side saw it: the match the handshake agreed, both
+// runs as the result scored them, and the result.
+//
+// **One value, taken once, and read by everything after the run** -- the stdout line, the result
+// screen, and the title screen's status band. The standings used to be read from the Race at each
+// of those, and a peer whose report arrived between two of the reads (one that had not settled
+// when raceSettleWait ran out, say) could be printed as one thing and scored as another.
+type raceResult struct {
+	match   netplay.Match
+	mine    netplay.Standing
+	theirs  netplay.Standing // folded through Abandoned; see theirsAsScored
+	out     netplay.Outcome
+	settled bool  // the other side's fate was heard, rather than given up waiting for
+	err     error // why the connection failed, if it did; see netplay.Race.Err
+}
+
+// verdict is the result in this side's words, which the result screen shows as its heading and
+// the status band repeats.
+//
+// Nobody winning is two situations, and only one of them is a draw: two runs that compared equal
+// on everything. Both players leaving is a forfeit with nobody to award it to, which the result
+// screen used to head "A DRAW" as well -- a result nobody earned, announced as one both did.
+func (res raceResult) verdict() string {
+	switch {
+	case !res.out.Decided():
+		return "no result"
+	case res.out.Slot == int8(res.match.Slot):
+		return "you win"
+	case res.out.Slot >= 0:
+		return "you lose"
+	case res.out.Reason == netplay.Drawn:
+		return "a draw"
+	}
+	return "no result"
+}
+
+// band is the line the title screen's status band shows after a race, instead of the score it
+// shows after a game: a race's score is one of its tie-breaks, and the result is what the player
+// came back to the menu knowing.
+func (res raceResult) band() string {
+	if !res.out.Decided() || res.out.Reason == netplay.Drawn {
+		return "race: " + res.verdict()
+	}
+	return "race: " + res.verdict() + ", " + res.out.Reason.String()
+}
+
 // finishRace is everything after NewGame returns: say how this run ended, wait to hear how the
 // other one did, and show the result.
 //
@@ -645,7 +704,7 @@ func opponentLine(s netplay.Standing, gone bool) string {
 // other player is still flying and may yet get further, so neither side has a result until both
 // runs have ended. Then compute, on both machines, from the same two standings -- which is what
 // makes a race with no referee agree with itself.
-func (a *app) finishRace(w *game.World, r *netplay.Race, mine netplay.Standing, closed bool) {
+func (a *app) finishRace(w *game.World, r *netplay.Race, mine netplay.Standing, closed bool) raceResult {
 	r.Report(mine)
 	r.Close()
 
@@ -655,24 +714,29 @@ func (a *app) finishRace(w *game.World, r *netplay.Race, mine netplay.Standing, 
 	live := !closed && !hermetic(a.o)
 
 	settled := a.awaitSettled(w, r, mine, live)
-	out := r.Result(mine)
+	res := raceResult{match: r.Match(), mine: mine, theirs: theirsAsScored(r),
+		settled: settled, err: r.Err()}
+	// From the snapshot rather than from r.Result, which would read the opponent a second
+	// time. See raceResult.
+	res.out = res.match.Result(res.mine, res.theirs)
 
 	if !a.o.quiet {
 		// stdout gets the result whether or not anybody is looking at the window, because a
 		// headless race is how the mode gets tested and because this is the line a bug
 		// report quotes.
 		fmt.Printf("glidergo: race: %s -- you %s, them %s\n",
-			out, standingWords(mine), standingWords(theirsAsScored(r)))
-		if err := r.Err(); err != nil {
-			fmt.Printf("glidergo: race: the connection failed: %v\n", err)
+			res.out, standingWords(res.mine), standingWords(res.theirs))
+		if res.err != nil {
+			fmt.Printf("glidergo: race: the connection failed: %v\n", res.err)
 		}
-		if !settled {
+		if !res.settled {
 			fmt.Println("glidergo: race: the other player never finished, so there is no result")
 		}
 	}
 	if live {
-		a.showRaceResult(r, mine, out, settled)
+		a.showRaceResult(res)
 	}
+	return res
 }
 
 // awaitSettled waits for the other side's fate behind a screen that says so.
@@ -733,40 +797,29 @@ func (a *app) awaitSettled(w *game.World, r *netplay.Race, mine netplay.Standing
 }
 
 // showRaceResult is the last screen: who won, why, and both runs side by side.
-func (a *app) showRaceResult(r *netplay.Race, mine netplay.Standing, out netplay.Outcome, settled bool) {
-	heading := "NO RESULT"
-	switch {
-	case !out.Decided():
-		heading = "NO RESULT"
-	case out.Slot < 0:
-		heading = "A DRAW"
-	case out.Slot == int8(r.Match().Slot):
-		heading = "YOU WIN"
-	default:
-		heading = "YOU LOSE"
-	}
-
+func (a *app) showRaceResult(res raceResult) {
 	lines := []string{
-		"you:  " + standingWords(mine),
-		"them: " + standingWords(theirsAsScored(r)),
+		"you:  " + standingWords(res.mine),
+		"them: " + standingWords(res.theirs),
 		"",
-		out.String(),
+		res.out.String(),
 	}
-	if !settled {
+	if !res.settled {
 		lines = append(lines, "", "the other player never finished")
 	}
-	if err := r.Err(); err != nil {
-		lines = append(lines, "", "the connection failed: "+err.Error())
+	if res.err != nil {
+		lines = append(lines, "", "the connection failed: "+res.err.Error())
 	}
 	lines = append(lines, "", "press a key to finish")
 
 	scr := raceSurface()
-	raceScreen(scr, heading, lines)
+	raceScreen(scr, strings.ToUpper(res.verdict()), lines)
 	if err := a.presentSurface(scr); err != nil {
 		return
 	}
-	// Any key, and no timeout. This is the last thing the process does, so there is nothing
-	// for a timeout to protect -- and unlike the waiting screens above, a player who presses a
+	// Any key, and no timeout. Nothing waits behind this screen -- the process exits after it,
+	// or the title screen comes back with the result on its status band -- so there is nothing
+	// for a timeout to protect, and unlike the waiting screens above, a player who presses a
 	// key here has read the one sentence they were waiting for.
 	for {
 		for _, ev := range a.win.PollEvents() {

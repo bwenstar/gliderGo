@@ -2,13 +2,11 @@ package audio
 
 // Tests for the WAV writer, the pump's two pacing modes and the encoder.
 //
-// The Pipe is not tested here: it starts a subprocess and writes to a sound card, and a test
-// that did either would either be skipped on every build machine or would make noise on
-// somebody's desktop. What is testable about it -- that the encoding is right and that a full
-// queue drops instead of blocking -- is covered by the encoder tests below and by the bounded
-// channel's own semantics. Its one piece of pure plumbing, the prefix put on the player's own
-// diagnostics, is tested directly: it needs no process, and getting it wrong would either
-// swallow the line that explains why there is no sound or split it across two.
+// The Pipe is tested in pipe_test.go, against this binary standing in for the player; no real
+// player is started, because one would either be missing from the build machine or make noise
+// on somebody's desktop. Its one piece of pure plumbing, the prefix put on the player's own
+// diagnostics, is tested here: it needs no process, and getting it wrong would either swallow
+// the line that explains why there is no sound or split it across two.
 
 import (
 	"bytes"

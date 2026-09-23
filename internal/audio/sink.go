@@ -42,6 +42,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Sink is somewhere a mix can go. Write is called from the goroutine that owns the Engine and
@@ -181,7 +182,7 @@ type Pipe struct {
 	name string
 	cmd  *exec.Cmd
 	w    io.WriteCloser
-	errs *stderrPrefix // nil in the tests, which have no child process
+	errs *stderrPrefix // nil in pipe_test.go, whose player's stderr goes nowhere
 
 	// free and queue are a two-channel buffer pool: queue holds the blocks waiting to be
 	// written and free holds the blocks waiting to be filled, so a steady stream allocates
@@ -195,6 +196,7 @@ type Pipe struct {
 	written atomic.Int64
 	failed  atomic.Pointer[error]
 
+	closed    atomic.Bool
 	closeOnce sync.Once
 	done      chan struct{}
 }
@@ -204,6 +206,15 @@ type Pipe struct {
 // against a game that stalls -- enough to ride out a garbage collection or a slow room wipe,
 // short enough that a player who quits does not hear a quarter-second tail.
 const pipeDepth = 8
+
+// pipeDrain is how long Close gives the player to take what is queued and then to exit, before it
+// kills it. A player that is playing takes the queue at once and exits when its own buffer has
+// played out, and that buffer is why this is not WaveOut's half-second waveDrain: aplay takes
+// 0.62 s to play its out after its input ends (measured through PipeWire's ALSA plugin, three
+// runs) and pw-play 0.04 s, so half a second would cut the last note off a healthy aplay at every
+// quit. What this bounds is a player that has stopped, and for that one two seconds is a slow quit
+// rather than a game that never closes.
+const pipeDrain = 2 * time.Second
 
 // OpenPipe starts the best available player.
 //
@@ -387,6 +398,13 @@ func (p *Pipe) Write(samples []int16) error {
 	if len(samples) == 0 {
 		return nil
 	}
+	// As in WaveOut.enqueue: Write after Close is a mistake rather than a race, and it drops the
+	// block rather than sending on a closed channel, which would panic in the middle of
+	// somebody's game. This one had no such guard until pipe_test.go wrote to a closed Pipe.
+	if p.closed.Load() {
+		p.dropped.Add(int64(len(samples)))
+		return nil
+	}
 	var b []byte
 	select {
 	case b = <-p.free:
@@ -408,10 +426,20 @@ func (p *Pipe) Write(samples []int16) error {
 // Closing stdin rather than killing the process is what lets the player finish what it has
 // buffered, which is the difference between a clean last note and a click. The pump goroutine
 // is drained first so nothing is written after the descriptor closes.
+//
+// Both waits share one deadline, pipeDrain, and the player is killed when it runs out. A player
+// that is alive and has stopped reading -- aplay without -N on a busy device -- holds the pump in
+// a write to a full pipe, which closing stdin would not end, and one that never exits holds Wait;
+// either held the game's exit for as long as the player sat there (docs/IMPROVEMENTS.md 2.71).
+// Killing it fails the pump's write, and the pump drains the rest of the queue unwritten.
 func (p *Pipe) Close() error {
 	var err error
 	p.closeOnce.Do(func() {
+		p.closed.Store(true)
 		close(p.queue)
+		// Kill after Wait has reaped is refused, and the refusal is ignored.
+		stop := time.AfterFunc(pipeDrain, func() { p.cmd.Process.Kill() })
+		defer stop.Stop()
 		<-p.done
 		err = p.w.Close()
 		// The player is expected to exit when its input ends; ffplay needs -autoexit

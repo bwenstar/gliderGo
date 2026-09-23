@@ -481,6 +481,19 @@ func TestOutcomeIsReportedAndAClosedWindowEndsTheShell(t *testing.T) {
 	}
 }
 
+// After a race the line says who won, and not the score: a race's score is a tie-break, and
+// "score 0, 3 stars left" was what the band said to somebody who had just won one.
+func TestARaceIsReportedByItsResult(t *testing.T) {
+	s, f := shellOver(t, []string{"Slumberland"}, key(platform.KeyN), key(platform.KeyN))
+	f.out = Outcome{Score: 12345, StarsLeft: 7, Race: "race: you win, more rooms visited"}
+	if err := s.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if want := "Slumberland -- race: you win, more rooms visited"; s.msg != want {
+		t.Errorf("status line is %q, want %q", s.msg, want)
+	}
+}
+
 func TestSelectByName(t *testing.T) {
 	s, _ := shellOver(t, []string{"Amy", "Beth"})
 	if !s.Select("beth") {

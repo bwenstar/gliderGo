@@ -2497,6 +2497,29 @@ exits at once, and `OpenPipe` must land on the second.
 `sink.go:184`'s "nil in the tests, which have no child process" describes tests that never existed
 (`git log -S newPipe(`). The package joins `make race` once a test starts the pump (4.34).
 
+**Amendment: three of the four modes landed with 4.34, and the stall was real.**
+`internal/audio/pipe_test.go` re-executes the test binary as the player, as planned, but through
+`newPipe` and not through the `players` var. The `players` form is what the fall-through needs, so
+it waits for the fall-through, with the exit-after-N mode and the two-candidate acceptance test. The
+package is in `make race` now.
+- **echo**, which is discard that hands every byte back. Every sample `Write` accepted reaches the
+  player in order and encoded, because `Close` drains the pump before it closes stdin.
+- **exit at once.** `Write` never fails, `Err` reports the refused write, and `Close` returns.
+  **It found a panic.** A `Write` after `Close` sent on the closed queue. `WaveOut.enqueue` guards
+  against exactly that and says why, and the Pipe never got the guard. The block is dropped and
+  counted now.
+- **stall.** As predicted, `Close` never returned, so the game could not quit. `Close` now gives its
+  wait for the pump and its wait for the player one deadline between them, `pipeDrain`. When it
+  runs out the player is killed. The kill fails the pump's write and `Err` records it, so the
+  end-of-run line still says the player stopped taking samples. The deadline is 2 s, not
+  `WaveOut`'s 500 ms `waveDrain`, because a pipe player has a buffer of its own to play out after
+  its input ends. Measured here through PipeWire, `aplay` takes 0.62 s and `pw-play` 0.04 s, so
+  half a second would have cut the last note off a healthy `aplay` at every quit. `ffplay` and
+  SoX are not installed here, and their drain is not measured.
+
+The `errs` comment is corrected. A race-built child also sleeps a second before it exits
+(`GORACE`'s `atexit_sleep_ms`), and the harness turns that off.
+
 ### 2.72 X11 auto-repeat is undetectable, so every `!ev.Repeat` guard is dead on Linux — **DONE, the release gate's first step, with `Repeat` tracked by keycode**
 
 `platform.Event.Repeat` exists so that a held key does one thing, and the shell and the game test it
@@ -5679,7 +5702,18 @@ the gateway, many routers speak PCP rather than NAT-PMP, UPnP comes in several s
 and none of it can be tested against a router from here. It also widens exposure, and it would need
 4.32, a handshake deadline and 4.30's netplay fuzzing first. L, and not wanted until someone asks.
 
-### 4.34 `race.go` has no app-level test, and four changes are about to edit it — **planned, first in the race chain**
+**Amendment (4.34): the failure line during a race is Go's too, and it goes in the same sort.** A
+peer whose process ends mid-race resets the connection, because it dies with standings unread. The
+survivor's result is right (a forfeit), but the result screen adds "the connection failed:
+netplay: sending MsgStanding: write tcp 127.0.0.1:42649->127.0.0.1:59500: write: broken pipe". It
+runs off the plate as the join line does, and Windows words it differently. After the handshake a
+reset, a refused write and an EOF are one cause: *the other player's game ended without saying
+goodbye*. That sentence goes on the plate, and the Go error goes to stdout, where a bug report
+quotes it. The loopback test logs the error and does not pin it. Separately, a guest whose host
+accepted and then said nothing is told "could not join a race within 30s", though it did join.
+That is a handshake timeout, and it needs its own words, which 4.32's handshake deadline names.
+
+### 4.34 `race.go` has no app-level test, and four changes are about to edit it — **DONE, the race chain's first step: four loopback races, 0.3 s under `-race`**
 
 **An app-level loopback race in `cmd/glidergo`.** Two in-process apps (`newApp`, an idle Window,
 `platform.NewFramebuffer`, bench plus a short frame limit) meet over 127.0.0.1 through `a.play`
@@ -5706,6 +5740,59 @@ run can check.
 The claim that one package has goroutines is corrected in three places: `Makefile:418-436`,
 `Makefile:557` and `CONTRIBUTING.md:46-49`. CHANGELOG `:362` is history and stays. `race.go` is
 about 13% covered by statements.
+
+**Done: `cmd/glidergo/loopback_test.go`, four races through `a.play` over 127.0.0.1.** The house is
+Grand Prix, because an idle glider dies in it (frame 351) and one holding right dies further on
+(frame 771, 8 rooms). That gives a decided race with no frame limit.
+- **The normal race**, idle host against flying guest. The two sides must hold one match from
+  opposite slots and score each other's run exactly as it was flown. Both must settle, and both
+  must name the same winner, not by forfeit. `play` must hand the shell the same words the result
+  screen shows.
+- **Two idle gliders from one seed draw**, which the plan did not list. Their standings match to
+  the frame, and their random streams end equal although the two apps start from different ones.
+  That is the check that the handshake's seed is the one both Worlds ran from. It is also
+  `determinism-networking.md` §10.4.9's proposed draw vector, arrived at with no recording.
+- **The guest that hangs up mid-race.** A raw peer hears the host's first report, sends one room and
+  closes without a goodbye. The host settles without waiting and flies its own run to the end. It
+  scores the guest through `Abandoned` and wins by forfeit.
+- **The host that accepts and never speaks.** The guest gives up at `raceConnectWait` and closes its
+  socket, and the silent end hears its hello and then the end of the stream.
+
+The seams are the three planned: `app.listen`, which is nil in the program (`hostListener`), the
+two waits as vars, and `idleWin`. **A fourth made `-race` affordable, and it is in the test alone:
+the framebuffer has no pixels.** The first cut took 94 s under the detector, and the normal race
+failed in it. The host's settle wait ran out while the guest was still flying, so the two sides
+disagreed. The profile put nearly all of it in `ToBGRX`: every present converts 640×480 pixels for
+a window that throws them away, and under the detector every byte stored is a call. `ToBGRX`
+already leaves alone any row the destination cannot hold. So an empty framebuffer skips it, without
+a line of production code, and the four races take 0.3 s. The prototype's 4.2 s was frame-limited.
+
+**What writing them found**, fixed here unless it says otherwise:
+- **Both players leaving was headed "A DRAW".** The heading tested the winner's slot alone, and
+  `{Slot: -1, ByForfeit}` has no winner either. `raceResult.verdict` says "a draw" only for
+  `Drawn`, and "no result" otherwise.
+- **The opponent was read from the Race three times**, for the result, the stdout line and the
+  screen's "them:" line. A report that arrived between two of those reads could print one run and
+  score another. That can happen whenever the wait ended unsettled. `finishRace` takes one
+  `raceResult` snapshot, and everything after the run reads that.
+- **The title screen forgot the race.** A race started from `Race...` came back to a status band
+  that showed the score, which in a race is a tie-break. `shell.Outcome.Race` carries the result
+  instead: `Slumberland -- race: you win, more rooms visited`.
+- **A peer that dies mid-race arrives as a reset, not an EOF**, because it dies with standings
+  unread. The host's next write is refused, `Race.Err` is set, and the result screen adds "the
+  connection failed: netplay: sending MsgStanding: write tcp …: write: broken pipe". The result is
+  right, and the words are Go's. They are 4.33's (its amendment). `netplay`'s `read` comment
+  claimed EOF, and now says this.
+- **A guest whose host goes silent is told "could not join a race within 30s"**, which is wrong,
+  because it joined. That wording is 4.32 and 4.33's, and the test does not pin it.
+
+**`make race` is three places now, in 6 s:** `internal/netplay`, `internal/audio`, and
+`cmd/glidergo` with `-run 'Race|Loopback'`, which picks out the four loopback tests (about 3 s
+at `-count=2`). `race_test.go`'s tests check the hosting lines and start no goroutine. `internal/audio`
+joined in the same change and did not wait for 2.71: widening the target needed a test that
+starts the pump. `pipe_test.go` is three of 2.71's four modes, and it found two bugs (2.71's
+amendment). The goroutine claim is corrected in the three places listed above. `race.go` is 71%
+covered by statements.
 
 ### 4.35 A double-clicked crash on Windows leaves nothing behind — **planned, before the next tag if it fits**
 
