@@ -1613,6 +1613,13 @@ means the tag is better with it and does not wait.
      door at the new 2× default, and 4.2 s at 4×. It is about 0.1 s now at every scale. The
      win32 half compiles and has not run; 5.4's rehearsal reads a window back.
    - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
+     **DONE.** A run a player starts keeps `crash.log` beside `scores/` and `saves/`: the
+     `-version` block, then whatever stopped the run. The next start keeps a crash as
+     `crash-last.log` and says so on stderr and on the status band; an error is written but not
+     kept. Proven on Linux with a real `SIGQUIT` dump. The console hold and the `%AppData%` file
+     have not run on Windows, and are on `docs/windows-first-run.md`'s list. A lost X server
+     leaves no report (2.78, measured). Found with it: every count a player reads said "1 rooms",
+     "1 stars left" or "1 houses" at one, and a race's panel said it at the first door.
 5. **One docs truth pass.** It is cheap and has no dependencies. SECURITY.md is finished last,
    because it points at 4.36. Its listener half went in with 4.33, beside the port-forwarding
    advice it answers.

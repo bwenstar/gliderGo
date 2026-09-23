@@ -17,6 +17,35 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A crash leaves a report behind, and a double-clicked console waits (2026-09-23)
+
+The game keeps a file called `crash.log` in its data directory, beside `scores/` and `saves/`.
+That is `~/.local/share/glidergo/` on Linux, `%AppData%\glidergo\` on Windows, and
+`~/Library/Application Support/glidergo/` on macOS. The file starts with what `glidergo -version`
+prints, and below that is whatever stopped the run: Go's report if the game crashed, or the error
+it stopped with. It is rewritten at every start rather than growing. Before this, a crash in a
+game started by double-clicking left nothing: the console that showed the trace closed with it,
+and a Linux desktop launcher shows no console at all.
+
+The next start after a crash keeps the report as `crash-last.log`, and says so on stderr and on
+the title screen's status line. Please attach that file to a bug report. It holds what `-version`
+prints, which includes paths under your home directory. An error the game stopped with, such as a
+house that is not in the library, is written to the file but is not called a crash. Timed and
+screenshot runs (`-frames`, `-bench`, `-shot`, `-dump`) keep no file, and `-version` has a new
+`crash` row that says where the file is.
+
+On Windows, when `glidergo.exe` stops with an error in a console it opened itself (a
+double-click), it now waits for Enter before the window closes. From a Command Prompt or a
+script, it exits as before. This half has been built and not yet run on Windows. A crash still
+closes the window at once; `crash-last.log` is what keeps it. A game killed by losing its X
+server leaves no report, because Xlib exits the process before Go sees anything
+(IMPROVEMENTS 4.35, 2.78).
+
+Counts of one read as one. A library with one house in it said "1 houses" on the title screen,
+the band after a game could say "1 stars left", and a race's opponent panel said "them: 1 rooms"
+from the first door on, since that count starts at nothing. The same goes for a house of one
+room, the picker's count for a set with one house in it, and the stderr lines of a timed run.
+
 ### The first window fits the monitor, and a magnified window costs what changed (2026-09-23)
 
 Magnification is **auto** by default now: the largest window that fits the monitor it opens on,

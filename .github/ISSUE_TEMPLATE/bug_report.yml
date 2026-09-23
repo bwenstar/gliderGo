@@ -84,5 +84,6 @@ body:
     attributes:
       label: Anything else
       description: >-
-        Screenshots, a crash trace, the terminal output, the house file if it is one of yours.
-        Screenshots are especially useful for anything about drawing.
+        Screenshots, the terminal output, the house file if it is one of yours. If the game
+        crashed, attach `crash-last.log`; the next start says where it is, and so does
+        `glidergo -version`. Screenshots are especially useful for anything about drawing.

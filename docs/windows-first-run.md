@@ -238,6 +238,16 @@ has executed them:
   pointer is the block's first row. It also includes the `IsIconic` skip and a whole frame after
   `WM_PAINT`.
 
+Step 4 also added two things outside the backend (`docs/IMPROVEMENTS.md` 4.35), which have not run
+on Windows either:
+
+- **The crash file**: `%AppData%\glidergo\crash.log`, kept as `crash-last.log` by the start after
+  a crash. `runtime/debug.SetCrashOutput` writes it, and the rename falls back to a copy when
+  another copy of the game has the file open.
+- **The console hold**: `holdConsole` in `cmd/glidergo/console_windows.go`. If
+  `GetConsoleProcessList` finds only this process on the console, the game stopped in a window
+  that it opened itself, so it waits for Enter before that window closes.
+
 The next run on a Windows desktop checks them, in this order:
 
 1. **Auto.** With `-prefs` pointed at a directory that has no settings file, and no `-scale`, the
@@ -261,6 +271,20 @@ The next run on a Windows desktop checks them, in this order:
    4× at 120 fps or more. A monitor too small for 4× prints a warning and measures a window partly
    off the screen, which is not a result. If both rows meet the budget, `autoMax` in
    `cmd/glidergo/scale.go` becomes 4.
+4. **The crash file and the console hold.** Make a shortcut to `glidergo.exe` whose target ends in
+   `-house Nowhere`, and double-click it. The console must print the error and then "press Enter
+   to close this window", and wait. Run the same line from PowerShell: it must print the error
+   and exit, with no wait. `%AppData%\glidergo\crash.log` then holds the `-version` block and a
+   `glidergo:` line under the rule, and the next start says nothing about a crash. The shipped
+   game has no way to crash on purpose, so the crash itself comes from the test binary:
+
+   ```
+   GOOS=windows go test -c -o crashtest.exe ./cmd/glidergo      (on Linux)
+   crashtest.exe -test.run "Crash|Band" -test.v                 (on Windows)
+   ```
+
+   That makes the runtime panic in a child process on Windows, and then checks its report was
+   kept. The band test checks the `%AppData%` form of the path.
 
 ## Repeating it
 

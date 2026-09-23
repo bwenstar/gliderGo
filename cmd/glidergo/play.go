@@ -1049,8 +1049,8 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 	// ---- play -----------------------------------------------------------------
 
 	if !o.quiet {
-		fmt.Printf("glidergo: %s -- %d rooms, first %d, %d stars\n",
-			name, len(h.Rooms), h.FirstRoom, w.CountStarsInHouse())
+		fmt.Printf("glidergo: %s -- %s, first %d, %s\n",
+			name, counted(len(h.Rooms), "room"), h.FirstRoom, counted(int(w.CountStarsInHouse()), "star"))
 		// The version is on this line because it is the line a bug report quotes
 		// (docs/IMPROVEMENTS.md 4.2), and a report that does not say which build it came
 		// from costs a round trip before anything can be looked at. The title screen
@@ -1097,8 +1097,8 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 	if !o.quiet {
 		el := time.Since(start)
 		rate := float64(w.Frame) / el.Seconds()
-		fmt.Printf("glidergo: %d frames in %v (%.1f fps), score %d, %d stars left\n",
-			w.Frame, el.Round(time.Millisecond), rate, w.Score, w.StarsLeft)
+		fmt.Printf("glidergo: %d frames in %v (%.1f fps), score %d, %s left\n",
+			w.Frame, el.Round(time.Millisecond), rate, w.Score, counted(int(w.StarsLeft), "star"))
 		if o.bench {
 			// The original's target, for something to compare against:
 			// kTicksPerFrame is 2 on a 60.15 Hz clock, so a Mac that kept up ran at

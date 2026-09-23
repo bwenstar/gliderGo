@@ -427,7 +427,7 @@ func (s *Shell) drawPicker(scr *render.Surface) {
 		h := s.lib.Houses[i]
 		v := int16(pickFirst + row*pickPitch)
 		name := fit(h.Name, pickRightH-pickNameH-110, pickScale)
-		count := fmt.Sprintf("%d rooms", h.Rooms)
+		count := counted(int(h.Rooms), "room")
 
 		if i == s.pick {
 			bar := render.SetRect(pickLeft+barPad, v-barRise,

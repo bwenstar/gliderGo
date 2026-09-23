@@ -359,6 +359,13 @@ the reader returns false on its first live statement, and the validation that su
 the wrong timestamp, so it would have rejected every file its own writer produced. The four
 decisions the reconstruction needed are numbered in `internal/house/savedgame.go`.
 
+If the game crashes, it leaves a report. Each start rewrites `crash.log` in the same data
+directory as the scores (`%AppData%\glidergo\` on Windows, `~/Library/Application Support/glidergo/`
+on macOS). It holds what `glidergo -version` prints, followed by whatever stopped the run. The
+start after a crash keeps that report as `crash-last.log`, and says so on the title screen. That
+file is the one to attach to a bug report. It holds what `-version` prints, including paths
+under your home directory, so read it before you send it. `-version` says where the file is.
+
 Each of these can be pointed elsewhere or turned off — `-prefs`, `-scores`, `-saves`, each taking
 a path or `none`. `-import-prefs` converts a 1994 226-byte `Glider Prefs` file.
 

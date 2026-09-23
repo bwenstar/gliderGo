@@ -465,7 +465,9 @@ jobs:
           keep programs: everything the game needs -- the art, the sounds, all 22 of the 1994
           houses and the ones written for this port -- is inside the .exe, which is why it is
           15 MB. A console window opens alongside the game;
-          that is where it says which house it loaded and what it could not find.
+          that is where it says which house it loaded and what it could not find. If the game
+          stops with an error, that window waits for Enter before it closes. If it crashes, the
+          report is kept in %AppData%\glidergo\crash-last.log, and the next start says so.
 
           It needs Windows 10 or 11, or Windows Server 2016 or newer. An older Windows will not
           start it: the Go it is built with has dropped Windows 7 and 8, and the .exe says so in
@@ -478,8 +480,8 @@ jobs:
           x86-64 build has since been run on Windows Server 2025, where its screens came out
           pixel for pixel the same as on Linux, but nobody has yet steered a glider through a
           house on Windows by hand, and the arm64 build has never run at all. If something looks
-          wrong it probably is, and a bug report with the console output in it is worth a great
-          deal. See README.md.
+          wrong it probably is, and a bug report with crash-last.log or the console output in it
+          is worth a great deal. See README.md.
 
           Sound needs nothing installed -- the game talks to Windows' own audio directly. If it
           is silent or stutters, "${cmd} -audio list" shows what this machine has, "${cmd}
@@ -528,6 +530,9 @@ jobs:
           2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or later), libX11 at run
           time -- libx11-6, which every desktop install already has -- and a 24- or 32-bit
           display.
+
+          If it crashes, the report is kept in ~/.local/share/glidergo/crash-last.log, and the
+          next start says so. That file is the one to attach to a bug report.
           TXT
             fi
 
@@ -742,7 +747,8 @@ jobs:
           nobody has yet steered a glider through a house on Windows by hand —
           `internal/platform/win32/keys.go` is still the least-exercised file here — and nothing
           resized, minimised or closed the window either. If any of that misbehaves, a bug report
-          with the console output in it is genuinely useful. `docs/windows-first-run.md` in the
+          is genuinely useful. Attach `%AppData%\glidergo\crash-last.log` if the game crashed
+          (the next start points at it), or the console output. `docs/windows-first-run.md` in the
           source tree is the full write-up, including the hashes and how to reproduce them.
 
           **Sound needs nothing installed.** The game carries its own `waveOut` driver and
@@ -775,7 +781,9 @@ jobs:
 
           High scores and saved games go to `~/.local/share/glidergo` on Linux and
           `%AppData%\glidergo` on Windows rather than next to the binary, so they survive you
-          replacing it with the next release.
+          replacing it with the next release. The same directory holds `crash.log`: what
+          `-version` prints, and below it whatever stopped the last run. After a crash the next
+          start keeps it as `crash-last.log` and says so.
 
           Linux needs glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or
           later), libX11 at run time (`libx11-6`, present on any desktop install) and a 24- or

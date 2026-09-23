@@ -61,6 +61,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -98,6 +99,7 @@ const defaultHouse = "Slumberland"
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
+		crash.stopped(err)
 
 		// One line under a fatal error, because a released binary travels without this
 		// repository and the person reading the message has no other way to find out where
@@ -125,6 +127,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "glidergo: if that is not something you can fix, %s "+
 				"-- paste the output of `%s -version`\n", project.Issues, me)
 		}
+
+		// And a console Windows opened for this process alone waits, rather than closing
+		// over all of it. See console_windows.go.
+		holdConsole()
 		os.Exit(1)
 	}
 }
@@ -309,13 +315,13 @@ func (o *options) sources() []shell.Source {
 //
 // It deliberately does not open a window, load a sound bank or read the preferences,
 // so it answers on a machine where the game itself cannot start.
-func printVersion(o *options) {
-	fmt.Printf("glidergo %s\n", version)
-	fmt.Printf("  backend   %s\n", backend.Name)
-	fmt.Printf("  built by  %s\n", runtime.Version())
-	fmt.Printf("  platform  %s/%s\n", runtime.GOOS, runtime.GOARCH)
+func printVersion(w io.Writer, o *options) {
+	fmt.Fprintf(w, "glidergo %s\n", version)
+	fmt.Fprintf(w, "  backend   %s\n", backend.Name)
+	fmt.Fprintf(w, "  built by  %s\n", runtime.Version())
+	fmt.Fprintf(w, "  platform  %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	for _, r := range vcsRows() {
-		fmt.Printf("  %-9s %s\n", r[0], r[1])
+		fmt.Fprintf(w, "  %-9s %s\n", r[0], r[1])
 	}
 
 	// What the executable is carrying, first, because it is the answer to "does this need
@@ -331,9 +337,9 @@ func printVersion(o *options) {
 		files, bytes = files+lf, bytes+lb
 	}
 	if files > 0 {
-		fmt.Printf("  assets    built in (%d files, %d KiB)\n", files, bytes/1024)
+		fmt.Fprintf(w, "  assets    built in (%d files, %d KiB)\n", files, bytes/1024)
 	} else {
-		fmt.Printf("  assets    none built in\n")
+		fmt.Fprintf(w, "  assets    none built in\n")
 	}
 
 	// Then each root, named individually rather than as one yes/no: the four are extracted by
@@ -377,19 +383,19 @@ func printVersion(o *options) {
 	for _, t := range rows {
 		switch {
 		case t.where == "":
-			fmt.Printf("  %-9s none -- name a directory with -%s\n", t.what, t.flag)
+			fmt.Fprintf(w, "  %-9s none -- name a directory with -%s\n", t.what, t.flag)
 		case t.ok:
-			fmt.Printf("  %-9s found (%s)\n", t.what, t.where)
+			fmt.Fprintf(w, "  %-9s found (%s)\n", t.what, t.where)
 		case assetfs.Built(t.where):
 			// The archive in this executable is short of a root, which is a broken build
 			// and not anything the person running it did.
-			fmt.Printf("  %-9s missing (%s) -- `%s` rebuilds it\n", t.what, t.where, t.rebuild)
+			fmt.Fprintf(w, "  %-9s missing (%s) -- `%s` rebuilds it\n", t.what, t.where, t.rebuild)
 		default:
 			// A directory a flag named, so there is nothing to rebuild: the path is wrong,
 			// or it is right and the directory is not the root it was taken for. This is
 			// the commonest way to see this line at all, and the old message sent every
 			// mistyped -art at `make assets` in a source tree the player may not have.
-			fmt.Printf("  %-9s missing (%s) -- -%s named it, and there is no %s root there\n",
+			fmt.Fprintf(w, "  %-9s missing (%s) -- -%s named it, and there is no %s root there\n",
 				t.what, t.where, t.flag, t.what)
 		}
 	}
@@ -399,7 +405,7 @@ func printVersion(o *options) {
 	// 1994 Mac game gets and because the causes are four different things -- the flag, the bank,
 	// the platform and what happens to be installed -- and only two of them are visible from
 	// outside the process.
-	fmt.Printf("  audio     %s\n", audioRoute(o))
+	fmt.Fprintf(w, "  audio     %s\n", audioRoute(o))
 
 	// Then this installation's own three files, which is the question nobody can answer from
 	// outside the process. The original kept one 226-byte resource in the System Folder; this
@@ -411,7 +417,7 @@ func printVersion(o *options) {
 	// unanswerable without reading this source. Paths only: nothing here opens a file, so
 	// the block still works on the machine where the game will not start.
 	for _, r := range statePaths(o) {
-		fmt.Printf("  %-9s %s\n", r[0], r[1])
+		fmt.Fprintf(w, "  %-9s %s\n", r[0], r[1])
 	}
 
 	// Last, and the reason the whole block is worth pasting: where this came from and where
@@ -423,14 +429,14 @@ func printVersion(o *options) {
 	// choose an article for an SPDX identifier -- it read "under the GPL-2.0-only" -- and
 	// because these are four separate facts that get quoted separately: which project, where
 	// the bugs go, which revision of whose C this is a transcription of, and who holds what.
-	fmt.Printf("  home      %s\n", project.Home)
-	fmt.Printf("  bugs      %s\n", project.Issues)
-	fmt.Printf("  licence   %s\n", project.Licence)
-	fmt.Printf("  go        %s\n", project.GoLicence)
-	fmt.Printf("  port of   %s -- %s / %s, %s\n", project.Original, project.OriginalAuthor,
+	fmt.Fprintf(w, "  home      %s\n", project.Home)
+	fmt.Fprintf(w, "  bugs      %s\n", project.Issues)
+	fmt.Fprintf(w, "  licence   %s\n", project.Licence)
+	fmt.Fprintf(w, "  go        %s\n", project.GoLicence)
+	fmt.Fprintf(w, "  port of   %s -- %s / %s, %s\n", project.Original, project.OriginalAuthor,
 		project.OriginalPublisher, project.OriginalYear)
-	fmt.Printf("  from      %s @ %s\n", project.Upstream, project.UpstreamCommit)
-	fmt.Printf("  %s; %s %s\n", project.Copyright, project.Original, project.OriginalCopyright)
+	fmt.Fprintf(w, "  from      %s @ %s\n", project.Upstream, project.UpstreamCommit)
+	fmt.Fprintf(w, "  %s; %s %s\n", project.Copyright, project.Original, project.OriginalCopyright)
 }
 
 // vcsRows is what the toolchain stamped into this executable, as label/value pairs.
@@ -470,14 +476,6 @@ func vcsRows() [][2]string {
 	return rows
 }
 
-// statePaths answers "where does this build keep my things", for the three stores the game
-// writes, under the flags this invocation was given. Label and value, so the caller owns the
-// formatting.
-//
-// It mirrors loadPrefs, app.openScores and app.openSaves rather than calling them, and that is
-// a deliberate duplication of three switch statements: those three open files, print notes and
-// build stores, and -version must do none of that. The duplication is small, it is in one
-// place, and cmd/glidergo's own test pins the three `none` spellings against it.
 // audioRoute says where this build would send the mix, and opens nothing on the way.
 //
 // Nothing here is allowed to open a device, which is the whole difficulty: the honest answer is
@@ -527,6 +525,14 @@ func audioRoute(o *options) string {
 	return strings.Join(to, " + ")
 }
 
+// statePaths answers "where does this build keep my things", for the three stores the game
+// writes and the crash file, under the flags this invocation was given. Label and value, so the
+// caller owns the formatting.
+//
+// It mirrors loadPrefs, app.openScores and app.openSaves rather than calling them, and that is
+// a deliberate duplication of three switch statements: those three open files, print notes and
+// build stores, and -version must do none of that. The duplication is small, it is in one
+// place, and cmd/glidergo's own test pins the three `none` spellings against it.
 func statePaths(o *options) [][2]string {
 	// resolve turns one flag into the line to print. The empty flag is the interesting case:
 	// it means "the usual place", and the usual place is a computation that can fail on a
@@ -557,7 +563,18 @@ func statePaths(o *options) [][2]string {
 	if o.prefsPath == "" && hermetic(o) {
 		rows[0][1] = "nowhere (a measurement run uses this build's defaults)"
 	}
-	return rows
+
+	// The crash file (crash.go), which is not a store and has no flag: it is kept by every run a
+	// player starts and by no measurement.
+	crashRow := "nowhere (a measurement run keeps no crash file)"
+	if !hermetic(o) {
+		if d, err := crashDir(); err != nil {
+			crashRow = fmt.Sprintf("nowhere (%v)", err)
+		} else {
+			crashRow = filepath.Join(d, crashName)
+		}
+	}
+	return append(rows, [2]string{"crash", crashRow})
 }
 
 func parseFlags() (*options, error) {
@@ -718,7 +735,7 @@ func run() error {
 	}
 
 	if o.showVersion {
-		printVersion(o)
+		printVersion(os.Stdout, o)
 		return nil
 	}
 
@@ -741,6 +758,14 @@ func run() error {
 	// up on a title screen would leave them wondering whether it had worked.
 	if o.importPrefs != "" {
 		return importPrefs(o)
+	}
+
+	// The crash file, on every path a player starts and before anything that could crash has
+	// run -- the preferences are the first file here read that somebody else may have written.
+	// See crash.go.
+	if !hermetic(o) {
+		crash = openCrashLog(o)
+		crash.tell()
 	}
 
 	// The settings, before anything reads one. See cmd/glidergo/prefs.go for the three
@@ -804,7 +829,9 @@ func runShell(o *options, p *prefs.Prefs, canSave bool) error {
 		return err
 	}
 
-	sh, err := shell.New(a.shellHost(), lib)
+	host := a.shellHost()
+	host.Notice = crash.notice()
+	sh, err := shell.New(host, lib)
 	if err != nil {
 		return err
 	}
@@ -948,8 +975,8 @@ func shot(o *options, p *prefs.Prefs) error {
 		return err
 	}
 	if !o.quiet {
-		fmt.Printf("glidergo: wrote %s -- the %s screen, %d houses, %d skipped\n",
-			o.shot, o.shotScreen, len(lib.Houses), len(lib.Skipped))
+		fmt.Printf("glidergo: wrote %s -- the %s screen, %s, %d skipped\n",
+			o.shot, o.shotScreen, counted(len(lib.Houses), "house"), len(lib.Skipped))
 	}
 	return nil
 }
@@ -1307,8 +1334,8 @@ func reportAudio(eng *audio.Engine, pump *audio.Pump, sink audio.Sink) {
 		return
 	}
 	st := eng.Stats()
-	fmt.Printf("glidergo: sound -- %d requests, %d played, %d refused, %d cut off, %d music pieces\n",
-		st.Requests, st.Granted, st.Refused+st.TriggerRefused, st.Displaced, st.MusicStarted)
+	fmt.Printf("glidergo: sound -- %d requests, %d played, %d refused, %d cut off, %s\n",
+		st.Requests, st.Granted, st.Refused+st.TriggerRefused, st.Displaced, counted(int(st.MusicStarted), "music piece"))
 
 	line := fmt.Sprintf("glidergo: mix -- %.1fs of audio", float64(pump.Mixed())/audio.Rate)
 	if st.Clipped > 0 {
@@ -1355,4 +1382,14 @@ func streamIn(sink audio.Sink) audio.Stream {
 		}
 	}
 	return nil
+}
+
+// counted is n and the noun, which is plural unless n is 1. A race's first room is "1 room", and
+// a house with one star left says "1 star left", so the plain %d form was wrong on both lines a
+// player reads most. internal/shell has the same helper for the status band.
+func counted(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

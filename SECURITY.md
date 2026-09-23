@@ -77,8 +77,9 @@ peer's string reaching the screen or the terminal unescaped.
 
 **Not in scope, because it does not exist:** there is no server, no update check, no telemetry, no
 browser or scripting engine, and nothing runs with elevated privileges. Outside a race nothing
-listens or dials. The game reads and writes its own preferences, saves and high-score files under
-the user's config directory and touches nothing else. Files are read through Go's `fs.FS`, so a
+listens or dials. The game reads and writes its own preferences, saves, high scores and crash
+report, under the user's config and data directories, and touches nothing else. The crash report
+is never sent anywhere; it stays on the machine until a player attaches it to something. Files are read through Go's `fs.FS`, so a
 path inside a house cannot escape the directory it came from. Symbolic links inside a directory
 passed to `-levels`, `-houseart` or `-art` are followed, though, like any other file in it.
 

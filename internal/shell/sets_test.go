@@ -611,7 +611,7 @@ func TestTheOpeningLineSaysTheSplitOnlyWhenThereIsOne(t *testing.T) {
 			"because \"4 houses\" is a number a player would read as the originals", got)
 	}
 	one, _ := setShell(t, []inSet{{"Slumberland", SetOriginal}})
-	if got, want := one.opening(), "1 houses"; got != want {
+	if got, want := one.opening(), "1 house"; got != want {
 		t.Errorf("the opening line is %q, want %q: one set reads as it did before sets "+
 			"existed", got, want)
 	}

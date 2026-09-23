@@ -3021,7 +3021,9 @@ enough. Nothing here is measured: this host is GNOME, and one monitor.
 
 The x11 backend installs neither `XSetErrorHandler` nor `XSetIOErrorHandler`. Xlib's defaults
 print a line and call `exit(1)`. That skips every deferred function and every Go-side cleanup, and
-it would skip 4.35's crash file, because Go never sees a panic.
+it skips 4.35's crash file, because Go never sees a panic. Measured once 4.35 landed: a Xephyr
+killed under the title screen left `crash.log` with its header and nothing below the rule, so the
+next start said nothing.
 
 2.76's read-back test found the first half. `XGetImage` of a window that runs off the screen is a
 BadMatch, and on CI's old 640×480 Xvfb it took the whole test binary down rather than failing one
@@ -6322,7 +6324,7 @@ starts the pump. `pipe_test.go` is three of 2.71's four modes, and it found two 
 amendment). The goroutine claim is corrected in the three places listed above. `race.go` is 71%
 covered by statements.
 
-### 4.35 A double-clicked crash on Windows leaves nothing behind — **planned, before the next tag if it fits**
+### 4.35 A double-clicked crash on Windows leaves nothing behind — **DONE: a crash file, and a console that waits**
 
 Double-clicking the `.exe` is a documented way to launch it, and when the process exits the console
 closes with it, taking any panic trace or error. This first Windows release is a field test in which
@@ -6349,6 +6351,80 @@ the exit is non-zero, it waits for Enter. That keeps every earlier stderr note v
 done after 2.75 lands. It needs stdout and stderr reopened on `CONOUT$`, cmd and PowerShell return
 to the prompt before a GUI-subsystem program prints (which spoils the `-version` paste the footer
 asks for), and it removes the console the release notes call the diagnostic channel.
+
+**Done, PLAN release gate step 4.** A run a player starts keeps `crash.log` in the data
+directory's root, beside `scores/` and `saves/`:
+- `~/.local/share/glidergo/crash.log` on Linux;
+- `%AppData%\glidergo\crash.log` on Windows;
+- `~/Library/Application Support/glidergo/crash.log` on macOS;
+- the directory itself under `GLIDERGO_DATA`.
+
+The file is the whole `-version` block, then `started` and `args` rows, then a rule line. Below
+the rule is whatever stopped the run: the runtime's report if it died, or the error `main` stopped
+with. The next run a player starts looks below the rule. A crash there is renamed
+`crash-last.log`, and stderr and the status band say so; anything else is overwritten. Measurement
+runs keep none, and `-version`'s new `crash` row says "nowhere" for them. `cmd/glidergo/crash.go`
+and `console_windows.go` are the code.
+
+Where it differs from the plan above:
+- **An error is written but not kept.** `main` writes the error below the rule on every platform,
+  one `glidergo: ` line per line of it, but the next run does not call it a crash. Almost every
+  error `run()` returns is one the player was shown and can fix (a house that is not there, no
+  display), and a band that said "the last run crashed" after each of those would be wrong most
+  of the time. The line is there for a desktop launcher whose stderr went nowhere, until the next
+  start. The prefix is how the two are told apart: nothing the runtime prints as it dies starts
+  with it.
+- **Two writes, not one `O_TRUNC|O_APPEND` open.** The header is written with a plain truncating
+  write, and the file is opened again with `O_APPEND` for `SetCrashOutput`. On Windows Go opens an
+  `O_APPEND` file with `FILE_APPEND_DATA` access only, and whether `CREATE_ALWAYS` truncates with
+  that is not worth finding out on an unrun platform. Two copies on one machine still interleave.
+- **A timestamp, in the header.** The objection above was to appending one to a file that
+  persists; this one is rewritten at every start, so `started` does not make it grow.
+- **The band has no room for the URL.** At about 90 characters it takes "the last run crashed;
+  its report is in " and a path, written as a player would type it: `%AppData%\...` on Windows
+  (Explorer's address bar and Win+R expand it), `~/...` elsewhere. That is 426 px of the 568 a
+  release's band has. stderr has the full path and the tracker, and the file's own `bugs` row
+  says where to send it.
+- **The rename falls back to a copy**, for Windows, where a file another copy of the game has open
+  cannot be renamed.
+
+**Verified on Linux, the binary.** A sandboxed title screen sent `SIGQUIT` left its 257-line
+goroutine dump under the header. The next start printed both stderr lines, and its band said
+"the last run crashed; its report is in /tmp/ggsand/data/crash-last.log" (captured from the
+Xephyr window). The start after that said nothing and left `crash-last.log` alone. A killed X
+server leaves the header and nothing below it, which is 2.78 as predicted.
+
+**Tests.** `TestACrashIsKeptForTheNextRun` runs its own binary as a game that panics on a goroutine
+of its own. Nothing but the runtime writes the report it then finds under the header, and it checks
+the next start keeps it and the one after does not. `TestAnErrorIsNotACrash` feeds an error with a
+newline in it. `TestWhatCountsAsACrash` covers a panic, a fatal error, a Windows exception, a signal
+in C, an error and no rule. `TestTheBandWritesThePathAsAPlayerWouldTypeIt` and
+`TestVersionSaysWhereACrashIsKept` cover the band and `-version`, and the shell's
+`TestANoticeIsTheFirstThingTheBandSays` covers the notice. Four mutations were checked, and each
+fails a test:
+- no `SetCrashOutput`;
+- the prefix on the first line only;
+- a notice without the rename;
+- errors counted as crashes.
+
+**Not run on Windows:** the console hold (`GetConsoleProcessList` returning 1, then a wait for
+Enter) and the file under `%AppData%`. Both are on `docs/windows-first-run.md`'s list. A panic
+still closes a double-clicked console at once; the file is what keeps it.
+
+**Found with it:**
+- A library of one house opened with "1 houses", and a test pinned it. It says "1 house" now, and
+  "1 file skipped". A search for the same `%d nouns` shape found it on every line a player reads:
+  - the band after a game ("1 stars left");
+  - a house of one room, on the band and in the picker;
+  - a set of one house;
+  - the race's opponent panel, "them: 1 rooms ... 1 gliders". Its count is rooms *left*, so every
+    race passed through it at the first door.
+
+  All of them, and the stderr lines of a timed run ("1 music pieces"), use one `counted` helper
+  now, and the band and the panel are pinned by tests. `glidertool`'s lines are left as they are,
+  because they are for contributors.
+- `statePaths`'s doc comment had drifted onto `audioRoute`, which then began with a paragraph
+  about something else. It is back on `statePaths`.
 
 ### 4.36 A picture under 1 MB can cost 2 GB — **DONE: the PNG cap, and the smaller items with it**
 

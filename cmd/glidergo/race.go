@@ -889,12 +889,12 @@ func drawOpponent(w *game.World, r *netplay.Race) {
 func opponentLine(s netplay.Standing, gone bool) string {
 	switch {
 	case gone && !s.State.Ended():
-		return fmt.Sprintf("them: left -- %d rooms, score %d", s.Rooms, s.Score)
+		return fmt.Sprintf("them: left -- %s, score %d", counted(int(s.Rooms), "room"), s.Score)
 	case s.State.Ended():
-		return fmt.Sprintf("them: %s -- %d rooms, score %d", s.State, s.Rooms, s.Score)
+		return fmt.Sprintf("them: %s -- %s, score %d", s.State, counted(int(s.Rooms), "room"), s.Score)
 	}
-	return fmt.Sprintf("them: %d rooms, floor %d suite %d, score %d, %d gliders",
-		s.Rooms, s.Floor, s.Suite, s.Score, s.Mortals)
+	return fmt.Sprintf("them: %s, floor %d suite %d, score %d, %s",
+		counted(int(s.Rooms), "room"), s.Floor, s.Suite, s.Score, counted(int(s.Mortals), "glider"))
 }
 
 // ---------------------------------------------------------------------------
@@ -1109,7 +1109,7 @@ func theirsAsScored(r *netplay.Race) netplay.Standing {
 
 // standingWords is one run in a sentence, for the two screens and the stdout line.
 func standingWords(s netplay.Standing) string {
-	return fmt.Sprintf("%s -- %d rooms, score %d, %d frames", s.State, s.Rooms, s.Score, s.Frame)
+	return fmt.Sprintf("%s -- %s, score %d, %d frames", s.State, counted(int(s.Rooms), "room"), s.Score, s.Frame)
 }
 
 // ---------------------------------------------------------------------------

@@ -139,6 +139,30 @@ func TestNewChecksItsHost(t *testing.T) {
 	}
 }
 
+// A host's notice -- the last run crashed -- is the first thing the band says, in place of the
+// house count, and the count is back once the player has been somewhere and returned.
+func TestANoticeIsTheFirstThingTheBandSays(t *testing.T) {
+	s, _ := shellOver(t, []string{"Slumberland"})
+	if got := s.status(); got != "1 house" {
+		t.Fatalf("with no notice the band says %q", got)
+	}
+	f := &fake{scr: render.NewSurface(screenWide, screenTall)}
+	h := f.host()
+	h.Notice = "the last run crashed; its report is in ~/crash-last.log"
+	s, err := New(h, s.lib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.status(); got != h.Notice {
+		t.Errorf("the band says %q, want the notice", got)
+	}
+	s.openSettings()
+	s.settingsKey(platform.KeyEscape)
+	if got := s.status(); got != "1 house" {
+		t.Errorf("back from the settings the band says %q, want the house count", got)
+	}
+}
+
 func TestRunPresentsEveryPassAndQuitsOnEscape(t *testing.T) {
 	s, f := shellOver(t, []string{"Slumberland"},
 		nil, nil, key(platform.KeyEscape), key(platform.KeyN))
@@ -464,8 +488,18 @@ func TestOutcomeIsReportedAndAClosedWindowEndsTheShell(t *testing.T) {
 	if err := s.Run(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(s.msg, "12345") || !strings.Contains(s.msg, "7") {
-		t.Errorf("status line is %q; it should show the score and the stars left", s.msg)
+	if want := "Slumberland -- score 12345, 7 stars left"; s.msg != want {
+		t.Errorf("status line is %q, want %q", s.msg, want)
+	}
+
+	// A player one star short of the end used to read "1 stars left".
+	one, f1 := shellOver(t, []string{"Slumberland"}, key(platform.KeyN), key(platform.KeyN))
+	f1.out = Outcome{Score: 900, StarsLeft: 1}
+	if err := one.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if want := "Slumberland -- score 900, 1 star left"; one.msg != want {
+		t.Errorf("status line is %q, want %q", one.msg, want)
 	}
 
 	s2, f2 := shellOver(t, []string{"Slumberland"}, key(platform.KeyN), key(platform.KeyN))

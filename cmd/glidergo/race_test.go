@@ -185,3 +185,19 @@ func TestTheEngineFingerprintIsPinned(t *testing.T) {
 			"the last, and will not race it", got, uint64(pinned))
 	}
 }
+
+// Rooms counts rooms left, so every race passes through "1 room", and a player on their last
+// glider has one. Both used to read "1 rooms" and "1 gliders", on the panel a racer watches most.
+func TestTheOpponentPanelCountsInWords(t *testing.T) {
+	s := netplay.Standing{Rooms: 1, Floor: 2, Suite: 3, Score: 500, Mortals: 1}
+	if got, want := opponentLine(s, false), "them: 1 room, floor 2 suite 3, score 500, 1 glider"; got != want {
+		t.Errorf("opponentLine = %q, want %q", got, want)
+	}
+	s.Rooms, s.Mortals = 2, 0
+	if got := opponentLine(s, false); !strings.Contains(got, "2 rooms") || !strings.Contains(got, "0 gliders") {
+		t.Errorf("opponentLine = %q, want 2 rooms and 0 gliders", got)
+	}
+	if got := standingWords(netplay.Standing{Rooms: 1}); !strings.Contains(got, " 1 room,") {
+		t.Errorf("standingWords = %q, want 1 room", got)
+	}
+}

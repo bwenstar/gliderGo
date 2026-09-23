@@ -152,6 +152,11 @@ type Host struct {
 	// screen to show beside the word; 0 when it is not known, as in a screenshot, which
 	// must not depend on the machine it was taken on.
 	AutoScale int
+
+	// Notice is a line the host has for the player before anything is pressed, shown on the
+	// status band in place of the opening line: that the last run crashed, and where its
+	// report is. Empty for none, which is almost always.
+	Notice string
 }
 
 // Choice is what the shell asks Play for.
@@ -330,6 +335,9 @@ func New(h Host, lib *Library) (*Shell, error) {
 		s.cur = 0
 	}
 	s.msg = s.opening()
+	if h.Notice != "" {
+		s.msg = h.Notice
+	}
 	s.setTitle()
 	return s, nil
 }
@@ -677,7 +685,7 @@ func (s *Shell) start(c Choice) {
 		s.msg = h.Name + " -- " + out.Race
 		return
 	}
-	s.msg = fmt.Sprintf("%s -- score %d, %d stars left", h.Name, out.Score, out.StarsLeft)
+	s.msg = fmt.Sprintf("%s -- score %d, %s left", h.Name, out.Score, counted(int(out.StarsLeft), "star"))
 }
 
 // brief is an error as the band shows it: the error's own Brief line if it has one, and the
@@ -744,13 +752,22 @@ func (s *Shell) opening() string {
 	case len(s.lib.Houses) == 0:
 		return "no houses in " + s.libRoot() + " -- run `make assets`"
 	case len(s.lib.Skipped) > 0:
-		return fmt.Sprintf("%d houses, %d files skipped -- press L to see them",
-			len(s.lib.Houses), len(s.lib.Skipped))
+		return counted(len(s.lib.Houses), "house") + ", " +
+			counted(len(s.lib.Skipped), "file") + " skipped -- press L to see them"
 	case len(s.lib.Sets()) > 1:
-		return fmt.Sprintf("%d houses: %s", len(s.lib.Houses), s.lib.Tally())
+		return counted(len(s.lib.Houses), "house") + ": " + s.lib.Tally()
 	default:
-		return fmt.Sprintf("%d houses", len(s.lib.Houses))
+		return counted(len(s.lib.Houses), "house")
 	}
+}
+
+// counted is n and the noun, which is plural unless n is 1: a -houses directory with one house
+// in it is somebody testing theirs, and "1 houses" is the first thing they would read.
+func counted(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // ---------------------------------------------------------------------------
@@ -906,7 +923,7 @@ func (s *Shell) cycleSet() {
 	if view := s.view(); len(view) > 0 && s.at(view) == 0 {
 		s.pick = view[0]
 	}
-	s.msg = fmt.Sprintf("%s -- %d houses", s.filter, s.lib.Count(s.filter))
+	s.msg = fmt.Sprintf("%s -- %s", s.filter, counted(s.lib.Count(s.filter), "house"))
 }
 
 func (s *Shell) commitPick() {
@@ -916,7 +933,7 @@ func (s *Shell) commitPick() {
 	s.sel = 0
 	s.setTitle()
 	if h, ok := s.House(); ok {
-		s.msg = fmt.Sprintf("%s -- %d rooms", h.Name, h.Rooms)
+		s.msg = h.Name + " -- " + counted(int(h.Rooms), "room")
 	}
 }
 

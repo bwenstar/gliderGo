@@ -74,7 +74,7 @@ type Store struct {
 }
 
 // Open resolves Dir and returns a store for it. The directory is not created until a save
-// needs it, so merely launching the game writes nothing.
+// needs it, so merely launching the game creates no scores directory.
 func Open() (*Store, error) {
 	d, err := Dir()
 	if err != nil {

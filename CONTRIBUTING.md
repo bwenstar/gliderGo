@@ -239,7 +239,9 @@ details.
 Use the templates; they ask for the two things that make a report actionable.
 
 The first is `glidergo -version`, which prints the build, the backend it was compiled with and
-where its assets came from. The second, if you can get it, is a `glidertool replay` script: the
+where its assets came from. If the game crashed, `crash-last.log` in its data directory already
+holds that block and the crash under it, and the start after the crash says where the file is.
+The second thing, if you can get it, is a `glidertool replay` script: the
 input format exists precisely so a bug can travel as a reproducible input rather than a
 description. `bin/glidertool replay -h` shows the shape, and a scripted session runs headlessly and
 deterministically from a fixed seed, which means a report carrying one reproduces on the
