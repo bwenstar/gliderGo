@@ -463,6 +463,17 @@ jobs:
 
           Neither one has looked at what is in the .exe. They looked at who signed it, and
           nobody did. SHA256SUMS on the release page is the check on the contents.
+
+          RACING ANOTHER MACHINE.
+
+          The machine that hosts a race has to let the other one in, and Windows asks first.
+          The first time you choose Host, a "Windows Defender Firewall has blocked some
+          features" dialog comes up. Tick the kind of network you are on -- Private for a home
+          network -- and click Allow access. Cancel is remembered as a no: the other player
+          then sees "no answer" and, after a few tries, a line naming a firewall. To undo it,
+          open Windows Security, Firewall & network protection, "Allow an app through
+          firewall", and tick glidergo for your network. Joining needs no permission.
+          README.md has racing beyond your own network.
           TXT
             else
               cat > "$stage/HOW-TO-RUN.txt" <<TXT
@@ -719,6 +730,17 @@ jobs:
 
           Linux needs libX11 at run time (`libx11-6`, present on any desktop install) and a
           24- or 32-bit display. Windows needs nothing at all — no runtime, no redistributable.
+
+          ### Racing another machine
+
+          Two machines can race the same house: **Race...** on the title screen, where one
+          player hosts and the other types in the address the host's screen reads out. On
+          Windows the first time you host, Windows Defender Firewall asks whether glidergo may
+          use the network. Tick the kind of network you are on and click **Allow access**,
+          because *Cancel* is remembered as a no. On one home network that is all it takes. Across
+          the internet it needs a forwarded port or a VPN between the two machines. The README's
+          *Racing beyond your network* explains both, and `SECURITY.md` says what a forwarded
+          port exposes.
 
           ### Verifying the download
 

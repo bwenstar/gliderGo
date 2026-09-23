@@ -1,6 +1,7 @@
 package netplay
 
 import (
+	"context"
 	"errors"
 	"net"
 	"os"
@@ -79,7 +80,7 @@ func loopback(t *testing.T) (host, guest net.Conn) {
 		done <- accepted{c, err}
 	}()
 
-	guest, err = Join(l.Addr(), "", 10*time.Second)
+	guest, err = Join(context.Background(), l.Addr(), "", 10*time.Second)
 	if err != nil {
 		l.Close()
 		t.Fatalf("Join(%s): %v", l.Addr(), err)
@@ -177,7 +178,7 @@ func TestAListenerStaysOpenUntilItIsClosed(t *testing.T) {
 	}()
 
 	for _, who := range []string{"first", "second"} {
-		g, err := Join(addr, "", 10*time.Second)
+		g, err := Join(context.Background(), addr, "", 10*time.Second)
 		if err != nil {
 			t.Fatalf("the %s connection could not join: %v", who, err)
 		}
@@ -193,7 +194,7 @@ func TestAListenerStaysOpenUntilItIsClosed(t *testing.T) {
 	// Linux a connect to a closed port is refused outright. The assertion is only that it does
 	// not succeed, because how the refusal arrives is the operating system's business.
 	l.Close()
-	second, err := Join(addr, "", 2*time.Second)
+	second, err := Join(context.Background(), addr, "", 2*time.Second)
 	if err == nil {
 		second.Close()
 		t.Fatal("a second guest was let in to a match already under way")
@@ -201,8 +202,11 @@ func TestAListenerStaysOpenUntilItIsClosed(t *testing.T) {
 	if !strings.Contains(err.Error(), addr) {
 		t.Errorf("the refusal was %q, which does not name the address that refused", err)
 	}
-	if !strings.Contains(err.Error(), "hosting") {
-		t.Errorf("the refusal was %q; a player reading it should be told what to check", err)
+	// What to check is the caller's to say (cmd/glidergo words it for a screen); what it has
+	// to go on is the cause, and "connection refused" and "no answer" are both causes.
+	var je *JoinError
+	if !errors.As(err, &je) || je.Why == JoinOther {
+		t.Errorf("the refusal was %q, sorted as %v; want a cause a player can be told", err, je)
 	}
 }
 
@@ -304,13 +308,99 @@ func TestJoinGivesUpWhenAskedTo(t *testing.T) {
 	// answer without depending on the machine being offline -- which, on the machine this port
 	// was written on, it is.
 	start := time.Now()
-	c, err := Join("203.0.113.1", "1994", 250*time.Millisecond)
+	c, err := Join(context.Background(), "203.0.113.1", "1994", 250*time.Millisecond)
 	if err == nil {
 		c.Close()
 		t.Skip("something answered on TEST-NET-3; this network is not one this test can use")
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("Join waited %v on a 250ms timeout", elapsed)
+	}
+	var je *JoinError
+	if !errors.As(err, &je) {
+		t.Fatalf("err = %v (%T), want a *JoinError", err, err)
+	}
+	// Whatever this network does with TEST-NET-3 -- nothing, here -- it is not a refusal: no
+	// machine answered.
+	if je.Why == JoinRefused || je.Addr != "203.0.113.1:1994" {
+		t.Errorf("Join on TEST-NET-3 = %+v, want a failure that is not a refusal, at the "+
+			"address with its port", *je)
+	}
+}
+
+// Escape during a dial is the context ending, and the dial stops then rather than when its
+// timeout would have (docs/IMPROVEMENTS.md 4.33). A long timeout here is the point: a guest's
+// timeout can grow to three seconds only because this holds.
+func TestJoinStopsWhenItsContextEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	start := time.Now()
+	c, err := Join(ctx, "203.0.113.1", "1994", time.Minute)
+	if err == nil {
+		c.Close()
+		t.Skip("something answered on TEST-NET-3; this network is not one this test can use")
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Errorf("Join took %v to notice a context cancelled after 100ms", took)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Skipf("this network failed TEST-NET-3 before the context ended (%v)", err)
+	}
+}
+
+// The sort, over each failure as a dial returns it. **This is the only test the Windows numbers
+// get**: on Windows the table below is built from Winsock's errnos (dial_windows.go) and nothing
+// in this repository can run it there. So each case wraps its cause as net.Dialer does -- an
+// OpError around a SyscallError around the errno -- rather than passing the bare errno.
+func TestJoinFailuresAreSortedByCause(t *testing.T) {
+	dial := func(err error) error {
+		return &net.OpError{Op: "dial", Net: "tcp", Err: err}
+	}
+	for _, tc := range []struct {
+		name string
+		err  error
+		want JoinFailure
+	}{
+		{"refused", dial(os.NewSyscallError("connect", errRefused)), JoinRefused},
+		{"no route to the host", dial(os.NewSyscallError("connect", errHostUnreachable)), JoinUnreachable},
+		{"no route to the network", dial(os.NewSyscallError("connect", errNetUnreachable)), JoinUnreachable},
+		{"no such host", dial(&net.DNSError{Err: "no such host", Name: "macintosh", IsNotFound: true}), JoinNoSuchHost},
+		// The resolver not answering is not the host not answering, and it must not reach the
+		// firewall advice.
+		{"the resolver timed out", dial(&net.DNSError{Err: "i/o timeout", Name: "macintosh", IsTimeout: true}), JoinOther},
+		{"timeout", dial(os.ErrDeadlineExceeded), JoinTimedOut},
+		{"context deadline", dial(context.DeadlineExceeded), JoinTimedOut},
+		{"cancelled", dial(context.Canceled), JoinOther},
+		{"reset", dial(os.NewSyscallError("connect", errors.New("connection reset by peer"))), JoinOther},
+	} {
+		if got := joinFailure(tc.err); got != tc.want {
+			t.Errorf("%s: joinFailure(%v) = %d, want %d", tc.name, tc.err, got, tc.want)
+		}
+	}
+}
+
+// The two causes this machine can produce for real, so that the table above is known to describe
+// what a dial actually returns and not only what it was believed to.
+func TestJoinSortsARealRefusalAndARealMissingName(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := l.Addr().String()
+	l.Close()
+
+	var je *JoinError
+	_, err = Join(context.Background(), addr, "", 5*time.Second)
+	if !errors.As(err, &je) || je.Why != JoinRefused {
+		t.Errorf("Join on a closed loopback port = %v, want JoinRefused", err)
+	}
+
+	// .invalid is reserved by RFC 6761 to never resolve. A resolver that answers it anyway, or
+	// does not answer at all, is this network's business and not this test's.
+	_, err = Join(context.Background(), "gliderGo.invalid", "", 5*time.Second)
+	if !errors.As(err, &je) || je.Why != JoinNoSuchHost {
+		t.Skipf("Join on a .invalid name = %v, which this network did not report as no such "+
+			"host", err)
 	}
 }
 

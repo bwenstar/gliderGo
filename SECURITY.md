@@ -11,8 +11,8 @@ serious and being exploited, say so in the title.
 
 ## What is actually at risk
 
-This is worth being specific about, because a game with no network code and no privileges has a
-small and unusual attack surface, and a vague policy would obscure where it is.
+This is worth being specific about, because a game with one optional network mode and no
+privileges has a small and unusual attack surface, and a vague policy would obscure where it is.
 
 **Parsing other people's files is the whole of it.** `glidergo` and `glidertool` read house files —
 a 1994 binary format with fixed-size records, offsets and counts written by a Mac application that
@@ -30,11 +30,46 @@ terminate, or a path taken from file contents and used to open something.
 Also in scope, more narrowly: the asset extractors in `tools/` (python3, run over the vendored
 1994 data — not over untrusted input in normal use), and the release workflow in `.github/`.
 
-**Not in scope, because it does not exist:** there is no network listener, no server, no update
-check, no telemetry, no browser or scripting engine, and nothing runs with elevated privileges. The
-game reads and writes its own preferences, saves and high-score files under the user's config
-directory and touches nothing else. Stage 3 of the plan adds networked two-player, and this section
-will need rewriting when it does.
+**The race's network connection is the other half.** A networked race (`-host`, `-join`, or
+`Race...` on the title screen) is the only time either program touches a network, and it is off
+unless a player starts one:
+
+- **Hosting listens.** TCP on every interface, IPv4 and IPv6, on port 1994 or `-port`, and only
+  while the waiting screen is up. The listener closes once a race is agreed, and when the player
+  gives up. One connection is dealt with at a time. A host sends its hello first, so anything that
+  connects learns the house name and hash, the release, the rules and an engine fingerprint before
+  it has sent a byte. A connection that is not a race is dropped (a silent one after five seconds),
+  and the host goes on waiting. So something that keeps connecting can keep a host from racing,
+  five seconds at a time. That is known, and Escape is the answer to it.
+- **Joining dials** the address the player typed, and nothing else.
+- **What a peer can send.** Frames are capped at 1 MiB (`netplay.MaxMsg`), checked before anything
+  is allocated. Every field that decides something is validated: slot, state, match ID, lengths,
+  the agreed seed and input delay. Fields that are only reported, such as the other side's house
+  name and release, are taken as sent. They reach the terminal through `%q` and the screen quoted
+  and cut to length. No file ever crosses the wire, and nothing a peer sends is used as a path. The
+  two ends are symmetric: a hostile host can send a guest exactly what a hostile guest can send a
+  host. So the code in scope is `internal/netplay`'s decoding and handshake, and the places in
+  `cmd/glidergo` that show what a peer said.
+- **The house check is not authentication.** Both machines hash the house they opened and refuse
+  to race if the hashes differ. That catches two honest players with different files. It is not a
+  password: a peer that has seen a host's hello can send the same hash back. Results are on the
+  honour system too, since each side reports its own run.
+- **Port forwarding is exposure.** The README explains how to race across the internet, and that
+  advice means opening port 1994 to anyone who finds it while a host is waiting. What they reach is
+  the handshake above and no more. It is still a listening socket on the internet, so close the
+  forward when the race is over. A VPN between the two machines, such as Tailscale, avoids the
+  forward altogether.
+
+A bug in any of that is in scope and worth reporting. That means a panic on bytes a peer sent, an
+allocation it controls, a single connection holding a host longer than those five seconds, or a
+peer's string reaching the screen or the terminal unescaped.
+
+**Not in scope, because it does not exist:** there is no server, no update check, no telemetry, no
+browser or scripting engine, and nothing runs with elevated privileges. Outside a race nothing
+listens or dials. The game reads and writes its own preferences, saves and high-score files under
+the user's config directory and touches nothing else. Files are read through Go's `fs.FS`, so a
+path inside a house cannot escape the directory it came from. Symbolic links inside a directory
+passed to `-levels`, `-houseart` or `-art` are followed, though, like any other file in it.
 
 ## Versions
 

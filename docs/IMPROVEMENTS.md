@@ -5512,7 +5512,9 @@ name and hash. It just throws them into a formatted string, and the status band 
 off before "theirs is".
 
 - **Before the tag:** the refusal leads with the host's house ("the host is racing Demo House"), in
-  4.33's wrap work.
+  4.33's wrap work. **Done, 4.33**, and the typed error came with it: `RefusalError`, for all four
+  refusals and not only the house, carrying both `Hello`s and unwrapping to `ErrHouse`. What is
+  still open is the lookup and the redial below.
 - **After 4.32:** `ErrHouse` becomes a typed `HouseError` carrying both `Hello`s (it still unwraps
   to `ErrHouse`). The guest looks the host's hash up in the library it would play from —
   `options.sources()`, meaning `-houses` *in place of* the 1994 set, plus the New set; about 14 ms
@@ -5697,9 +5699,10 @@ another engine. What was found on the way:
   the host's hello before sending its own, because every build's host sends first. See 4.28's
   amendment.
 
-**Left for 4.33.** The informational differences — the other side's rules, release and neighbour
+**Left for 4.33, and done there.** The informational differences — the other side's rules, release and neighbour
 view — reach only the stdout race line. The screen does not mention them. The refusal messages are
-the ones 4.33 will sort by cause and wrap on the plate.
+the ones 4.33 will sort by cause and wrap on the plate. 4.33 put the release and the rules in small
+print on the race's screens, and left the neighbour view on stdout.
 
 ### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **DONE, before the next tag**
 
@@ -5772,7 +5775,7 @@ one. Internet play with port forwarding is not a stated goal. The argument is th
   answered this time, with its HTTP/0.9 error page, so the guest was told `"<!DO"` in 1.3 s rather
   than waiting.
 
-### 4.33 A failed join runs off the screen and blames the other machine — **planned, before the next tag (the UPnP half is a separate note, not planned)**
+### 4.33 A failed join runs off the screen and blames the other machine — **DONE, before the next tag (the UPnP half is a separate note, not planned)**
 
 `netplay.Join`'s one piece of advice for every failure is "the other machine has to be hosting"
 (`race.go:238`). The error line starts on the plate's left frame and runs off the right edge of the
@@ -5841,6 +5844,97 @@ today: the other side's release when it differs, a fix it has on that this side 
 (`PeerRules`), and its neighbour view. The first two belong on the race's waiting and result
 screens in a line of small print. A player beaten by a glider with `fixes.mirror_foil` on should
 be able to see that.
+
+**Done: every failure a race can end on is sorted by cause and said on the screen as what to do.**
+The terminal still gets the full sentence, word for word what it was. The words are in
+`cmd/glidergo/racewords.go`, and every line puts the advice first, so a line that gets cut loses
+the explanation and keeps the fix.
+
+- **`netplay.Join` takes a context and returns a `*JoinError`**, which says which address failed
+  and why. The cause is a `JoinFailure`: refused, no such host, unreachable, timed out, or other.
+  - The Windows errnos are in `dial_windows.go` (10061, 10051 and 10065), and every other platform
+    uses `dial_errno.go`.
+  - `TestJoinFailuresAreSortedByCause` wraps each cause as `net.Dialer` does, and it is the only
+    test the Windows numbers get.
+  - `TestJoinSortsARealRefusalAndARealMissingName` checks the two causes this machine can produce
+    for real: a closed loopback port, refused in 160 µs, and a `.invalid` name.
+  - A resolver that times out is sorted as other and not as timed out, so a slow DNS server never
+    reaches the firewall advice.
+  - The old "-- the other machine has to be hosting" suffix is gone from `JoinError`'s text.
+- **`joinTimeout` is 3 s, up from 1 s**, and the dial runs under `raceConnect`'s context, so Escape
+  still ends it at once (`TestJoinStopsWhenItsContextEnds`, `TestCancelEndsADialInProgress`).
+- **The firewall is named after three unanswered dials in a row** (`firewallAfter`), which at 3 s a
+  dial is about ten seconds. Any other answer, even a refusal, proves the path is open and resets
+  the count (`TestAFirewallIsNamedOnlyAfterSeveralSilences`, `TestAnAnswerResetsTheSilenceCount`).
+- **The handshake's failures are typed**, and their `Error` text is unchanged.
+  - `RefusalError` covers all four of `Meet`'s refusals and carries both `Hello`s. It unwraps to
+    the sentinel, so `errors.Is(err, ErrHouse)` still works, and `refusedByBoth` checks that each
+    side's error holds both nonces the right way round.
+  - `SilenceError` is `MeetWithin`'s two timeouts.
+  - `strangerErr` is exported as `StrangerError`, so that a screen can quote the four bytes.
+- **A guest turned away over the house is told the host's house**:
+  `the host is racing "Fun House": open it to join`. That is 4.28's first step. A guest with the
+  same name and a different hash is told to get the host's copy. The host is told what the guest
+  opened.
+- **What a peer sent is quoted and cut to 40 runes on the screen** (`peerText`), because a house
+  name can be 255 bytes and can hold an escape sequence (`TestThePeersOwnWordsAreQuotedAndCut`).
+- **The status band shows an error's `Brief()` when it has one.** That is `internal/shell`'s
+  `brief`, tested by `TestAnErrorsBriefLineIsWhatTheBandShows`. `openRace` wraps its failures in a
+  `briefErr`, whose `Error` is the full sentence for stderr.
+  `TestEveryWayAGuestIsTurnedAwayFitsTheBand` checks that each line fits after a house name.
+- **The plate is 300 px tall, up from 200, which is 16 lines instead of 9.** Every line wraps
+  inside a 16 px margin (`wrapRace`, `TestAWrappedLineStaysOnThePlate`), splitting a word only when
+  it is wider than the plate.
+- **The small print is 4.31's leftover, now closed.** The waiting and result screens list, in grey
+  under the body, the other side's release when it differs and every fix it has on or off where
+  this side does not (`smallPrint`). The neighbour view stays on the stdout line. It is a
+  preference and not a rule, and it changes what a player sees, not what the glider does.
+- **The result screen says "the other player's game ended without saying goodbye"** in place of
+  Go's broken-pipe sentence (`endWords`), which is the 4.34 amendment. A peer that sent something
+  unreadable is told apart. stdout keeps the Go error.
+- **The hosting screen reads out the default route's address first** (`defaultRoute`, a UDP
+  "connect" to TEST-NET-1 that sends nothing).
+  - It lists at most three addresses and marks the `IsPrivate` ones "(this network only)". 100.64/10
+    is not marked, because a player's machine with an address there is almost always on Tailscale
+    (`TestTheDefaultRoutesAddressIsReadOutFirst`, `TestAnAddressOnlyThisNetworkCanReachIsMarked`).
+  - The shell command uses the first address.
+  - On Windows a line says to allow gliderGo when Windows asks. The moment the screen goes up is
+    the moment Windows asks.
+- **The "last attempt:" prefix is gone.** The note is a sentence of advice now, and "last attempt"
+  read as though there would be no more.
+- **Docs.**
+  - The Windows `HOW-TO-RUN.txt` has a *Racing another machine* section: the firewall dialog, what
+    Cancel does, and how to undo it.
+  - The release notes had no word about racing at all, which was a gap in themselves. They gain a
+    section.
+  - The README has what to do when the other machine cannot be reached, with the ufw and firewalld
+    commands, and *Racing beyond your network*: a port forward, a VPN, and IPv6. Its broken line
+    wrap at "`-two` and `-resume`" is fixed.
+  - SECURITY.md is rewritten (5.7) in the same change.
+- **Measured.** The three screens were rendered at 640×480 and read:
+  - the hosting screen, with two addresses, the Windows hint and a turned-away note, uses 12 of its
+    16 lines;
+  - the firewall line wraps to two lines;
+  - the result screen's small print sits under the way out.
+
+  Two binary runs checked the terminal's side:
+  - a `-bench` Slumberland host against a Fun House guest ends the guest at once, and the full
+    sentence still goes to stderr;
+  - a refused `-join` gives up at 30 s with the `JoinError` text.
+
+**Not measured, and why:**
+- **The Windows side of the sort.** How long a Windows guest takes to say "refused" (about 2 s)
+  comes from Go's `fd_windows.go`, not from a run. The errno table is the only test the Windows
+  numbers get.
+- **The Windows firewall dialog's wording in the HOW-TO-RUN.** The Windows test host is Server
+  2025, and nothing here clicked Host on it.
+
+**Found doing it: a stream of connections can keep a host from racing.** The host deals with one
+connection at a time, and each silent one holds it for up to five seconds. Anything that keeps
+connecting therefore keeps the real guest waiting in the kernel's backlog. SECURITY.md now says so,
+with Escape as the answer. Handshakes on concurrent connections would close it, and would need a
+rule for which match wins. Not planned. It is a nuisance on a port that is only open while a player
+watches it.
 
 ### 4.34 `race.go` has no app-level test, and four changes are about to edit it — **DONE, the race chain's first step: four loopback races, 0.3 s under `-race`**
 
@@ -6665,7 +6759,7 @@ instead was to remove the question: commit the decoded assets, so the first comm
 `git clone` is `make run`. That is 1.2's route (a) and it retires the extraction step from the
 quick start entirely.
 
-### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent; `SECURITY.md` reopened by Stage 3, its rewrite planned before the next tag**
+### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent; `SECURITY.md` reopened by Stage 3 and rewritten with 4.33**
 
 1.3 records that `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and the issue and
 pull-request templates do not exist. This is where the reasoning lives, because "add the standard
@@ -6747,6 +6841,19 @@ Race… › Host, listens. The rewrite states what the shipped build does:
 
 This is also the file 4.33's port-forwarding advice points at, so both change in one commit.
 CHANGELOG gets a line.
+
+**Done, with 4.33.** SECURITY.md's scope now describes the race.
+- **The listener**: when it is open, what anything that connects learns first, and one connection
+  at a time.
+- **What a peer can send**, and the symmetry between host and guest.
+- **The hash gate is not authentication.**
+- **A forwarded port is exposure**, so close it after the race, or use a VPN instead.
+- **What counts as a bug worth reporting.**
+- **Files**: `fs.FS`, and the symlinks followed inside a directory passed to `-levels`, `-houseart`
+  or `-art`.
+
+Two items stay where they were. The bind default is unchanged, as planned. Dependencies and
+Versions wait for 5.11, whose Go-minor text belongs there.
 
 ### 5.8 What the fresh-checkout audit found and deliberately did not fix — **notes, 1.10a**
 

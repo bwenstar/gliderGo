@@ -57,7 +57,7 @@ type Conn struct {
 	peerFrame uint32
 
 	// heard is whether the peer has sent a length prefix yet, and only Recv touches it. The
-	// first four bytes a connection carries say more than any later four can (strangerErr),
+	// first four bytes a connection carries say more than any later four can (StrangerError),
 	// and a handshake that timed out before them was talking to nobody (MeetWithin).
 	heard bool
 }
@@ -212,7 +212,7 @@ func (c *Conn) frame() ([]byte, error) {
 	n := u32(hdr[:])
 	if n < HeaderSize || n > MaxMsg {
 		if first {
-			return nil, strangerErr(hdr)
+			return nil, StrangerError(hdr)
 		}
 		return nil, fmt.Errorf("%w: message length %d is outside [%d, %d]",
 			ErrProtocol, n, HeaderSize, MaxMsg)
@@ -227,20 +227,21 @@ func (c *Conn) frame() ([]byte, error) {
 	return c.in, nil
 }
 
-// strangerErr is an impossible length in the first four bytes a connection carried, and it is
+// A StrangerError is an impossible length in the first four bytes a connection carried, and it is
 // both of the things those bytes can mean (docs/IMPROVEMENTS.md 4.32). It is ErrMagic, because
 // what opens with an impossible length is nearly always another program. An SSH server's banner
 // opens "SSH-" and a web server's reply "HTTP", and read as a length each is over a gigabyte.
 // It is also ErrProtocol, which is what the same four bytes mean anywhere later in a stream. The
-// bytes are quoted, because they usually name whatever answered.
-type strangerErr [lenPrefix]byte
+// bytes are quoted, because they usually name whatever answered. They are the value, and
+// exported, so that a screen can quote them without the sentence around them (4.33).
+type StrangerError [lenPrefix]byte
 
-func (e strangerErr) Error() string {
+func (e StrangerError) Error() string {
 	return fmt.Sprintf("%v: the other end opened with %q, which is not how a gliderGo message "+
 		"starts, so it is some other program", ErrMagic, e[:])
 }
 
-func (strangerErr) Unwrap() []error { return []error{ErrMagic, ErrProtocol} }
+func (StrangerError) Unwrap() []error { return []error{ErrMagic, ErrProtocol} }
 
 // decode turns a validated envelope and its payload into one of the four messages.
 func decode(t uint8, b []byte) (Msg, error) {

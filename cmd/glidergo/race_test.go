@@ -42,7 +42,10 @@ func TestTheHostingLinesCanBePasted(t *testing.T) {
 	if len(lines) < 2 {
 		t.Fatalf("only %d hosting lines: %v", len(lines), lines)
 	}
-	if strings.Contains(lines[1], "glidergo") || !strings.HasSuffix(lines[1], ":1138") {
+	// A private address is marked as reachable from this network only (addressLine), and the
+	// mark is not part of what gets typed.
+	addr, _, _ := strings.Cut(lines[1], " ")
+	if strings.Contains(addr, "glidergo") || !strings.HasSuffix(addr, ":1138") {
 		t.Errorf("the first thing read out is %q; it should be an address and a port and "+
 			"nothing else, because it is typed into a box", lines[1])
 	}

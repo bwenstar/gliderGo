@@ -1,6 +1,8 @@
 package netplay
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -95,17 +97,75 @@ func (l *Listener) Accept() (net.Conn, error) {
 // listener on every way out of the wait, and Escape may already have closed it.
 func (l *Listener) Close() error { return l.l.Close() }
 
-// Join dials the host. A zero timeout waits as long as the operating system will.
+// Join dials the host. A zero timeout waits as long as the operating system will, and ctx
+// ending stops the dial wherever it has got to: a player who presses Escape should not wait out a
+// timeout that exists for a machine that is not answering (docs/IMPROVEMENTS.md 4.33).
 //
-// The error is worth reading rather than passing through: "connection refused" on a LAN almost
-// always means the host has not pressed Host yet, and that is a sentence a player can act on,
-// where the address-and-errno form is one they have to interpret.
-func Join(addr, port string, timeout time.Duration) (net.Conn, error) {
+// The error is a *JoinError, which says which of the four ways a dial fails this was. That sort
+// is the one thing here worth more than the operating system's own words, because each way has
+// a different fix and only one of them is "the other machine is not hosting yet".
+func Join(ctx context.Context, addr, port string, timeout time.Duration) (net.Conn, error) {
 	full := Address(addr, port)
-	c, err := net.DialTimeout("tcp", full, timeout)
+	d := net.Dialer{Timeout: timeout}
+	c, err := d.DialContext(ctx, "tcp", full)
 	if err != nil {
-		return nil, fmt.Errorf("netplay: cannot reach %s: %w -- the other machine has to be "+
-			"hosting before this one can join", full, err)
+		return nil, &JoinError{Addr: full, Why: joinFailure(err), Err: err}
 	}
 	return c, nil
+}
+
+// JoinFailure is why a dial failed, sorted by what a player can do about it.
+type JoinFailure uint8
+
+const (
+	// JoinOther is none of the below, and the error underneath is the only account of it.
+	JoinOther JoinFailure = iota
+	// JoinRefused is a machine that answered with nothing listening on the port: on a LAN,
+	// nearly always a host that has not started hosting yet.
+	JoinRefused
+	// JoinNoSuchHost is a name that does not resolve, which is usually a spelling.
+	JoinNoSuchHost
+	// JoinUnreachable is an address this network has no way to reach.
+	JoinUnreachable
+	// JoinTimedOut is no answer at all. **It is two causes, and nothing here can tell them
+	// apart**: a machine that is not hosting yet, on a system that drops connections to a
+	// closed port rather than refusing them, and a firewall or router dropping the port.
+	// Windows drops by default, and so do Linux hosts running ufw or firewalld.
+	JoinTimedOut
+)
+
+// A JoinError is a dial that did not connect.
+type JoinError struct {
+	Addr string // the address dialled, with its port filled in
+	Why  JoinFailure
+	Err  error // as the dialler returned it
+}
+
+func (e *JoinError) Error() string { return fmt.Sprintf("netplay: cannot reach %s: %v", e.Addr, e.Err) }
+
+func (e *JoinError) Unwrap() error { return e.Err }
+
+// joinFailure sorts a dial error. The name lookup is asked first, because a lookup that timed out
+// is the resolver not answering and not the host, and it should not read as a firewall.
+//
+// The three errno comparisons are errRefused and its neighbours rather than syscall's names,
+// because on Windows those names are invented numbers that Winsock never returns. See
+// dial_windows.go.
+func joinFailure(err error) JoinFailure {
+	var dns *net.DNSError
+	var ne net.Error
+	switch {
+	case errors.As(err, &dns):
+		if dns.IsNotFound {
+			return JoinNoSuchHost
+		}
+		return JoinOther
+	case errors.Is(err, errRefused):
+		return JoinRefused
+	case errors.Is(err, errHostUnreachable), errors.Is(err, errNetUnreachable):
+		return JoinUnreachable
+	case errors.As(err, &ne) && ne.Timeout():
+		return JoinTimedOut
+	}
+	return JoinOther
 }

@@ -32,9 +32,11 @@ package main
 // comparison in Report and one read in Opponent -- and neither can block on the other machine.
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -79,11 +81,15 @@ var (
 // a mechanism.** The commonest way a race fails to start is the guest pressing join before the
 // host pressed host, which arrives as "connection refused" within a millisecond on a LAN. The
 // alternative to retrying is a program that exits, and two people on the telephone counting to
-// three. A second of timeout rather than netplay.Join's "as long as the operating system will"
-// so that a cancelled wait is noticed within about a second, and because a host that is going to
-// answer answers immediately.
+// three.
+//
+// **Three seconds, because Windows takes two to say "refused".** A Windows guest dialling a
+// closed port tries again twice before it reports the refusal (Go's fd_windows.go), so with the
+// one second this used to be, every refusal on Windows arrived as a timeout, and a timeout
+// cannot tell "not hosting yet" from a firewall (joinWords). The wait costs Escape nothing: the
+// dial runs under rc's context, and Escape ends that (docs/IMPROVEMENTS.md 4.33).
 const (
-	joinTimeout = time.Second
+	joinTimeout = 3 * time.Second
 	joinRetry   = time.Second / 2
 )
 
@@ -128,22 +134,38 @@ var (
 // raceConnect is the connecting half of a race, as the *screen* sees it: a handle on whatever
 // the connecting goroutine is parked in, so that Escape can get it back.
 //
-// It exists because none of the three blocking calls before a match can be cancelled by asking.
-// Accept is in the kernel; DialTimeout is in the kernel; Meet's first Recv is a read on a socket
-// nobody has written to yet. What releases each of them is closing the thing underneath, from
-// another goroutine -- which is netplay.Listener's own documented answer for Accept and Conn's
-// for Recv -- so the goroutine hands each one over as it gets it and the screen closes whatever
-// it is holding.
+// It exists because two of the three blocking calls before a match cannot be cancelled by
+// asking. Accept is in the kernel, and Meet's first Recv is a read on a socket nobody has written
+// to yet. What releases each of them is closing the thing underneath, from another goroutine --
+// which is netplay.Listener's own documented answer for Accept and Conn's for Recv -- so the
+// goroutine hands each one over as it gets it and the screen closes whatever it is holding. The
+// third, the dial, takes a context, and cancel ends that.
 //
 // cancelled is checked before every hand-over as well as being acted on in cancel, and both
 // halves are needed: a cancel that lands between the dial returning and the hand-over would
 // otherwise leave a connected socket with nobody to close it.
 type raceConnect struct {
+	ctx  context.Context
+	stop context.CancelFunc
+
 	mu        sync.Mutex
 	cancelled bool
 	l         *netplay.Listener
 	c         net.Conn
-	last      error // the most recent failed dial, for the waiting screen to show
+	last      raceNote // the most recent failure, for the waiting screen to show
+}
+
+// raceNote is a failure the waiting screen shows, and how many dials in a row have gone
+// unanswered, which decides how loudly a firewall is named (joinWords).
+type raceNote struct {
+	err      error
+	timeouts int
+}
+
+func newRaceConnect() *raceConnect {
+	rc := &raceConnect{}
+	rc.ctx, rc.stop = context.WithCancel(context.Background())
+	return rc
 }
 
 // keep hands the screen something to close. It reports false if Escape has already happened, in
@@ -168,6 +190,7 @@ func (rc *raceConnect) cancel() {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	rc.cancelled = true
+	rc.stop()
 	if rc.l != nil {
 		rc.l.Close()
 	}
@@ -189,11 +212,16 @@ func (rc *raceConnect) stopped() bool {
 // another house, and it is the hosting player who can tell them so.
 func (rc *raceConnect) note(err error) {
 	rc.mu.Lock()
-	rc.last = err
-	rc.mu.Unlock()
+	defer rc.mu.Unlock()
+	var je *netplay.JoinError
+	if errors.As(err, &je) && je.Why == netplay.JoinTimedOut {
+		rc.last = raceNote{err: err, timeouts: rc.last.timeouts + 1}
+		return
+	}
+	rc.last = raceNote{err: err}
 }
 
-func (rc *raceConnect) lastNote() error {
+func (rc *raceConnect) lastNote() raceNote {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	return rc.last
@@ -267,7 +295,7 @@ func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.R
 		}
 	}
 
-	rc := &raceConnect{}
+	rc := newRaceConnect()
 	if l != nil {
 		rc.keep(l, nil) // nothing can have cancelled yet; the screen is not up
 	}
@@ -275,8 +303,13 @@ func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.R
 	go func() { res <- a.meetRace(rc, l, race.Join, local) }()
 
 	met, err := a.awaitRace(rc, race, heading, where, res)
-	if err != nil {
+	if errors.Is(err, errRaceGaveUp) || errors.Is(err, errRaceClosed) {
 		return nil, nil, err
+	}
+	if err != nil {
+		// The terminal gets the sentence and the status band the line (briefErr): a
+		// refusal ends the race and the band is where a player reads why.
+		return nil, nil, briefErr{brief: raceWords(err, race.Host, 0), err: err}
 	}
 
 	r := netplay.Start(met.c, met.m)
@@ -406,7 +439,7 @@ func (a *app) hostRace(rc *raceConnect, l *netplay.Listener, local netplay.Hello
 		if met.err == nil || errors.Is(met.err, errRaceGaveUp) {
 			return met
 		}
-		turned := fmt.Errorf("turned away %s: %w", remoteHost(trans), met.err)
+		turned := &turnedAway{host: remoteHost(trans), err: met.err}
 		rc.note(turned)
 		if !a.o.quiet {
 			fmt.Printf("glidergo: race: %v\n", turned)
@@ -471,15 +504,19 @@ func refusedByPeer(err error) bool {
 // something on this machine or that one, and dialling again would only be refused again.
 func (a *app) dialRace(rc *raceConnect, join string) (net.Conn, error) {
 	for {
-		c, err := netplay.Join(join, a.o.port, joinTimeout)
+		c, err := netplay.Join(rc.ctx, join, a.o.port, joinTimeout)
 		if err == nil {
 			return c, nil
 		}
-		rc.note(err)
 		if rc.stopped() {
 			return nil, errRaceGaveUp
 		}
-		time.Sleep(joinRetry)
+		rc.note(err)
+		select {
+		case <-rc.ctx.Done():
+			return nil, errRaceGaveUp
+		case <-time.After(joinRetry):
+		}
 	}
 }
 
@@ -523,16 +560,11 @@ func (a *app) awaitRace(rc *raceConnect, race shell.Race, heading string, where 
 		}
 
 		lines := append([]string{}, where...)
-		if err := rc.lastNote(); err != nil {
-			// The host's notes say "turned away" themselves (hostRace).
-			note := err.Error()
-			if !race.Host {
-				note = "last attempt: " + note
-			}
-			lines = append(lines, "", note)
+		if note := rc.lastNote(); note.err != nil {
+			lines = append(lines, "", raceWords(note.err, race.Host, note.timeouts))
 		}
 		lines = append(lines, "", "press Esc to give up")
-		raceScreen(scr, heading, lines)
+		raceScreen(scr, heading, lines, nil)
 		if err := a.presentSurface(scr); err != nil {
 			rc.cancel()
 			return raceMeeting{}, errRaceClosed
@@ -545,13 +577,14 @@ func (a *app) awaitRace(rc *raceConnect, race shell.Race, heading string, where 
 // carry the last note, because after thirty seconds of "connection refused", or of turning away
 // a guest with another house, the note is the whole of what went wrong.
 func raceTimedOut(race shell.Race, rc *raceConnect) error {
+	err := rc.lastNote().err
 	if race.Host {
-		if err := rc.lastNote(); err != nil {
+		if err != nil {
 			return fmt.Errorf("no race started within %v; %w", raceConnectWait, err)
 		}
 		return fmt.Errorf("nobody joined the race within %v", raceConnectWait)
 	}
-	if err := rc.lastNote(); err != nil {
+	if err != nil {
 		return fmt.Errorf("could not join a race within %v: %w", raceConnectWait, err)
 	}
 	return fmt.Errorf("could not join a race within %v", raceConnectWait)
@@ -578,22 +611,46 @@ func hostingLines(addr, name string) []string {
 	if err != nil {
 		port = netplay.DefaultPort
 	}
+	lines := []string{"the other player opens Race... and types:"}
 	got := localAddresses()
+	first := "THIS-MACHINE:" + port
 	if len(got) == 0 {
 		// Nothing to offer, so the shape of the answer is offered instead: somebody who can
 		// see their own address in an operating system's own settings can still read this.
-		got = []string{"THIS-MACHINE"}
+		lines = append(lines, first)
 	}
+	for i, ip := range got {
+		if i == 0 {
+			first = net.JoinHostPort(ip.String(), port)
+		}
+		lines = append(lines, addressLine(ip, port))
+	}
+	lines = append(lines, "", "or, from a shell:",
+		fmt.Sprintf("glidergo -join %s %s", first, shellQuote(name)))
+	if runtime.GOOS == "windows" {
+		// The moment this screen goes up is the moment Windows asks, because listening on
+		// every interface is what its firewall asks about. The dialog does not say what
+		// the program wants the network for, and cancelling it blocks the port.
+		lines = append(lines, "", "if Windows asks about gliderGo, allow it on the network "+
+			"you are on")
+	}
+	return lines
+}
 
-	lines := []string{"the other player opens Race... and types:"}
-	for _, ip := range got {
-		// ip + ":" + port, not net.JoinHostPort: localAddresses has already bracketed the IPv6
-		// literals it returns -- it has to, they go on a screen next to a port -- and
-		// JoinHostPort would bracket them twice.
-		lines = append(lines, ip+":"+port)
+// addressLine is one address as the hosting screen reads it out, with its port, and marked
+// when only a machine on the same network can reach it.
+//
+// **net.IP.IsPrivate's ranges and nothing else**: 10/8, 172.16/12, 192.168/16 and fc00::/7.
+// 100.64/10 is not marked, although it is carrier-grade NAT's range too, because an interface in
+// it on a player's own machine is almost always Tailscale. That is the overlay the README
+// suggests for racing past a router, and it is reachable from wherever the other player's
+// Tailscale is.
+func addressLine(ip net.IP, port string) string {
+	line := net.JoinHostPort(ip.String(), port)
+	if ip.IsPrivate() {
+		line += "   (this network only)"
 	}
-	return append(lines, "", "or, from a shell:",
-		fmt.Sprintf("glidergo -join %s:%s %s", got[0], port, shellQuote(name)))
+	return line
 }
 
 // shellQuote wraps a house name so that a shell hands it to the program as one argument.
@@ -614,19 +671,20 @@ func shellQuote(s string) string {
 	return `"` + s + `"`
 }
 
-// localAddresses is this machine's addresses, best first, for the line above.
+// localAddresses is this machine's addresses, best first, for the lines above.
 //
 // Interfaces that are down and loopback are dropped: neither is an address the other player can
 // reach, and offering 127.0.0.1 to somebody on another machine is worse than offering nothing.
-// IPv4 before IPv6 because a LAN's IPv4 address is the one a person can read out loud, and at
-// most three because this is a line on a screen and not an inventory -- a machine with a dozen
-// interfaces is a machine whose owner knows which one to use.
-func localAddresses() []string {
+// The address the default route leaves from goes first, and then IPv4 before IPv6, because a
+// LAN's IPv4 address is the one a person can read out loud. At most three, because this is a
+// line on a screen and not an inventory. A machine with a dozen interfaces is a machine whose
+// owner knows which one to use.
+func localAddresses() []net.IP {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
-	var v4, v6 []string
+	var v4, v6 []net.IP
 	for _, in := range ifaces {
 		if in.Flags&net.FlagUp == 0 || in.Flags&net.FlagLoopback != 0 {
 			continue
@@ -643,17 +701,52 @@ func localAddresses() []string {
 				continue
 			}
 			if ip4 := ipn.IP.To4(); ip4 != nil {
-				v4 = append(v4, ip4.String())
+				v4 = append(v4, ip4)
 			} else {
-				v6 = append(v6, "["+ipn.IP.String()+"]")
+				v6 = append(v6, ipn.IP)
 			}
 		}
 	}
-	got := append(v4, v6...)
-	if len(got) > 3 {
-		got = got[:3]
+	return orderAddresses(append(v4, v6...), defaultRoute())
+}
+
+// orderAddresses moves first to the front of ips, if it is there, and keeps three.
+//
+// **The default route's address first, because interface order is the operating system's and not
+// the player's.** On a machine with Docker, a VM host or a VPN client, the first interface up is
+// often a bridge nobody else can reach. It used to be the address the pasteable command line
+// used. The address the default route leaves from is the one the machine's own traffic uses, and
+// on a home network that is the LAN address the other player needs.
+func orderAddresses(ips []net.IP, first net.IP) []net.IP {
+	var out []net.IP
+	for _, ip := range ips {
+		if first != nil && ip.Equal(first) {
+			out = append([]net.IP{ip}, out...)
+		} else {
+			out = append(out, ip)
+		}
 	}
-	return got
+	if len(out) > 3 {
+		out = out[:3]
+	}
+	return out
+}
+
+// defaultRoute is the address this machine would send from to somewhere off its own networks. It
+// asks the kernel by "connecting" a UDP socket, which picks a route and a source address and
+// sends nothing: a UDP connect is only bookkeeping. 192.0.2.1 is TEST-NET-1 (RFC 5737), an
+// address that will never be anybody's, so that this line cannot be read as the game phoning
+// anywhere. A machine with no default route gets nil, and the interfaces' own order.
+func defaultRoute() net.IP {
+	c, err := net.Dial("udp", "192.0.2.1:9")
+	if err != nil {
+		return nil
+	}
+	defer c.Close()
+	if a, ok := c.LocalAddr().(*net.UDPAddr); ok {
+		return a.IP
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -947,7 +1040,7 @@ func (a *app) awaitSettled(w *game.World, r *netplay.Race, mine netplay.Standing
 			"however far ahead you finished",
 			"",
 			"press Esc to stop waiting",
-		})
+		}, smallPrint(r.Match(), raceRules(a.p.Fixes)))
 		if err := a.presentSurface(scr); err != nil {
 			return false
 		}
@@ -967,12 +1060,15 @@ func (a *app) showRaceResult(res raceResult) {
 		lines = append(lines, "", "the other player never finished")
 	}
 	if res.err != nil {
-		lines = append(lines, "", "the connection failed: "+res.err.Error())
+		// In words and not in Go's: which of reset, broken pipe and EOF the socket said is
+		// the operating system's business, and stdout has it (finishRace).
+		lines = append(lines, "", endWords(res.err))
 	}
 	lines = append(lines, "", "press a key to finish")
 
 	scr := raceSurface()
-	raceScreen(scr, strings.ToUpper(res.verdict()), lines)
+	raceScreen(scr, strings.ToUpper(res.verdict()), lines,
+		smallPrint(res.match, raceRules(a.p.Fixes)))
 	if err := a.presentSurface(scr); err != nil {
 		return
 	}
@@ -1020,13 +1116,16 @@ func standingWords(s netplay.Standing) string {
 // The screens
 // ---------------------------------------------------------------------------
 
-// The panel every race screen is drawn in: centred, and wide enough for the longest line any of
-// them has -- a `-join` command with an IPv6 address in it.
+// The panel every race screen is drawn in: centred, and as wide as the screen leaves room for.
+// Sixteen lines tall, which is the hosting screen's three addresses, its shell line, a Windows
+// hint and a note that wraps, with the way out still under them (docs/IMPROVEMENTS.md 4.33). A
+// line wider than the plate is wrapped rather than centred off both edges.
 const (
 	racePlateLeft   = 40
-	racePlateTop    = 140
+	racePlateTop    = 90
 	racePlateRight  = 600
-	racePlateBottom = 340
+	racePlateBottom = 390
+	racePlateMargin = 16 // the least room between a line and the plate's frame
 	raceHeadingBase = 40 // baseline of the scale-2 heading, from the plate's top
 	raceLineBase    = 74 // baseline of the first body line
 	raceLineStep    = 14
@@ -1044,13 +1143,15 @@ func raceSurface() *render.Surface {
 	return render.NewSurface(int(view.Screen.Wide()), int(view.Screen.Tall()))
 }
 
-// raceScreen draws a heading and a column of lines into a plate on a black screen.
+// raceScreen draws a heading and a column of lines into a plate on a black screen, and under
+// them, dimmer, the small print: what the other side plays with that this side does not, when the
+// race let it through (smallPrint).
 //
 // Deliberately plain, and deliberately not dressed up as 1994 artwork. Every pixel of the
 // original's own screens came out of a PICT (internal/render), and a hand-drawn imitation of one
 // would be this port claiming the original had a network mode. So: black, a framed plate, the
 // port's own font. The same argument the pause hint's colours are chosen by.
-func raceScreen(s *render.Surface, heading string, lines []string) {
+func raceScreen(s *render.Surface, heading string, lines, small []string) {
 	s.Fill(s.Bounds(), render.Black8)
 
 	plate := render.SetRect(racePlateLeft, racePlateTop, racePlateRight, racePlateBottom)
@@ -1060,18 +1161,29 @@ func raceScreen(s *render.Surface, heading string, lines []string) {
 
 	raceCenter(s, plate, plate.Top+raceHeadingBase, heading, render.White8, 2)
 	v := plate.Top + raceLineBase
-	for _, line := range lines {
-		if v > plate.Bottom-4 {
-			// A plate that has run out of room drops the rest rather than drawing over
-			// its own frame. The lines are in the order they matter, so what falls off
-			// the bottom is the least of them -- and the two that must never fall off
-			// (the way out, and the result) are short.
-			break
+	room := plate.Wide() - 2*racePlateMargin
+	draw := func(lines []string, idx uint8) {
+		for _, line := range lines {
+			if line == "" {
+				v += raceLineStep
+				continue
+			}
+			for _, part := range wrapRace(line, room) {
+				if v > plate.Bottom-4 {
+					// A plate that has run out of room drops the rest rather than
+					// drawing over its own frame. The lines are in the order they
+					// matter, so what falls off the bottom is the least of them.
+					return
+				}
+				raceCenter(s, plate, v, part, idx, 1)
+				v += raceLineStep
+			}
 		}
-		if line != "" {
-			raceCenter(s, plate, v, line, render.LtGray8, 1)
-		}
+	}
+	draw(lines, render.LtGray8)
+	if len(small) > 0 {
 		v += raceLineStep
+		draw(small, render.Gray8)
 	}
 }
 

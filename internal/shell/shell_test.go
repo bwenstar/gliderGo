@@ -2,6 +2,7 @@ package shell
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -491,6 +492,31 @@ func TestARaceIsReportedByItsResult(t *testing.T) {
 	}
 	if want := "Slumberland -- race: you win, more rooms visited"; s.msg != want {
 		t.Errorf("status line is %q, want %q", s.msg, want)
+	}
+}
+
+// briefly is an error with a short form, the way cmd/glidergo's race errors have one.
+type briefly struct{ long, short string }
+
+func (e briefly) Error() string { return e.long }
+func (e briefly) Brief() string { return e.short }
+
+// A race refused for a reason with a long sentence puts the short one on the band and the long one
+// on the terminal: the band is one line, and the long one is cut before its advice.
+func TestAnErrorsBriefLineIsWhatTheBandShows(t *testing.T) {
+	s, f := shellOver(t, []string{"Slumberland"}, key(platform.KeyN), key(platform.KeyN))
+	f.err = fmt.Errorf("wrapped: %w", briefly{
+		long:  "netplay: the two sides have different houses: yours is \"Slumberland\" (hash ...)",
+		short: "the host is racing \"Fun House\": open it to join",
+	})
+	if err := s.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if want := `Slumberland: the host is racing "Fun House": open it to join`; s.msg != want {
+		t.Errorf("status line is %q, want %q", s.msg, want)
+	}
+	if len(f.notes) == 0 || !strings.Contains(f.notes[len(f.notes)-1], "hash ...") {
+		t.Errorf("the terminal was told %q; it should get the whole sentence", f.notes)
 	}
 }
 

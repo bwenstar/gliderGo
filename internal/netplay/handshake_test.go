@@ -175,6 +175,17 @@ func refusedByBoth(t *testing.T, ha, hb Hello, want error, says ...string) {
 			t.Errorf("%s: err = %v, want %v", side.who, side.err, want)
 			continue
 		}
+		// The facts as well as the sentence, because a screen words them itself: each
+		// side is handed the other side's hello, which is the house a guest has to open.
+		var r *RefusalError
+		if !errors.As(side.err, &r) || r.Reason != want {
+			t.Errorf("%s: err = %v (%T), want a *RefusalError for %v", side.who, side.err,
+				side.err, want)
+		} else if mine, theirs := r.Local.Nonce, r.Peer.Nonce; mine == theirs ||
+			(mine != ha.Nonce && mine != hb.Nonce) || (theirs != ha.Nonce && theirs != hb.Nonce) {
+			t.Errorf("%s: the refusal carries nonces %d and %d, want this side's and the "+
+				"other's out of %d and %d", side.who, mine, theirs, ha.Nonce, hb.Nonce)
+		}
 		for _, w := range says {
 			if !strings.Contains(side.err.Error(), w) {
 				t.Errorf("%s: the message does not mention %q: %v", side.who, w, side.err)

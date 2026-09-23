@@ -17,6 +17,42 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A race that cannot start says why, in words that fit, and names the firewall (2026-09-23)
+
+A failed join used to give Go's sentence and one piece of advice for every failure, "the other
+machine has to be hosting". The sentence started at the plate's left edge and ran off the right edge
+of the screen. Each failure is now sorted by its cause:
+- **refused**: that machine answered, but nothing is hosting on the port yet;
+- **no such host**: check the spelling;
+- **unreachable**: check the address;
+- **no answer**: the other machine may not be hosting.
+
+After three unanswered dials in a row the screen says what else it can be: a firewall dropping the
+port, and on Windows the host has to allow gliderGo when Windows asks. The dial now waits 3 s, not
+1 s, because Windows takes about 2 s to say refused. Escape still ends it at once.
+
+The handshake's refusals are worded the same way, with the advice first. A guest with the wrong
+house is told `the host is racing "Fun House": open it to join`. A guest with another release is
+told to install the same release, with both named. Another program on the port is named as one,
+quoting what it opened with. The title screen's status band shows that short line. The terminal
+keeps the full sentence, unchanged.
+
+The race's plate wraps its lines, and it has 16 of them now, up from 9. Under them, in small print,
+is what the other side plays with that the race let through: its release, when that differs, and
+any fix it has on or off where you do not. A race whose other end vanished ends with "the other
+player's game ended without saying goodbye", and Go's broken-pipe sentence goes to stdout only.
+
+The hosting screen lists the address this machine's own traffic leaves from first. A Docker bridge
+no longer comes ahead of the LAN. Addresses in a private range are marked "(this network only)".
+On Windows the screen says to allow gliderGo when Windows asks.
+
+The README says what to do when the other machine cannot be reached, with the ufw and firewalld
+commands. It also covers racing beyond your own network: a port forward, a VPN such as Tailscale,
+or IPv6. The Windows `HOW-TO-RUN.txt` explains the firewall dialog and how to undo a Cancel, and
+the release notes gain a section on racing. SECURITY.md no longer says there is no network
+listener. It says what a host exposes while it waits, and that a forwarded port is exposure
+(IMPROVEMENTS 4.33, 5.7).
+
 ### A host goes on hosting past a connection that is not a race, and no handshake waits for ever (2026-09-23)
 
 A host used to accept one connection and shut its port, whatever that connection turned out to

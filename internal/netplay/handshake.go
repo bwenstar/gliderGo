@@ -458,48 +458,18 @@ func Meet(c *Conn, local Hello) (Match, error) {
 	// The order is the order of what the player can do about it. A protocol they cannot
 	// speak and an engine they do not share both mean installing another release, and are
 	// said first, because a house or a rule is not worth fixing between two builds that
-	// cannot race anyway.
+	// cannot race anyway. RefusalError has the words for each.
 	if local.Versions&peer.Versions == 0 {
-		return Match{}, fmt.Errorf("%w: this is %s, which speaks protocol %s, and the other "+
-			"side is %s, which speaks %s; both machines need releases with a version in common",
-			ErrVersion, release(local.Release), versions(local.Versions),
-			release(peer.Release), versions(peer.Versions))
+		return Match{}, &RefusalError{Reason: ErrVersion, Local: local, Peer: *peer}
 	}
 	if peer.Engine != local.Engine {
-		if peer.Release == local.Release {
-			// The same name on two different engines: at least one of the two is not
-			// the build it says it is. Nearly always somebody's own build from changed
-			// source, and "dev" and "dev" is the commonest case of it.
-			both := "both sides are " + release(local.Release)
-			if local.Release == "" {
-				both = "neither side names its release"
-			}
-			return Match{}, fmt.Errorf("%w: %s, and their engines differ (%016X here, %016X "+
-				"there), so at least one of them was built from changed source; build both "+
-				"from the same source, or install the same release on both",
-				ErrEngine, both, local.Engine, peer.Engine)
-		}
-		return Match{}, fmt.Errorf("%w: this is %s (engine %016X) and the other side is %s "+
-			"(engine %016X); the two releases fly differently, so both machines need the same "+
-			"one", ErrEngine, release(local.Release), local.Engine,
-			release(peer.Release), peer.Engine)
+		return Match{}, &RefusalError{Reason: ErrEngine, Local: local, Peer: *peer}
 	}
 	if peer.HouseHash != local.HouseHash {
-		// The one error a player is meant to see, so it says what to do about it rather
-		// than what went wrong. Both names and both hashes: the names are usually the
-		// same -- two builds of one house is the common case, not two different houses --
-		// and when they are, the hashes are the only thing that distinguishes them.
-		return Match{}, fmt.Errorf("%w: yours is %q (hash %016X), theirs is %q (hash %016X); "+
-			"both sides need the same house, byte for byte",
-			ErrHouse, local.HouseName, local.HouseHash, peer.HouseName, peer.HouseHash)
+		return Match{}, &RefusalError{Reason: ErrHouse, Local: local, Peer: *peer}
 	}
-	if diff := (local.Rules ^ peer.Rules) & RulesGated; diff != 0 {
-		// Only the bits that differ, which is what there is to change. A rule both sides
-		// play with is not the reason for anything.
-		return Match{}, fmt.Errorf("%w: of the rules that decide a race, this side (%s) plays "+
-			"with %s and the other side (%s) with %s; both sides need the same",
-			ErrRules, release(local.Release), ruleList(local.Rules&diff),
-			release(peer.Release), ruleList(peer.Rules&diff))
+	if (local.Rules^peer.Rules)&RulesGated != 0 {
+		return Match{}, &RefusalError{Reason: ErrRules, Local: local, Peer: *peer}
 	}
 
 	// §10.4.7: the numerically smaller nonce becomes player 1. Ties are impossible in
@@ -605,14 +575,10 @@ func MeetWithin(c *Conn, local Hello, wait time.Duration) (Match, error) {
 	case err == nil:
 	case !errors.Is(err, os.ErrDeadlineExceeded):
 		return Match{}, err
-	case !c.heard:
+	default:
 		// The sentence rather than the socket's "read tcp a->b: i/o timeout": a player
 		// sees this one, and the addresses are already on their screen.
-		return Match{}, fmt.Errorf("netplay: the other end said nothing for %v, so it is not "+
-			"a gliderGo game ready to race: %w", wait, os.ErrDeadlineExceeded)
-	default:
-		return Match{}, fmt.Errorf("netplay: the other side stopped answering partway through "+
-			"the handshake, and it did not finish within %v: %w", wait, os.ErrDeadlineExceeded)
+		return Match{}, &SilenceError{Wait: wait, Partway: c.heard}
 	}
 	if err := d.SetDeadline(time.Time{}); err != nil {
 		return Match{}, fmt.Errorf("netplay: clearing the handshake's deadline: %w", err)
@@ -622,6 +588,85 @@ func MeetWithin(c *Conn, local Hello, wait time.Duration) (Match, error) {
 
 // release is a Hello's release as a refusal names it. A peer that sent none is one whose build
 // set nothing, and "an unnamed build" is a thing a player can at least ask the other one about.
+// A RefusalError is Meet declining a match over something the two hellos disagree about:
+// ErrVersion, ErrEngine, ErrHouse or ErrRules, which it unwraps to.
+//
+// **Both hellos are kept, and the sentence is made from them.** Each message names what both
+// sides have and what to do about it, and that sentence is written for a terminal. A screen has
+// a line or two and wants to lead with the action instead ("open Fun House"), and the house the
+// other side opened is exactly what a guest needs to be told (docs/IMPROVEMENTS.md 4.28 and
+// 4.33). So the facts travel with the error, and a caller can word them for the room it has.
+// Peer is what the network sent, so its strings are the other machine's to choose.
+type RefusalError struct {
+	Reason      error // ErrVersion, ErrEngine, ErrHouse or ErrRules
+	Local, Peer Hello
+}
+
+func (e *RefusalError) Unwrap() error { return e.Reason }
+
+func (e *RefusalError) Error() string {
+	local, peer := e.Local, e.Peer
+	switch e.Reason {
+	case ErrVersion:
+		return fmt.Sprintf("%v: this is %s, which speaks protocol %s, and the other side is %s, "+
+			"which speaks %s; both machines need releases with a version in common",
+			ErrVersion, release(local.Release), versions(local.Versions),
+			release(peer.Release), versions(peer.Versions))
+	case ErrEngine:
+		if peer.Release == local.Release {
+			// The same name on two different engines: at least one of the two is not
+			// the build it says it is. Nearly always somebody's own build from changed
+			// source, and "dev" and "dev" is the commonest case of it.
+			both := "both sides are " + release(local.Release)
+			if local.Release == "" {
+				both = "neither side names its release"
+			}
+			return fmt.Sprintf("%v: %s, and their engines differ (%016X here, %016X there), "+
+				"so at least one of them was built from changed source; build both from the "+
+				"same source, or install the same release on both",
+				ErrEngine, both, local.Engine, peer.Engine)
+		}
+		return fmt.Sprintf("%v: this is %s (engine %016X) and the other side is %s (engine "+
+			"%016X); the two releases fly differently, so both machines need the same one",
+			ErrEngine, release(local.Release), local.Engine, release(peer.Release), peer.Engine)
+	case ErrHouse:
+		// Both names and both hashes: the names are usually the same -- two builds of one
+		// house is the common case, not two different houses -- and when they are, the
+		// hashes are the only thing that distinguishes them.
+		return fmt.Sprintf("%v: yours is %q (hash %016X), theirs is %q (hash %016X); both "+
+			"sides need the same house, byte for byte",
+			ErrHouse, local.HouseName, local.HouseHash, peer.HouseName, peer.HouseHash)
+	case ErrRules:
+		// Only the bits that differ, which is what there is to change. A rule both sides
+		// play with is not the reason for anything.
+		diff := (local.Rules ^ peer.Rules) & RulesGated
+		return fmt.Sprintf("%v: of the rules that decide a race, this side (%s) plays with %s "+
+			"and the other side (%s) with %s; both sides need the same",
+			ErrRules, release(local.Release), ruleList(local.Rules&diff),
+			release(peer.Release), ruleList(peer.Rules&diff))
+	}
+	return fmt.Sprint(e.Reason)
+}
+
+// A SilenceError is a handshake MeetWithin ran out of time for. It unwraps to
+// os.ErrDeadlineExceeded, and it says which of two things happened, because they are told apart
+// on a screen: an end that never spoke is not a gliderGo race at all, and one that stopped is.
+type SilenceError struct {
+	Wait    time.Duration
+	Partway bool // the other end had spoken, and then stopped
+}
+
+func (e *SilenceError) Error() string {
+	if e.Partway {
+		return fmt.Sprintf("netplay: the other side stopped answering partway through the "+
+			"handshake, and it did not finish within %v: %v", e.Wait, os.ErrDeadlineExceeded)
+	}
+	return fmt.Sprintf("netplay: the other end said nothing for %v, so it is not a gliderGo "+
+		"game ready to race: %v", e.Wait, os.ErrDeadlineExceeded)
+}
+
+func (*SilenceError) Unwrap() error { return os.ErrDeadlineExceeded }
+
 func release(r string) string {
 	if r == "" {
 		return "an unnamed build"
@@ -661,7 +706,15 @@ func versions(v uint16) string {
 // screen can show, where "EOF" is not.
 func meetErr(doing string, err error) error {
 	if errors.Is(err, io.EOF) {
-		return fmt.Errorf("netplay: the other side left while %s", doing)
+		return leftErr(doing)
 	}
 	return fmt.Errorf("netplay: %s: %w", doing, err)
 }
+
+// leftErr is the other side hanging up during the handshake. The sentence leaves "EOF" out, and
+// errors.Is still finds io.EOF in it, which is how a caller tells a hang-up from a failure.
+type leftErr string
+
+func (e leftErr) Error() string { return "netplay: the other side left while " + string(e) }
+
+func (leftErr) Unwrap() error { return io.EOF }

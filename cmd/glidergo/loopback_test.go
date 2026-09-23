@@ -19,6 +19,7 @@ package main
 // left make a race nobody won.
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -304,7 +305,7 @@ func guestHello(t *testing.T) netplay.Hello {
 // meetAsGuest is the other machine played by hand: dial, and shake hands saying hello.
 func meetAsGuest(t *testing.T, addr string, hello netplay.Hello) (*netplay.Conn, io.Closer, netplay.Match, error) {
 	t.Helper()
-	trans, err := netplay.Join(addr, "", 5*time.Second)
+	trans, err := netplay.Join(context.Background(), addr, "", 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -570,7 +571,7 @@ func TestLoopbackRaceHostTurnsAwayWhatIsNotARace(t *testing.T) {
 		t.Fatalf("the host's first word after the handshake was %T, want a standing", msg)
 	}
 	// The host is flying, so the handshake is over on its side too and the port is shut.
-	if late, err := netplay.Join(addr, "", 2*time.Second); err == nil {
+	if late, err := netplay.Join(context.Background(), addr, "", 2*time.Second); err == nil {
 		late.Close()
 		t.Error("the port was still open once the race had started")
 	}

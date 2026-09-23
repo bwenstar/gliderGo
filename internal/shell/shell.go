@@ -660,7 +660,7 @@ func (s *Shell) start(c Choice) {
 	s.boards, s.saves = nil, nil
 
 	if err != nil {
-		s.msg = h.Name + ": " + err.Error()
+		s.msg = h.Name + ": " + brief(err)
 		s.notify("glidergo: " + h.Name + ": " + err.Error())
 		return
 	}
@@ -673,6 +673,22 @@ func (s *Shell) start(c Choice) {
 		return
 	}
 	s.msg = fmt.Sprintf("%s -- score %d, %d stars left", h.Name, out.Score, out.StarsLeft)
+}
+
+// brief is an error as the band shows it: the error's own Brief line if it has one, and the
+// error otherwise.
+//
+// A race's failures have one (cmd/glidergo's briefErr), because their sentences are written for
+// a terminal: both machines' releases, both houses' hashes, two hundred characters of it. The band
+// is one line, and fit would cut that sentence off before the part that says what to do. So the
+// band gets the short version, which leads with the advice, and notify still sends the terminal
+// the whole sentence (docs/IMPROVEMENTS.md 4.33).
+func brief(err error) string {
+	var b interface{ Brief() string }
+	if errors.As(err, &b) {
+		return b.Brief()
+	}
+	return err.Error()
 }
 
 func (s *Shell) notify(line string) {

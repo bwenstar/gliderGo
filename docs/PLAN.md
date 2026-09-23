@@ -1562,9 +1562,19 @@ means the tag is better with it and does not wait.
      15 s on the guest), cleared once the match is agreed. Another program is named as one,
      quoting what it opened with, and a refusal the other machine caused has no bug-report footer
      (4.32).
-   - **Gate.** A failed join says why, on the plate, in words that fit. The Windows firewall is
-     named where a host meets it (4.33), and the refusal leads with the host's house (4.28's
-     amendment).
+   - **Gate, DONE.** A failed join says why, on the plate, in words that fit (4.33).
+     - The dial's failures are sorted by cause, with Winsock's numbers on Windows, and each is said
+       as what to check.
+     - The firewall is named after three unanswered dials, and on the hosting screen where Windows
+       asks.
+     - A refused guest is told the host's house (4.28's amendment). `RefusalError` carries both
+       hellos.
+     - The plate wraps, and grows to 16 lines. The release and rules the race let through are in
+       small print. The result screen stops quoting Go's broken pipe.
+     - The hosting screen puts the default route's address first and marks private ones.
+     - README gains racing beyond your network, HOW-TO-RUN gains the firewall dialog, and the
+       release notes gain a racing section.
+     - SECURITY.md's listener half is rewritten in the same change.
 3. **Hostile input.**
    - **Gate.** A PNG dimension cap before decoding (4.36).
    - **Gate.** Releases are built with a Go minor that Go still patches, not the `go 1.23` floor
@@ -1581,15 +1591,16 @@ means the tag is better with it and does not wait.
    - **Should.** A present that sends only the rows that changed (2.76). If that and 2.76's
      server-side row repeat land first, the cap is never written.
    - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
-5. **One docs truth pass.** It is cheap and has no dependencies. SECURITY.md is rewritten last,
-   because it points at 4.32 and 4.36.
+5. **One docs truth pass.** It is cheap and has no dependencies. SECURITY.md is finished last,
+   because it points at 4.36. Its listener half went in with 4.33, beside the port-forwarding
+   advice it answers.
    - **Gate.** README's opening and a Releases link, 5.1 and 5.4 made true, and `RELEASING.md`
      (5.1, 5.4, 4.13, 1.3 amendments).
    - **Gate.** The board sorts on points, not rooms: README and `world.go` (3.1 lists them, and
      is corrected already).
    - **Gate.** README's "wins on the spot" holds only for a killed process (Stage 3's amendment).
-   - **Gate.** SECURITY.md stops saying there is no listener, and names the Go that builds
-     releases (5.7's amendment, 5.11).
+   - **Gate.** SECURITY.md names the Go that builds releases and 4.36's size limits (5.7's
+     amendment, 5.11). It stopped saying there is no listener with 4.33.
    - **Gate.** The release notes and `HOW-TO-RUN.txt` say what to do if Defender quarantines the
      exe, and `release.yml:658` stops reading as if it covers antivirus (5.12, step 3).
    - **Should.** The glibc floor is stated and asserted (5.4's amendment), CONTRIBUTING gets

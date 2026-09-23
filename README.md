@@ -253,9 +253,9 @@ bin/glidergo -host Slumberland                        # on one machine
 bin/glidergo -join 192.168.1.20 Slumberland           # on the other, once the first is waiting
 ```
 
-The waiting screen reads out this machine's addresses and the port it actually got — that top line
-is exactly what the other player types into Join — with a ready-made `-join` command underneath for
-a partner who is also at a shell. `-port` moves both off 1994 (`-join 192.168.1.20:2000` says the
+The waiting screen reads out this machine's addresses and the port it actually got, the address its
+own traffic leaves from first — that top line is exactly what the other player types into Join —
+with a ready-made `-join` command underneath for a partner who is also at a shell. `-port` moves both off 1994 (`-join 192.168.1.20:2000` says the
 same thing), the house may be a name or a path, and `-host` on its own opens Slumberland. Escape
 gives up while you are waiting. A host goes on waiting past anything that connects and is not the
 race it is hosting — a guest with another house or release, a browser, some other program — and
@@ -268,17 +268,47 @@ whose machine dies has forfeited: the other one wins on the spot. There is no co
 that depends on the two clocks agreeing, which is why a peer that started late is simply a peer that
 has simulated fewer frames.
 
-Both houses must hash identically or the match is refused with both names and both hashes on
-screen — usually two builds of one house, which is why the hashes are there. Both machines must
-also run releases that fly the same: a release whose physics changed is refused, naming both
-releases, and any two releases with the same physics race each other. The `fixes` block below is
-told to the other side and does not refuse a race, because none of its switches changes how a
-glider flies. Both machines agree a random seed between themselves, so `-seed` is refused, as are
-`-two` and `-resume`, each with a sentence saying why. A small panel in the top-left corner shows where the other player is while you
-fly, and it goes away when your run ends so that the game-over and high-score screens are the
-original's. The race itself is not over until both runs are, however far ahead you finish. Then
+Both houses must hash identically or the match is refused. The screen tells a guest which house
+the host is racing, or that theirs is a different copy of it, and the terminal has both names and
+both hashes. Both machines must also run releases that fly the same: a release whose physics
+changed is refused, naming both releases, and any two releases with the same physics race each
+other. The `fixes` block below is told to the other side and does not refuse a race, because none
+of its switches changes how a glider flies. The race's screens say in small print which of them
+the other side has on. Both machines agree a random seed between themselves, so `-seed` is
+refused, as are `-two` and `-resume`, each with a sentence saying why. A small panel in the
+top-left corner shows where the other player is while you fly, and it goes away when your run ends
+so that the game-over and high-score screens are the original's. The race itself is not over until both runs are, however far ahead you finish. Then
 both machines show the same result, and a race started from `Race...` leaves it on the title
 screen's status line, where a game leaves its score.
+
+**When the other machine cannot be reached**, the joining screen says what to check: the spelling,
+the address, or that the machine answered and nothing is hosting yet. No answer at all is either a
+host that has not started or a firewall dropping the port. After a few tries in a row the screen
+says so. The host is the one that has to let the other in:
+
+- **Windows** asks the first time you host. Tick the network you are on and click Allow access.
+  Cancel is remembered as a no. Undo it in Windows Security, *Firewall & network protection*,
+  *Allow an app through firewall*.
+- **Linux** with a firewall on, usually ufw or firewalld, needs the port opened by hand:
+  `sudo ufw allow 1994/tcp`, or `sudo firewall-cmd --add-port=1994/tcp`, which lasts until the next
+  reboot.
+
+**Racing beyond your network.** An address the waiting screen marks *(this network only)* is in a
+private range. Another machine on the same Wi-Fi can reach it, and nothing beyond your router can.
+The mark is read off the address, so a VPN that hands out a private address gets it too. Across the
+internet, there are three ways:
+
+- **A port forward.** On the host's router, forward TCP port 1994 to the address the waiting screen
+  lists first. Then tell the other player your public address, which the router's own status page
+  shows. Either machine can host, so the player whose router is easier to set up should. **Remove
+  the forward when you are done.** While it is open, anyone who finds the port can reach the
+  handshake. [SECURITY.md](SECURITY.md) says what that exposes.
+- **A VPN between the two machines**, such as Tailscale. Each machine gets an address the other
+  can reach, the router is left alone, and nothing is open to anyone else. A Tailscale address
+  (100.x.y.z) is listed unmarked.
+- **IPv6**, when both ends have it. There is no address translation, so there is nothing to
+  forward. Home routers usually block incoming IPv6 connections, though, and so does the host's
+  own firewall, so expect to open the port in both.
 
 ## Settings, scores and saves
 
