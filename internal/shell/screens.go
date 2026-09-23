@@ -370,8 +370,8 @@ func (s *Shell) drawMenu(scr *render.Surface) {
 				// An unavailable item under the cursor gets an *outline*, not a filled
 				// bar. A filled bar is the port's "this is what Return will do", and
 				// putting it under "New Game" on a machine with no houses -- which is
-				// exactly what a fresh clone's first screen is -- made the one item that
-				// cannot work look like the one the game wanted you to press.
+				// what a mistyped -houses shows first -- made the one item that cannot
+				// work look like the one the game wanted you to press.
 				scr.FrameRect(bar, render.Gray8)
 				shadow(scr, int16(menuLeft+menuInset), v, text, render.Gray8, menuScale)
 				continue

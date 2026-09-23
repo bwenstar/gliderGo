@@ -316,8 +316,10 @@ A test suite rather than a promise:
   diff as the lines that changed. A failure writes the offending frame out as PNGs for you to look
   at; none are committed, because a committed PNG is a diff nobody can read.
 - The 1994 attract-mode demo — 1,117 recorded keystrokes of somebody flying Demo House for about
-  two minutes — replays through this port's own physics. It does not finish yet: the glider dies
-  573 records in, and closing that gap is the sharpest target the project has.
+  two minutes — replays through this port's own physics. It plays to the end: all 1,117 records
+  are consumed, and the game is over three frames after the last one. A test fails if a change
+  stops it short. Nothing in the recording says the flight is wrong, and the next check needs a
+  trace from a real Mac.
 - The twenty-row fidelity contract in [docs/ORIGINAL_GAME.md](docs/ORIGINAL_GAME.md) §19.1 is
   audited row by row, with a citation into the C for each and five written exceptions.
 - Those citations are themselves checked. `go test ./internal/citations/` opens the pinned 1994 C

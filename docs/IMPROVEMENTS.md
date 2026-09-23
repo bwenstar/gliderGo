@@ -791,7 +791,7 @@ was meant to recover. That is frame-pacing work, it belongs with 1.8's timing pa
 setting that is written down and honest about being inert is cheaper to finish than one that
 has to be invented later along with the file-format change to carry it.
 
-### 2.18 The random stream is unverified against real hardware — **premise disproved, 1.8b; the table test is 1.8c; the demo now plays to its end, and the recording supports no further oracle**
+### 2.18 The random stream is unverified against real hardware — **premise disproved, 1.8b; the table test is 1.8c; the demo now plays to its end, its floor is the whole stream, and the recording supports no further oracle**
 
 `internal/game/rand.go` transcribes the original's linear congruential generator, and the
 demo replay in 1.8 depends on it bit for bit. It has not been checked against a trace from
@@ -807,10 +807,12 @@ of the RNG-consuming *registrars* even fires; and §1.13 enumerates every reader
 the RNG feeds and finds nothing but `CopyBits` source-rect selection. R-RNG-2 is normative: a port
 could replay the shipped demo frame-exactly with a `Random()` that returns 0 forever.
 
-1.8b's replay is the empirical confirmation. Seeds 0, 1, 7 and 12345 produce the *same* run — the
-same three deaths, the same 573 records consumed, the same end frame — and differ only in the pixel
-digests, which is exactly the containment §1.13 describes. So the ambiguity this entry was written
-about is gone: a demo that desyncs is the physics, not the RNG.
+1.8b's replay is the empirical confirmation, and it still holds after 4.24's fix. Seeds 0, 1, 7 and
+12345 produce the *same* run — the same three deaths, all 1117 records consumed, the same end frame,
+3432 — and differ only where the random stream shows: the trace's `rand=` column and so its digest,
+and, for seeds 7 and 12345, the last frame's main-plane digest. That is exactly the containment
+§1.13 describes. So the ambiguity this entry was written about is gone: a demo that desyncs is the
+physics, not the RNG.
 
 **And 1.8b's own note about clock seeding was wrong, which is worth recording because it inverts
 the conclusion.** `ToolBoxInit` does `GetDateTime((UInt32 *)&qd.randSeed)` at `Utilities.c:61`, but
@@ -818,8 +820,8 @@ inside `#if !TARGET_CARBON` — and `GliderPRO/Prefix.h:1` sets `TARGET_CARBON 1
 source tree describes therefore never seeds: it starts from `randSeed == 1` on every launch
 (`toolbox-primitives.md` §1.3, §1.4), which is why §1.6's verified table is a seed-1 table. The
 clock seeding is the pre-Carbon 68k branch. So the attract mode *was* reproducible, the shipped
-demo **is** a legitimate fidelity oracle, and the 573-of-1117 divergence below is a defect in this
-port and not an artefact of a stream nobody can reproduce.
+demo **is** a legitimate fidelity oracle, and the 573-of-1117 divergence below was a defect in this
+port and not an artefact of a stream nobody can reproduce. The defect was 4.24's misread `'bnds'`.
 
 What is left of this entry is narrower and still real: `internal/game/rand.go`'s generator is a
 reconstruction of a Toolbox trap whose code is not in the tree, and it has never been checked
@@ -831,8 +833,9 @@ only whether Apple's trap really was Park-Miller, which §1.5 argues from the do
 
 **Amended at `03d0cf0`'s follow-up: the gap this entry called the sharpest target is closed as far
 as the recording can say.** The `'bnds'` fix (4.24) took the demo from 573 to all 1117 records
-consumed. The game now ends at frame 3417, three frames after the last record at 3414, with deaths
-at f1781, f2043 and f3417. Nothing shows those are wrong, and the stream points the other way.
+consumed. The deaths are at f1781, f2043 and f3417. The third flags the game over three frames
+after the last record at 3414, and the countdown ends the run at f3432. Nothing shows those are
+wrong, and the stream points the other way.
 
 - **The game over fits.** A game over with `kInitialGliders = 2` needs three deaths unless a
   glider is picked up, and the recorder stops logging when `gameOver` is set.
@@ -843,52 +846,60 @@ So all 1117 consumed, a game over just after the stream's end, and no record on 
 are every check this recording can support. What is left is not "raise a number". The next oracle
 is a trace from a real Mac. That is an inference, and it is written as one.
 
-Everything that quotes the old run is still to be corrected, with the demo floor (PLAN's gate):
-- this entry's `:760`, `:770`, `:815`, `:820`, `:826` and `:838` (the heading is already
-  re-titled; the seed result still holds, now with 1117 and 3432);
-- 4.7's `:3371-3376` — the "day the demo flies to the end of its stream" has come, and `128.bin`
-  is tracked, so a demo corpus row is buildable from a fresh clone;
-- README `:318-320` and the `demo.script` header (PLAN 1.8b is corrected already);
-- `demoRecordsFloor`, which becomes `demo.ShippedRecords`, with its dead "raise the floor" branch
-  dropped.
+Everything that quoted the old run is corrected, with the demo floor (PLAN's gate, done). Each
+figure was measured again first:
+- this entry's seed result, the Carbon-seeding paragraph, the 1.8b measurement, its evidence and
+  the ratchet paragraph now say what the run does today. They keep 573 only where they say what
+  1.8b measured. The seed result still holds, with 1117 and 3432;
+- 4.7's 1.8b paragraph is in the past tense, and a new paragraph after it says the day it waited
+  for has come: `128.bin` is tracked, so a demo corpus row is buildable from a fresh clone;
+- README's fidelity bullet and the `demo.script` header (PLAN 1.8b was corrected already);
+- `demoRecordsFloor` is `demo.ShippedRecords`, and its dead "raise the floor" branch is dropped.
 
 The port's own death frames are **not** pinned as an expectation, because that would be a golden
 of the port and not of 1994. Two things are acceptable as the next step: 4.7's short-prefix demo
 corpus row, or a fidelity test asserting only what the stream implies.
 
-**What the demo replay does measure, and the number to beat.** The port does not fly the recorded
-path. Replaying the shipped stream against Demo House:
+**What the demo replay measured at 1.8b, and the number it set to beat.** Until 4.24's fix the port
+did not fly the recorded path. Replaying the shipped stream against Demo House:
 
-- the glider never leaves room 0, "Air Vents" — three `kFloorVent` at v=305 and a `kRedClock`,
-  which it *does* collect for 100 points at frame 310, so the first ~300 frames are plausibly
+- the glider never left room 0, "Air Vents" — three `kFloorVent` at v=305 and a `kRedClock`,
+  which it *did* collect for 100 points at frame 310, so the first ~300 frames were plausibly
   right;
-- it then fades out (mode 2) frozen at `dest=295,387,315,435`, below the floor, losing a life at
+- it then faded out (mode 2) frozen at `dest=295,387,315,435`, below the floor, losing a life at
   frames 1412, 1573 and 1760; game over at frame 1775, having consumed **573 of 1117 records**;
 - the recording expects the vents to carry it rightward out of the room — the longest held run in
-  the stream is 66 frames of right from frame 1879, well past where the port has already died.
+  the stream is 66 frames of right from frame 1879, well past where the port had already died.
 
-Three pieces of evidence say the harness is not what is wrong. The outcome is **seed-independent**:
-seeds 0, 1, 7 and 12345 all end at frame 1775 with 573 records consumed and mortals at -1, and only
-the pixel digests differ — so the death is physics, not RNG. The recording is **one record per held
+Three pieces of evidence said the harness was not what was wrong, and all three still hold. The
+outcome is **seed-independent**: seeds 0, 1, 7 and 12345 all ended at frame 1775 with 573 records
+consumed and mortals at -1, and all now end at frame 3432 with 1117 consumed and mortals at -1. Only
+the random draws differ, so the deaths are physics, not RNG. The recording is **one record per held
 frame**, not per alternate frame: `glidertool demo info -stats` reports 48 distinct gaps with
 `1:1009` of 1116, 108 held stretches (right 84, left 21, band 3) — so the port's frame counter is
 the right clock to replay against. And the parity is even, 557 to 560, so no input pass is running
-on only one of `World.EvenFrame`'s two phases. That leaves the vent lift, the fall-through, or the
-air-friction integrator, and it is the sharpest fidelity target this project has: **573 of 1117 is
-the number to raise.**
+on only one of `World.EvenFrame`'s two phases. That left the vent lift, the fall-through, or the
+air-friction integrator, and it was the sharpest fidelity target this project had: **573 of 1117 was
+the number to raise.** It was none of the three. Room 0 has no `bounds` of its own and falls back to
+the house's `'bnds'` resource, which the port misread as closed on all four sides (4.24). With that
+fixed, the glider still collects the clock at frame 310, leaves room 0 at frame 391, and the run
+consumes all 1117 records.
 
 Two things follow for whoever picks it up. The frame numbers above live in the script's header
 comment, this entry, and a `t.Logf` — deliberately not in an assertion, because the day the physics
 improve, the test that fails should be a fidelity test and not a test about determinism. **That
 reasoning is right and it had a hole, closed in Stage 2:** it left the number unguarded in the
 direction that is unambiguously bad, so a change that dropped the glider to 300 records would have
-gone green while this entry and two other documents went on claiming 573. There is now a one-sided
-ratchet, `demoRecordsFloor` in `internal/replay/replay_test.go` — below it fails, at or above it
-passes, and above it logs the line that says to raise the floor and names the three documents
-quoting the old figure. A physics improvement still does not turn the determinism test red. And a
-demo that ran the whole stream would read 86 frames past the last record, which is the
-off-the-end read the original performed and the port counts as `Cursor.PastEnd`; `frames 3500` in
-the script is set past the end on purpose so that a fixed port exercises it.
+gone green while this entry and two other documents went on claiming 573. Stage 2 added a one-sided
+ratchet, `demoRecordsFloor` in `internal/replay/replay_test.go`, at 573: below it failed, and above
+it the test logged a request to raise the floor. The floor is now `demo.ShippedRecords`, all 1117,
+and the request branch is gone, because no run can consume more records than the stream holds
+(`internal/replay/replay_test.go:1281-1304`). Fewer than 1117 fails. A change to the physics still
+does not turn the determinism test red unless it stops the flight short. And the run that plays the
+whole stream reads 3 frames past the last record, frames 3415 to 3417, before the third death flags
+the game over. That is the off-the-end read the original performed and the port counts as
+`Cursor.PastEnd`; `frames 3500` in the script is set past the end on purpose so that the run can
+outlive its stream.
 
 Two related notes: `PourScreenOn` is dead code in the original — nothing calls it — and it
 *draws from the RNG*, so wiring it up would shift every subsequent random number and
@@ -3428,11 +3439,16 @@ What it does not close: 4.3's second half is still open, because one script stil
 subsystems this glider visits, and the demo-replay codec (`demoType`) is 1.8b.
 
 **1.8b added the codec and deliberately did not add a corpus row for it.** The attract-mode script
-runs 1,775 frames — 1,775 rows, about 320 KB — against a stream that lives in gitignored
-`assets/extracted/`, so the corpus would be large, unbuildable from a fresh clone, and a
-checked-in assertion that the physics gap of 2.18 is the correct behaviour. It is a determinism
-test instead: the same script twice, compared frame by frame. The row becomes worth having on the
-day the demo flies to the end of its stream, and it should be a short prefix even then.
+then ran 1,775 frames — 1,775 rows, about 320 KB — against a stream that lived in gitignored
+`assets/extracted/`, so the corpus would have been large, unbuildable from a fresh clone, and a
+checked-in assertion that the physics gap of 2.18 was the correct behaviour. It is a determinism
+test instead: the same script twice, compared frame by frame. The row was to become worth having on
+the day the demo flew to the end of its stream, and it was to be a short prefix even then.
+
+**That day has come, and the row is not written yet.** Since 4.24 the script runs 3,432 frames and
+consumes all 1117 records (2.18's amendment). `assets/extracted/res/demo/128.bin` has been tracked
+since `8f39609`, so a demo corpus row is buildable from a fresh clone. It should still be a short
+prefix. 2.18 names it as one of the two acceptable next steps.
 
 ### 4.8 The demo determinism test needs a 1994 asset, and it should not have to — **note; a 1.8c candidate**
 
@@ -3441,6 +3457,11 @@ skips on a clone that has not run `make assets` — the stream it replays is an 
 and `assets/extracted/` is gitignored. That is the right decision for *this* script, whose whole
 point is the 1994 recording, but it means the demo *path* — the cursor, the equality compare, the
 five missing guards of `GetDemoInput` — has no coverage at all on a bare clone.
+
+**Amended: the skip no longer happens.** `assets/extracted/` has been committed since `8f39609`
+(`.gitignore:49`), `res/demo/128.bin` with it, so `demo.script` runs on a fresh clone and covers the
+demo path there. The round trip below no longer fills a coverage gap. It is still the only test
+proposed that would tie the recorder to playback.
 
 The missing half is a round trip, and every piece of it already exists. `World.RecordDemo` returns
 a `demo.Recorder` wired to `GetInput`'s four log sites, so a replay script with `at` lines can
@@ -5526,7 +5547,7 @@ now, and after the tag it would give old builds a bare `ErrVersion` naming no re
 - **A simulation-only engine fingerprint**, computed under a fixed configuration (built-in assets,
   fixed seed, sound on, 9 neighbours, never the player's prefs). It comes from the built-in Demo
   House demo plus the duct script and the other cheap test scripts (0.06–0.12 s each). The demo
-  alone never leaves room 0 before its first death and the duct script covers one route, so a
+  alone flies one route, through 10 of Demo House's rooms, and the duct script one more, so a
   physics change elsewhere would pass. Alternatively, a hand-bumped constant that a test ties to
   the checked-in golden traces.
 - **A rules byte:** a fixes bitmask plus a reserved assisted bit.

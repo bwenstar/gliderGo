@@ -1007,18 +1007,20 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
     - What building it pinned: **the demo is a fidelity oracle, and the port now passes every
       check the recording can support.** When this bullet was written the glider died three
       times in the start room, 573 of the 1117 records in. The `'bnds'` fix (`03d0cf0`,
-      IMPROVEMENTS 4.24) changed that: the run now consumes all 1117 records and the game ends at
-      frame 3417, three frames after the stream's last record at 3414. The recorder logs nothing
-      once `gameOver` is set, and nothing while the glider burns. So a game over just after the
-      stream's end, and a burn right after the record at f2015 that lines up with the stream's
-      41-frame silence there, are both what a 1994 session ending in a game over would leave
-      behind. That is an inference, not a measurement. The recording supports no further oracle,
-      and the next one needs a trace from a real Mac (IMPROVEMENTS 2.18). `qd.randSeed` was never
+      IMPROVEMENTS 4.24) changed that: the run now consumes all 1117 records, the game over is
+      flagged at frame 3417, three frames after the stream's last record at 3414, and the run ends
+      at 3432. The recorder logs nothing once `gameOver` is set, and nothing while the glider
+      burns. So a game over just after the stream's end, and a burn right after the record at
+      f2015 that lines up with the stream's 41-frame silence there, are both what a 1994 session
+      ending in a game over would leave behind. That is an inference, not a measurement. The
+      recording supports no further oracle, and the next one needs a trace from a real Mac
+      (IMPROVEMENTS 2.18). `qd.randSeed` was never
       the cause of the old deaths, on two independent grounds: `toolbox-primitives.md` §1.12
       proves the shipped demo is RNG-independent (Demo House contains no sparkle, no coffee maker,
       no chimes and no phone, and `Player.c` never draws), and this port's own runs confirm it —
       seeds 0, 1, 7 and 12345 died on the same three frames then and lose their gliders on the
-      same three frames now (f1781, f2043, f3417), only the pixel and sound digests differing. The
+      same three frames now (f1781, f2043, f3417), and only the random stream and what it draws
+      differ: the trace's `rand=` column, and for seeds 7 and 12345 the pixels and the mix. The
       determinism half is what the harness test asserts, and it deliberately does not pin the
       death frames: the day the physics improve, the test that fails should be a fidelity test.
       - The seeding is worth getting right because 1.8b got it wrong first. `ToolBoxInit` does
@@ -1526,9 +1528,11 @@ means the tag is better with it and does not wait.
      auto-repeat is undetectable until it is asked for. `x11.New` asks now, and a held key does one
      thing, as on Windows, tracked per physical key so that accented keys and Delete-with-Backspace
      agree with Windows too (2.72).
-   - **Gate.** The demo floor catches nothing: it is still 573, and the demo now consumes all 1117
-     records. Every document that quotes the old run is corrected with it (2.18's amendment lists
-     them; this file's 1.8b bullet is corrected already).
+   - **Gate, DONE.** The demo floor caught nothing: it was still 573, and the demo consumes all 1117
+     records. The floor is `demo.ShippedRecords` now, so a run that stops short of the end fails,
+     and the branch that asked for it to be raised is gone. README, the `demo.script` header and
+     IMPROVEMENTS 2.18 and 4.7 say what the run does today, measured again: 1117 records, deaths at
+     frames 1781, 2043 and 3417, and the end at 3432 on seeds 0, 1, 7 and 12345 (2.18's amendment).
    - **Gate, DONE.** No archive carried Go's own licence, although both binaries in every archive
      have Go's BSD-3-Clause runtime and standard library compiled in. The package loop now writes
      `THIRD-PARTY-NOTICES.txt` from the building toolchain's `GOROOT`, and the step fails if the
@@ -1628,7 +1632,7 @@ Four sub-stages, because "port the editor" hides three pieces of work that each 
 - **5a — the authoring loop from a download.** `glidertool house dump|info|lint|stats` and
   `render` find a built-in house by name the way `replay` already does (4.20): the houses root,
   then the levels root, then the embedded copies. Today a player with only a release archive
-  cannot dump a starting house, so README's authoring example (`README.md:336`) fails for them.
+  cannot dump a starting house, so README's authoring example (`README.md:338`) fails for them.
   Small, and worth doing before 1.0 as an amendment to 4.20. `-room N` already jumps to a room,
   and a relaunch costs about a second, so an in-session reload is optional.
 - **5b — a headless editing core, `internal/edit`.** `ObjectAdd`, the `DragObject`/`DragHandle`

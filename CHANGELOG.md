@@ -17,6 +17,31 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The demo's floor is the whole stream, and the documents stop quoting the run it left behind (2026-09-23)
+
+`TestTheDemoReplaysTheSameWayTwice` guards the records the shipped attract recording consumes, from
+below, with `demoRecordsFloor`. The floor was 573, the figure from the days when the glider lost all
+three lives in the start room. The `'bnds'` fix (`03d0cf0`, `docs/IMPROVEMENTS.md` 4.24) took the
+run to all 1117 records, so the floor sat 544 below the truth and would have passed a change that
+threw most of that back. The floor is now `demo.ShippedRecords`
+(`internal/replay/replay_test.go:1281-1304`). The branch that logged a request to raise it is gone,
+because a cursor cannot consume more records than its stream holds, so it could never run again.
+
+Every figure was measured again before any document was changed. The run consumes 1117 of 1117
+records, loses its lives at frames 1781, 2043 and 3417 in rooms 4, 5 and 15, and ends at frame
+3432. Frames 3415 to 3417 ask for a key after the last record at 3414, and the third death then
+flags the game over. Seeds 0, 1, 7 and 12345 give the same run, as they did at 1.8b. They differ
+only in the trace's `rand=` column and its digest, and for seeds 7 and 12345 in the last frame's
+main-plane digest. README's fidelity bullet, the `demo.script` header, PLAN 1.8b and IMPROVEMENTS
+2.18 and 4.7 said the demo still stopped at 573, and they now say what it does today. Each keeps
+573 only where it says what Stage 1.8b measured. 4.8 said the demo test skips on a fresh clone. It
+has run there since `8f39609`, and 4.8 now says so. So did six comments in the code (in
+`internal/replay`, `internal/scores`, `internal/render`, `internal/house`, `internal/shell` and
+`cmd/glidergo`), which now say what an absent tree does mean: `make clean-assets`, a half-written
+extraction, or a mistyped flag. The frame numbers are still not asserted,
+because they are this port's and not 1994's (2.18). This closes the third same-day bullet of
+`docs/PLAN.md`'s release gate.
+
 ### Every release archive carries Go's licence, and the README link check can fail (2026-09-23)
 
 Both binaries in every archive have the Go runtime and standard library compiled in, and that code

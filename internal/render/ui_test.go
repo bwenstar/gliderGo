@@ -58,8 +58,8 @@ func TestUIMissingPlateIsNotAnError(t *testing.T) {
 	}
 
 	// A root that is not there at all takes the same path, because that is what
-	// `-art /nonexistent` and a fresh clone both look like. make headless renders the
-	// shell that way on purpose.
+	// `-art /nonexistent` looks like. make headless renders the shell that way on
+	// purpose.
 	b := NewAssets(dirFS(filepath.Join(t.TempDir(), "no", "such", "tree")))
 	if got := b.UI(1000); got != nil {
 		t.Error("a missing art root returned a surface")

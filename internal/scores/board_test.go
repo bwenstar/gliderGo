@@ -428,7 +428,7 @@ func TestALongHouseNameShrinksTheTitleRatherThanOverflowing(t *testing.T) {
 // ----------------------------------------------------------------- robustness
 
 // The screen has to draw on a surface that is not 640x480 and against a tree with no art,
-// because both happen: `-shot` sizes its own surface and a fresh clone has no assets. What
+// because both happen: `-shot` sizes its own surface and `-art` can name an empty tree. What
 // must not happen is a panic or a write outside the buffer.
 func TestDrawSurvivesOddSurfacesAndMissingArt(t *testing.T) {
 	s := board(900, 800, 700, 600, 500, 400, 300, 200, 100, 50)

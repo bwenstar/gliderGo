@@ -44,9 +44,9 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-// corpus loads every shipped house once. The extracted houses are generated, not
-// committed, so a missing directory is a skip with instructions rather than a
-// failure -- a fresh clone should not look broken.
+// corpus loads every shipped house once. The extracted houses are committed, so a
+// missing directory means `make clean-assets` or a half-written extraction, and it is
+// a skip with instructions rather than a failure.
 type corpusEntry struct {
 	stem  string // "Art Museum"
 	path  string

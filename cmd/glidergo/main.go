@@ -778,11 +778,11 @@ func run() error {
 func runShell(o *options, p *prefs.Prefs, canSave bool) error {
 	lib, err := shell.Discover(o.sources()...)
 	if err != nil {
-		// **Not fatal.** A missing or empty houses directory is what a fresh clone
-		// has, and the useful place to say so is the screen the player is looking at
-		// -- which is exactly what the shell does with an empty library. Exiting here
-		// would put the one piece of information they need on a terminal they may
-		// never see (docs/IMPROVEMENTS.md 2.6).
+		// **Not fatal.** A missing or empty houses directory is what a mistyped
+		// -houses gives, and the useful place to say so is the screen the player is
+		// looking at -- which is exactly what the shell does with an empty library.
+		// Exiting here would put the one piece of information they need on a terminal
+		// they may never see (docs/IMPROVEMENTS.md 2.6).
 		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
 	}
 

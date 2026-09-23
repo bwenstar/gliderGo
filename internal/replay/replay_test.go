@@ -40,9 +40,9 @@ var update = flag.Bool("update", false, "rewrite the golden traces in testdata/"
 // assetRoot is the extracted asset tree, relative to this package.
 const assetRoot = "../../assets/extracted"
 
-// requireAssets skips rather than fails when the tree has not been extracted. `make assets`
-// is a separate step and a fresh clone has none of it, so a hard failure here would mean a
-// checkout that cannot run its own test suite.
+// requireAssets skips rather than fails when the extracted tree is absent. The tree is
+// committed, so this guards `make clean-assets` and a half-written extraction rather than a
+// fresh clone, as internal/game's does.
 func requireAssets(t *testing.T, sub string) string {
 	t.Helper()
 	dir := filepath.Join(assetRoot, sub)
@@ -1252,10 +1252,11 @@ func TestTheDemoReplaysTheSameWayTwice(t *testing.T) {
 	if a.Demo.Path != s.Demo {
 		t.Errorf("Demo.Path is %q, want the script's %q", a.Demo.Path, s.Demo)
 	}
-	// Deliberately not an equality: how far the recording gets is a fidelity fact about the
-	// physics (docs/IMPROVEMENTS.md 2.18), and pinning it here would make an improvement to
-	// the physics fail a test about determinism. Logged instead, so that `go test -v` reports
-	// the number and a bisect can watch it move.
+	// Deliberately not pinned: the frames the glider dies on and the frame the run ends on are
+	// fidelity facts about the physics (docs/IMPROVEMENTS.md 2.18), and pinning them here would
+	// make a change to the physics fail a test about determinism. Logged instead, so that
+	// `go test -v` reports them and a bisect can watch them move. The records consumed are the
+	// one figure held, from below only, by checkDemoFloor.
 	t.Logf("consumed %d of %d records in %d frames, %d frames past the end; game over %v, mortals %d",
 		a.Demo.Consumed, a.Demo.Records, a.Frames, a.Demo.PastEnd, a.GameOver, a.Mortals)
 	checkDemoFloor(t, a.Demo.Consumed)
@@ -1277,36 +1278,28 @@ func TestTheDemoReplaysTheSameWayTwice(t *testing.T) {
 	}
 }
 
-// demoRecordsFloor is how far the shipped attract recording gets today, and the number three
-// documents quote: README.md's fidelity section, docs/PLAN.md 4's Stage 1 acceptance notes and
-// docs/IMPROVEMENTS.md 2.18, which owns the defect. All three call "573 of 1117" the sharpest
-// open fidelity target the project has.
+// demoRecordsFloor is how far the shipped attract recording has to get, and that is all of it.
+// Since the 'bnds' fix (03d0cf0, docs/IMPROVEMENTS.md 4.24) the run consumes every one of the
+// 1117 records, and the third death flags the game over three frames after the last record.
 //
-// Which it was not, in one respect that matters: nothing failed if it got worse. The test above
-// logs the figure on purpose, because pinning it to an equality would mean that fixing the physics
-// breaks a test about determinism -- correct reasoning, and it left the number unguarded in the
-// direction that is unambiguously bad. A physics change that dropped the glider to 300 records
-// would have gone green, and the three documents would have gone on claiming 573.
+// The guard is one-sided, and the reason has not changed. The test above logs how the run goes
+// rather than pinning it, because pinning the frames would make a change to the physics fail a
+// test about determinism. That left the number unguarded in the direction that is unambiguously
+// bad, so fewer records than the floor fails.
 //
-// So the guard is one-sided: below the floor fails, at or above it passes. A physics improvement
-// still does not turn this file red -- that was the right call and it stands -- but it does print
-// the line that says to raise the floor and which three documents quote the old number, so the
-// ratchet has somewhere to be turned from. The floor is only worth having while it is the truth.
-const demoRecordsFloor = 573
+// The floor was 573 while the glider died in the start room, and a second branch logged a request
+// to raise it when a run got further. That branch is gone. The floor is now the whole stream, and
+// a cursor cannot consume more records than the stream holds, so the branch could never run. What
+// is left is one check: a change that stops the recorded flight short of its end fails here.
+const demoRecordsFloor = demo.ShippedRecords
 
 func checkDemoFloor(t *testing.T, consumed int) {
 	t.Helper()
-	switch {
-	case consumed < demoRecordsFloor:
-		t.Errorf("the demo consumed %d of %d records and the committed floor is %d: the "+
-			"physics got worse. docs/IMPROVEMENTS.md 2.18 owns this number; find what "+
-			"changed before lowering the floor, because lowering it is how the defect "+
-			"stops being visible", consumed, demo.ShippedRecords, demoRecordsFloor)
-	case consumed > demoRecordsFloor:
-		t.Logf("the demo now consumes %d of %d records, up from the committed floor of %d: "+
-			"raise demoRecordsFloor to %d and update the figure in README.md, docs/PLAN.md "+
-			"and docs/IMPROVEMENTS.md 2.18, all three of which quote %d",
-			consumed, demo.ShippedRecords, demoRecordsFloor, consumed, demoRecordsFloor)
+	if consumed < demoRecordsFloor {
+		t.Errorf("the demo consumed %d of %d records and the floor is all of them: the "+
+			"physics or the input path got worse. docs/IMPROVEMENTS.md 2.18 owns this "+
+			"number; find what changed before lowering the floor, because lowering it is "+
+			"how the defect stops being visible", consumed, demo.ShippedRecords)
 	}
 }
 
