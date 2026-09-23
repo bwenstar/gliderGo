@@ -17,6 +17,23 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Releases are built with Go 1.27, and scanned for known vulnerabilities before they ship (2026-09-23)
+
+Releases used to be built with Go 1.23, the oldest Go that can build the code. Go no longer patches
+1.23. Scanned with `govulncheck`, a 1.23.12 build reaches three vulnerabilities in the standard
+library. One is a panic in the dialer on Windows, one is in a directory walk, and one is CPU spent
+reading a zip's index. The v0.1.x releases carry all three. Built with Go 1.27, the game reaches
+none. Releases are now built with the newest 1.27 patch, and the release notes name it. A release
+is not published if `govulncheck` finds anything the game calls, scanned as Linux, Windows and
+macOS. CI runs the same scan on every push and every Monday. Building from source still needs only
+Go 1.23 (IMPROVEMENTS 5.11).
+
+A newer Go raises the oldest systems a release runs on. The Windows archives need Windows 10 or
+Server 2016, and the headless macOS ones need macOS 13. The Linux archive needs glibc 2.34, as it
+did before. README, the release notes and each `HOW-TO-RUN.txt` now say so. The release notes used
+to say "Windows needs nothing at all". Races are unaffected: a 1.27 build and a 1.23 build fly the
+same engine, and the fingerprint test says so.
+
 ### A picture, a house or a house text too large to be one is refused before it is read (2026-09-23)
 
 A PNG in a `-houseart`, `-art` or `-levels` tree is read for its size first. One larger than 4096

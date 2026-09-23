@@ -1582,7 +1582,11 @@ means the tag is better with it and does not wait.
    - **Gate.** Releases are built with a Go minor that Go still patches, not the `go 1.23` floor
      `go.mod` names, and `govulncheck` is clean on that minor under `GOOS=linux` and
      `GOOS=windows`. The listener and the PNG decoder are the standard library's, so its fixes
-     are this port's (5.11).
+     are this port's (5.11). **DONE.** Releases build with 1.27.x, and a scan as Linux, Windows
+     and macOS gates the tag and runs weekly. Run here first: go1.23.12 reaches three standard-
+     library vulnerabilities (the Windows dialer, a directory walk, the zip index), which the
+     v0.1.x releases carry, and 1.26.8 and 1.27.1 reach none. The OS floors moved with it and are
+     stated.
    - **Should.** Fuzz seeds for the decoders that read outside data, and a bounded hostile-house
      soak, with at least `netplay` `Recv`/`Meet` before the tag (4.30).
 4. **A stranger's first minute.**
@@ -1602,7 +1606,8 @@ means the tag is better with it and does not wait.
      is corrected already).
    - **Gate.** README's "wins on the spot" holds only for a killed process (Stage 3's amendment).
    - **Gate.** SECURITY.md names the Go that builds releases and 4.36's size limits (5.7's
-     amendment, 5.11). It stopped saying there is no listener with 4.33.
+     amendment, 5.11). It stopped saying there is no listener with 4.33. **DONE** with 4.36 and
+     5.11.
    - **Gate.** The release notes and `HOW-TO-RUN.txt` say what to do if Defender quarantines the
      exe, and `release.yml:658` stops reading as if it covers antivirus (5.12, step 3).
    - **Should.** The glibc floor is stated and asserted (5.4's amendment), CONTRIBUTING gets
@@ -1647,7 +1652,9 @@ play (4.39, the first item after the tag).
   tier is the fix; dropping the headless archives would lose their documented use. Each tier
   also names the oldest OS it runs on, taken from the Go that builds releases rather than from
   memory and re-checked when that Go moves (5.11), and linux-amd64 names its glibc floor as well
-  (5.4's amendment).
+  (5.4's amendment). With Go 1.27 those are Windows 10 or Server 2016, macOS 13 for the headless
+  darwin archives, and glibc 2.34 for linux-amd64, measured on the binaries. README's "Getting a
+  build", the release notes and each `HOW-TO-RUN.txt` say the same.
 - **A status table at the top of this file**, one row per stage, checked against the stage
   headings by one `internal/citations` test that IMPROVEMENTS' status grammar (4.45) can share.
 - **A README "Known differences from 1994" list** of about fifteen lines, drawn from 2.3, 2.4,

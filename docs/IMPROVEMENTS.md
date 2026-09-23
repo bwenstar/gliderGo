@@ -6672,7 +6672,8 @@ known and what is not: whether either tag needed a correction is not recorded on
     above);
   - on a connected machine, both `.exe` hashes on VirusTotal and a Defender download check with
     cloud protection on (5.12), because the test host cannot see Defender's cloud verdict;
-  - `govulncheck ./...` clean on `GO_RELEASE`, under `GOOS=linux` and `GOOS=windows` (5.11);
+  - `govulncheck ./...` clean on `GO_RELEASE`, under `GOOS=linux`, `GOOS=windows` and `GOOS=darwin`
+    (5.11; `release.yml`'s `verify` runs it, so this is reading the log);
   - a CHANGELOG section for the tag.
 - Post-tag, each marked **"needs a connected machine"**:
   - download from Releases and `sha256sum -c`;
@@ -6807,7 +6808,7 @@ instead was to remove the question: commit the decoded assets, so the first comm
 `git clone` is `make run`. That is 1.2's route (a) and it retires the extraction step from the
 quick start entirely.
 
-### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent; `SECURITY.md` reopened by Stage 3 and rewritten with 4.33**
+### 5.7 The four files a public repository is expected to have, and the two templates — **five of six DONE, 2.0; `CODE_OF_CONDUCT.md` still deliberately absent; `SECURITY.md` reopened by Stage 3, rewritten with 4.33 and finished with 4.36 and 5.11**
 
 1.3 records that `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and the issue and
 pull-request templates do not exist. This is where the reasoning lives, because "add the standard
@@ -6902,7 +6903,8 @@ CHANGELOG gets a line.
   or `-art`.
 
 Two items stay where they were. The bind default is unchanged, as planned. Dependencies and
-Versions wait for 5.11, whose Go-minor text belongs there.
+Versions wait for 5.11, whose Go-minor text belongs there. **Done with 5.11:** both sections now
+name the Go that builds releases and what a Go security fix between tags means.
 
 ### 5.8 What the fresh-checkout audit found and deliberately did not fix — **notes, 1.10a**
 
@@ -7003,7 +7005,7 @@ It ships behind a build tag or backend flag first, and becomes the default only 
 GNOME/XWayland, KDE and a Raspberry Pi. It absorbs 4.42's X11 half and 2.74's keycode work, and it
 is not Stage 6.
 
-### 5.11 Releases are built with Go 1.23, which Go no longer patches, and nothing scans them — **planned; the toolchain line and a govulncheck step before the race-bearing tag, the OS floors with them**
+### 5.11 Releases are built with Go 1.23, which Go no longer patches, and nothing scans them — **DONE: releases build with Go 1.27.x, govulncheck gates the tag, and the OS floors are stated**
 
 `go.mod` says `go 1.23`, and every `setup-go` step reads it with `go-version-file: go.mod`
 (`ci.yml:99`, `:205`, `:276`, `:319`; `release.yml:127` and `:208`). So every release is built with
@@ -7041,7 +7043,7 @@ source of truth", but its two readers do different things with it.
   `release.yml` a finding stops the tag. In CI it fails the job and gets an entry here saying
   whether netplay or a decoder reaches it. `ci.yml` has no `schedule:` today. A weekly one catches a
   Go security release that lands between tags. None of this can run here, because this host has no
-  vulnerability database and no proxy.
+  vulnerability database and no proxy. (That was wrong: see **Done**, which ran all of it here.)
 - **The floors, taken from the toolchain.** Here is what 1.23.12 sets, measured on this host:
   - macOS: a `CGO_ENABLED=0` darwin build carries `LC_BUILD_VERSION` minos 11.0.0, which the Go
     linker hard-codes (`ld/macho.go:489` in the toolchain's source).
@@ -7067,6 +7069,81 @@ source of truth", but its two readers do different things with it.
 
 This host does not have to leave 1.23, because `check` keeps the floor honest. If it ever should,
 DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm`.
+
+**Done.** `GO_RELEASE: "1.27.x"`, as planned, with one change: the scan runs as macOS too.
+
+- **The scans, run here.** The plan said this host had no database and no proxy. It turned out to
+  reach a Go module proxy through its registry mirror, and the database is a Go module
+  (`golang.org/x/vulndb`), so `cmd/indexdb` built one: 4,474 entries, as of vulndb commit
+  `f197f14625e2` (2026-09-17). The Go toolchains came out of `golang:1.27-bookworm` (go1.27.1) and
+  `golang:1.26-bookworm` (go1.26.8), by DEV_ENVIRONMENT §3's container trick.
+  - **go1.23.12**, the Go the v0.1.x releases were built with, reaches three vulnerabilities,
+    identically under `GOOS=linux` and `GOOS=windows`:
+    - GO-2026-4971, a panic in `net`'s Dial and LookupPort on a NUL byte, on Windows (fixed in
+      1.25.10). It is reached from `cmd/glidergo/race.go:741` (`defaultRoute`) and
+      `internal/netplay/dial.go:74` and `:110` (`Listen`, `Join`). The address a player types
+      reaches `Join`.
+    - GO-2026-4602, a `FileInfo` that can escape an `os.Root` (fixed in 1.25.8). It is reached from
+      `internal/assetfs/assetfs.go:242` (`Measure`'s walk) and `tools/docscheck/main.go:420`. The
+      game uses no `os.Root`, but govulncheck counts the `ReadDir` it goes through.
+    - GO-2026-4342, CPU spent building a zip's index (fixed in 1.24.12). It is reached from
+      `internal/house/binary.go:322` (`LoadFS` on a zip), which is how a house in an archive loads.
+    - Also 3 in imported packages and 39 in modules, which the code does not call.
+  - **go1.26.8 and go1.27.1**: "No vulnerabilities found", as Linux and as Windows, and 1.27.1 as
+    macOS too, and as Linux with cgo off.
+  - The v0.1.x releases carry the three. The next release is the fix, and its notes should say so.
+- **The toolchain.** `release.yml`'s `verify` and `build` and `ci.yml`'s `cross` and `native` use
+  `go-version: ${{ env.GO_RELEASE }}` with `check-latest: true`, because without it setup-go takes
+  whatever 1.27 patch the runner image has cached. `check` and `citations` stay on `go.mod`.
+  `build` records `go env GOVERSION` as an output, and the release notes name it.
+  - On go1.27.1, `make check` passes in full, including `make race`, the pixel corpus and
+    `docs-check`, and so does `make cross`. `go vet ./...` is clean under linux, windows and darwin
+    on both 1.26.8 and 1.27.1, and `go test -count=1 ./...` passes on both.
+  - The engine fingerprint does not move. `TestTheEngineFingerprintIsPinned` passes on 1.27.1, so
+    a 1.27 build races a 1.23 one, as the GODEBUG argument above predicted.
+- **The scan.** It is a `vuln` job in `ci.yml` and a step in `release.yml`'s `verify`, both on
+  `GO_RELEASE`. govulncheck is pinned at v1.8.0, which was `@latest` on 2026-09-23 and needs Go 1.26
+  (its `go.mod`). It is installed with `GOPROXY=https://proxy.golang.org` on that step alone, then
+  run with `GOOS` set to linux, windows and darwin in turn. macOS was added because releases ship
+  darwin archives, and the scan costs seconds. The `vuln` job installs libX11, so the linux scan
+  compiles the x11 backend the linux-amd64 archive is built with. `ci.yml` gains a weekly
+  `schedule:` (Mondays, 06:23 UTC). The whole matrix runs then, not only `vuln`, which is free on a
+  public repository and also catches a runner image that changed.
+- **The floors, measured on the binaries** `make cross` builds (a `debug/macho` and `debug/pe`
+  reader, and `objdump -T` for glibc):
+
+  | Go | macOS `minos` | Windows PE (OS and subsystem) |
+  |---|---|---|
+  | 1.23.12 | 11.0.0 | 6.1 |
+  | 1.26.8 | 12.0.0 | 6.1 |
+  | 1.27.1 | 13.0.0 | 10.0 |
+
+  1.27.1's linker sets them, at `ld/macho.go:449` (`macOS = macVersionFlag{13, 0, 0}`) and
+  `ld/pe.go:285` (`PeMinimumTargetMajorVersion = 10`) in the toolchain's source. The glibc floor of the x11 build is still
+  GLIBC_2.34 on 1.27.1. A 10.0 header is also why 1.27 over 1.26: a Windows older than 10 now
+  refuses the file at the loader, rather than starting it and dying inside the runtime on
+  `ProcessPrng`, which is what 1.23's 6.1 header allowed. What an old Windows actually shows is
+  unverified, since nothing here runs one. The cost is macOS 13 for the headless darwin archives,
+  where 1.26 would have been 12. Nothing in the 1.27 source states a Linux kernel floor. From
+  memory, not checked here: Go has needed Linux 3.2 since 1.24, and glibc has refused to run on
+  anything older since 2.26. So no system with glibc 2.34 is below Go's floor, and the glibc line
+  is the one stated.
+- **Where the floors are written.** README's "Getting a build" has a table. The release notes'
+  "Windows needs nothing at all" became Windows 10 or Server 2016, glibc 2.34 and macOS 13, and the
+  Windows, Linux and darwin `HOW-TO-RUN.txt` texts each say their own. PLAN §4's platform tiers
+  name them. Found doing it: the Windows `HOW-TO-RUN.txt` still said "you may well be the first
+  person to see it draw", which the Server 2025 run made untrue. It now says what the release notes
+  say.
+- **The documents.** SECURITY.md's "Dependencies" says releases are built with Go 1.27, that
+  `go version -m` and the notes name the patch, and that a release is not published past a
+  finding. It also warns that a 1.23 build from source carries the three. "Versions" says a Go
+  security fix that reaches gliderGo is reason enough for a release. DEV_ENVIRONMENT §3 has the
+  offline recipe, with no host named in it. The RELEASING.md line in 5.4's amendment gains
+  `GOOS=darwin`.
+- **A caveat about the local scans.** This host's mirror proxies modules but not `sum.golang.org`,
+  so govulncheck and vulndb were downloaded with `GOSUMDB=off`, trusting the mirror for their
+  checksums. Neither is compiled into gliderGo, and CI's install checks against the real checksum
+  database. A local result is a second opinion, and CI's is the one that gates.
 
 ### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the connected-machine check before the next tag, the resource experiments after 4.42**
 

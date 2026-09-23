@@ -82,13 +82,29 @@ passed to `-levels`, `-houseart` or `-art` are followed, though, like any other 
 Fixes land on `main` and go out in the next release. There are no maintained release branches — the
 project is young enough that "upgrade to the latest release" is the entire support matrix.
 
+A Go security fix that reaches gliderGo is reason enough for a release on its own, with nothing
+else in it. "Reaches" is `govulncheck`'s word: a vulnerability in a standard-library function the
+game calls, such as the dialer, the listener, or the PNG and zip readers. CI runs `govulncheck`
+every week, as well as on every push, so a Go security release between two tags is noticed.
+
 ## Dependencies
 
 There are none. `go.mod` has no `require` block, by design and enforced by a test
 ([CONTRIBUTING.md](CONTRIBUTING.md) rule 1), so the usual supply-chain question has an unusually
 short answer: the only third-party code in a gliderGo binary is the Go standard library, and the
-only non-Go dependency is libX11 on Linux, dynamically linked. What ships inside the binary besides
-the code is data — the 1994 art, sounds and houses, embedded from `assets/extracted.zip`, which
-`make assets-check` verifies is exactly what `tools/` produces from the vendored originals, plus
-this port's own houses, embedded from `assets/levels.zip`, which `go test ./assets` verifies is
-exactly a build of the text in `levels/`.
+only non-Go dependency is libX11 on Linux, dynamically linked.
+
+That makes the Go toolchain the supply chain. Releases are built with Go 1.27, the newest patch
+release of it when the release is made: `go version -m glidergo` names the exact one, and so do the
+release notes. That is newer than the `go 1.23` in `go.mod`, which is only the oldest Go that can
+build the code, and which Go no longer patches. A release is not published unless
+`govulncheck ./...` reports nothing the game calls, scanned as Linux, as Windows and as macOS. When
+Go stops patching 1.27, releases move to a newer minor. If you build gliderGo yourself, use a Go
+that is still patched too: built with Go 1.23.12, the game reaches three standard-library
+vulnerabilities, in the dialer, a directory walk and the zip reader, whose fixes 1.23 never
+received ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 5.11).
+
+What ships inside the binary besides the code is data — the 1994 art, sounds and houses, embedded
+from `assets/extracted.zip`, which `make assets-check` verifies is exactly what `tools/` produces
+from the vendored originals, plus this port's own houses, embedded from `assets/levels.zip`, which
+`go test ./assets` verifies is exactly a build of the text in `levels/`.

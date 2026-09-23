@@ -200,6 +200,38 @@ fails on an airgapped host with a confusing error.
 `GOPROXY=off` is also set deliberately — it turns "silently tries the network for 30s"
 into an immediate, legible error if anyone adds a dependency by accident.
 
+### govulncheck, without the internet
+
+CI scans every push with `govulncheck` (docs/IMPROVEMENTS.md 5.11). It can be run on a host with
+no internet too, if that host can reach *a* Go module proxy — some registry mirrors carry one —
+because the vulnerability database is itself a Go module, `golang.org/x/vulndb`, and its
+`cmd/indexdb` turns the OSV files in it into the directory layout `govulncheck -db file://` reads.
+
+Scan with the Go that releases are built with (`GO_RELEASE` in `.github/workflows/ci.yml`), not
+the 1.23 floor. The scan reports the standard library of whichever `go` is first on `PATH`, and a
+1.23 scan is a different answer (5.11 has both). The container trick above gives you that Go:
+`golang:1.27-bookworm` instead of `golang:1.23-bookworm`, unpacked somewhere of its own. The
+govulncheck pinned in CI needs Go 1.26 or newer to build.
+
+```
+export PATH=/path/to/go1.27/bin:$PATH GOTOOLCHAIN=local
+export GOPROXY=https://your-proxy.example/   # any Go module proxy this host can reach
+go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+dir=$(go mod download -json golang.org/x/vulndb@latest | sed -n 's/.*"Dir": "\(.*\)".*/\1/p')
+(cd "$dir" && go build -o /tmp/indexdb ./cmd/indexdb)
+/tmp/indexdb -vulns "$dir/data/osv" -out /tmp/vulndb
+cd /path/to/gliderGo
+GOPROXY=off GOOS=linux   "$(go env GOPATH)/bin/govulncheck" -db file:///tmp/vulndb ./...
+GOPROXY=off GOOS=windows "$(go env GOPATH)/bin/govulncheck" -db file:///tmp/vulndb ./...
+```
+
+Two things to know. `indexdb` writes a zero `modified` time into `index/db.json`, which is when
+govulncheck thinks the database was last updated; set it to the date in the vulndb module's
+pseudo-version if the age matters to you, and regenerate `db.json.gz` beside it. And if the proxy
+is reachable but `sum.golang.org` is not, the downloads fail checksum verification, and
+`GOSUMDB=off` gets past that by trusting the proxy for these two tools. Neither of them is
+compiled into gliderGo, and `go install` writes nothing into its `go.mod`.
+
 ### C toolchain (for cgo)
 
 `gcc` 13, `make`, `pkg-config` are present in the base image. `cgo` works: verified by
@@ -407,6 +439,7 @@ without becoming a submodule.
 | No audio device | WAV-dump sink; verify by ear elsewhere | hearing sound locally, not development |
 | No `sudo` | rootless sysroot via `dpkg-deb -x` | nothing |
 | No Go module proxy | stdlib-only + hand-written cgo shims | third-party engines (accepted; see §5) |
+| No vulnerability database | build one from `golang.org/x/vulndb`, if any module proxy is reachable (§3, "govulncheck, without the internet") | a local scan; CI scans every push regardless |
 | No MIT-SHM headers | plain `XPutImage` (fast enough) | nothing |
 | No macOS/iOS build host | SDL2 backend + CI later | Mac/iOS targets, by definition |
 | X server is remote (DCV) | fine for dev; frame-diff tests use the null backend | precise vsync measurement |

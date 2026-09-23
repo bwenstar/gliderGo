@@ -28,9 +28,9 @@
 # they load winmm and resolve its entry points, which either works or is a real defect.
 #
 # WHAT THIS DOES NOT DO. Releases are release.yml's job, not this one, and the split is
-# deliberate: this workflow runs on pushes to main and on pull requests, and release.yml runs on
-# `v*` tags -- which this one does not match, so tagging deliberately does not fire the whole CI
-# matrix twice. The cross-compiled binaries uploaded here are for inspection only; the packaged,
+# deliberate: this workflow runs on pushes to main, on pull requests and weekly, and release.yml
+# runs on `v*` tags -- which this one does not match, so tagging deliberately does not fire the
+# whole CI matrix twice. The cross-compiled binaries uploaded here are for inspection only; the packaged,
 # checksummed archives come from release.yml. There is still no installer, and there no longer
 # needs to be one for the game to be playable from a download: every executable carries its own
 # assets (assets/assets.go), so a binary out of the artifact below runs from wherever it is put.
@@ -43,11 +43,17 @@ name: CI
 # because their refs differ (refs/heads/x against refs/pull/N/merge). Work on a branch is covered
 # by opening the pull request; a branch with no pull request is covered by workflow_dispatch, which
 # takes a ref.
+#
+# And once a week, for the `vuln` job: a Go security release that lands between two pushes is
+# found on the Monday after it rather than at the next tag. The rest of the matrix runs too, which
+# costs nothing on a public repository and also finds a runner image that changed under the build.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 1"
 
 permissions:
   contents: read
@@ -66,6 +72,21 @@ env:
   # that is the news. GOTOOLCHAIN=local keeps the Go that setup-go installed.
   GOPROXY: "off"
   GOTOOLCHAIN: local
+  # The Go that releases are built with, which is not go.mod's `go 1.23` (docs/IMPROVEMENTS.md
+  # 5.11). That line is the oldest Go that can build the code, and Go stopped patching 1.23 when
+  # 1.25 shipped; a release built with it carried three standard-library vulnerabilities its
+  # code reaches, in the listener's dial, the directory walk and the zip reader. `check` and
+  # `citations` stay on go.mod so the floor README promises is still tested; `cross`, `native`
+  # and `vuln` use this, and so does release.yml, which states it again. A newer Go keeps
+  # 1.23's GODEBUG defaults, because those follow the `go` line, and the engine fingerprint
+  # does not move (TestTheEngineFingerprintIsPinned), so a 1.27 build races a 1.23 one.
+  #
+  # The patch floats, with check-latest, so each run takes the newest one; `go version -m` on a
+  # binary says which it got. The minor moves when Go stops patching it -- Go supports the two
+  # newest, and a new one ships every six months -- and each move re-reads the new minor's
+  # "Ports" notes, because the oldest macOS and Windows a build runs on come from the Go that
+  # built it (README's "Getting a build").
+  GO_RELEASE: "1.27.x"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -93,9 +114,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config libx11-dev xvfb
 
-      # go-version-file keeps one source of truth: go.mod's `go` directive, which
-      # scripts/bootstrap-dev-env.sh also reads. cache: false is not an optimisation choice --
-      # setup-go's cache wants a go.sum to key on, and there is none to have.
+      # go.mod's `go` directive, the floor, which scripts/bootstrap-dev-env.sh also reads: this
+      # job is what keeps README's "Go 1.23 or newer" true. Releases are built with GO_RELEASE
+      # instead, and release.yml's `verify` runs this same `make check` on that. cache: false is
+      # not an optimisation choice -- setup-go's cache wants a go.sum to key on, and there is none
+      # to have.
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -280,9 +303,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config libx11-dev
 
+      # GO_RELEASE rather than go.mod: these are the binaries a release would ship, so they are
+      # built with the Go it would build them with.
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_RELEASE }}
+          check-latest: true
           cache: false
       - run: make cross
 
@@ -296,6 +322,57 @@ jobs:
           path: bin/cross/
           retention-days: 7
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Known vulnerabilities in what a release is built from (docs/IMPROVEMENTS.md 5.11). gliderGo
+  # requires no module, so that is the standard library of GO_RELEASE: its listener, its dialer,
+  # its PNG and zip readers. govulncheck reports a vulnerability only when a call path reaches it,
+  # and says which.
+  #
+  # Scanned once per operating system a release ships for, because what is compiled differs:
+  # netplay's dial errors, the audio sinks and the platform backends are per-OS files, and the
+  # standard library's are too. libX11 is installed so the linux scan compiles the x11 backend,
+  # which the linux-amd64 archive is built with.
+  #
+  # The one step that reaches a network other than GitHub's is the install, and it installs a tool:
+  # `go install pkg@version` writes no `require`, so internal/module still passes. The version is
+  # pinned so a new govulncheck is a change somebody made; it needs Go 1.26 or newer to build.
+  #
+  # A finding fails this job. It gets an entry in docs/IMPROVEMENTS.md saying what reaches it --
+  # netplay, a decoder, a tool that does not ship -- and a release follows if a shipped binary does
+  # (SECURITY.md, "Versions"). release.yml runs the same scan and will not tag past one.
+  # ---------------------------------------------------------------------------
+  vuln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install C dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libx11-dev
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_RELEASE }}
+          check-latest: true
+          cache: false
+
+      - name: Install govulncheck
+        env:
+          GOPROXY: https://proxy.golang.org
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+      - name: govulncheck, as each operating system a release ships for
+        run: |
+          go version
+          for goos in linux windows darwin; do
+            echo "::group::GOOS=$goos"
+            GOOS=$goos "$(go env GOPATH)/bin/govulncheck" ./...
+            echo "::endgroup::"
+          done
 
   # ---------------------------------------------------------------------------
   # Windows and macOS, natively. Two different jobs wearing one matrix.
@@ -325,7 +402,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_RELEASE }}
+          check-latest: true
           cache: false
 
       - run: go build ./...

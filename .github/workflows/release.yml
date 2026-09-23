@@ -99,6 +99,12 @@ env:
   # news, and it is better heard here than in a shipped binary.
   GOPROXY: "off"
   GOTOOLCHAIN: local
+  # The Go a release is built with: a minor Go still patches, and not go.mod's `go 1.23`, which
+  # is the oldest that can build the code (docs/IMPROVEMENTS.md 5.11). ci.yml's env says why at
+  # length, and the two lines move together. check-latest takes the newest patch, and the notes
+  # below name the one this run got. Moving the minor moves the oldest macOS and Windows a
+  # release runs on, so the notes, README and both HOW-TO-RUN.txt texts are re-read with it.
+  GO_RELEASE: "1.27.x"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -124,13 +130,33 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config libx11-dev xvfb
 
+      # GO_RELEASE, the Go `build` uses: the suite a release is tested with is the one it is
+      # built with. ci.yml's `check` covers go.mod's floor.
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_RELEASE }}
+          check-latest: true
           cache: false
 
       - name: Report the environment
         run: make doctor
+
+      # No tag past a known vulnerability that a shipped binary reaches (docs/IMPROVEMENTS.md
+      # 5.11). ci.yml's `vuln` job runs this weekly and says more; here a finding stops the
+      # release. The install is the one step that reaches a proxy, and it writes no `require`.
+      - name: Install govulncheck
+        env:
+          GOPROXY: https://proxy.golang.org
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+      - name: govulncheck, as each operating system a release ships for
+        run: |
+          go version
+          for goos in linux windows darwin; do
+            echo "::group::GOOS=$goos"
+            GOOS=$goos "$(go env GOPATH)/bin/govulncheck" ./...
+            echo "::endgroup::"
+          done
 
       # There are two committed copies of the 1994 assets and this job needs both. extracted.zip is
       # what goes into the binaries, so a build without it is an empty window -- the Makefile's
@@ -190,6 +216,7 @@ jobs:
     # release would then advertise a filename it did not attach.
     outputs:
       version: ${{ steps.v.outputs.version }}
+      go: ${{ steps.go.outputs.version }}
     steps:
       # fetch-depth: 0 because the Makefile's VERSION comes from `git describe --tags`. A
       # shallow checkout has the tag but no history behind it, and describe then answers with
@@ -207,8 +234,16 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_RELEASE }}
+          check-latest: true
           cache: false
+
+      # Which Go this run got, for the notes: GO_RELEASE names a minor, and the patch is
+      # whatever was newest when the job ran. `go version -m glidergo` reads the same string out
+      # of the binary.
+      - name: Record the Go
+        id: go
+        run: echo "version=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
 
       # The tag for a tag push, the dispatch input for a manual run. Stamped into every binary
       # via the Makefile's -X main.version, so `glidergo -version` and the title screen agree
@@ -432,13 +467,19 @@ jobs:
           15 MB. A console window opens alongside the game;
           that is where it says which house it loaded and what it could not find.
 
+          It needs Windows 10 or 11, or Windows Server 2016 or newer. An older Windows will not
+          start it: the Go it is built with has dropped Windows 7 and 8, and the .exe says so in
+          its header.
+
           ONE THING TO EXPECT ON WINDOWS.
 
-          This is the first Windows release, and the code behind it has had far less wear than
-          the Linux equivalent: the window, the keyboard and the sound were all written on
-          Linux, which cannot run any of them, so you may well be the first person to see it
-          draw or hear it play. If something looks wrong it probably is, and a bug report with
-          the console output in it is worth a great deal. See README.md.
+          The code behind this has had far less wear than the Linux equivalent: the window, the
+          keyboard and the sound were all written on Linux, which cannot run any of them. The
+          x86-64 build has since been run on Windows Server 2025, where its screens came out
+          pixel for pixel the same as on Linux, but nobody has yet steered a glider through a
+          house on Windows by hand, and the arm64 build has never run at all. If something looks
+          wrong it probably is, and a bug report with the console output in it is worth a great
+          deal. See README.md.
 
           Sound needs nothing installed -- the game talks to Windows' own audio directly. If it
           is silent or stutters, "${cmd} -audio list" shows what this machine has, "${cmd}
@@ -483,9 +524,10 @@ jobs:
 
           It needs no files beside it. The art, the sounds, all 22 of the 1994 houses and the
           ones written for this port are inside the binary, which is why it is 15 MB, so you can
-          copy glidergo to ~/bin or /usr/local/bin and run it from anywhere. Linux needs libX11
-          at run time -- libx11-6, which every desktop install already has -- and a 24- or
-          32-bit display.
+          copy glidergo to ~/bin or /usr/local/bin and run it from anywhere. Linux needs glibc
+          2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or later), libX11 at run
+          time -- libx11-6, which every desktop install already has -- and a 24- or 32-bit
+          display.
           TXT
             fi
 
@@ -495,6 +537,9 @@ jobs:
             # three-way if stays about what the build can draw, which is what it is sorted by.
             case "$target" in
             darwin-*) cat >> "$stage/HOW-TO-RUN.txt" <<TXT
+
+          It needs macOS 13 (Ventura) or newer, which is the oldest the Go it is built with
+          supports.
 
           ONE THING macOS DOES TO DOWNLOADS.
 
@@ -614,8 +659,12 @@ jobs:
       - name: Write the release notes
         env:
           VERSION: ${{ needs.build.outputs.version }}
+          BUILTWITHGO: ${{ needs.build.outputs.go }}
         run: |
           set -euo pipefail
+          # The notes name the Go that built the binaries, so a build job that did not say which
+          # is a failure here rather than a sentence with a hole in it.
+          test -n "$BUILTWITHGO"
           cat > notes.md <<'HEADER'
           A Go port of Glider PRO, John Calhoun's 1994 Macintosh game. One file, nothing to
           install: the original art, the sounds, all 22 of the 1994 houses and the ones written
@@ -728,8 +777,12 @@ jobs:
           `%AppData%\glidergo` on Windows rather than next to the binary, so they survive you
           replacing it with the next release.
 
-          Linux needs libX11 at run time (`libx11-6`, present on any desktop install) and a
-          24- or 32-bit display. Windows needs nothing at all — no runtime, no redistributable.
+          Linux needs glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or
+          later), libX11 at run time (`libx11-6`, present on any desktop install) and a 24- or
+          32-bit display. Windows needs Windows 10 or 11, or Server 2016 or newer, and nothing
+          installed — no runtime, no redistributable; an older Windows will not start it. The
+          headless macOS builds need macOS 13 or newer. The Windows and macOS floors are the Go
+          toolchain's, not the game's, and they rise when a release moves to a newer Go.
 
           ### Racing another machine
 
@@ -762,9 +815,12 @@ jobs:
 
           The Go runtime and standard library compiled into `glidergo` and `glidertool` are
           BSD-3-Clause, © The Go Authors; every release archive carries their licence as
-          `THIRD-PARTY-NOTICES.txt`.
+          `THIRD-PARTY-NOTICES.txt`. This release was built with BUILTWITHGO, the standard
+          library it carries is the game's only third-party code, and `govulncheck` found
+          nothing in it that the game calls. `go version -m glidergo` says the same of the
+          binary you have.
           HEADER
-          sed -i "s/VERSION/${VERSION}/g" notes.md
+          sed -i "s/VERSION/${VERSION}/g; s/BUILTWITHGO/${BUILTWITHGO}/g" notes.md
           echo '--- notes.md ---'; cat notes.md
 
       # `gh` is preinstalled on GitHub-hosted runners, so this needs no third-party action --

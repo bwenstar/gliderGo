@@ -128,6 +128,20 @@ That is why it is 15 MB. `linux-amd64` and the two `windows` archives draw to a 
 three are marked `headless` and explain themselves in the archive. Every archive carries a
 `HOW-TO-RUN.txt`.
 
+The oldest systems a release runs on:
+
+| Archive | Needs |
+|---|---|
+| `linux-amd64` | glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or later), and libX11 |
+| `windows-amd64`, `windows-arm64` | Windows 10 or 11, or Windows Server 2016 or newer |
+| `darwin-*-headless` | macOS 13 or newer |
+| `linux-arm64-headless` | no libraries at all; it is statically linked |
+
+The Windows and macOS rows are the Go toolchain's, not the game's. Releases are built with Go 1.27,
+a version Go still sends security fixes for, rather than the 1.23 that building from source needs
+(below), and each Go release sets its own floor. When releases move to a newer Go, this table is
+checked again.
+
 If the Releases page has nothing you want, building it is four seconds after the clone.
 
 ## Building
