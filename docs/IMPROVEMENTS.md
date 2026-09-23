@@ -2278,6 +2278,64 @@ bit 30 gives.
 Windows being right is established by reading the code only: no key has ever been pressed on the
 Windows build (PLAN Stage 4). Any future X11 backend (5.10) must keep these semantics.
 
+### 2.73 A shredded glider draws no confetti, and the game says to report it — **DONE, the release gate's first step, after 4.30's soak found it**
+
+`World.RenderShreds` (`internal/game/shreds.go`) asked for `w.R.A.Sheet("shred")`, and had since it
+was written. `"shred"` is registered in `stripBounds` (`internal/render/assets.go:96`), not
+`sheetBounds`, so the lookup failed. That failure is sticky: `render: no such sheet "shred"`. A
+failed accessor does not stop anything. It records the first error and returns nil, and every blit
+in `RenderShreds` is guarded by that nil, so the cloud grew, fell, played its shred sounds and
+sparkled with nothing in it. In glidergo it meant no shred confetti ever drew, and quitting printed
+the bug-report footer and exited 1. 13 of the 22 shipped houses have a shredder.
+
+The fix is `Strip` for `Sheet`, one word. It restores what the original draws, so it is faithful and
+needs no opt-in. No golden replay visits a shredder with the full asset tree, which is why nothing
+caught it. 4.30's soak fails on any non-nil `Run` error, and once the soak is in the tree that is
+the general guard.
+
+**Done: `Strip`, and a test for each reason nothing saw it.** `RenderShreds` asks for
+`Strip("shred")` (`internal/game/shreds.go:206`), and the comment there cites
+`StructuresInit.c:556-563`: `shredSrcMap` is a GWorld of its own, exactly `shredSrcRect` in size,
+loaded from PICT 4010 with its mask from 5010, which is what a strip is in this port. Before the
+fix, `glidertool replay` into Slumberland's room 43 and a headless `glidergo` run there both exited
+1 with the error above. After it, both exit 0, and the headless dump draws the cloud from frame 84:
+it grows to 850 pixels in a 40×35 box, then falls 4 pixels a frame. The reproduction's trace digest
+is the same before and after, because a trace records rects and sounds, and those were right all
+along. No golden, fidelity or replay hash moved.
+
+The first reason nothing caught it is that nothing that loads art had ever shredded a glider. The
+golden traces stay clear of shredders, the game package's shredder tests run without art on purpose,
+and `TestEveryHouseStartsAndRuns` spends each house's hundred frames nowhere near one. So
+`internal/replay`'s `TestAShreddedGliderFallsAsConfetti` flies a glider into Slumberland's room 43
+with the whole tree loaded. `RunWatching` must return nil, and all 850 opaque pixels of the strip
+must be in Work, exactly, on twenty frames: the growth arm's last two and the eighteen the fall
+draws, in one column and four pixels lower each frame. They must never be in Back. The search covers
+the whole plane rather than a computed rect, so a cloud drawn in the wrong place fails as one that
+moved. The game package's no-art tests pass with the bug put back, which was checked, and
+`shreds_test.go`'s header now says so.
+
+The second reason is that a wrong name costs nothing until the game ends. So `internal/render`'s
+`TestEveryArtNameIsInItsTable` reads the calls instead of making them. It parses every non-test file
+in the module, and every constant that reaches `Sheet`, `Strip` or `Object` is looked up in the
+table its accessor reads. That holds whether the name gets there directly or through a helper that
+passes it on. The helpers are found by reading function bodies, not from a list: `maskSheet`,
+`opaqueSheet`, `bakeStrip`, `maskObject` and the three `DrawPict…Object` functions. An `Object` must
+name an `artKey`, `artOpaque` or `artPair` object, because the extractor writes the sheet objects
+into `object/` as well, and a wrong call there would load without complaint. The test checks 87
+names, and this was the only one wrong. `TestTheArtNameCheckCatchesEachWayANameCanBeWrong` plants
+this bug and nine other kinds of mistake, and requires each back at its line.
+
+**What the two tests do not cover.**
+- The replay test skips without the extracted tree, like the rest of its package, so on a machine
+  with no assets it proves nothing. `make check-caveats` already says when the tree is missing.
+- The static test checks constants only. The seven names that are not constant are all
+  `thisObject.What` in `internal/render/locale.go`. They are data, and `TestComposeEveryRoom` covers
+  composing rooms from data.
+- The accessors keyed by number (`Pict`, `Plate`, `MaskedPlate`, `UI`, `Background`, `Misc` and
+  `Flower`) were checked by grep, not by the test. `Misc` and `Flower` have no callers outside
+  tests. That is not a bug, but both are dead accessors today.
+- 4.30's soak, which found this, is not in the tree yet, so it has not been re-run against the fix.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -5364,6 +5422,7 @@ alone for a stated reason rather than missed.
 | 5.2 `tools/extract_all.py` publishes by rename: a staging tree, an OS advisory lock, and the eleven counts checked *before* the rename, so a cancelled or a miscounting run publishes nothing | 2.4 | this stage |
 | 4.28 (the first half) `internal/shell/race.go`: a Race screen on the title menu, so the mode that was reachable only from a shell is reachable with the keyboard already in the player's hands — one `shell.Race` built by both the screen and the flags, and a ninth menu row whose geometry the splash artwork's own pixels decided | 2.6 | this stage |
 | 2.72 `x11.New` asks the server for XKB's detectable auto-repeat, so `Event.Repeat` is set on Linux and a held key does one thing, as it already did on Windows — and `internal/platform/x11` has its first test, which asks the server rather than the package | release gate, step 1 | this stage |
+| 2.73 `RenderShreds` asks for the `shred` strip rather than a sheet, so a shredded glider falls as confetti and the game no longer ends with an asset error — with a replay test that shreds a glider with the art loaded, and a static test that holds every constant art name to the table its accessor reads | release gate, step 1 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

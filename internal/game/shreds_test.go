@@ -4,13 +4,19 @@ package game
 // falls, and the two places the original is wrong.
 //
 // No art and no house. RenderShreds is a pure function of a Shred, the play origin and the
-// sheet, and with no sheet loaded every blit is skipped while the whole animation -- the two
+// strip, and with no strip loaded every blit is skipped while the whole animation -- the two
 // arms, the rect walk, the sounds, the sparkle and the dirty rects -- runs unchanged. That is
 // the same bargain grease_test.go and dynamics_test.go make.
 //
+// The bargain has a cost, and it was paid. A blit skipped for want of art looks here exactly
+// like a blit skipped because the art was asked for under the wrong name, and RenderShreds
+// asked Sheet for a strip from the day it landed: no confetti was ever drawn, and every test
+// in this file passed (docs/IMPROVEMENTS.md 2.73). The picture is therefore held elsewhere, by
+// replay's TestAShreddedGliderFallsAsConfetti with the whole asset tree loaded.
+//
 // The replay golden does not cover any of this: the recorded script never flies a glider into
 // a shredder, which is how the `b2w` column stayed byte-identical when this subsystem landed.
-// So these tests are the only thing holding it.
+// So these tests are the only thing holding the animation.
 
 import (
 	"testing"
@@ -278,12 +284,12 @@ func TestZeroShredsClearsTheCounterAndNotTheTable(t *testing.T) {
 //
 // Src is a local in RenderShreds and never reaches a field, so what is asserted here is the
 // height that drives it, one frame at a time, plus the invariant the arithmetic rests on:
-// ShredGrowHeight and the sheet's own height are the same number, which is what makes the
+// ShredGrowHeight and the strip's own height are the same number, which is what makes the
 // growth end exactly as the last row of the sprite becomes visible. If those two ever
-// disagree the arm either stops early or reads above the top of the sheet.
+// disagree the arm either stops early or reads above the top of the strip.
 func TestTheGrowthArmEmergesBottomFirst(t *testing.T) {
 	if got := ShredSrc.Bottom - ShredSrc.Top; got != ShredGrowHeight {
-		t.Fatalf("the shred sheet is %d tall and the growth arm runs to %d; the src "+
+		t.Fatalf("the shred strip is %d tall and the growth arm runs to %d; the src "+
 			"arithmetic assumes they are equal", got, ShredGrowHeight)
 	}
 

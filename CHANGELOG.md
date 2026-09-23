@@ -17,6 +17,42 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A shredded glider falls as confetti, and the game no longer ends by asking to be reported (2026-09-23)
+
+`World.RenderShreds` asked `Assets.Sheet` for `"shred"`, and `shred` is not a sheet. It is
+`shredSrcMap`, a 40×35 GWorld of its own loaded from PICT 4010 with its mask from 5010
+(`StructuresInit.c:556-563`), and the port files it with the strips, beside the toast and the fish.
+A failed accessor does not stop anything: it records the first error and returns nil, and every blit
+in `RenderShreds` is guarded by that nil. So the cloud grew, fell, played its shred sounds and
+sparkled with nothing in it, and `glidergo` ended the game with `render: no such sheet "shred"`, the
+bug-report footer and exit status 1. Thirteen of the 22 shipped houses have a shredder. The
+hostile-house soak planned as `docs/IMPROVEMENTS.md` 4.30 found it, and it is filed as 2.73. The fix
+is `Strip` for `Sheet`. It restores what the original draws, so it is faithful and needs no setting.
+
+The fix is one word. What is worth recording is why nothing saw it. Nothing that loads art had ever
+shredded a glider. The golden traces stay clear of shredders, the game package's shredder tests run
+without art on purpose, and `TestEveryHouseStartsAndRuns` spends each house's hundred frames nowhere
+near one. The trace cannot see it either: the reproduction's digest is the same before and after,
+because a trace records rects and sounds, and those were all correct. Two tests now close the two
+gaps:
+- `internal/replay`'s `TestAShreddedGliderFallsAsConfetti` flies a glider into Slumberland's room 43
+  with the whole asset tree loaded. It asserts that the run returns nil. It then finds every one of
+  the strip's 850 opaque pixels, exactly, in Work on exactly twenty frames: the growth arm's last
+  two and the eighteen the fall draws, in one column and four pixels lower each frame. They are
+  never in Back.
+- `internal/render`'s `TestEveryArtNameIsInItsTable` reads the calls rather than making them. It
+  parses every non-test file in the module and follows the helpers that pass a name on, found by
+  reading their bodies rather than from a list that would go stale. Every constant that reaches
+  `Sheet`, `Strip` or `Object` is held to the table its accessor reads. An `Object` must name an
+  object drawn from its own PICT, because the extractor writes a crop of every sheet object into
+  `object/` as well, and a wrong `Object` call would load without complaint. It checks 87 names, and
+  this was the only one wrong. `TestTheArtNameCheckCatchesEachWayANameCanBeWrong` plants this bug
+  and nine other kinds of mistake, and requires each to come back at its line.
+
+No pixel hash moved. None of the seven fidelity screens or the golden traces visits a shredder,
+which is the gap this closes. The game package's no-art shredder tests pass with the bug put back,
+and their header now says why the picture is held elsewhere.
+
 ### A held key does one thing on Linux, which it already did on Windows (2026-09-23)
 
 `platform.Event.Repeat` exists so that a held key does one thing, and five places rely on it: the

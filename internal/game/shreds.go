@@ -102,7 +102,7 @@ type Shred struct {
 	Frame int16
 }
 
-// ShredSrc is shredSrcRect (StructuresInit.c:556): the whole of the `shred` sheet, 40x35.
+// ShredSrc is shredSrcRect (StructuresInit.c:556): the whole of the `shred` strip, 40x35.
 // The growth arm slices rows off its top; the fall arm uses it entire.
 var ShredSrc = render.SetRect(0, 0, 40, 35)
 
@@ -196,7 +196,14 @@ func (w *World) RenderShreds() {
 		return
 	}
 
-	art := w.R.A.Sheet("shred")
+	// A strip, not a sheet. shredSrcMap is a GWorld of its own, exactly shredSrcRect in size,
+	// loaded from PICT 4010 with its mask from 5010 (StructuresInit.c:556-563), and that is a
+	// row of render.stripBounds. This line used to ask Sheet for it. Sheet has no such row, and
+	// a failed accessor returns nil and records the asset error rather than stopping anything,
+	// so the cloud went on growing, sounding and sparkling with no confetti in it -- and the
+	// game reported the error when it ended (docs/IMPROVEMENTS.md 2.73).
+	// render.TestEveryArtNameIsInItsTable now holds every literal name to its table.
+	art := w.R.A.Strip("shred")
 
 	for i := int16(0); i < w.NumShredded; i++ {
 		s := &w.Shreds[i]
