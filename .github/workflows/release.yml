@@ -1,14 +1,17 @@
 # gliderGo release builds.
 #
-# HONEST CAVEAT, READ FIRST. Like ci.yml, this was written on an airgapped host that cannot
-# reach github.com, so it has never run. Every command it invokes is verified locally --
-# `make check`, `make assets-check` and `make cross` all pass here, and the packaging steps
-# below were rehearsed by hand against the same bin/cross/ layout `make cross` writes. What is
-# unverified is the GitHub half: action versions, runner package names, and `gh release`'s
-# behaviour. Expect the first tag to need a correction. Push a throwaway tag first --
-# `git tag v0.0.1-rc1 && git push origin v0.0.1-rc1`, which publishes as a prerelease and can be
+# HONEST CAVEAT, READ FIRST. Like ci.yml, this is written on an airgapped host that cannot
+# reach github.com. Every command it invokes is verified locally -- `make check`, `make
+# assets-check` and `make cross` all pass here, and the packaging steps below were rehearsed by
+# hand against the same bin/cross/ layout `make cross` writes.
+#
+# It has run since: v0.1.0 and v0.1.1 were built and published by it. Whether either tag needed
+# a correction first is not recorded on this host, so this comment claims neither. Every change
+# since is unrun until the next tag, so rehearse one first. Push an rc tag --
+# `git tag v0.1.2-rc1 && git push origin v0.1.2-rc1`, which publishes as a prerelease and can be
 # deleted -- or use the workflow_dispatch entry below, which builds and uploads the archives as a
-# run artifact and cannot create a Release from any ref, including a tag.
+# run artifact and cannot create a Release from any ref, including a tag. RELEASING.md has the
+# rest of what a tag needs.
 #
 # WHAT A RELEASE ARCHIVE CONTAINS, AND WHY IT IS SHAPED THIS WAY.
 # Two binaries and the documents a stranger needs, and nothing else. The assets are inside the
@@ -58,7 +61,14 @@
 # Not signing is a decision and not an omission: a certificate costs a few hundred dollars a year
 # and has to be issued to a named person or company, which is a thing to do deliberately rather than
 # because a dialog was annoying, and SHA256SUMS is already published for anyone who wants to check
-# what is in the archive rather than who vouched for it.
+# what is in the archive rather than who vouched for it. The whole price of not signing: SmartScreen
+# reputation belongs to a signer, or else to one file, so every tag's binaries start with none, and
+# a Defender false positive cleared for one tag has to be cleared again for the next
+# (docs/IMPROVEMENTS.md 5.12).
+#
+# Defender Antivirus is the fourth thing, and not one of the three: it does look at the contents,
+# and it quarantines with no dialog. The notes and the Windows HOW-TO-RUN.txt say what that looks
+# like and how to check and restore the file (5.12, step 3).
 #
 # Unverified, and differently from the rest of this file. The other caveats here are about GitHub,
 # which this host cannot reach; these are about client machines nobody here has. The Windows half
@@ -67,7 +77,7 @@
 #
 #     Set-Content -Path .\glidergo.exe -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3"
 #
-# then double-click it in Explorer. Worth doing before the first tag; it is the one caveat in this
+# then double-click it in Explorer. Worth doing before the next tag; it is the one caveat in this
 # file that does not need the network to test.
 
 name: Release
@@ -208,7 +218,10 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     needs: verify
-    runs-on: ubuntu-latest
+    # Pinned, because this job builds the linux-amd64 binary and the runner's glibc sets the
+    # oldest glibc it will start on. 24.04 gives the 2.34 README states; 22.04 and Debian 12 give
+    # the same, so neither would lower it. The step after `make cross` checks the result.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # The version this job resolved, so `publish` names the release after the string that is
     # actually stamped into the binaries and the archive filenames instead of deriving a second
@@ -299,6 +312,21 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
         run: make cross VERSION="$VERSION"
 
+      # The glibc floor README, the notes and HOW-TO-RUN.txt state, checked on the binary that
+      # ships. The pin above keeps the runner's side of it. A code change can still raise it on an
+      # unchanged runner: one C call that a newer header maps to a newer symbol, as strtol becomes
+      # __isoc23_strtol@GLIBC_2.38, and a pin cannot see that (IMPROVEMENTS 5.4).
+      - name: Hold the Linux archive to the glibc floor it states
+        run: |
+          set -euo pipefail
+          floor=2.34
+          got=$(objdump -T bin/cross/glidergo-linux-amd64-x11 | grep -o 'GLIBC_[0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -1)
+          echo "the linux-amd64 binary needs glibc $got; the documents say $floor"
+          if [ "$(printf '%s\n%s\n' "$got" "$floor" | sort -V | tail -1)" != "$floor" ]; then
+            echo "::error::the linux-amd64 binary needs glibc $got, and README, the notes and HOW-TO-RUN.txt say $floor"
+            exit 1
+          fi
+
       # The claim every archive below rests on, tested rather than asserted: one binary, alone in
       # an empty directory, with no asset tree anywhere near it and a working directory that means
       # nothing. `-version` reports what it found and `-shot` makes it actually decode the art and
@@ -385,10 +413,14 @@ jobs:
             # source these exact binaries were compiled from however far the default branch
             # moves afterwards. Screenshots first: theirs is the narrower pattern, and they need
             # /raw/ to render rather than /blob/.
+            #
+            # The root documents the archive does not carry go the same way. SECURITY.md is linked
+            # from the racing section, and it 404ed inside every archive until this line.
             base="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
             sed -E \
               -e "s#\]\((docs/screenshots/[^)]*)\)#](${base}/raw/${GITHUB_SHA}/\1)#g" \
               -e "s#\]\((docs/[^)]*)\)#](${base}/blob/${GITHUB_SHA}/\1)#g" \
+              -e "s#\]\((SECURITY|CONTRIBUTING|RELEASING)\.md\)#](${base}/blob/${GITHUB_SHA}/\1.md)#g" \
               README.md > "$stage/README.md"
             cp LICENSE CHANGELOG.md "$stage/"
             mkdir -p "$stage/GliderPRO"
@@ -504,8 +536,28 @@ jobs:
 
               Get-ChildItem -Recurse | Unblock-File
 
-          Neither one has looked at what is in the .exe. They looked at who signed it, and
-          nobody did. SHA256SUMS on the release page is the check on the contents.
+          Neither of those two judges what the program does. They are about who signed
+          it, and nobody did. SHA256SUMS on the release page is the check on the contents.
+
+          IF GLIDERGO.EXE HAS DISAPPEARED.
+
+          That is Microsoft Defender Antivirus, a different part of Windows from
+          SmartScreen, and it does not ask first. If it decides a file is malware it
+          quarantines it, as the zip is extracted or on the first double-click: this
+          directory has no glidergo.exe in it, or a double-click does nothing and a
+          "Threats found" notification appears. A detection name ending in !ml is a
+          machine-learning model's guess, not a match against known malware.
+
+          Check the download first. SHA256SUMS has a line for the zip, not for the .exe
+          inside it, so in PowerShell, in the directory the zip is in, run
+
+              Get-FileHash ${name}.zip
+
+          and compare what it prints with that line. It prints capitals and SHA256SUMS
+          does not; the characters are otherwise the same. If they match, open Windows
+          Security, Virus & threat protection, Protection history, pick the entry and
+          choose Restore. That needs an administrator. Then please open an issue that
+          quotes the detection name exactly.
 
           RACING ANOTHER MACHINE.
 
@@ -530,6 +582,10 @@ jobs:
           2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or later), libX11 at run
           time -- libx11-6, which every desktop install already has -- and a 24- or 32-bit
           display.
+
+          Sound goes through whichever of pw-play, paplay or aplay is installed; ffplay and
+          SoX's play work too. "${cmd} -audio list" shows what it found. With none of them, the
+          game says so once and plays in silence.
 
           If it crashes, the report is kept in ~/.local/share/glidergo/crash-last.log, and the
           next start says so. That file is the one to attach to a bug report.
@@ -595,6 +651,13 @@ jobs:
               echo "$name: README.md still links into docs/" >&2
               exit 1
             fi
+            # Every relative link left is to a file the archive carries: CHANGELOG.md and LICENSE.
+            for rel in $(grep -oE '\]\([^):#]+\)' "$stage/README.md" | sed -E 's/^\]\((.*)\)$/\1/' | sort -u); do
+              if [ ! -e "$stage/$rel" ]; then
+                echo "$name: README.md links to $rel, which the archive does not carry" >&2
+                exit 1
+              fi
+            done
 
             # And that Go's licence went in. A runner toolchain with no LICENSE, or a later edit
             # that drops the file, fails the build here instead of shipping an archive that owes a
@@ -695,9 +758,11 @@ jobs:
           **Windows: "Windows protected your PC."** A blue dialog whose only visible button says
           *Don't run*. Click **More info**, then **Run anyway** — there is no Run anyway button
           until you do. That is Microsoft Defender SmartScreen, and every unsigned program with no
-          download history gets it. The only thing that removes it is a code-signing certificate,
-          which costs a few hundred dollars a year and has to be issued to a named person or
-          company; that is a decision to make on purpose, not because a dialog was in the way.
+          download history gets it. It stops once a file has enough of that history, and an
+          unsigned file's history is its own, so every release starts again from none. A
+          code-signing certificate is what lets it carry from one release to the next. One costs a
+          few hundred dollars a year and has to be issued to a named person or company; that is a
+          decision to make on purpose, not because a dialog was in the way.
 
           **Windows, the quieter half: Mark of the Web.** A zip that came from a browser is
           tagged, and extracting it in Explorer copies the tag onto every file inside — which is
@@ -720,9 +785,24 @@ jobs:
           xattr -d com.apple.quarantine glidergo
           ```
 
-          None of the three looks at what is *in* the archive. They look at who signed it, and
-          nobody did. `SHA256SUMS`, below, is the check on the contents, and it is the one worth
-          running. These click paths are the documented behaviour rather than something this
+          Those three are about who signed the file, and nobody did. None of them judges what the
+          program does, and `SHA256SUMS`, below, is the check on the contents. Antivirus is
+          different.
+
+          **Windows, if `glidergo.exe` disappears: Defender Antivirus.** Microsoft Defender
+          Antivirus is a different part of Windows from SmartScreen, and it does not ask. If it
+          decides a file is malware, it quarantines it, either as the zip is extracted or at the
+          first double-click. What you see is the unpacked directory with no `glidergo.exe` in it,
+          or a double-click that does nothing and a "Threats found" notification. A detection name
+          ending in `!ml` is a machine-learning model's guess, not a match against known malware.
+          Check the zip first. `SHA256SUMS` has a line for each archive and none for the `.exe`
+          inside, so run `Get-FileHash <archive>` in PowerShell and compare it with the zip's line;
+          it prints capitals where `SHA256SUMS` does not. If they match, Windows Security → Virus &
+          threat protection → Protection history → the entry → **Restore** brings the file back.
+          That needs an administrator. Then please open an issue that quotes the detection name
+          exactly.
+
+          These click paths are the documented behaviour rather than something this
           project has watched happen — it is built on an offline machine with no browser to
           download anything with — so if one of them has changed, an issue saying so will change
           this section.
@@ -814,7 +894,8 @@ jobs:
           ```
 
           macOS has no `sha256sum`. Hash your one file with `shasum -a 256 <archive>` and
-          compare the line by eye against `SHA256SUMS`.
+          compare the line by eye against `SHA256SUMS`. On Windows, `Get-FileHash <archive>` in
+          PowerShell prints the same hash in capitals.
 
           ### Licence
 

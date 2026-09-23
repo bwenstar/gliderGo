@@ -219,10 +219,10 @@ func TestTheOriginalsCopyrightIsQuotedAndNotParaphrased(t *testing.T) {
 // string, in a package whose every other string is compared to something, and it inherits the
 // credibility of its neighbours without earning it.
 //
-// It was found rather than imagined. `Releases` was here for a release page that does not exist
-// yet: spelled correctly, built out of Home like the rest, and read by nothing, so no test could
-// have told anyone if it had been wrong (docs/IMPROVEMENTS.md 4.13). It is gone until the thing it
-// names does, and this is what stops the next one.
+// It was found rather than imagined. `Releases` was first here for a release page that did not
+// exist yet: spelled correctly, built out of Home like the rest, and read by nothing, so no test
+// could have told anyone if it had been wrong (docs/IMPROVEMENTS.md 4.13). It went, and came back
+// with the page, read by -version and -help (5.4); this is what stops the next one.
 //
 // go/parser for the declarations and a text sweep for the readers, and the split is deliberate. A
 // list of what this package exports has to be exact, and gofmt's column alignment is not something

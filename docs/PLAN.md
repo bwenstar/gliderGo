@@ -1460,8 +1460,9 @@ here is genuinely just transport.
   blames the wrong thing (4.33), and a README sentence — *"whose machine dies has forfeited: the
   other one wins on the spot"* — that holds for a killed process and not for a power cut, a
   sleeping laptop or a pulled cable, where nothing is sent and no read has a deadline. That
-  sentence is corrected before the tag. The heartbeat that would make a deadline possible is 4.37,
-  after it. `cmd/glidergo/race.go` had about 13% statement coverage and no app-level test, so 4.34
+  sentence was corrected in the release gate's step 5, which also found the end of a run freezing
+  on a silent peer, and fixed it. The heartbeat that would make a deadline possible is 4.37, after
+  the tag. `cmd/glidergo/race.go` had about 13% statement coverage and no app-level test, so 4.34
   landed before any of these touch it. It is four races through `a.play` over 127.0.0.1, under
   `-race` in `make race`, and `race.go` is 71% covered now.
 
@@ -1624,21 +1625,50 @@ means the tag is better with it and does not wait.
    because it points at 4.36. Its listener half went in with 4.33, beside the port-forwarding
    advice it answers.
    - **Gate.** README's opening and a Releases link, 5.1 and 5.4 made true, and `RELEASING.md`
-     (5.1, 5.4, 4.13, 1.3 amendments).
+     (5.1, 5.4, 4.13, 1.3 amendments). **DONE, but for what needs a connected machine.** README
+     opens on the game and links the Releases page, and `-version` and `-help` print it.
+     `RELEASING.md` is the tag's checklist: what runs before the tag and after it, which machine
+     each step needs, and a record per tag. Found with it: every archive's `README.md` linked a
+     `SECURITY.md` the archive did not carry, so the security policy was a 404 from inside every
+     download. Those links now point at the tagged tree, a check fails the build on any relative
+     link the archive cannot satisfy, and the glibc floor is asserted on the built binary (5.4).
    - **Gate.** The board sorts on points, not rooms: README and `world.go` (3.1 lists them, and
-     is corrected already).
+     is corrected already). **DONE.** README gives Davis Station as the example, where 40 rooms
+     sit below 38, and says a race ranks the other way round. The other figures in that paragraph
+     were checked against the dumped boards, and "from 1995" is now "from 1995–2000".
    - **Gate.** README's "wins on the spot" holds only for a killed process (Stage 3's amendment).
+     **DONE.** Quit, a closed window or a killed game is a forfeit on the spot. A power cut, sleep
+     or a dropped network sends nothing, and nothing is decided until the OS gives up. "Both
+     machines show the same result" now holds "as long as the connection held", because a split
+     between two running machines can leave each scoring the other as gone (4.37). Found with it,
+     and fixed: the end of a run froze when the other machine had gone silent, before the waiting
+     screen was up to be escaped from, until the OS gave up (about 15 minutes on Linux).
+     `Race.Close` now waits 2 s at most and says so (4.37).
    - **Gate.** SECURITY.md names the Go that builds releases and 4.36's size limits (5.7's
      amendment, 5.11). It stopped saying there is no listener with 4.33. **DONE** with 4.36 and
      5.11.
    - **Gate.** The release notes and `HOW-TO-RUN.txt` say what to do if Defender quarantines the
-     exe, and `release.yml:658` stops reading as if it covers antivirus (5.12, step 3).
+     exe, and `release.yml:658` stops reading as if it covers antivirus (5.12, step 3). **DONE.**
+     Both say what quarantine looks like, what `!ml` means, and to check the zip with
+     `Get-FileHash` before restoring from Protection history. The check is on the zip because
+     `SHA256SUMS` has no line for the `.exe`, which `RELEASING.md` and 5.12 had wrong. README's
+     "Getting a build" points at both. 5.12's step 5 went in with it: the notes had said a
+     certificate is the only thing that removes SmartScreen's dialog, which is more than a
+     certificate does.
    - **Should.** The glibc floor is stated and asserted (5.4's amendment), CONTRIBUTING gets
      house-licence rules (4.43, first half), README lists the per-OS data paths (2.75, docs half),
      3.2's premise is corrected (3.2's amendment), and 4.1's status is corrected (4.1's amendment).
+     **DONE.**
+     - CONTRIBUTING's "Whose house it is" asks for your own work and a credits row. A new test
+       fails for a house in `levels/` with no row, and 4.43 leaves one question to the owner:
+       whether a reworked 1994 house is the contributor's own.
+     - README's data paths are a table checked against `-version`. Found with it, and fixed: a
+       relative `$XDG_CONFIG_HOME` put the settings under the directory the game was started from
+       on Go 1.23, and left it with nowhere to save on the Go that builds releases (2.75).
    - **Should.** README gets an "Other ports" paragraph that names Aerofoil and claims only what
      this port's own tests check. Every fact about Aerofoil in it is confirmed on a connected
-     host first, or cut (5.13).
+     host first, or cut (5.13). **Not done, on purpose.** Every fact it would state needs a
+     connected host, and none was to hand. `RELEASING.md` lists it under "Still open".
 6. **Checked by a person, after the rest** (§5's new row, and the `RELEASE_TESTING.md` it plans).
    The Windows subset runs on the Windows test host, next to 5.4's `Zone.Identifier` rehearsal:
    keys pressed, window closed and resized, a race hosted behind the Windows firewall, and 2.1's

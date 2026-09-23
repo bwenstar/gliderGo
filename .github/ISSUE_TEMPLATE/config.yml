@@ -4,6 +4,12 @@
 blank_issues_enabled: true
 
 contact_links:
+  - name: Download a release
+    url: https://github.com/bwenstar/gliderGo/releases
+    about: >-
+      The built archives for Linux and Windows, with SHA256SUMS beside them. Worth checking a bug
+      against the newest one before filing it.
+
   - name: How the original behaves
     url: https://github.com/bwenstar/gliderGo/blob/main/docs/ORIGINAL_GAME.md
     about: >-

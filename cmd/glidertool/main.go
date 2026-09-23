@@ -107,7 +107,9 @@ Flags may also come after the file names. The text format is documented by the
 header comment that `+"`house dump`"+` writes; the binary formats are documented in
 docs/analysis/house-format.md and docs/analysis/input.md §14.
 
-`+project.Home+` -- bugs to `+project.Issues+`
+`+project.Home+`
+  releases  `+project.Releases+`
+  bugs      `+project.Issues+`
 `, prog, prog)
 }
 
@@ -151,6 +153,7 @@ func versionCmd(w io.Writer) {
 		}
 	}
 	fmt.Fprintf(w, "  home      %s\n", project.Home)
+	fmt.Fprintf(w, "  releases  %s\n", project.Releases)
 	fmt.Fprintf(w, "  bugs      %s\n", project.Issues)
 	fmt.Fprintf(w, "  licence   %s\n", project.Licence)
 	fmt.Fprintf(w, "  go        %s\n", project.GoLicence)

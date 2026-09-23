@@ -12,7 +12,9 @@
 # It is a data file rather than a Go literal so that it can be checked against its source.
 # credits_test.go reads the vendored README and fails if a person named here is not named
 # there, or if a house named there is not named here -- which is the only way a file like
-# this stays true after somebody edits it.
+# this stays true after somebody edits it. [this port] is the port's own and is not in that
+# README, so it is held to levels/ instead: every house there has a row here, and a house
+# somebody contributes gets one with their name (CONTRIBUTING.md, "Whose house it is").
 #
 # Syntax: `[Section]`, then `who | what`, then any line with no `|` as a note. Lines are
 # not wrapped when drawn, and the shell's test fails one too wide for the screen.
@@ -42,5 +44,7 @@ T.S. Eliot | the line across that plate, from "Prufrock" (1915)
 [this port]
 gliderGo | a Go port of the GPL v2 source, 2026
 Brendan Ta | ported it
-It ships all of the art, the sounds and the houses above, decoded from the released
-source by `make assets` and committed beside it. None of that work is ours.
+gliderGo | Open House, Boarding House
+It ships all of the art, the sounds and the 22 houses above, decoded from the released
+source by `make assets` and committed beside it. None of that work is ours; the two
+houses on the row above are.

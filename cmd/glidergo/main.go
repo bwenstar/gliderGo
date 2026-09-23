@@ -430,6 +430,7 @@ func printVersion(w io.Writer, o *options) {
 	// because these are four separate facts that get quoted separately: which project, where
 	// the bugs go, which revision of whose C this is a transcription of, and who holds what.
 	fmt.Fprintf(w, "  home      %s\n", project.Home)
+	fmt.Fprintf(w, "  releases  %s\n", project.Releases)
 	fmt.Fprintf(w, "  bugs      %s\n", project.Issues)
 	fmt.Fprintf(w, "  licence   %s\n", project.Licence)
 	fmt.Fprintf(w, "  go        %s\n", project.GoLicence)
@@ -628,7 +629,7 @@ func parseFlags() (*options, error) {
 			"development, headless runs and moving a 1994 installation across.\n\n",
 			filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
-		fmt.Fprintf(w, "\n%s -- bugs to %s\n", project.Home, project.Issues)
+		fmt.Fprintf(w, "\n%s\n  releases  %s\n  bugs      %s\n", project.Home, project.Releases, project.Issues)
 	}
 	// flag.Parse() with the arguments reordered, rather than flag.Parse(), so that
 	// `glidergo Slumberland -scale 2` works: the flag package stops at the first

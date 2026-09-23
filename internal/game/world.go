@@ -222,8 +222,9 @@ type World struct {
 	Phone  PhoneState
 	Chimes PhoneState
 
-	// Score is theScore, a long in the C and therefore int32 here. Rooms visited,
-	// not points, is what the high-score board sorts on; see internal/house.Scores.
+	// Score is theScore, a long in the C and therefore int32 here. The high-score
+	// board sorts on it alone (internal/scores.Sort); the rooms visited stored beside
+	// it are what a race ranks on.
 	Score int32
 
 	// GameOver and CountDown are the game-over latch and its delay (GameOver.c:239-240).

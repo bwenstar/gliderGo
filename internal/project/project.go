@@ -37,6 +37,10 @@ const (
 	// has room for one URL and the bug-report paths have room for the specific one.
 	Issues = Home + "/issues"
 
+	// Releases is where the built archives are. Read by -version and -help, and not by the
+	// About box or the title screen, which draw what the original drew.
+	Releases = Home + "/releases"
+
 	// Licence is the SPDX identifier. GPLv2 *only*: upstream's grant names version 2 with
 	// no "or any later version" clause, and this port is a function-by-function
 	// transcription and so unambiguously a derivative work. See README.md's Licence

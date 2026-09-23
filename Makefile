@@ -61,7 +61,8 @@ NO_ASSETS   := echo "   they are committed, so this means they were removed: \`m
 OUT ?= /tmp
 
 # The version the title screen shows and a bug report quotes. `git describe` in a checkout
-# with no tags yet answers with the short hash; outside a checkout it answers nothing, and
+# with no tags fetched answers with the short hash (`git fetch --tags` fixes that; RELEASING.md,
+# step 1); outside a checkout it answers nothing, and
 # "dev" -- the default in cmd/glidergo -- is then the honest string.
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS  := -s -w

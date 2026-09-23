@@ -234,6 +234,25 @@ and the house's file *name* is the same kind of promise for both saves and high 
 before you ship a house; treat them as fixed afterwards. `docs/IMPROVEMENTS.md` 4.19 has the
 details.
 
+### Whose house it is
+
+A house in `levels/` is compiled into every executable, so it goes to everyone who downloads one,
+under this repository's licence. Three rules follow from that.
+
+- **It is your own work.** You designed its rooms, and nobody else's house is in it. The tools above
+  work on the 22 originals so that you can learn the format from them. Whether a house reworked from
+  a `house dump` of one of them counts as your own is not settled yet (`docs/IMPROVEMENTS.md` 4.43),
+  so open an issue before you build on one.
+- **It gets a credits line.** Add a row under `[this port]` in `internal/credits/credits.txt`: your
+  name, a `|`, and the house's name as its file is named. `go test ./internal/credits` fails for a
+  house in `levels/` with no row. The credits screen is one the fidelity corpus hashes, so run
+  `go test ./internal/fidelity -update` and commit the new hash with the row.
+- **Never somebody else's house.** The project does not bundle third-party houses, including ones
+  that were free to download in the 1990s. Their authors granted this project nothing, and the 22
+  originals already raise the licence question in `docs/IMPROVEMENTS.md` 1.2. To play one, point
+  the game at it: `glidergo -house path/to/it.house`, or `-levels DIR` to list a directory of them
+  as the New set.
+
 ## Reporting a bug
 
 Use the templates; they ask for the two things that make a report actionable.
@@ -271,8 +290,16 @@ to a design document, and it is meant to be read.
 
 One commit per idea. If a change moves pixels, the new hash is part of that commit.
 
+## Releases
+
+A `v*` tag builds and publishes a release through `.github/workflows/release.yml`.
+[RELEASING.md](RELEASING.md) is the list of what a tag needs that the workflow cannot do, and the
+record of each tag's checks.
+
 ## Licence
 
 By contributing you agree your work ships under the **GPLv2** — see [LICENSE](LICENSE). Version 2
 *only*: upstream's grant names version 2 with no "or any later version" clause, and this port is a
 function-by-function transcription of it, so the licence is not ours to widen. There is no CLA.
+A house is covered the same way, which is why one you contribute has to be yours to give
+("Whose house it is", above).

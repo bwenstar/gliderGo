@@ -279,7 +279,7 @@ Not reachable, and this is the load-bearing half:
 
 | What | Consequence |
 |---|---|
-| **No Go module proxy of any kind** — no `proxy.golang.org`, no Go-typed repository | `GOPROXY=off` is the repo default, and `internal/module` asserts as a *test* that nothing outside the standard library is imported |
+| **No Go module proxy** when the port began — no `proxy.golang.org`, and no Go-typed repository that anyone knew of | `GOPROXY=off` is the repo default, and `internal/module` asserts as a *test* that nothing outside the standard library is imported. A registry mirror's Go proxy has since turned out to work, although `sum.golang.org` is not mirrored. It is how govulncheck was built here (§3). The build still takes nothing from it. |
 | **Only an allowlisted subset of GitHub**, by organisation | Nothing could be fetched by module path even when the module existed |
 
 **Therefore: no Ebitengine, no go-sdl2, no raylib-go, no oto, no `golang.org/x/mobile`.**
@@ -457,10 +457,10 @@ without becoming a submodule.
 |---|---|---|
 | No audio device | WAV-dump sink; verify by ear elsewhere | hearing sound locally, not development |
 | No `sudo` | rootless sysroot via `dpkg-deb -x` | nothing |
-| No Go module proxy | stdlib-only + hand-written cgo shims | third-party engines (accepted; see §5) |
+| No Go module proxy at the start; a mirror's one later, with no checksum database | stdlib-only + hand-written cgo shims | third-party engines (accepted; see §5) |
 | No vulnerability database | build one from `golang.org/x/vulndb`, if any module proxy is reachable (§3, "govulncheck, without the internet") | a local scan; CI scans every push regardless |
 | No MIT-SHM headers | plain `XPutImage` (fast enough) | nothing |
 | No macOS/iOS build host | SDL2 backend + CI later | Mac/iOS targets, by definition |
 | X server is remote (DCV) | fine for dev; frame-diff tests use the null backend | precise vsync measurement |
-| **The public path cannot be tested from here** | `--dry-run` reviews it offline; every *command* it runs was verified | confidence in `go.dev` parsing, `archive.ubuntu.com`, and `.github/workflows/ci.yml` until someone runs them on a connected host |
-| No `xvfb` installed | verified against `Xephyr :77 -screen 640x480x24` instead, which the x11 backend accepted at 686 fps | certainty about `xvfb-run` specifically |
+| **The public path cannot be tested from here** | `--dry-run` reviews it offline; every *command* it runs was verified | confidence in `go.dev` parsing and `archive.ubuntu.com` until someone runs `--source public` on a connected host. The two workflows have run on GitHub since: `ci.yml` on pushes, and `release.yml` for `v0.1.0` and `v0.1.1`. |
+| No `xvfb` installed | verified against `Xephyr` instead: `-screen 640x480x24` at first, which the x11 backend accepted at 686 fps, and `2600x1980x24` once the bench had a 4× row (§6) | certainty about `xvfb-run` specifically |

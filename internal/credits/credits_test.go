@@ -52,23 +52,72 @@ func repoRoot(t *testing.T) string {
 // omission is an oversight and the invention is a claim.
 func TestEverybodyNamedIsNamedInTheREADME(t *testing.T) {
 	doc := readme(t)
-	for _, who := range People() {
-		// The port's own rows are not in the README, which is upstream's and older than
-		// the port: "gliderGo" is not a person, and Brendan Ta, who ported it, is named at
-		// the owner's request, as the title screen names them (docs/IMPROVEMENTS.md 1.5).
-		// Eliot is a person and is deliberately not checked here: upstream's README says
-		// PICT 153 "features a portion of this Little Nemo comic" and says nothing about the
-		// line of verse set across the same plate, so the README is simply not the authority
-		// for that row. TestEliotIsCreditedFromThePlateItself is.
-		switch who {
-		case "gliderGo", "Brendan Ta", "Nobody but the people above", "T.S. Eliot":
+	for _, sec := range Sections() {
+		// [this port] is not in the README, which is upstream's and older than the port. Its
+		// rows are the port's own: the project, the person who ported it -- named at the
+		// owner's request, as the title screen names them (docs/IMPROVEMENTS.md 1.5) -- and
+		// whoever wrote a house in levels/. The section is skipped whole rather than name by
+		// name, so that a contributor's credit does not need an edit here too, and its rows
+		// are held to levels/ instead (TestEveryHouseThisPortShipsIsCredited). The port's
+		// names are no longer skipped wherever they appear, as a list of them was: one
+		// written into a 1994 section is checked there, and fails.
+		if sec.Title == "this port" {
 			continue
 		}
-		// The README writes the publisher with an HTML entity for the ampersand, which is
-		// a property of the README's markup and not of the name.
-		want := strings.ReplaceAll(who, "&", "&amp;")
-		if !strings.Contains(doc, want) {
-			t.Errorf("credits.txt names %q, which GliderPRO/README.md does not", who)
+		for _, r := range sec.Rows {
+			if r.Note() {
+				continue
+			}
+			for _, who := range strings.Split(r.Who, ",") {
+				who = strings.TrimSpace(who)
+				// Eliot is deliberately not checked here: upstream's README says PICT 153
+				// "features a portion of this Little Nemo comic" and says nothing about the
+				// line of verse set across the same plate, so the README is simply not the
+				// authority for that row. TestEliotIsCreditedFromThePlateItself is.
+				if who == "T.S. Eliot" {
+					continue
+				}
+				// The README writes the publisher with an HTML entity for the ampersand,
+				// which is a property of the README's markup and not of the name.
+				want := strings.ReplaceAll(who, "&", "&amp;")
+				if !strings.Contains(doc, want) {
+					t.Errorf("credits.txt names %q under [%s], which GliderPRO/README.md does not",
+						who, sec.Title)
+				}
+			}
+		}
+	}
+}
+
+// Every house authored in levels/ ships inside every executable, so each has a row under
+// [this port] saying whose it is. CONTRIBUTING.md's "Whose house it is" is the rule, and this is
+// what holds a patch to it. A house is found by a whole field of the row, as rowFor finds the
+// 1994 ones, so "House" cannot be credited by "Open House" or "Boarding House" by a longer name.
+func TestEveryHouseThisPortShipsIsCredited(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join(repoRoot(t), "levels", "*.house.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("levels/ has no houses; the port ships two")
+	}
+	credited := map[string]bool{}
+	for _, sec := range Sections() {
+		if sec.Title != "this port" {
+			continue
+		}
+		for _, r := range sec.Rows {
+			if r.Note() {
+				continue
+			}
+			for _, field := range strings.Split(r.What, ",") {
+				credited[strings.TrimSpace(field)] = true
+			}
+		}
+	}
+	for _, f := range files {
+		if name := strings.TrimSuffix(filepath.Base(f), ".house.txt"); !credited[name] {
+			t.Errorf("levels/ ships %q, and credits.txt's [this port] credits nobody for it", name)
 		}
 	}
 }

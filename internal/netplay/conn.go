@@ -31,8 +31,11 @@ const lenPrefix = 4
 //
 // Conn deliberately owns no timeout. A peer whose process is killed closes its socket and the
 // reader gets io.EOF, which is the whole of what "killing the guest leaves the host in a
-// defined state" needs; a peer whose machine loses power sends nothing at all, and the answer
-// to that is the caller's SetReadDeadline on the net.Conn it owns and this package does not.
+// defined state" needs. A peer whose machine loses power sends nothing at all, and nothing
+// times that out: no caller sets a deadline on the net.Conn it owns, because silence scored as
+// a forfeit would let a network split score two different results (docs/IMPROVEMENTS.md 4.37).
+// Until the operating system gives up on the connection, silence is only something the panel
+// shows. What it must not do is freeze this side, and Race.Close's closeWait is what stops that.
 // §10.2.6's kStallTimeout is the lock-step equivalent and does not apply: nothing here waits
 // on the peer to take the next step, because the two simulations do not share one.
 //

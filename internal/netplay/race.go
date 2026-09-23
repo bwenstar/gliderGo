@@ -4,7 +4,23 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 )
+
+// ErrStalled is what Close returns when the writer could not finish: the other machine stopped
+// reading, so this side's last standing and its goodbye were not sent.
+var ErrStalled = errors.New("the other machine stopped reading, so this run's last standing " +
+	"and goodbye were not sent")
+
+// closeWait is how long Close waits for the writer to send the last standing and the goodbye.
+//
+// A healthy writer takes microseconds. One that is still in a Write after this is behind a full
+// send buffer, and a peer that is reading never lets that happen: a standing is 36 bytes on the
+// wire, sent on change, so filling even a small buffer takes many seconds with nothing
+// acknowledged. That is a machine that lost power, went to sleep or dropped off the network, or a
+// game that froze. Waiting longer for it would freeze this one as well, before the screen that
+// says press Esc is drawn. A variable for the tests, which have no two seconds to spend.
+var closeWait = 2 * time.Second
 
 // Race is a match in progress, as the game loop sees it: somewhere to put this peer's standing
 // every frame, somewhere to read the other peer's, and a result when there is one.
@@ -60,9 +76,10 @@ type Race struct {
 	last    Standing // the last standing accepted for sending, to suppress duplicates
 	sentAny bool
 
-	wake chan struct{} // buffered 1: "there is something to send"
-	stop chan struct{} // closed by Close
-	done chan struct{} // closed when the writer has finished
+	wake     chan struct{} // buffered 1: "there is something to send"
+	stop     chan struct{} // closed by Close
+	stopOnce sync.Once
+	done     chan struct{} // closed when the writer has finished
 
 	settled    chan struct{} // closed once the other side's fate is known
 	settleOnce sync.Once
@@ -162,40 +179,39 @@ func (r *Race) Result(mine Standing) Outcome {
 //
 // The pending standing is flushed first, and that ordering is the whole point of the method: the
 // last standing of a run is the one the result is computed from, and a Close that raced the writer
-// could otherwise hang up with the "finished the house" report still in the queue.
+// could otherwise hang up with the "finished the house" report still in the queue. The writer
+// sends both, in that order, so that nothing else can write between them.
+//
+// **Close waits for the writer for closeWait and no longer.** A writer stuck in a Write -- behind a
+// peer that has stopped reading -- used to hold Close, and Close is called the moment a run ends,
+// before the waiting screen and its Esc are drawn: the game froze with nothing on screen, until the
+// operating system gave up on the connection, which on Linux is a quarter of an hour. Now Close
+// returns ErrStalled, and the writer is released when the caller closes the transport.
+//
+// A stall is not a result. Nothing is marked, so the other player is not scored as having left: a
+// machine that went quiet may be a machine that is about to come back, and silence is still the
+// panel's business rather than the result's (docs/IMPROVEMENTS.md 4.37). Any other failure to send
+// is recorded rather than returned, and Err is where it is read.
 func (r *Race) Close() error {
-	select {
-	case <-r.stop:
-		<-r.done
-		return nil
-	default:
-	}
-	close(r.stop)
-	<-r.done
-
-	r.mu.Lock()
-	s, queued := r.pending, r.queued
-	r.queued = false
-	broken := r.broken
-	r.mu.Unlock()
-
-	// Only a failed send stops this, and specifically not the peer having gone: see the comment
-	// on gone above. Nor is a failure here returned to the caller -- it is recorded, and Err is
-	// where it is read. A window closing has nothing useful to do with "the goodbye did not
-	// arrive", and the peer's own reader already treats silence as a departure.
-	if broken {
-		return nil
-	}
-	if queued {
-		if err := r.c.SendStanding(r.m.Slot, s); err != nil {
-			r.markBroken(err)
+	first := false
+	r.stopOnce.Do(func() { close(r.stop); first = true })
+	if !first {
+		// Called again -- the result screen and the way out of the game loop both close the
+		// race. A second call that found the writer still stuck says so at once rather than
+		// spending closeWait again.
+		select {
+		case <-r.done:
 			return nil
+		default:
+			return ErrStalled
 		}
 	}
-	if err := r.c.Bye(r.m.Slot); err != nil {
-		r.markBroken(err)
+	select {
+	case <-r.done:
+		return nil
+	case <-time.After(closeWait):
+		return ErrStalled
 	}
-	return nil
 }
 
 // read is the one reader. It keeps the newest standing and stops at the first thing that ends a
@@ -237,35 +253,53 @@ func (r *Race) read() {
 	}
 }
 
-// write drains the pending standing whenever there is one. One goroutine, so Conn's own lock is
-// never contended on this path; it is there for the Bye that Close sends from elsewhere.
+// write drains the pending standing whenever there is one, and when Close asks, sends the last one
+// and the goodbye. One goroutine, so every standing and the goodbye go out in the order they were
+// made.
 func (r *Race) write() {
 	defer close(r.done)
 	for {
 		select {
 		case <-r.stop:
+			// Only a failed send stops the goodbye, and specifically not the peer having gone:
+			// see the comment on gone above.
+			if r.sendPending() {
+				if err := r.c.Bye(r.m.Slot); err != nil {
+					r.markBroken(err)
+				}
+			}
 			return
 		case <-r.wake:
-			r.mu.Lock()
-			s, queued := r.pending, r.queued
-			r.queued = false
-			broken := r.broken
-			r.mu.Unlock()
-			if broken {
-				return
-			}
-			if !queued {
-				continue
-			}
-			if err := r.c.SendStanding(r.m.Slot, s); err != nil {
-				// The writer often finds out first, because the reader is only
-				// waiting: a peer whose machine has gone is a failed write here and
-				// nothing at all over there until the operating system gives up.
-				r.markBroken(err)
+			if !r.sendPending() {
 				return
 			}
 		}
 	}
+}
+
+// sendPending sends the pending standing, if there is one, and reports whether this side can
+// still send.
+func (r *Race) sendPending() bool {
+	r.mu.Lock()
+	s, queued := r.pending, r.queued
+	r.queued = false
+	broken := r.broken
+	r.mu.Unlock()
+	if broken {
+		return false
+	}
+	if !queued {
+		return true
+	}
+	if err := r.c.SendStanding(r.m.Slot, s); err != nil {
+		// The writer often finds out first, because the reader is only waiting: a peer whose
+		// process has died is a refused write here and, for a moment, nothing over there. A
+		// peer whose machine has gone is not even that. The write blocks once the buffer is
+		// full, and nothing fails until the operating system gives up (Close, closeWait).
+		r.markBroken(err)
+		return false
+	}
+	return true
 }
 
 // markGone records that the peer will say nothing more, keeping the first reason. The first,

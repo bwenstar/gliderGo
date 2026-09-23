@@ -570,6 +570,81 @@ func TestCloseIsSafeTwice(t *testing.T) {
 	}
 }
 
+// stallingRW is a transport whose writes stop going anywhere once stall is closed: each one
+// then blocks until release is closed, and fails. That is a socket in front of a peer that has
+// stopped reading, as far as the writer can tell, and then the same socket closed under it.
+type stallingRW struct {
+	rw      io.ReadWriter
+	stall   chan struct{}
+	release chan struct{}
+}
+
+func (s *stallingRW) Read(p []byte) (int, error) { return s.rw.Read(p) }
+
+func (s *stallingRW) Write(p []byte) (int, error) {
+	select {
+	case <-s.stall:
+		<-s.release
+		return 0, errors.New("use of closed network connection")
+	default:
+		return s.rw.Write(p)
+	}
+}
+
+// A peer that stops reading must not freeze this side at the end of its run. Close is called the
+// moment a run ends and before the waiting screen is drawn, and it used to wait for a writer stuck
+// behind a full send buffer: with the other machine asleep, the game sat on a frozen frame, with
+// Esc and the close box doing nothing, until the operating system gave up on the connection.
+func TestCloseDoesNotWaitForAPeerThatStoppedReading(t *testing.T) {
+	defer func(d time.Duration) { closeWait = d }(closeWait)
+	closeWait = 50 * time.Millisecond
+
+	a, b := pair(t)
+	go Meet(b.Conn, hello(9, houseHashA)) //nolint:errcheck // the peer handshakes, then never reads again
+	tr := &stallingRW{rw: duplex{a.r, a.w}, stall: make(chan struct{}), release: make(chan struct{})}
+	c := NewConn(tr)
+	m, err := Meet(c, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(c, m)
+	close(tr.stall)
+	r.Report(hostRun[0])
+	r.Report(hostRun[len(hostRun)-1])
+
+	began := time.Now()
+	if err := r.Close(); !errors.Is(err, ErrStalled) {
+		t.Errorf("Close = %v, want ErrStalled", err)
+	}
+	if took := time.Since(began); took > 2*time.Second {
+		t.Errorf("Close took %v with closeWait at %v", took, closeWait)
+	}
+	// Silence decides nothing: the other player is not scored as having left.
+	select {
+	case <-r.Settled():
+		t.Error("a stalled writer settled the race")
+	default:
+	}
+	if _, gone := r.Opponent(); gone {
+		t.Error("a stalled writer marked the peer gone")
+	}
+	began = time.Now()
+	if err := r.Close(); !errors.Is(err, ErrStalled) || time.Since(began) > closeWait/2 {
+		t.Errorf("a second Close returned %v after %v; want ErrStalled at once", err, time.Since(began))
+	}
+
+	// Closing the transport is what releases the writer, as Start's comment says.
+	close(tr.release)
+	select {
+	case <-r.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the writer was still stuck after its transport failed")
+	}
+	if err := r.Close(); err != nil {
+		t.Errorf("Close after the writer finished = %v, want nil", err)
+	}
+}
+
 func TestAbandonedOnlyForfeitsARunThatWasStillGoing(t *testing.T) {
 	for _, c := range []struct {
 		name string

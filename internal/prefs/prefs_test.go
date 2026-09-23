@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -434,6 +435,29 @@ func TestLongNamesAreClippedToTheOriginalsLimits(t *testing.T) {
 	}
 	if !strings.HasPrefix(p.HighName, "é") {
 		t.Errorf("the clip cut a character in half: %q", p.HighName)
+	}
+}
+
+// The XDG default, and the spec's rule that a relative $XDG_CONFIG_HOME counts as unset. The
+// Go this is built with does not decide it: 1.23 uses the relative path, putting the settings
+// under whatever directory the game was started from, and 1.26 refuses it, saving them nowhere.
+func TestDirDefaultsUnderTheConfigDirectory(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("$XDG_CONFIG_HOME is the Linux branch")
+	}
+	t.Setenv("GLIDERGO_CONFIG", "")
+	t.Setenv("HOME", "/home/tester")
+
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg")
+	if got, err := Dir(); err != nil || got != "/tmp/xdg/glidergo" {
+		t.Errorf("Dir() = %q, %v; want /tmp/xdg/glidergo", got, err)
+	}
+	for _, xdg := range []string{"", "relative/path", "."} {
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+		if got, err := Dir(); err != nil || got != "/home/tester/.config/glidergo" {
+			t.Errorf("with XDG_CONFIG_HOME=%q, Dir() = %q, %v; want /home/tester/.config/glidergo",
+				xdg, got, err)
+		}
 	}
 }
 

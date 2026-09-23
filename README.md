@@ -1,9 +1,10 @@
 # gliderGo
 
 A port of **Glider PRO** — John Calhoun's 1994 Macintosh game about flying a paper aeroplane
-around somebody's house — to Go, for Linux. It ships with the original's art, sounds, music and
-all 22 of its houses, so there is nothing to download and no copy of the old game to find. Clone
-it and `make run`.
+around somebody's house — to Go, for Linux and Windows. It ships with the original's art, sounds,
+music and all 22 of its houses inside the binary, so there is no copy of the old game to find and
+nothing to install beside it. Download it from the
+[Releases page](https://github.com/bwenstar/gliderGo/releases), or clone it and `make run`.
 
 ![The title screen](docs/screenshots/title.png)
 
@@ -49,15 +50,18 @@ stays that way.
 
 Linux/X11 and Windows/GDI both draw. Neither backend needs a game library: X11 is a few hundred
 lines of cgo against Xlib, and Windows is pure `syscall` — no cgo, no redistributable, nothing to
-install. macOS and cross-compiled arm64 still run headless, which is most of the port but none of
-the window.
+install. macOS and linux/arm64 still run headless, which is most of the port but none of the
+window.
 
 The Windows half was written on an offline Linux machine that cannot run it, which is worth stating
 plainly rather than in a footnote. It has since been run: 4,320 frames on a Windows Server 2025
 desktop, and the pixels its window put on that screen match a Linux-rendered frame exactly, pixel
 for pixel — [docs/windows-first-run.md](docs/windows-first-run.md) is the write-up, including the
-three things it did not cover. Two of those are worth knowing before you file a bug: nobody has
-played it with a keyboard yet, and `windows/arm64` has still never run at all.
+four things it did not cover. Two of those are worth knowing before you file a bug: nobody has
+played it with a keyboard yet, and `windows/arm64` has still never run at all. Some Windows code
+written since that run has not run on Windows yet either: the first window sized from the
+monitor, where that window is placed, a present that sends only what changed, and a console that
+waits after an error.
 
 ## Where it is up to
 
@@ -120,13 +124,18 @@ needs a CoreAudio sink behind the same seam the Windows one arrived through.
 
 ## Getting a build
 
-Every `v*` tag packages six archives and attaches them to a GitHub Release with a `SHA256SUMS`
-beside them. Unpack one and run it from anywhere: the 1994 art, the sounds, all 22 of the original
-houses and the ones this port has written since are compiled into the binary, so there is no asset
-directory to keep beside it and nothing to install.
-That is why it is 15 MB. `linux-amd64` and the two `windows` archives draw to a screen; the other
-three are marked `headless` and explain themselves in the archive. Every archive carries a
-`HOW-TO-RUN.txt`.
+Every `v*` tag packages six archives and attaches them to a
+[GitHub Release](https://github.com/bwenstar/gliderGo/releases) with a `SHA256SUMS` beside them.
+Unpack one and run it from anywhere: the 1994 art, the sounds, all 22 of the original houses and the
+ones this port has written since are compiled into the binary, so there is no asset directory to
+keep beside it and nothing to install. That is why it is 15 MB. `linux-amd64` and the two `windows`
+archives draw to a screen; the other three are marked `headless` and explain themselves in the
+archive. Every archive carries a `HOW-TO-RUN.txt`.
+
+Nothing is signed, so Windows and macOS warn the first time you open it, in words that read like a
+broken download. The release notes and `HOW-TO-RUN.txt` say what each warning is and the way past
+it. They also say what to do if Windows' antivirus removes `glidergo.exe`: check the zip
+against `SHA256SUMS` before restoring it.
 
 The oldest systems a release runs on:
 
@@ -277,10 +286,14 @@ says underneath whom it turned away and why.
 
 **Furthest wins, and "furthest" means rooms visited** — the same number the 1994 high-score table
 records, because a house is a graph and "how far" has no geometric answer. Finishing the house beats
-any number of rooms, ties break on score and then on frames simulated, and somebody who quits or
-whose machine dies has forfeited: the other one wins on the spot. There is no countdown and nothing
-that depends on the two clocks agreeing, which is why a peer that started late is simply a peer that
-has simulated fewer frames.
+any number of rooms, and ties break on score and then on frames simulated. Somebody who quits,
+closes the window or has the game killed has forfeited, and the other one wins on the spot. A
+machine that loses power, goes to sleep or drops off the network sends nothing to say so. The panel
+goes on showing where it last was, and nothing is decided until the operating system gives up on
+the connection, which can take many minutes. Escape on the screen that waits for the other run
+leaves at once, and unless one of you had quit, there is then no result. There is no countdown and
+nothing that depends on the two clocks agreeing, which is why a peer that started late is simply a
+peer that has simulated fewer frames.
 
 Both houses must hash identically or the match is refused. The screen tells a guest which house
 the host is racing, or that theirs is a different copy of it, and the terminal has both names and
@@ -291,9 +304,11 @@ of its switches changes how a glider flies. The race's screens say in small prin
 the other side has on. Both machines agree a random seed between themselves, so `-seed` is
 refused, as are `-two` and `-resume`, each with a sentence saying why. A small panel in the
 top-left corner shows where the other player is while you fly, and it goes away when your run ends
-so that the game-over and high-score screens are the original's. The race itself is not over until both runs are, however far ahead you finish. Then
-both machines show the same result, and a race started from `Race...` leaves it on the title
-screen's status line, where a game leaves its score.
+so that the game-over and high-score screens are the original's. The race itself is not over
+until both runs are, however far ahead you finish. Then both machines show the same result, as long
+as the connection held. A network that fails between two machines that are both still running can
+leave each one scoring the other as gone. A race started from `Race...` leaves its result on the
+title screen's status line, where a game leaves its score.
 
 **When the other machine cannot be reached**, the joining screen says what to check: the spelling,
 the address, or that the machine answered and nothing is hosting yet. No answer at all is either a
@@ -326,8 +341,20 @@ internet, there are three ways:
 
 ## Settings, scores and saves
 
-Settings are one JSON file in `~/.config/glidergo/prefs.json`, written when the settings screen
-closes rather than at quit. A hand-edited or truncated one is repaired and complained about, not
+The game keeps four things, and `glidergo -version` prints where each one is on your machine:
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| settings | `~/.config/glidergo/prefs.json` | `%AppData%\glidergo\prefs.json` | `~/Library/Application Support/glidergo/prefs.json` |
+| high scores | `~/.local/share/glidergo/scores/` | `%AppData%\glidergo\scores\` | `~/Library/Application Support/glidergo/scores/` |
+| saved games | `~/.local/share/glidergo/saves/` | `%AppData%\glidergo\saves\` | `~/Library/Application Support/glidergo/saves/` |
+| crash report | `~/.local/share/glidergo/crash.log` | `%AppData%\glidergo\crash.log` | `~/Library/Application Support/glidergo/crash.log` |
+
+On Linux, `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` move the first column's two roots, as the XDG
+spec says. `GLIDERGO_CONFIG=DIR` puts all four under one directory. `GLIDERGO_DATA=DIR` puts the
+scores, the saves and the crash report in `DIR` itself, with no subdirectories.
+
+Settings are one JSON file, written when the settings screen closes rather than at quit. A hand-edited or truncated one is repaired and complained about, not
 refused.
 
 The window opens at the largest whole magnification that fits the monitor, title bar and all:
@@ -341,13 +368,14 @@ mirror that draws the wrong player, a stray sparkle in the corner of a room, and
 `player2_give_up`. All four default to off, because off is what the original did and what the
 pixel corpus is recorded against.
 
-High scores are per house, ten to a board, and **sorted on rooms visited before points** — worth
-knowing before you optimise for the wrong number. Twenty of the 22 houses still carry their
-authors' own playtesting from 1995: `Ozma` is top of thirteen boards, and the best run in the box
-is 108 rooms and 47,000 points through ImagineHouse PRO II on 1995-07-03. New scores go beside
-them in `~/.local/share/glidergo/scores/<house>.scores`; the house files themselves are never written
-to, since rewriting 185 KB of 1994 binary to save 292 bytes is one power cut away from losing a
-house.
+High scores are per house, ten to a board, and **sorted on points alone**. The rooms visited are
+stored beside each score but do not move it: on Davis Station, Kimmer's 40 rooms sit below Johnner's
+38, on 17,500 points to 17,800. A race ranks the other way round, rooms before points (above).
+Twenty of the 22 houses still carry their authors' own playtesting from 1995–2000: `Ozma` is top of
+thirteen boards, and the best run in the box is 108 rooms and 47,000 points through ImagineHouse PRO
+II on 1995-07-03. New scores go beside them in `scores/<house>.scores`; the house files themselves
+are never written to, since rewriting 185 KB of 1994 binary to save 292 bytes is one power cut away
+from losing a house.
 
 Saved games work from the pause with `S`, and `O` or `-resume` picks one up: the room, the score,
 the gliders left, what you were carrying, and every switch you had thrown anywhere in the house.
@@ -359,15 +387,14 @@ the reader returns false on its first live statement, and the validation that su
 the wrong timestamp, so it would have rejected every file its own writer produced. The four
 decisions the reconstruction needed are numbered in `internal/house/savedgame.go`.
 
-If the game crashes, it leaves a report. Each start rewrites `crash.log` in the same data
-directory as the scores (`%AppData%\glidergo\` on Windows, `~/Library/Application Support/glidergo/`
-on macOS). It holds what `glidergo -version` prints, followed by whatever stopped the run. The
-start after a crash keeps that report as `crash-last.log`, and says so on the title screen. That
-file is the one to attach to a bug report. It holds what `-version` prints, including paths
-under your home directory, so read it before you send it. `-version` says where the file is.
+If the game crashes, it leaves a report. Each start rewrites `crash.log`, beside `scores/` and
+`saves/`, with what `glidergo -version` prints and then whatever stopped the run. The start after
+a crash keeps that report as `crash-last.log`, and says so on the title screen. That file is the
+one to attach to a bug report. Its `-version` block includes paths under your home directory, so
+read it before you send it.
 
-Each of these can be pointed elsewhere or turned off — `-prefs`, `-scores`, `-saves`, each taking
-a path or `none`. `-import-prefs` converts a 1994 226-byte `Glider Prefs` file.
+Settings, scores and saves can each be pointed elsewhere or turned off for one run — `-prefs`,
+`-scores`, `-saves`, each taking a path or `none`. `-import-prefs` converts a 1994 226-byte `Glider Prefs` file.
 
 ## How faithful is it?
 

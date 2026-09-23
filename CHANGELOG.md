@@ -12,10 +12,61 @@ Because Stage 1's whole goal was *"behave exactly the same as the original, only
 file records stages rather than features, each naming the commit that closed it. Where the port
 knowingly departs from 1994 the entry says so and points at the numbered item in
 `docs/IMPROVEMENTS.md` that owns the deviation. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely; it does not follow semantic
-versioning yet, because nothing has been versioned.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely. It does not follow semantic
+versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy, and the next tag
+gets its own section here (`RELEASING.md`, step 2).
 
 ## Unreleased
+
+### The docs say what the game does, and two things they described now work (2026-09-23)
+
+**Racing.** A run no longer freezes at its end when the other machine has gone silent. If that
+machine lost power, slept or dropped off the network, this side's last message could sit
+unsent, and the game stopped on the last frame before the waiting screen appeared, so Escape
+could not reach it. It stayed that way until the operating system gave up on the connection,
+which is about 15 minutes on Linux. The game now waits two seconds, says on stdout that the other
+machine stopped reading, and puts up the waiting screen, where Escape leaves. A silent machine
+still decides nothing on its own (IMPROVEMENTS 4.37). README said a player "whose machine dies has
+forfeited: the other one wins on the spot". That holds for quitting, closing the window or a
+killed game. It does not hold for a power cut, sleep or a pulled cable, where nothing is sent and
+nothing is decided until the operating system gives up. It also said both machines always show
+the same result, which holds only as long as the connection does. README now says all of that.
+
+**Settings.** With `$XDG_CONFIG_HOME` set to a relative path on Linux, a build from source kept
+its settings under whatever directory the game was started from, and a release build ran on the
+defaults with nowhere to save a change. A relative value is now ignored, as the XDG spec says and
+as the scores and saves directory already did (IMPROVEMENTS 2.75).
+
+**Getting a build.** README opens on the game and links the Releases page, and `-version`, `-help`
+and `glidertool version` print that address in a `releases` row. README now says nothing is signed
+and where the warnings are explained. The release notes and the Windows `HOW-TO-RUN.txt` now cover
+Defender Antivirus removing `glidergo.exe`: what that looks like, what a detection name ending in
+`!ml` means, and to check the zip against `SHA256SUMS` with `Get-FileHash` before restoring the
+file. They had said a code-signing certificate is the only thing that removes SmartScreen's
+warning, which is more than a certificate does (IMPROVEMENTS 5.12). Every archive's `README.md`
+linked a `SECURITY.md` the archive does not carry, so the security policy was a dead link inside
+every download. Those links point at the tagged source now, and a tag whose archive README has a
+relative link to a missing file fails to build. The Linux archive's glibc 2.34 floor is checked
+on the built binary at every tag (IMPROVEMENTS 5.4).
+
+**Where things are kept.** README's "Settings, scores and saves" opens with a table of the
+settings file, high scores, saved games and crash report on Linux, Windows and macOS, checked
+against what `-version` prints. The Linux `HOW-TO-RUN.txt` names the sound players the game
+looks for, and says what it does with none of them.
+
+**High scores.** README said the board is "sorted on rooms visited before points". It is sorted
+on points alone, as the original's was, and the rooms stored beside each score do not move it. A
+race ranks the other way round.
+
+**Houses you contribute.** CONTRIBUTING's "Whose house it is" says a house has to be your own work
+and gets a line in the credits. `go test ./internal/credits` fails for a house in `levels/` that
+has none. The two houses this port ships are now credited to it on the credits screen, which also
+says that the art, the sounds and the 22 houses are the original's. Whether a reworked 1994 house
+counts as a contributor's own work is still open, so CONTRIBUTING asks for an issue first
+(IMPROVEMENTS 4.43).
+
+**Releasing.** `RELEASING.md` is the checklist for a tag. It covers the steps before and after
+it, which of them need a machine that can reach GitHub, and a record per tag.
 
 ### A crash leaves a report behind, and a double-clicked console waits (2026-09-23)
 

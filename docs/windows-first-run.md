@@ -5,7 +5,7 @@ on an offline Linux machine with no Windows on it and no way to run one. Until 2
 release notes said so in as many words — *"the Windows code has never been run"* — because it was
 true, and a caveat is cheaper than a bug report from a stranger.
 
-It has now been run. This is what was run, what it proved, and the three things it did not prove.
+It has now been run. This is what was run, what it proved, and the four things it did not prove.
 It covers **windows/amd64 only**; `windows/arm64` is still unexecuted and the caveat stands there.
 
 The two results worth the page are at the top. Everything after them is the supporting detail.
@@ -347,6 +347,6 @@ whether *Run anyway* is behind *More info* as
 [`.github/workflows/release.yml`](../.github/workflows/release.yml)'s release notes tell a player it
 is. `Unblock-File .\glidergo.exe` removes the stream again, so the test can be repeated.
 
-Worth doing before the first tag is pushed, because those notes currently describe this from
+Worth doing before the next tag is pushed, because those notes currently describe this from
 documentation rather than from having watched it (`docs/IMPROVEMENTS.md` 4.13). It is also the only
 caveat in that file which does not need github.com to check.

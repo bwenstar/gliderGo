@@ -50,6 +50,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/bwenstar/gliderGo/internal/platform"
 )
@@ -261,9 +262,21 @@ func Default() *Prefs {
 // %AppData% on Windows -- which is the modern equivalent of the original's "a file in
 // the System Folder". GLIDERGO_CONFIG overrides it wholesale, for a portable install
 // on a memory stick and for anybody who does not want a game writing under ~/.config.
+//
+// A relative $XDG_CONFIG_HOME counts as unset, which is the XDG basedir spec's rule and the
+// one internal/datadir follows for $XDG_DATA_HOME. os.UserConfigDir is not the authority for
+// it, because it changed its mind: Go 1.23 returns the relative path as it is, so the file
+// lands under whatever directory the game was started from, and 1.26 and 1.27 return an error,
+// so the settings are never saved. The first is go.mod's floor and the second is what
+// releases are built with, and a player's settings should not move between them.
 func Dir() (string, error) {
 	if d := os.Getenv("GLIDERGO_CONFIG"); d != "" {
 		return d, nil
+	}
+	if d := os.Getenv("XDG_CONFIG_HOME"); runtime.GOOS == "linux" && d != "" && !filepath.IsAbs(d) {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, ".config", "glidergo"), nil
+		}
 	}
 	base, err := os.UserConfigDir()
 	if err != nil {

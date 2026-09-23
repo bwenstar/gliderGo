@@ -172,7 +172,9 @@ What a public repository is actually missing:
   commit that closed it, with an `Unreleased` heading because the file has not yet been split per
   tag (PLAN §4's release policy, "After the gate").
 - A project page. Deferred until there is a release to link to; 5.4 owns tagging, versioning
-  and artefacts. `VERSION` in the Makefile is `git describe --tags --always --dirty`, and a
+  and artefacts. **Done by 5.4's amendment:** there are releases now, and the GitHub Releases
+  page is the project page. README's opening links it, and so do `-version` and `-help`
+  (`project.Releases`). `VERSION` in the Makefile is `git describe --tags --always --dirty`, and a
   clone with no tags fetched resolves to a bare short hash, so a build from one is stamped that way.
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and issue and pull-request templates:
   none exist. Cheap and conventional, but all four are about *other people*, and they should be
@@ -2767,7 +2769,7 @@ A stored name like `"a"` comes to mean the A *position*. `legacy.go`'s Mac impor
 physical, and only lines up with the port after this change. Land it before 5.10 and Stage 6, so
 every backend shares one meaning.
 
-### 2.75 The startup facts that change behaviour are on stderr only — **note; the README half rides the next docs pass**
+### 2.75 The startup facts that change behaviour are on stderr only — **note; the docs half DONE in PLAN release gate step 5; the on-screen half waits for a launch with no console**
 
 Three facts change what a player gets, and they are said only on stderr:
 - no sound (with `audio.installHint`'s per-OS advice, already written at `sink.go:271-282`);
@@ -2788,6 +2790,23 @@ that with `-prefs none` it could say "this session only".
 **Now, docs only:** README "Settings, scores and saves" lists the Windows and macOS paths next to
 the Linux ones and says `glidergo -version` prints the resolved paths. The Linux `HOW-TO-RUN` says
 sound needs `pw-play`, `paplay` or `aplay`.
+
+**Done.** README's section opens with a table of four rows (settings, high scores, saved games and
+the crash report) and one column each for Linux, Windows and macOS. Every path in it was checked
+against what `-version` prints under `GLIDERGO_CONFIG`, `GLIDERGO_DATA` and neither. The notes
+under the table cover XDG and the two variables. The Linux `HOW-TO-RUN` names the three players
+and the two fallbacks, says that `-audio list` shows what was found, and says that with none of
+them the game says so once and plays silent. That is the message the sink prints.
+
+**Found doing it, and fixed: a relative `$XDG_CONFIG_HOME` put the settings somewhere different on
+every Go.** The basedir spec says a relative value is to be ignored. `internal/datadir` already did
+that for `$XDG_DATA_HOME`, but `prefs.Dir` took `os.UserConfigDir` as it came. Go 1.23, which a
+source build uses, returns the relative path, so the settings landed under whatever directory the
+game was started from. Go 1.26 and 1.27, which releases are built with, return an error, and the
+game ran on the defaults, with a note on stderr and nowhere to save a change. `prefs.Dir` now treats a relative value as unset on Linux,
+as `datadir` does, and `TestDirDefaultsUnderTheConfigDirectory` covers "", ".", a relative path and
+an absolute one. It fails with the check taken out, and passes under 1.23.12 and 1.27.1. README's
+note under the table was already right, and it is now true.
 
 ### 2.76 Every frame uploads the whole magnified window, and auto scale will make that 4× — **items 1 and 4 and the bench row DONE, the release gate's step 4; the cap stays until Windows is measured; items 2 and 3 open**
 
@@ -3072,12 +3091,16 @@ banner, in the original's own two dialogs.
 Two things a release still wants, both noted above rather than done: the footer is illegible
 (2.56) and the dates the board already stores are never shown (2.57).
 
-**The first paragraph's sort order is corrected in place. README and `world.go` are still to be
-corrected, before the next tag (PLAN's release gate, step 5).** README `:288`'s "sorted on rooms
-visited before points" becomes "sorted on points". README `:290`'s "from 1995" becomes "from
-1995–2000", because Art Museum and Davis Station carry 1996 rows and Sampler's and Slumberland's
-top rows are 2000-05-11. `internal/game/world.go:225-226` loses "Rooms visited, not points, is what
-the high-score board sorts on".
+**The first paragraph's sort order is corrected in place. README and `world.go` were corrected in
+PLAN's release gate, step 5.** README's "sorted on rooms visited before points" is now "sorted on
+points alone", with Davis Station as the example: Kimmer's 40 rooms sit below Johnner's 38, on
+17,500 points to 17,800. It also says a race ranks the other way round. "From 1995" is now
+"from 1995–2000", because Art Museum and Davis Station carry 1996 rows and Sampler's and
+Slumberland's top rows are 2000-05-11. `internal/game/world.go`'s comment on `Score` now says the
+board sorts on it alone (`internal/scores.Sort`), and that the rooms stored beside it are what a
+race ranks on. The other figures in that README paragraph were checked against the dumped boards
+and hold: 20 houses carry rows, `Ozma` tops 13, and ImagineHouse PRO II's 108 rooms and 47,000
+points (1995-07-03) is the best run on both measures.
 
 **The picker footer shows the shipped "Your Name 10800" (2000-05-11) row as though it were the
 player's best on the default house.** `footerBest` keeps "record:" as the top of the merged board
@@ -3093,20 +3116,21 @@ are rewritten around the new rule, and `sets_test.go:587-599` is checked. Record
 and "[Original]" on one line come to about 94 characters, about 564 px, against 488, which is why
 this lands with 3.7.
 
-### 3.2 Difficulty is brutal by modern convention — **decision needed, Stage 2 at the earliest**
+### 3.2 A game over is brutal by modern convention — **decision needed; neither option gates a tag**
 
-Glider PRO is a 1994 game: limited lives, no checkpoints, and death sends you a long way
-back. Modern players bounce off that. An optional practice mode — infinite lives, or
-per-room restarts — would widen the audience a lot. It cannot go in Stage 1, whose whole
-contract is exact fidelity, and it must default to off. Worth deciding at Stage 2 when
-the new houses are being designed, because the houses can be designed for either.
+Glider PRO is a 1994 game, and its one hard edge is the game over. A death costs a glider and
+nothing else. `OffAMortal` respawns the glider in the same room at `EnteredRect`
+(`mortal.go:98-110`, reproduced), so a per-room restart is already the 1994 death rule. The loss
+comes when the last glider goes, three deaths into a game with none collected, and a new game
+starts in the house's first room. In one player, S from the pause already keeps a checkpoint that
+is never consumed (`store.go:198-206`), at the cost of high-score eligibility through
+`ResumedSavedGame`. Anything added here defaults to off, because Stage 1's contract is exact
+fidelity. It is worth deciding while new houses are designed, because a house can be designed for
+either.
 
-**The premise above is wrong, and is corrected before anything is decided on it.** A death does not
-send the player back. `OffAMortal` respawns the glider in the same room at `EnteredRect`
-(`mortal.go:98-110`, reproduced), so "per-room restarts" are already the 1994 death rule. The loss
-is at game over, after three gliders, when a new game starts in the house's first room. And in one
-player, S from the pause already saves an unlimited checkpoint that is never consumed
-(`store.go:198-206`), at the cost of high-score eligibility through `ResumedSavedGame`.
+*Corrected in PLAN release gate step 5.* This item used to open by saying there were "no
+checkpoints, and death sends you a long way back", and it proposed per-room restarts. Both were
+wrong, for the reasons above, and the amendment that said so is folded into the paragraph.
 
 **What is left to decide, and the two options on file.** Both are opt-in and off by default. Both
 set **one shared ineligibility flag** that `TestHighScore` treats like `ResumedSavedGame`, which
@@ -3347,6 +3371,10 @@ last baseline above `setFootV`, and that test can land now, alone.
 ## 4. Tooling and content
 
 ### 4.1 A house linter — **DONE, 2.0; except 2.38's link-removes-star check, which is 2.38's amendment**
+
+*Status, as checked in PLAN release gate step 5:* 34 checks in `glidertool house checks`, and the
+22 originals lint to 637 notes, 48 warnings and 1 error, which are CONTRIBUTING's numbers. The one
+check the list below asks for and the linter still lacks is the link that removes a star (2.38).
 
 `glidertool house check` already round-trips and sanity-checks a house. Stage 2 authors new
 houses, and the failure modes it should catch first are the ones the shipped houses
@@ -4311,8 +4339,9 @@ cost is the part worth remembering:
   at an empty releases page, in a repository whose 4.13 is a list of documented instructions that
   did not work, would have been the same defect wearing a nicer hat.*
 
-  *(Superseded: two tags are out, the page has archives on it, and 5.4's amendment brings the
-  constant back.)*
+  *(Superseded: two tags are out, and the page has archives on it. The constant is back, read by
+  `-version` and `-help` (5.4). The About box and the title screen still do not read it, because
+  they are faithful to the original.)*
 
   *What the deletion cost had to be weighed, because the obvious objection is that 5.4 will want the
   string back within one command of tagging. It is one line, and the reason it is safe to lose is
@@ -4400,7 +4429,10 @@ cost is the part worth remembering:
   *Not signing is stated as a decision rather than left to look like an oversight. A certificate
   costs a few hundred dollars a year and has to be issued to a named person or company, which is the
   same argument `internal/project`'s `Copyright` makes about "the gliderGo authors": that is a thing
-  to do deliberately. Each of the three sections ends on the distinction that matters, which is that
+  to do deliberately. (5.12, step 5, adds the rest of the price. SmartScreen reputation belongs to a
+  signer or else to one file, so unsigned, every tag's binaries start with none, and a Defender
+  false positive cleared for one tag can need clearing again at the next. The notes and
+  `release.yml`'s header say so now.) Each of the three sections ends on the distinction that matters, which is that
   none of these checks looks at what is in the archive — `SHA256SUMS` does, and it is already
   published.*
 
@@ -6497,7 +6529,7 @@ file with no cap. The game only reads the demo built into it (`replay.Engine`), 
 demo` reads the file it is given. So the cap matters only once a demo can arrive from somebody
 else, and nothing plans that. Whatever first does should add the cap.
 
-### 4.37 The race sends a standing every frame and nothing when the other side goes quiet — **planned, after the next tag (the README correction goes before it)**
+### 4.37 The race sends a standing every frame and nothing when the other side goes quiet — **planned, after the next tag; the README correction and a freeze it turned up DONE in PLAN release gate step 5**
 
 `Report` compares whole standings, `Frame` included, so the "on change" test fires every frame:
 about 30 messages a second and ~1 KB/s. `netplay.go:9`, `standing.go:179` ("a few hundred bytes a
@@ -6518,7 +6550,37 @@ A `Report` test runs with a rising `Frame` and an injectable heartbeat interval.
 frame during a wipe).
 
 A heartbeat is what would make a read deadline possible at all (`conn.go:32-35`). That is why
-README `:264-265`'s "wins on the spot" is corrected now and the deadline is a later decision.
+README's "wins on the spot" is corrected now and the deadline is a later decision.
+
+**The README correction is done (PLAN release gate, step 5).** Quit, a closed window or a killed
+game is a forfeit on the spot. A machine that loses power, sleeps or drops off the network sends
+nothing, so the panel keeps its last position and nothing is decided until the OS gives up on the
+connection, which can take many minutes. Escape on the waiting screen leaves at once.
+
+**Found in the same pass, and fixed: the end of a run froze when the other machine had gone
+silent.** `Race.Close` waited for the writer, and the writer could be stuck in a socket `Write`
+that the peer had stopped reading. The game then froze on the last frame of the run, before the
+waiting screen was up, so Escape could not reach it. It stayed frozen until the OS gave up on the
+connection, which is about 15 minutes on Linux (`tcp_retries2` = 15). A dead peer sends no ACKs,
+so a LAN socket's send buffer, tens of KB at ~1 KB/s of standings, fills about a minute after the
+peer dies. Any run that ends later than that would freeze.
+- Now `Close` waits at most `closeWait` (2 s) and returns `netplay.ErrStalled`. The writer is left
+  to send the last standing and the goodbye if the socket ever frees.
+- `finishRace` prints the stall, and the waiting screen and its Escape are then what end the race.
+- A stall is not a result, and nothing is marked, for this entry's own reason.
+- `TestCloseDoesNotWaitForAPeerThatStoppedReading` covers it, and it times out against the old
+  `Close`.
+- It was not reproduced end to end. On loopback the kernel gives the host's socket a 2.6 MB send
+  buffer, which ~1 KB/s would take about 40 minutes to fill. Shrinking it, or dropping packets,
+  needs root or a user namespace, and the development machine has neither.
+
+**Also found, and only documented: a network split can give two different results.** When the
+network fails between two machines that are both still running, each side's reader eventually
+gets an error from the OS, and each then scores the other as gone, so each side wins its own
+race. That is the result this entry's display-only rule exists to avoid, reached by the OS
+timeout instead of a deadline. README now says both machines agree "as long as the connection
+held". A heartbeat would let the waiting screen show it happening. Making the two sides agree
+would need something to decide, and there is no referee.
 
 **A separate finding filed here:** when this side quits (Quit, a forfeit), `finishRace` still waits
 on `Settled`. The repro host printed "player 2 wins: by forfeit" and then "the other player never
@@ -6662,7 +6724,7 @@ file is optional, because nothing installs it and `Exec` needs an absolute path.
 client lands (5.10), the X11 half goes into it. The macOS `.icns` comes from the same decoder in
 Stage 6.
 
-### 4.43 Houses that are not the project's: the rules for contributing one, and an importer for the 1990s ones — **the rules before the next tag; the importer later**
+### 4.43 Houses that are not the project's: the rules for contributing one, and an importer for the 1990s ones — **the rules DONE (PLAN release gate step 5), and one question left to the owner; the importer later**
 
 **The rules, in CONTRIBUTING's Houses and Licence sections (now).**
 - The project never bundles third-party houses.
@@ -6671,6 +6733,30 @@ Stage 6.
 - `credits.txt`'s "None of that work is ours" is corrected, because two houses now are.
 
 A public repository invites exactly the contribution that would undo 1.2.
+
+**Done.**
+- CONTRIBUTING's Houses section ends with "Whose house it is", which gives the three rules. A
+  third-party house is played with `-house PATH` or `-levels DIR`, and is never bundled. The
+  Licence section says a house is covered by the same grant as the code.
+- `credits.txt`'s `[this port]` gains the row `gliderGo | Open House, Boarding House`. The note now
+  says the 22 houses above are not the port's work and the two on that row are. The credits screen
+  was looked at after the change: the section still fits, with nothing cut. Its fidelity hash was
+  re-recorded (`credits 963bfb897ba02c1c`), and the other six screens did not move.
+- `credits_test.go` used to skip the port's names from a list ("gliderGo", "Brendan Ta", and a
+  "Nobody but the people above" that is no longer in the file). It now skips the `[this port]`
+  section whole. So a contributor's row needs no edit to the test, and a port name written into a
+  1994 section is caught, which the list let through. A new test,
+  `TestEveryHouseThisPortShipsIsCredited`, fails for any house in `levels/` that has no row under
+  `[this port]`. That is what holds a patch to the second rule. Two mutations were run: dropping
+  Boarding House from the row fails the new test, and moving a port name into `[the houses]` fails
+  the old one.
+
+**Open, and the owner's call: is a reworked house the contributor's own?** The Houses section's
+first command is `house dump` of Slumberland, because that is how the format is learnt. The rules
+do not say whether a house built by editing a dump of one of the 22 counts as its author's own
+work, and it is not this file's to decide. The licence reading in 1.2 bears on it, and so does
+how much of the original is left. Until it is decided, CONTRIBUTING asks the contributor to open
+an issue first. It gates nothing: no such contribution exists.
 
 **`glidertool house import` (after Stage 3, before the Stage 5 editor, which reuses it).**
 - It decodes BinHex 4.0, MacBinary and AppleDouble.
@@ -6787,13 +6873,18 @@ so this entry is partly answered and partly not. From this host it is **unknown*
 tag needed a correction.
 
 1. The action versions ran. `actions/cache@v4` is listed and nothing uses it, so it comes off the
-   list.
+   list. Both workflows now pin `actions/checkout@v5`, `actions/setup-go@v6` and
+   `actions/upload-artifact@v5`, and `release.yml` adds `actions/download-artifact@v5`. The first
+   paragraph's "never run" now holds for the bootstrap script only: `ci.yml` has run on every
+   push since.
 2. **Still open.** No workflow runs `scripts/bootstrap-dev-env.sh`, because CI gets Go from
    `setup-go`. The go.dev index parse, and the whole `--source public` path in this entry's first
    paragraph, have still never run. Closing them needs someone on a connected host to run
    `scripts/bootstrap-dev-env.sh --source public` (or `--dry-run`).
 3. Answered by the Actions log, in the `check` job's "On-screen bench under Xvfb" step and in
-   `release.yml`'s `verify` job. The line is pasted here when someone reads it.
+   `release.yml`'s `verify` job. The line is pasted here when someone reads it. The screen in
+   both is now `2600x1980x24` rather than `640x480x24`, so that a 4× window fits (2.76). The
+   depth argument still matters for the reason given above.
 
 ### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **found, planned, and DONE, 2.4 — all four consequences, and the fix turned out to have a fifth property nobody asked for**
 
@@ -6976,7 +7067,7 @@ only way to reach it). `make assets` still re-derives the tree from `GliderPRO/`
 the archive after it. And the Makefile grew an `embedded` guard: every build target refuses to
 build without `assets/extracted.zip` rather than producing an executable that comes up empty.
 
-### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0` and `v0.1.1` are published**
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0` and `v0.1.1` are published; the amendment DONE in PLAN step 5, but for what needs a connected machine**
 
 `.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
 list as future work: `make cross` plus the host's cgo build, six archives of two binaries each
@@ -7068,7 +7159,7 @@ Its commands are fenced as non-bash, so `docs-check` leaves them alone. That too
 documents, and a dozen skip rules would defeat it.
 
 **The Linux archive's glibc floor, stated and asserted.**
-- `release.yml:185` (the build job; `:112` and `:591` do not affect the shipped binary) is pinned
+- `release.yml:217` (the build job; `:121` and `:688` do not affect the shipped binary) is pinned
   to `ubuntu-24.04`. That keeps today's measured floor of GLIBC_2.34. 22.04 and bookworm give the
   same 2.34, so neither lowers it, and `-tags netgo,osusergo` removes only `res_search`.
 - After `make cross`, a step takes the highest `GLIBC_x.y` from
@@ -7085,6 +7176,31 @@ documents, and a dozen skip rules would defeat it.
 gate. That includes the first run of step 4's win32 code: auto, the centred placement, the
 changed-rows present read back at 2×, and the three bench rows that decide 2.76's cap.
 `docs/windows-first-run.md`'s "What has changed since" has the steps.
+
+**Done, in PLAN release gate step 5, except what needs a connected machine.**
+- `project.Releases` is back. `-version` has a `releases` row between `home` and `bugs`, in both
+  binaries. `-help` ends with the same three lines.
+- `config.yml`'s first contact link is "Download a release".
+- README's opening says Linux and Windows, links the Releases page, and keeps `make run` as the
+  second way in.
+- `RELEASING.md` is written. It has seven steps before the tag and five after, a "Still open"
+  list, and a "Record" table. The table says what is not recorded here for `v0.1.0` and `v0.1.1`
+  rather than guessing. CONTRIBUTING links it under "Releases".
+- The build job is pinned to `ubuntu-24.04`. The step after `make cross` fails the tag above
+  glibc 2.34. It was rehearsed against this host's own build: a floor of 2.34 passes, and one of
+  2.32 fails with the `::error::` line.
+- The rewrite this amendment names is done. `release.yml`'s header says both tags were built by
+  it, that whether either needed a correction is not recorded here, and how to rehearse the next
+  one.
+
+**Found doing it: SECURITY.md was a dead link in every archive.** The packaging step rewrites
+README's `docs/` links to the tagged tree, because an archive carries no `docs/`. README also
+links `SECURITY.md` and `CONTRIBUTING.md`, which no archive carries either, and nothing rewrote
+those. So the security policy was a 404 from inside every download. The `sed` now rewrites links
+to `SECURITY.md`, `CONTRIBUTING.md` and `RELEASING.md` the same way. After it, a loop fails the
+build if any relative link left in the archive's README names a file the archive lacks. That
+turns the class into a check rather than fixing one instance. It was run against a staged
+archive here, and it fails if the new `sed` expression is removed.
 
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; windows/amd64 is now run as well as compiled, macOS and windows/arm64 are still compile-only**
 
@@ -7528,7 +7644,7 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
   checksums. Neither is compiled into gliderGo, and CI's install checks against the real checksum
   database. A local result is a second opinion, and CI's is the one that gates.
 
-### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the connected-machine check before the next tag, the resource experiments after 4.42**
+### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the whole price DONE (PLAN release gate step 5); the connected-machine check before the next tag, the resource experiments after 4.42**
 
 4.13 and 5.4 prepare a player for SmartScreen, Mark of the Web and Gatekeeper. All three are
 warnings with a way past them. Microsoft Defender Antivirus is a different component, and it does a
@@ -7607,7 +7723,8 @@ What to do:
    expected result is the SmartScreen dialog and nothing from Defender.
 2. **If Microsoft flags either file,** submit it at
    `https://www.microsoft.com/en-us/wdsi/filesubmission` as a software developer, marked incorrectly
-   detected. Give the release URL, the tag and the `SHA256SUMS` line. Record the submission ID, and
+   detected. Give the release URL, the tag, the zip's `SHA256SUMS` line and the flagged file's own
+   SHA-256: `SHA256SUMS` lists the archives, not the `.exe`s inside them. Record the submission ID, and
    the date the verdict cleared, in `RELEASING.md`. A clearance applies to one file, and every tag
    produces new files, so this is a step for every tag, not a one-time fix.
 3. **One paragraph in the release notes and the zip's `HOW-TO-RUN.txt`,** under "Your computer will
@@ -7620,6 +7737,17 @@ What to do:
    - and that a report should be an issue quoting the detection name.
 
    `release.yml:658` also gets reworded so it no longer reads as covering antivirus.
+
+   **Done, in PLAN release gate step 5.** The notes' "None of the three looks at what is *in* the
+   archive" is now "Those three are about who signed the file", followed by "Antivirus is
+   different" and a "Windows, if `glidergo.exe` disappears" paragraph. The Windows `HOW-TO-RUN.txt`
+   gains "IF GLIDERGO.EXE HAS DISAPPEARED", with `Get-FileHash` on the zip by its real name. The
+   check is on the zip because `SHA256SUMS` has no line for the `.exe`. The same fact was wrong in
+   step 2 above and in `RELEASING.md`'s step 7, and both are corrected. "Verifying the download"
+   gains `Get-FileHash` for Windows. The detection name 5.12 quotes is left out of both, so that
+   neither reads as if this build were flagged. The Restore click path is Microsoft's documented UI,
+   and nobody here has seen it; the notes' existing "documented behaviour rather than something this
+   project has watched happen" covers it.
 4. **Later, and only by measurement.** Nobody has tested whether 4.42's VERSIONINFO and icon,
    `-H windowsgui` (4.35's separate note) or a smaller embedded archive changes the verdict. Until
    someone does, these are folklore. Once step 1 has run there is a baseline, and each change can be
@@ -7628,9 +7756,14 @@ What to do:
 5. **Price the unsigned decision fully.** Add one sentence to the decision in 4.13 and
    `release.yml:47-61`. Signing is also what lets reputation carry from one release to the next.
    Unsigned, every tag's binaries start at none, and step 2 may be needed each time. The decision
-   can stand, but the price stated for it should be the whole price.
+   can stand, but the price stated for it should be the whole price. **Done with step 3.** The
+   notes no longer say a certificate is "the only thing that removes" SmartScreen's dialog, which
+   was more than a certificate does. A signed file with no reputation gets the dialog too. They now
+   say that an unsigned file's reputation is its own, so every release starts again from none, and
+   that a certificate is what lets it carry from one release to the next. `release.yml`'s header and
+   4.13 add the Defender half.
 
-### 5.13 A Glider PRO port with a public page and not a word about Aerofoil — **note; the README paragraph with the gate's docs pass, the refusal with 4.43, the facts about Aerofoil off-host**
+### 5.13 A Glider PRO port with a public page and not a word about Aerofoil — **note; the README paragraph waits for a connected host (not done in the gate's docs pass, on purpose), the refusal with 4.43's importer**
 
 At 12bd322, `grep -rniE 'aerofoil|lasota'` over the whole tree returned nothing: not the README, not
 PLAN, not this file, not a code comment. Aerofoil is Eric Lasota's port of the same GPLv2 source release, and
@@ -7709,6 +7842,13 @@ route (a), which changes nothing about (c). Either way, 1.2 gets one sentence ci
 **What is owed.** No Aerofoil code or data is in this tree, so there is no licence obligation and no
 `credits.txt` line. The courtesy is the README paragraph itself. If 4.43 ever reads Aerofoil's
 layout, the importer credits the format. The announcement does not go in Aerofoil's issue tracker.
+
+**Not done in PLAN release gate step 5, on purpose.** Each bracket in the draft is a fact about
+Aerofoil, and none can be checked from this host. A paragraph with the brackets cut is left
+saying only "there is another port", which is not worth a link to a project nobody here has read,
+and printing the brackets unconfirmed is what the paragraph's own rule forbids. So it is a step
+in `RELEASING.md`'s "Still open" list, for the first connected machine. The `.gpd` refusal is
+code, and it goes with 4.43's importer, not with a docs pass.
 
 **The announcement is a step in the gate.** PLAN §4's release gate ends its order of work with a
 seventh step, "Announced, last", after step 6's check by a person and after 5.1's connected-host

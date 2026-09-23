@@ -958,7 +958,10 @@ func (res raceResult) band() string {
 // makes a race with no referee agree with itself.
 func (a *app) finishRace(w *game.World, r *netplay.Race, mine netplay.Standing, closed bool) raceResult {
 	r.Report(mine)
-	r.Close()
+	// Close gives up on a writer the other machine has stopped reading from (netplay.ErrStalled)
+	// rather than freezing the game before the waiting screen is up. The stall decides nothing,
+	// so it is only said: the wait below and its Esc are still what end the race.
+	stalled := r.Close()
 
 	// A player, or a measurement -- plus the third case neither flag covers, a window that has
 	// already gone. There is nothing to draw a result on and nobody to press a key, so a closed
@@ -980,6 +983,9 @@ func (a *app) finishRace(w *game.World, r *netplay.Race, mine netplay.Standing, 
 			res.out, standingWords(res.mine), standingWords(res.theirs))
 		if res.err != nil {
 			fmt.Printf("glidergo: race: the connection failed: %v\n", res.err)
+		}
+		if stalled != nil {
+			fmt.Printf("glidergo: race: %v\n", stalled)
 		}
 		if !res.settled {
 			fmt.Println("glidergo: race: the other player never finished, so there is no result")
