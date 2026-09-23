@@ -41,5 +41,6 @@ T.S. Eliot | the line across that plate, from "Prufrock" (1915)
 
 [this port]
 gliderGo | a Go port of the GPL v2 source, 2026
+Brendan Ta | ported it
 It ships all of the art, the sounds and the houses above, decoded from the released
 source by `make assets` and committed beside it. None of that work is ours.

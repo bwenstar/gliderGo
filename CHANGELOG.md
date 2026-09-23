@@ -17,6 +17,44 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The title screen says GliderGo, and names who ported it (2026-09-23)
+
+The splash is PICT 1000, Calhoun's own title art, and its logo said "Glider PRO". The shell now
+paints PRO out and writes "Go" where it stood, so the logo reads GliderGo. It also adds "ported by
+brendan ta" on the line under "by john calhoun". Both are drawn in the plate's own hand. The G is
+Calhoun's G and the o is the bowl of his d turned round, both reduced to 0.6. The credit's b, y, o,
+n and a are the letters of his credit line, pixel for pixel, and the five his line has no use for
+(p, r, t, e, d) are drawn to match. All of it is in PRO's lighter brown, so the dark ink is still
+his and the light ink is what was added (`docs/IMPROVEMENTS.md` 1.5).
+
+The stamp (`internal/shell/title.go`) paints the screen after the plate is copied. The PICT in
+`assets/extracted/` is not touched, and `make assets-check` still proves it is the 1994 bytes. The
+stamp is at fixed coordinates, so it first checks that the pixels under it are the shipped PICT's,
+by FNV-1a over the area it writes, and it leaves any other splash as it is. Eight tests hold it:
+
+- Every pixel outside PRO's box is the PICT's, or ink laid on its sky. So Calhoun's "Glider", his
+  credit and the plane are his to the pixel, and nothing of PRO is left inside the box.
+- The ink is PRO's: every pixel PRO had is one of the three shades the stamp draws in.
+- The mark has three pixels of sky between it and both the r and the plane.
+- Each letter the credit shares with his is found in his line.
+- The grids are well formed, and they sit inside the checked area and clear of the menu's halo.
+- A one-pixel change to the splash turns the stamp off.
+- `Draw` shows the stamp.
+- The name after "ported by" is a row under `credits.txt`'s `[this port]`.
+
+Each test was seen to fail against a change that breaks what it guards.
+
+`internal/credits/credits.txt` names Brendan Ta under `[this port]`, which is what the last test
+holds. A credit painted into picture data is one nothing can read at runtime, which is the file's
+own opening complaint.
+
+Six fidelity screen hashes move: splash, houses, settings, race, about and credits. Those are the
+six screens drawn over the splash, and the credits screen has the new row as well. The scores
+screen brings its own backdrop, so its hash does not move. `docs/screenshots/title.png` is taken
+again. The README's copy predated the Race... row and the 24th house as well.
+`docs/screenshots/house-picker.png` is taken again too: the splash shows above the picker's panel,
+and the new one differs from the old in 185 pixels, all of them the top of PRO.
+
 ### The demo's floor is the whole stream, and the documents stop quoting the run it left behind (2026-09-23)
 
 `TestTheDemoReplaysTheSameWayTwice` guards the records the shipped attract recording consumes, from

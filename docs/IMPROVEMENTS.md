@@ -144,7 +144,8 @@ repository and play without owning Glider PRO (see 5.6). But it means this decis
 - **(c) Contact John Calhoun for an explicit asset grant — still open, and now the only
   outstanding part of this item.** It is the one route to content that is unambiguously
   licensed rather than merely no worse than upstream. Route (a) does not depend on it, and it
-  would retire this item outright.
+  would retire this item outright. A request should also name the title screen's mark, which 1.5
+  made from his logo.
 
 One consequence stands whatever happens with (c), because it changes the priority of a later
 stage: **Stage 2's new houses are the only content gliderGo can ship without asking anyone.**
@@ -288,6 +289,41 @@ for this line. It is a courtesy.
 - Nothing went into `credits.txt`. The licence does not ask for it.
 - No Go test reads release.yml or the staged file list, and none was added. The pre-seal
   assertion is the check, and it runs only on a runner.
+
+### 1.5 The title screen said "Glider PRO" — **DONE, 2026-09-23, at the owner's request; one question added to 1.2's route (c)**
+
+The first screen gliderGo showed was PICT 1000, Calhoun's title art, and its logo reads "Glider
+PRO / by john calhoun". The README, the About box and the credits all say this is a port of Glider
+PRO. The one screen every player sees said it was Glider PRO. Nobody here has checked who holds
+that name now, and it doesn't matter: a port's first screen should not claim to be the original.
+The screen also named nobody who made the port.
+
+**Done.** `internal/shell/title.go` stamps the screen after the plate is copied:
+
+- PRO is painted out.
+- "Go" is written where PRO stood, 64x40, made from Calhoun's own G and the bowl of his d.
+- "ported by brendan ta" is written under his credit, in his credit's letters.
+
+All of it is in PRO's lighter brown. The CHANGELOG entry has the detail and the eight tests. The
+PICT itself is unchanged. `drawBackdrop` is the only caller, and it stamps only when the pixels
+under the stamp are the shipped PICT's. `credits.txt` names Brendan Ta under `[this port]` as well,
+and `TestTheTitlesCreditIsInTheCredits` keeps the painted name and the written one the same.
+
+**Left open.**
+- **The mark is new art made from Calhoun's.** Route (a) in 1.2 rests on shipping the same bytes
+  upstream distributes. The PICT is still those bytes. But `titleMark` is his G and d reduced and
+  rearranged, and the credit reuses five of his letters. So the source now holds a small
+  derivative of his logo that upstream does not distribute. That is the kind of question route (c)
+  exists to settle, and an asset grant should name it. If the answer is no, the fallback is to set
+  "Go" and the credit in the port's own 5x7 font, the one `drawOwnTitle` uses, and change nothing
+  else.
+- The no-art fallback, `drawOwnTitle`, still says "Glider PRO, ported" under "gliderGo" and
+  names nobody. It is what a missing or mistyped `-art` looks like, so it is seldom seen. That is
+  why it was left alone.
+- The README's copyright line still reads "the gliderGo authors". It is a statement about who
+  holds the copyright, so this change does not touch it.
+- `project.Original` is still "Glider PRO", and should be: it names the game this is a port of,
+  and the About box and `-version` say "port of Glider PRO".
 
 ---
 

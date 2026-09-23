@@ -252,8 +252,8 @@ func (s *Shell) plate(id int16) *render.Surface {
 	return s.host.Assets.UI(id)
 }
 
-// drawBackdrop paints the splash illustration, or the port's own title screen when
-// there is no artwork to paint.
+// drawBackdrop paints the splash illustration, with this port's name stamped over the
+// 1994 one (title.go), or the port's own title screen when there is no artwork to paint.
 func (s *Shell) drawBackdrop(scr *render.Surface) {
 	art := s.plate(1000)
 	if art == nil {
@@ -268,6 +268,7 @@ func (s *Shell) drawBackdrop(scr *render.Surface) {
 			src.Bottom = splashTall
 		}
 		scr.Copy(art, src, src, render.SrcCopy)
+		stampTitle(scr, art)
 	}
 	s.drawHouseLabel(scr)
 }

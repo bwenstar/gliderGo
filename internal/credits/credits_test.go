@@ -53,13 +53,15 @@ func repoRoot(t *testing.T) string {
 func TestEverybodyNamedIsNamedInTheREADME(t *testing.T) {
 	doc := readme(t)
 	for _, who := range People() {
-		// The port's own two rows are not credits to a person and are not in the README.
+		// The port's own rows are not in the README, which is upstream's and older than
+		// the port: "gliderGo" is not a person, and Brendan Ta, who ported it, is named at
+		// the owner's request, as the title screen names them (docs/IMPROVEMENTS.md 1.5).
 		// Eliot is a person and is deliberately not checked here: upstream's README says
 		// PICT 153 "features a portion of this Little Nemo comic" and says nothing about the
 		// line of verse set across the same plate, so the README is simply not the authority
 		// for that row. TestEliotIsCreditedFromThePlateItself is.
 		switch who {
-		case "gliderGo", "Nobody but the people above", "T.S. Eliot":
+		case "gliderGo", "Brendan Ta", "Nobody but the people above", "T.S. Eliot":
 			continue
 		}
 		// The README writes the publisher with an HTML entity for the ampersand, which is
