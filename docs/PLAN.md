@@ -1557,8 +1557,11 @@ means the tag is better with it and does not wait.
      hand. Commit-reveal was left out, and the seed claim it answers is reworded instead (4.38).
      4.28's second half needs no wire change: a guest can read the host's hello before sending its
      own.
-   - **Should.** The host keeps listening after a connection that is not a race, and both
-     handshakes get a deadline (4.32).
+   - **Should, DONE.** The host keeps listening after a connection that is not a race, and says
+     whom it turned away and why. Both handshakes have a deadline (5 s per connection on the host,
+     15 s on the guest), cleared once the match is agreed. Another program is named as one,
+     quoting what it opened with, and a refusal the other machine caused has no bug-report footer
+     (4.32).
    - **Gate.** A failed join says why, on the plate, in words that fit. The Windows firewall is
      named where a host meets it (4.33), and the refusal leads with the host's house (4.28's
      amendment).

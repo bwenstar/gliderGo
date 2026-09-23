@@ -3,6 +3,7 @@ package netplay
 import (
 	"errors"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -84,6 +85,7 @@ func loopback(t *testing.T) (host, guest net.Conn) {
 		t.Fatalf("Join(%s): %v", l.Addr(), err)
 	}
 	a := <-done
+	l.Close() // one guest is all any of these want
 	if a.err != nil {
 		guest.Close()
 		t.Fatalf("Accept: %v", a.err)
@@ -152,37 +154,45 @@ func TestAWholeRaceOverARealSocket(t *testing.T) {
 	}
 }
 
-func TestASecondGuestFindsThePortShut(t *testing.T) {
-	// A race is two players. The alternative to closing the listener is a third machine
-	// connecting into a match already under way and being ignored, which looks -- from that
-	// machine -- exactly like the host not being there, except that it waits forever first.
+func TestAListenerStaysOpenUntilItIsClosed(t *testing.T) {
+	// The first connection is not always the guest (docs/IMPROVEMENTS.md 4.32). It can be a
+	// guest with another house, or a browser somebody pointed at the port. So Accept leaves the
+	// port open, and the host shuts it once a match is agreed. cmd/glidergo's loopback tests
+	// check that the host does. This checks that Accept is not what shuts it.
 	l, err := Listen("127.0.0.1", "0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
+	defer l.Close()
 	addr := l.Addr()
-	accepted := make(chan error, 1)
+	accepted := make(chan error, 2)
 	go func() {
-		c, err := l.Accept()
-		if c != nil {
-			defer c.Close()
+		for range 2 {
+			c, err := l.Accept()
+			if c != nil {
+				defer c.Close()
+			}
+			accepted <- err
 		}
-		accepted <- err
 	}()
 
-	first, err := Join(addr, "", 10*time.Second)
-	if err != nil {
-		l.Close()
-		t.Fatalf("the first guest could not join: %v", err)
-	}
-	defer first.Close()
-	if err := <-accepted; err != nil {
-		t.Fatalf("Accept: %v", err)
+	for _, who := range []string{"first", "second"} {
+		g, err := Join(addr, "", 10*time.Second)
+		if err != nil {
+			t.Fatalf("the %s connection could not join: %v", who, err)
+		}
+		defer g.Close()
+		if err := <-accepted; err != nil {
+			t.Fatalf("Accept, for the %s connection: %v", who, err)
+		}
 	}
 
-	// The listener is shut now, by Accept. On Linux a connect to a closed port is refused
-	// outright; the assertion is only that it does not succeed, because how the refusal arrives
-	// is the operating system's business and differs between them.
+	// A race is two players. The alternative to closing the listener is a third machine
+	// connecting into a match already under way and being ignored, which looks -- from that
+	// machine -- exactly like the host not being there, except that it waits forever first. On
+	// Linux a connect to a closed port is refused outright. The assertion is only that it does
+	// not succeed, because how the refusal arrives is the operating system's business.
+	l.Close()
 	second, err := Join(addr, "", 2*time.Second)
 	if err == nil {
 		second.Close()
@@ -239,7 +249,8 @@ func TestCloseIsHowAWaitingHostGivesUp(t *testing.T) {
 		t.Fatal("Close did not release the waiting Accept")
 	}
 
-	// And a second Close is not an error, which matters because Accept already called it.
+	// And a second Close does no harm. That matters because a host closes its listener on
+	// every way out of the wait, and Escape may already have closed it.
 	if err := l.Close(); err == nil {
 		t.Log("a second Close was accepted")
 	}
@@ -300,5 +311,111 @@ func TestJoinGivesUpWhenAskedTo(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("Join waited %v on a 250ms timeout", elapsed)
+	}
+}
+
+// Something that accepts and never speaks is given up on, in words, within MeetWithin's wait:
+// docs/IMPROVEMENTS.md 4.32's guest parked on JOINING, measured against a web server. A web server
+// is the silent end here as well, because it answers a request and a hello is not one.
+func TestMeetWithinGivesUpOnAPeerThatNeverSpeaks(t *testing.T) {
+	host, _ := loopback(t)
+	const wait = 200 * time.Millisecond
+	start := time.Now()
+	_, err := MeetWithin(NewConn(host), hello(7, houseHashA), wait)
+	if took := time.Since(start); took > wait+5*time.Second {
+		t.Errorf("MeetWithin(%v) took %v", wait, took)
+	}
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("err = %v, want a deadline", err)
+	}
+	if !strings.Contains(err.Error(), "said nothing for 200ms") {
+		t.Errorf("err = %q; a peer that never spoke should be told apart from one that stopped", err)
+	}
+}
+
+// One that says hello and then stops is a different failure, and it is told apart from one that
+// never spoke. Here the silent end is player 1, which owes the other a MatchStart and never
+// sends it.
+func TestMeetWithinSaysWhenThePeerStoppedPartway(t *testing.T) {
+	host, guest := loopback(t)
+	peer := NewConn(guest)
+	if err := peer.Send(EncodeHello(hello(1, houseHashA))); err != nil {
+		t.Fatal(err)
+	}
+	_, err := MeetWithin(NewConn(host), hello(9, houseHashA), 200*time.Millisecond)
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("err = %v, want a deadline", err)
+	}
+	if !strings.Contains(err.Error(), "partway") {
+		t.Errorf("err = %q; the peer said hello, so it did not say nothing", err)
+	}
+}
+
+// The deadline is the handshake's and not the race's. A race lasts minutes, and one that dropped
+// its connection five seconds after it started, because the handshake's deadline was still set,
+// would be a forfeit nobody could explain.
+func TestMeetWithinLeavesNoDeadlineOnTheRace(t *testing.T) {
+	host, guest := loopback(t)
+	const wait = 100 * time.Millisecond
+	type side struct {
+		c   *Conn
+		m   Match
+		err error
+	}
+	done := make(chan side, 2)
+	for _, s := range []struct {
+		trans net.Conn
+		nonce uint64
+	}{{host, 7}, {guest, 9}} {
+		go func() {
+			c := NewConn(s.trans)
+			m, err := MeetWithin(c, hello(s.nonce, houseHashA), wait)
+			done <- side{c, m, err}
+		}()
+	}
+	a, b := <-done, <-done
+	if a.err != nil || b.err != nil {
+		t.Fatalf("the handshake failed: %v, %v", a.err, b.err)
+	}
+
+	time.Sleep(3 * wait)
+	if err := a.c.SendStanding(a.m.Slot, Standing{Rooms: 1, Frame: 1}); err != nil {
+		t.Fatalf("a standing sent after the handshake's deadline had passed: %v", err)
+	}
+	if _, err := b.c.Recv(); err != nil {
+		t.Fatalf("a standing read after the handshake's deadline had passed: %v", err)
+	}
+}
+
+// A connection whose first four bytes are no possible length is some other program, and it is
+// said as that: ErrMagic, with the bytes quoted, which is usually the program's name. It is still
+// an ErrProtocol for whatever tested for that before. The same four bytes later in a stream are
+// a peer that lost its place rather than a stranger, and stay a protocol violation only.
+func TestAnImpossibleFirstLengthIsAnotherProgram(t *testing.T) {
+	a, b := pair(t)
+	if _, err := a.w.Write([]byte("SSH-2.0-OpenSSH_9.6\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := b.Recv()
+	if !errors.Is(err, ErrMagic) || !errors.Is(err, ErrProtocol) {
+		t.Fatalf("err = %v, want both %v and %v", err, ErrMagic, ErrProtocol)
+	}
+	if !strings.Contains(err.Error(), `"SSH-"`) {
+		t.Errorf("err = %q, which does not quote what the other end opened with", err)
+	}
+
+	a, b = pair(t)
+	if err := a.SendStanding(0, Standing{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Recv(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.w.Write([]byte("SSH-")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Recv(); !errors.Is(err, ErrProtocol) || errors.Is(err, ErrMagic) {
+		t.Errorf("an impossible length after a message: err = %v, want %v and not %v",
+			err, ErrProtocol, ErrMagic)
 	}
 }

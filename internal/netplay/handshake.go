@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Hello is MsgHello (§10.4.7): what each peer says about itself before there is a match.
@@ -576,6 +578,45 @@ func Meet(c *Conn, local Hello) (Match, error) {
 			ErrProtocol, start.InputDelay, m.InputDelay)
 	}
 	m.StartFrame = start.StartFrame
+	return m, nil
+}
+
+// MeetWithin is Meet with a deadline over the whole handshake, and it is how both ends of a race
+// meet (docs/IMPROVEMENTS.md 4.32).
+//
+// Conn keeps no timeout, and a race does not want one (see Conn). The handshake is different,
+// because nothing has been agreed with the other end yet, and silence there has one meaning:
+// whatever answered is not going to race. A web server waiting for a request line, or a port
+// something holds open, would otherwise keep Meet in its first Recv for as long as the socket
+// lasts. A host stuck in one of those is a host the real guest cannot reach.
+//
+// The deadline is cleared once the match is agreed, so it never reaches the race. The
+// connection has to be able to keep one: a net.Conn can, and so can net.Pipe.
+func MeetWithin(c *Conn, local Hello, wait time.Duration) (Match, error) {
+	d, ok := c.rw.(interface{ SetDeadline(time.Time) error })
+	if !ok {
+		return Match{}, fmt.Errorf("netplay: a %T cannot keep the handshake's deadline", c.rw)
+	}
+	if err := d.SetDeadline(time.Now().Add(wait)); err != nil {
+		return Match{}, fmt.Errorf("netplay: setting the handshake's deadline: %w", err)
+	}
+	m, err := Meet(c, local)
+	switch {
+	case err == nil:
+	case !errors.Is(err, os.ErrDeadlineExceeded):
+		return Match{}, err
+	case !c.heard:
+		// The sentence rather than the socket's "read tcp a->b: i/o timeout": a player
+		// sees this one, and the addresses are already on their screen.
+		return Match{}, fmt.Errorf("netplay: the other end said nothing for %v, so it is not "+
+			"a gliderGo game ready to race: %w", wait, os.ErrDeadlineExceeded)
+	default:
+		return Match{}, fmt.Errorf("netplay: the other side stopped answering partway through "+
+			"the handshake, and it did not finish within %v: %w", wait, os.ErrDeadlineExceeded)
+	}
+	if err := d.SetDeadline(time.Time{}); err != nil {
+		return Match{}, fmt.Errorf("netplay: clearing the handshake's deadline: %w", err)
+	}
 	return m, nil
 }
 

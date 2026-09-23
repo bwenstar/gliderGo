@@ -17,6 +17,31 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A host goes on hosting past a connection that is not a race, and no handshake waits for ever (2026-09-23)
+
+A host used to accept one connection and shut its port, whatever that connection turned out to
+be. A guest who had opened another house therefore ended hosting, and on the command line the
+host exited with the bug-report footer. Now the host turns away every connection that does not
+become a match, and goes on waiting. That covers another house, release or rule, a browser, a
+port scanner and a connection that never speaks. The waiting screen shows the last one it turned
+away and why: `turned away 10.0.0.9: netplay: the two sides have different houses: …`. The same
+line goes to stdout. The port is shut once a match is agreed, as before.
+
+Both ends now give the handshake a deadline, in every run: five seconds for each connection a
+host takes, and fifteen for a guest. The guest's is longer because a real guest can wait in the
+host's backlog behind a stray. The deadline is cleared once the match is agreed, so it never
+reaches the race. A guest that joins something that accepts and never answers used to sit on
+JOINING for as long as the socket lasted. Now it is told `the other end said nothing for 15s, so
+it is not a gliderGo game ready to race`, and a host that stops partway is told apart from one
+that never spoke.
+
+A connection whose first four bytes cannot be a message length is reported as another program,
+quoting the bytes: `the other end opened with "SSH-", which is not how a gliderGo message starts`.
+Such a connection, and the four refusals that name the other machine's house, release or rules,
+are printed without the bug-report footer, because the fix is on one of the two machines and
+the message says which. A handshake that timed out keeps the footer, because the other end
+might be a gliderGo host that is stuck.
+
 ### A race refuses a build that flies differently, and says which release it is (2026-09-23)
 
 Each side's `MsgHello` now carries three more fields: its release, a fingerprint of its engine,

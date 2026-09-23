@@ -48,7 +48,14 @@ func Address(addr, port string) string {
 	return net.JoinHostPort(addr, port)
 }
 
-// Listener is the host waiting for one guest.
+// Listener is the host waiting for a guest.
+//
+// It stays open until Close, through as many connections as it takes. A connection that turns
+// out not to be a race is the caller's to drop, and the listener goes on waiting past it
+// (docs/IMPROVEMENTS.md 4.32). That covers another house, another release, a port scanner or
+// somebody's browser. The caller closes the listener once a match is agreed. A guest arriving
+// after that finds the port shut, which is a better answer than being accepted onto a match
+// already under way.
 //
 // Binding is separate from accepting on purpose. A port already in use is the commonest way this
 // fails and it is worth reporting before the screen that says "waiting for the other player" goes
@@ -73,21 +80,19 @@ func Listen(addr, port string) (*Listener, error) {
 // can still read out where to connect.
 func (l *Listener) Addr() string { return l.l.Addr().String() }
 
-// Accept waits for the guest and returns the connection, having closed the listener: a race is
-// two players, and a second guest arriving to find the port shut is a better answer than one
-// accepted onto a match that is already under way.
+// Accept waits for the next connection. The listener stays open (see Listener).
 //
 // Close from another goroutine is how a waiting host gives up; Accept then returns that error.
 func (l *Listener) Accept() (net.Conn, error) {
 	c, err := l.l.Accept()
-	l.Close()
 	if err != nil {
 		return nil, fmt.Errorf("netplay: no guest arrived: %w", err)
 	}
 	return c, nil
 }
 
-// Close stops listening. Safe to call twice, which matters because Accept already did.
+// Close stops listening. It is safe to call twice. That matters because a host closes its
+// listener on every way out of the wait, and Escape may already have closed it.
 func (l *Listener) Close() error { return l.l.Close() }
 
 // Join dials the host. A zero timeout waits as long as the operating system will.

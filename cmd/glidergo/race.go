@@ -109,6 +109,22 @@ var (
 	raceSettleWait  = 10 * time.Second
 )
 
+// How long each end gives one connection to finish the handshake (netplay.MeetWithin). These
+// hold in every run, a player's as well as a measurement's, because what they end is not a wait
+// anybody chose: a connection that never speaks is not going to race.
+//
+// **The guest's is the longer, and it has to be.** The host deals with one connection at a time,
+// so a real guest can sit in the kernel's backlog while the host waits out a stray connection
+// ahead of it. The guest's handshake clock is running all that time, and fifteen seconds covers
+// two strays at five. Five is far more than a real handshake takes, which is two messages each
+// way and no arithmetic, since the engine fingerprint is worked out before either end connects.
+//
+// Variables for loopback_test.go, which has no five seconds to spend on each silent connection.
+var (
+	hostHandshakeWait  = 5 * time.Second
+	guestHandshakeWait = 15 * time.Second
+)
+
 // raceConnect is the connecting half of a race, as the *screen* sees it: a handle on whatever
 // the connecting goroutine is parked in, so that Escape can get it back.
 //
@@ -166,10 +182,11 @@ func (rc *raceConnect) stopped() bool {
 	return rc.cancelled
 }
 
-// note records a failed dial for the screen, and lastNote reads it. A refusal the player cannot
-// see is a screen that says "joining" forever: a typed-wrong host name fails with "no such host"
-// on every attempt, and that sentence is the difference between pressing Escape now and waiting
-// to find out.
+// note records a failed dial or a turned-away connection for the screen, and lastNote reads
+// it. A refusal the player cannot see is a screen that says "joining" forever: a typed-wrong host
+// name fails with "no such host" on every attempt, and that sentence is the difference between
+// pressing Escape now and waiting to find out. On the host's side it is the guest who opened
+// another house, and it is the hosting player who can tell them so.
 func (rc *raceConnect) note(err error) {
 	rc.mu.Lock()
 	rc.last = err
@@ -331,6 +348,12 @@ func (a *app) hostListener(port string) (*netplay.Listener, error) {
 // blocks, which is why it is not on the frame loop's goroutine and why every blocking call has
 // been handed to rc first.
 func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, join string, local netplay.Hello) raceMeeting {
+	if l != nil {
+		// Shut however this ends: a match is two players, and a host that has gone back to
+		// the title screen is not hosting.
+		defer l.Close()
+	}
+
 	// The engine before the connection, so that once there is one the hello goes out at once
 	// and the other machine is not left waiting on this one's arithmetic. A player who gives
 	// up meanwhile is heard below, when the listener or the dial finds rc cancelled.
@@ -343,29 +366,63 @@ func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, join string, local 
 	}
 	local.Engine = eng
 
-	var trans net.Conn
 	if l != nil {
-		trans, err = l.Accept()
-	} else {
-		trans, err = a.dialRace(rc, join)
+		return a.hostRace(rc, l, local)
 	}
+	trans, err := a.dialRace(rc, join)
 	if err != nil {
-		if rc.stopped() {
-			// The error is this port closing the listener or the socket out from under a
-			// blocked call, so it describes the cancellation and not a failure. Saying so
-			// is what keeps "Accept: use of closed network connection" off a player's
-			// screen.
-			return raceMeeting{err: errRaceGaveUp}
-		}
 		return raceMeeting{err: err}
 	}
+	return shake(rc, trans, local, guestHandshakeWait)
+}
+
+// hostRace is the host's half: take connections until one of them is a race.
+//
+// **A connection that does not become a match is turned away, and the host goes on waiting**
+// (docs/IMPROVEMENTS.md 4.32). The commonest one is a guest who opened another house, and the
+// fix is on their machine: this one should still be hosting when they have opened the right one.
+// So every handshake failure turns the connection away, whatever it was: another house, another
+// release, a browser, a port scanner, a connection that never spoke, or the nonce tie. There is
+// no list of which errors count, because a new refusal in netplay should not end hosting because
+// nobody added it to one. The one that says why goes on the waiting screen, and on stdout for a
+// bug report.
+//
+// A refusal is decided from the two hellos, so the guest refused this host at the same moment
+// (netplay.Meet), and turning it away cannot leave a guest flying a race the host has left.
+func (a *app) hostRace(rc *raceConnect, l *netplay.Listener, local netplay.Hello) raceMeeting {
+	for {
+		trans, err := l.Accept()
+		if err != nil {
+			if rc.stopped() {
+				// The error is this port closing the listener out from under a blocked
+				// Accept, so it describes the cancellation and not a failure. Saying so is
+				// what keeps "Accept: use of closed network connection" off a player's
+				// screen.
+				return raceMeeting{err: errRaceGaveUp}
+			}
+			return raceMeeting{err: err}
+		}
+		met := shake(rc, trans, local, hostHandshakeWait)
+		if met.err == nil || errors.Is(met.err, errRaceGaveUp) {
+			return met
+		}
+		turned := fmt.Errorf("turned away %s: %w", remoteHost(trans), met.err)
+		rc.note(turned)
+		if !a.o.quiet {
+			fmt.Printf("glidergo: race: %v\n", turned)
+		}
+	}
+}
+
+// shake is the handshake on one connection, with the connection handed to rc first so that
+// Escape can close it.
+func shake(rc *raceConnect, trans net.Conn, local netplay.Hello, wait time.Duration) raceMeeting {
 	if !rc.keep(nil, trans) {
 		trans.Close()
 		return raceMeeting{err: errRaceGaveUp}
 	}
-
 	c := netplay.NewConn(trans)
-	m, err := netplay.Meet(c, local)
+	m, err := netplay.MeetWithin(c, local, wait)
 	if err != nil {
 		trans.Close()
 		if rc.stopped() {
@@ -379,7 +436,39 @@ func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, join string, local 
 	return raceMeeting{c: c, trans: trans, m: m}
 }
 
-// dialRace is the guest's half: dial until somebody answers or the player gives up.
+// remoteHost is the machine at the other end of a connection, without its port. The port is a
+// number the other machine's kernel picked and says nothing to a player. The machine is what
+// tells the guest they were waiting for apart from a stray.
+func remoteHost(c net.Conn) string {
+	addr := c.RemoteAddr().String()
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		return h
+	}
+	return addr
+}
+
+// refusedByPeer reports whether a race failed to start because of what is on the other end,
+// rather than because of anything this program got wrong: another release, house or rule, or
+// another program altogether (netplay.ErrMagic). main leaves the bug-report footer off these.
+// Each message already names both sides and what to change. A footer that invites a bug report
+// about a friend's other house is the kind of wrong main's comment says makes a footer
+// invisible.
+//
+// A handshake that timed out is not here. The other end could be a gliderGo host that is stuck,
+// and that one is worth a report.
+func refusedByPeer(err error) bool {
+	for _, e := range []error{netplay.ErrMagic, netplay.ErrVersion, netplay.ErrEngine,
+		netplay.ErrHouse, netplay.ErrRules} {
+		if errors.Is(err, e) {
+			return true
+		}
+	}
+	return false
+}
+
+// dialRace is the guest's half: dial until somebody answers or the player gives up. Unlike the
+// host, a guest does not try again once it has connected. A refusal from the host is about
+// something on this machine or that one, and dialling again would only be refused again.
 func (a *app) dialRace(rc *raceConnect, join string) (net.Conn, error) {
 	for {
 		c, err := netplay.Join(join, a.o.port, joinTimeout)
@@ -435,7 +524,12 @@ func (a *app) awaitRace(rc *raceConnect, race shell.Race, heading string, where 
 
 		lines := append([]string{}, where...)
 		if err := rc.lastNote(); err != nil {
-			lines = append(lines, "", "last attempt: "+err.Error())
+			// The host's notes say "turned away" themselves (hostRace).
+			note := err.Error()
+			if !race.Host {
+				note = "last attempt: " + note
+			}
+			lines = append(lines, "", note)
 		}
 		lines = append(lines, "", "press Esc to give up")
 		raceScreen(scr, heading, lines)
@@ -447,11 +541,14 @@ func (a *app) awaitRace(rc *raceConnect, race shell.Race, heading string, where 
 	}
 }
 
-// raceTimedOut is the message a measurement run gets instead of an Escape key. The guest's
-// version carries the last refusal, because after thirty seconds of "connection refused" the
-// refusal is the whole of what went wrong.
+// raceTimedOut is the message a measurement run gets instead of an Escape key. Both versions
+// carry the last note, because after thirty seconds of "connection refused", or of turning away
+// a guest with another house, the note is the whole of what went wrong.
 func raceTimedOut(race shell.Race, rc *raceConnect) error {
 	if race.Host {
+		if err := rc.lastNote(); err != nil {
+			return fmt.Errorf("no race started within %v; %w", raceConnectWait, err)
+		}
 		return fmt.Errorf("nobody joined the race within %v", raceConnectWait)
 	}
 	if err := rc.lastNote(); err != nil {

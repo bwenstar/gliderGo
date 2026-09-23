@@ -257,7 +257,9 @@ The waiting screen reads out this machine's addresses and the port it actually g
 is exactly what the other player types into Join — with a ready-made `-join` command underneath for
 a partner who is also at a shell. `-port` moves both off 1994 (`-join 192.168.1.20:2000` says the
 same thing), the house may be a name or a path, and `-host` on its own opens Slumberland. Escape
-gives up while you are waiting.
+gives up while you are waiting. A host goes on waiting past anything that connects and is not the
+race it is hosting — a guest with another house or release, a browser, some other program — and
+says underneath whom it turned away and why.
 
 **Furthest wins, and "furthest" means rooms visited** — the same number the 1994 high-score table
 records, because a house is a graph and "how far" has no geometric answer. Finishing the house beats
@@ -271,9 +273,8 @@ screen — usually two builds of one house, which is why the hashes are there. B
 also run releases that fly the same: a release whose physics changed is refused, naming both
 releases, and any two releases with the same physics race each other. The `fixes` block below is
 told to the other side and does not refuse a race, because none of its switches changes how a
-glider flies. Both machines agree a
-random seed between themselves, so `-seed` is refused, as are `-two` and `-resume`, each with a
-sentence saying why. A small panel in the top-left corner shows where the other player is while you
+glider flies. Both machines agree a random seed between themselves, so `-seed` is refused, as are
+`-two` and `-resume`, each with a sentence saying why. A small panel in the top-left corner shows where the other player is while you
 fly, and it goes away when your run ends so that the game-over and high-score screens are the
 original's. The race itself is not over until both runs are, however far ahead you finish. Then
 both machines show the same result, and a race started from `Race...` leaves it on the title

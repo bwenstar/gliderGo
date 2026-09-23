@@ -5701,7 +5701,7 @@ another engine. What was found on the way:
 view — reach only the stdout race line. The screen does not mention them. The refusal messages are
 the ones 4.33 will sort by cause and wrap on the plate.
 
-### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **planned, before the next tag if it fits; before 4.28's redial regardless**
+### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **DONE, before the next tag**
 
 `openRace` accepts once and closes the listener, and `Meet` has no read deadline. So:
 - **a house-mismatched guest ends hosting** (measured: a Fun House guest against a Slumberland
@@ -5726,10 +5726,51 @@ the ones 4.33 will sort by cause and wrap on the plate.
 - An out-of-range first length is reported as `ErrMagic` ("not a gliderGo peer"), wrapped together
   with `ErrProtocol` (Go 1.23's multiple `%w`), without the footer.
 
-**Tests:** `TestASecondGuestFindsThePortShut` is rewritten to "shut after the first *match*", and
+**Tests:** the second-guest test is rewritten to "shut after the first *match*" (now
+`TestAListenerStaysOpenUntilItIsClosed`), and
 `TestFrameRejectsImpossibleLengths` (`netplay_test.go:182`) still sees `ErrProtocol`. `dial_test`
 gains a stray HTTP request, a silent connection, and a house-mismatched guest followed by a matching
 one. Internet play with port forwarding is not a stated goal. The argument is the LAN.
+
+**Done**, as planned, with these specifics:
+
+- **The loop is in `cmd/glidergo` (`hostRace`), not in `netplay`.** Each accepted connection has to
+  be handed to `raceConnect` so that Escape can close it, and that hand-over is the app's.
+  `Listener.Accept` no longer closes the listener. `meetRace` closes it on every way out, so the
+  port is still shut once a match is agreed.
+- **`netplay.MeetWithin`** is `Meet` with a deadline over the whole handshake, cleared on success.
+  It gives two different messages: "the other end said nothing for 15s, so it is not a gliderGo
+  game ready to race" when nothing arrived, and "stopped answering partway through the handshake"
+  when something did. `Conn` gained a `heard` flag to tell the two apart. The waits are
+  `hostHandshakeWait` (5 s) and `guestHandshakeWait` (15 s), and they hold in a player's run as
+  well as in a bench run, because a silent connection is not a wait anybody chose.
+- **Every `Meet` error turns the connection away, with no list of which errors count.** The note
+  is `turned away <host>: <why>`. It carries the machine, without the port, because the machine
+  is what tells the guest being waited for apart from a stray. It goes on the waiting screen, to
+  stdout, and into a bench host's timeout ("no race started within 30s; turned away …"). A guest
+  does not redial after a refusal, because it would only be refused again.
+- **The impossible first length** is `strangerErr`, which unwraps to both `ErrMagic` and
+  `ErrProtocol` and quotes the four bytes. The same bytes later in a stream stay `ErrProtocol`
+  only.
+- **The footer.** `refusedByPeer` (`ErrMagic` and the four gates) leaves the bug-report footer
+  off, because the message already names which machine to change. A handshake timeout keeps the
+  footer, since a stuck gliderGo host is worth a report.
+- **Tests.**
+  - `dial_test.go`: `TestAListenerStaysOpenUntilItIsClosed` (the rewrite), MeetWithin's two
+    timeouts, a deadline that does not outlive the handshake, and the first-length split.
+  - `loopback_test.go`, where the loop is: the stray HTTP request, the silent connection and the
+    mismatched guest before a matching one (`TestLoopbackRaceHostTurnsAwayWhatIsNotARace`, which
+    also checks the port is shut once the race is flying), and a guest that dials an SSH-style
+    banner.
+  - `TestLoopbackRaceHostThatNeverSpeaksIsGivenUpOn` now pins the words.
+  - The engine-refusal test checks the host's side through its note, because a host no longer
+    returns on a refusal.
+- **Measured with the binary.** A `-bench -host` over Grand Prix turned away curl ("GET ") and a
+  Fun House guest, and then raced a Grand Prix guest. The Fun House guest's refusal printed no
+  footer. A guest joining a socket that reads and never writes gave up after 15 s, in the words
+  above. One joining an SSH-style banner was told `"SSH-"` at once. `python3 -m http.server`
+  answered this time, with its HTTP/0.9 error page, so the guest was told `"<!DO"` in 1.3 s rather
+  than waiting.
 
 ### 4.33 A failed join runs off the screen and blames the other machine — **planned, before the next tag (the UPnP half is a separate note, not planned)**
 
@@ -5783,6 +5824,12 @@ goodbye*. That sentence goes on the plate, and the Go error goes to stdout, wher
 quotes it. The loopback test logs the error and does not pin it. Separately, a guest whose host
 accepted and then said nothing is told "could not join a race within 30s", though it did join.
 That is a handshake timeout, and it needs its own words, which 4.32's handshake deadline names.
+
+**Amendment (4.32): the host's "turned away" note and the handshake's new errors go in the same
+sort.** They are long, and so is the chain behind them. For example: `turned away 127.0.0.1:
+netplay: waiting for the other player's hello: netplay: not a gliderGo message: the other end
+opened with "GET ", …`. On the plate that should be "turned away 127.0.0.1: not gliderGo (it
+opened with "GET ")". The full chain goes to stdout, where it already is.
 
 **Amendment (4.31): the handshake refusals go in the same sort, and the differences that do not
 refuse go on the screen.** `Meet` now refuses for four causes, and each has its own sentinel:

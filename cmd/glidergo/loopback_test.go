@@ -21,6 +21,8 @@ package main
 import (
 	"errors"
 	"io"
+	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +150,15 @@ func raceWaits(t *testing.T, connect, settle time.Duration) {
 	oldConnect, oldSettle := raceConnectWait, raceSettleWait
 	raceConnectWait, raceSettleWait = connect, settle
 	t.Cleanup(func() { raceConnectWait, raceSettleWait = oldConnect, oldSettle })
+}
+
+// handshakeWaits shortens the two ends' handshake deadlines for one test, and puts them back
+// after it.
+func handshakeWaits(t *testing.T, host, guest time.Duration) {
+	t.Helper()
+	oldHost, oldGuest := hostHandshakeWait, guestHandshakeWait
+	hostHandshakeWait, guestHandshakeWait = host, guest
+	t.Cleanup(func() { hostHandshakeWait, guestHandshakeWait = oldHost, oldGuest })
 }
 
 // raceBoth runs a whole race: a host, and a guest dialling the address the host got.
@@ -387,8 +398,11 @@ func TestLoopbackRaceGuestWhoLeavesMidRaceForfeits(t *testing.T) {
 //
 // Which of the two is player 1 is the nonces' to decide and differs from run to run, so the
 // property is checked whichever way round it came out.
+//
+// The host does not stop at the refusal. It turns the guest away and goes on waiting (4.32), so
+// its side of the refusal is the note it is still showing when its bench deadline ends the wait.
 func TestLoopbackRaceWithAnotherEngineIsRefusedByBothSides(t *testing.T) {
-	raceWaits(t, 20*time.Second, 20*time.Second)
+	raceWaits(t, 2*time.Second, 20*time.Second)
 	host := raceApp(t, false)
 	addr := hostOnLoopback(host)
 	hostDone := playInBackground(host, shell.Race{Host: true})
@@ -406,6 +420,10 @@ func TestLoopbackRaceWithAnotherEngineIsRefusedByBothSides(t *testing.T) {
 			t.Errorf("the %s's handshake ended %v, want %v", side.who, side.err, netplay.ErrEngine)
 			continue
 		}
+		if !refusedByPeer(side.err) {
+			t.Errorf("the %s's refusal would be printed with the bug-report footer: %v",
+				side.who, side.err)
+		}
 		if !strings.Contains(side.err.Error(), side.names) {
 			t.Errorf("the %s's refusal does not name the other side, %s: %v",
 				side.who, side.names, side.err)
@@ -414,20 +432,22 @@ func TestLoopbackRaceWithAnotherEngineIsRefusedByBothSides(t *testing.T) {
 	if host.raced != nil {
 		t.Errorf("the host recorded a race it refused: %+v", host.raced)
 	}
+	if hp.err != nil && !strings.Contains(hp.err.Error(), "turned away 127.0.0.1: ") {
+		t.Errorf("the host's wait ended %q, which does not say who it turned away", hp.err)
+	}
 }
 
-// A host that accepts and then says nothing leaves a guest parked in the handshake, and a bench
-// run has nobody to press Escape. raceConnectWait ends it: play returns an error rather than
-// hanging, and lets go of the socket, which the silent host sees as the guest leaving.
+// A host that accepts and then says nothing used to leave a guest parked on JOINING for as long
+// as the socket lasted (docs/IMPROVEMENTS.md 4.32). guestHandshakeWait ends it, in a player's run
+// as well as a bench one: play returns an error that says the other end said nothing, and lets
+// go of the socket, which the silent host sees as the guest leaving.
 //
 // The guest does speak first -- Meet sends its hello before it reads one -- so the silent end
 // hears that, and then the end of the stream.
-//
-// What the error *says* is 4.32 and 4.33's business, and this does not pin it: today it is
-// raceTimedOut's "could not join a race", for a guest that joined perfectly well.
-func TestLoopbackRaceHostThatNeverSpeaksTimesOut(t *testing.T) {
+func TestLoopbackRaceHostThatNeverSpeaksIsGivenUpOn(t *testing.T) {
 	const wait = 500 * time.Millisecond
-	raceWaits(t, wait, 20*time.Second)
+	raceWaits(t, 20*time.Second, 20*time.Second)
+	handshakeWaits(t, 20*time.Second, wait)
 
 	l, err := netplay.Listen("127.0.0.1", "0")
 	if err != nil {
@@ -466,9 +486,11 @@ func TestLoopbackRaceHostThatNeverSpeaksTimesOut(t *testing.T) {
 		t.Fatalf("a host that never spoke started a race: %+v", gp.out)
 	case errors.Is(gp.err, errRaceGaveUp), errors.Is(gp.err, errRaceClosed):
 		t.Errorf("the guest says %q, which is a player's choice, and nobody chose", gp.err)
+	case !errors.Is(gp.err, os.ErrDeadlineExceeded) || !strings.Contains(gp.err.Error(), "said nothing"):
+		t.Errorf("the guest says %q; it joined, and the other end never answered", gp.err)
 	}
 	if took > wait+10*time.Second {
-		t.Errorf("the guest took %v to give up, with raceConnectWait at %v", took, wait)
+		t.Errorf("the guest took %v to give up, with guestHandshakeWait at %v", took, wait)
 	}
 	if guest.raced != nil {
 		t.Errorf("a race that never started recorded a result: %+v", guest.raced)
@@ -485,5 +507,120 @@ func TestLoopbackRaceHostThatNeverSpeaksTimesOut(t *testing.T) {
 		}
 	case <-time.After(loopbackPatience):
 		t.Fatal("the guest gave up and never closed its socket")
+	}
+}
+
+// The host goes on hosting past every connection that is not a race (docs/IMPROVEMENTS.md 4.32):
+// a browser, a connection that never speaks, and a guest who opened another house. Then it races
+// the guest who opened the right one. It used to end hosting at the first of them, and on the
+// command line it exited with the bug-report footer.
+//
+// Each stray is seen through to its end before the next one dials, so that what the host did
+// with each is known. After the match the port is shut, and the guest leaves at once, which the
+// host scores as a forfeit once its own glider has died.
+func TestLoopbackRaceHostTurnsAwayWhatIsNotARace(t *testing.T) {
+	raceWaits(t, 20*time.Second, 20*time.Second)
+	handshakeWaits(t, 300*time.Millisecond, 20*time.Second)
+	host := raceApp(t, false)
+	addrs := hostOnLoopback(host)
+	hostDone := playInBackground(host, shell.Race{Host: true})
+	addr := awaitAddr(t, addrs, hostDone)
+
+	// hungUpOn dials, says what it has to say, and reads until the host hangs up. The host
+	// speaks first, so a stray hears the host's hello before the end.
+	hungUpOn := func(what string, say []byte) {
+		t.Helper()
+		c, err := net.Dial("tcp", addr)
+		if err != nil {
+			t.Fatalf("%s: %v", what, err)
+		}
+		defer c.Close()
+		if _, err := c.Write(say); err != nil {
+			t.Fatalf("%s: %v", what, err)
+		}
+		c.SetReadDeadline(time.Now().Add(loopbackPatience))
+		heard, err := io.ReadAll(c)
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			t.Fatalf("%s: the host never hung up", what)
+		}
+		// A reset rather than a close is allowed: the host hangs up with the request's
+		// unread bytes still in its socket, and some kernels say so.
+		if len(heard) < 4 {
+			t.Errorf("%s: the host hung up having said %d bytes; it speaks first", what, len(heard))
+		}
+	}
+	hungUpOn("a browser", []byte("GET / HTTP/1.1\r\nHost: glidergo\r\n\r\n"))
+	hungUpOn("a connection that never speaks", nil)
+
+	other := guestHello(t)
+	other.HouseName, other.HouseHash = "Fun House", other.HouseHash+1
+	if _, _, _, err := meetAsGuest(t, addr, other); !errors.Is(err, netplay.ErrHouse) {
+		t.Fatalf("a guest with another house met %v, want %v", err, netplay.ErrHouse)
+	}
+
+	c, trans, m, err := meetAsGuest(t, addr, guestHello(t))
+	if err != nil {
+		t.Fatalf("the guest with the right house, after three turned away: %v", err)
+	}
+	msg, err := c.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := msg.(*netplay.Report); !ok {
+		t.Fatalf("the host's first word after the handshake was %T, want a standing", msg)
+	}
+	// The host is flying, so the handshake is over on its side too and the port is shut.
+	if late, err := netplay.Join(addr, "", 2*time.Second); err == nil {
+		late.Close()
+		t.Error("the port was still open once the race had started")
+	}
+	trans.Close()
+
+	hp := await(t, "host", hostDone)
+	if hp.err != nil {
+		t.Fatal(hp.err)
+	}
+	r := host.raced
+	if r == nil {
+		t.Fatal("the host recorded no race")
+	}
+	if want := (netplay.Outcome{Slot: int8(r.match.Slot), Reason: netplay.ByForfeit}); r.out != want {
+		t.Errorf("the race came out %v, want %v", r.out, want)
+	}
+	if r.match.ID != m.ID {
+		t.Errorf("the host raced match %08X, the guest met %08X", r.match.ID, m.ID)
+	}
+}
+
+// A guest that dials some other program is told so in words (docs/IMPROVEMENTS.md 4.32), and
+// without the bug-report footer. The program here speaks first as an SSH server does, so its
+// banner is the first thing the guest reads and is quoted back.
+func TestLoopbackRaceGuestWhoDialsAnotherProgramIsToldSo(t *testing.T) {
+	raceWaits(t, 20*time.Second, 20*time.Second)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		c.Write([]byte("SSH-2.0-OpenSSH_9.6\r\n"))
+		io.Copy(io.Discard, c)
+	}()
+
+	guest := raceApp(t, false)
+	gp := await(t, "guest", playInBackground(guest, shell.Race{Join: l.Addr().String()}))
+	if !errors.Is(gp.err, netplay.ErrMagic) {
+		t.Fatalf("the guest says %v, want %v", gp.err, netplay.ErrMagic)
+	}
+	if !strings.Contains(gp.err.Error(), `"SSH-"`) {
+		t.Errorf("the guest says %q, which does not quote what answered", gp.err)
+	}
+	if !refusedByPeer(gp.err) {
+		t.Errorf("another program would be reported with the bug-report footer: %v", gp.err)
 	}
 }

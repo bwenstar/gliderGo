@@ -112,11 +112,16 @@ func main() {
 		// not exist. A footer that called every one of those a bug would be wrong most of the
 		// time, and a footer that is wrong most of the time is invisible by the time it is
 		// right.
+		//
+		// A race the other machine refused gets neither line (refusedByPeer): its message
+		// already says what both machines have and which one to change.
 		me := filepath.Base(os.Args[0])
 		var u usageErr
-		if errors.As(err, &u) {
+		switch {
+		case errors.As(err, &u):
 			fmt.Fprintf(os.Stderr, "glidergo: `%s -h` lists the flags\n", me)
-		} else {
+		case refusedByPeer(err):
+		default:
 			fmt.Fprintf(os.Stderr, "glidergo: if that is not something you can fix, %s "+
 				"-- paste the output of `%s -version`\n", project.Issues, me)
 		}
