@@ -226,6 +226,42 @@ Four gaps, stated plainly because the release notes point here for them.
 Also untested: more than one sound device, a machine with no sound device at all (the code has a
 path for it), any non-US keyboard layout, and a full game played through to a high score.
 
+## What has changed since, and has not run on Windows
+
+Three things in `internal/platform/win32` were written after this run, for the release gate's
+step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76). They build and vet for amd64 and arm64, and nothing
+has executed them:
+
+- **`Room`**: the work area of the monitor under the pointer, less the frame.
+- **The placement**: the window is centred in that work area instead of `CW_USEDEFAULT`.
+- **The changed-rows present**: one `StretchDIBits` per changed block, from a DIB header whose bits
+  pointer is the block's first row. It also includes the `IsIconic` skip and a whole frame after
+  `WM_PAINT`.
+
+The next run on a Windows desktop checks them, in this order:
+
+1. **Auto.** With `-prefs` pointed at a directory that has no settings file, and no `-scale`, the
+   console's banner says `scale=N (auto)`. N is the largest that fits the monitor, at most 3. The
+   window is centred and clear of the taskbar. On a second monitor, launched with the pointer on
+   it, the window opens there.
+2. **The pixels, at 2×.** This is the paced run and screenshot comparison above, with `-scale 2`.
+   Halve the crop by nearest neighbour and compare it with the Linux frames, as above. A block sent
+   to the wrong row or column shows as a strip of the previous frame. Minimise and restore the
+   window during the run: it must come back whole, which is the `IsIconic` skip and `WM_PAINT`
+   together.
+3. **The bench rows**, which are what lifts the 3× cap:
+
+   ```
+   glidergo.exe -frames 300 -bench -scale 1 -prefs none -scores none -saves none
+   glidergo.exe -frames 300 -bench -scale 4 -prefs none -scores none -saves none
+   glidergo.exe -frames 150 -scale 4 -prefs none -scores none -saves none
+   ```
+
+   2.76's budget is paced 4× under 15% of one core, which is the last row's CPU line, and flat-out
+   4× at 120 fps or more. A monitor too small for 4× prints a warning and measures a window partly
+   off the screen, which is not a result. If both rows meet the budget, `autoMax` in
+   `cmd/glidergo/scale.go` becomes 4.
+
 ## Repeating it
 
 The six render hashes are the cheap half and need no Windows desktop — a CI runner will do:

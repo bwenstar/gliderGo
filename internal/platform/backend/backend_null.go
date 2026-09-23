@@ -20,3 +20,8 @@ const Name = "null"
 func Open(cfg platform.Config) (platform.Window, error) {
 	return null.New(cfg, os.Getenv("GLIDERGO_FRAMEDUMP"))
 }
+
+// Room is the game's own size: there is no screen, so auto magnification is 1x.
+func Room() (platform.Room, error) {
+	return platform.Room{W: platform.ScreenWidth, H: platform.ScreenHeight, From: "no screen"}, nil
+}

@@ -328,7 +328,7 @@ func TestImportLegacyDefaultsMatchOurDefaults(t *testing.T) {
 		t.Error("the record says doBackground false, so the game should keep running unfocused")
 	}
 	// Nothing the record cannot describe was invented.
-	if p.Scale != 1 || p.KeepRealTime || p.Fixes != (Fixes{}) {
+	if p.Scale != Default().Scale || p.KeepRealTime || p.Fixes != (Fixes{}) {
 		t.Errorf("a field the record has no opinion about was not left at its default: %+v", p)
 	}
 

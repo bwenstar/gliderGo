@@ -196,7 +196,7 @@ jobs:
         run: make assets-check OUT="$RUNNER_TEMP"
 
       - name: On-screen bench under Xvfb
-        run: xvfb-run -a -s '-screen 0 640x480x24' make bench
+        run: xvfb-run -a -s '-screen 0 2600x1980x24' make bench
 
   # ---------------------------------------------------------------------------
   # Build every target, package each one, checksum the lot.

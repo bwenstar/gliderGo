@@ -121,6 +121,7 @@ func applyOverrides(o *options, p *prefs.Prefs, given map[string]bool) {
 	}
 	if given["scale"] {
 		p.Scale = o.scale
+		o.scaleGiven = true
 	}
 	if given["neighbors"] {
 		p.Neighbors = o.neighbors

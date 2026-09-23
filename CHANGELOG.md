@@ -17,6 +17,38 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### The first window fits the monitor, and a magnified window costs what changed (2026-09-23)
+
+Magnification is **auto** by default now: the largest window that fits the monitor it opens on,
+title bar included, up to 3×. That is 2× on a 1080p monitor, and on 2560×1440, and 3× on 4K until
+4× has been measured on Windows. A new player used to get a 640×480 window, which is a small
+rectangle on a 1080p screen. The settings screen shows what auto comes to here, as `auto 2x`, and
+the row steps from auto to 1× to 8×. `-scale 0` asks for auto; `-scale N` asks for N, as before.
+
+A magnification saved in your settings that is too big for this monitor gives the largest window
+that fits, for this launch only; the setting is unchanged, and a line on stderr says so. A `-scale`
+typed on the command line is kept even when it does not fit, with a warning that says the largest
+that would. **An existing settings file keeps its number.** Files written by 0.1.x say 1×, which
+was the default, so a player who has already run the game stays at 1×. Step the magnification row
+below 1×, or press R on the settings screen, for auto.
+
+On Windows the window now opens centred on the monitor under the pointer, inside its work area,
+instead of wherever Windows cascades it. At 1080p the cascade could put a 2× window under the
+taskbar. This half has been built and not yet run.
+
+The window is sent only the part of each frame that changed. Before, every frame sent the whole
+magnified window, which is 19.7 MB at 4×. A frame in play now sends about 1% of that, and a title
+screen or a pause sends nothing. The difference is largest at a door. A room wipe is well over a
+hundred updates of the window in one frame, and at 2× it used to freeze the game for about 1.5 s at
+every door on the development machine, and for 4 s at 4×. It takes about a tenth of a second at
+any size now. Played at 4×, the game uses 7–9% of one core there, where it used 42%, and the X
+server 0.8%, where it used 19%. A minimised or unmapped window is sent nothing at all.
+
+For contributors, a timed run (`-frames N`) ends with the CPU it used and its slowest frame, and
+`make bench` runs 1× and 4× flat out and then 4× paced. CI's virtual screen is 2600×1980, big
+enough for the 4× window. `go test -bench Present ./internal/platform/x11/` measures a whole frame
+at 1–4× on a real display (IMPROVEMENTS 2.1, 2.76).
+
 ### Everything that reads somebody else's file or a race's bytes is fuzzed, and what that found is fixed (2026-09-23)
 
 Suppose the other player's game stops partway through sending something in a race. That used to

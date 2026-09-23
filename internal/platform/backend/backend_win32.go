@@ -14,3 +14,6 @@ const Name = "win32"
 // CGO_ENABLED=0 cross-build from Linux produces, and `-tags nullbackend` is still the way to ask
 // for a headless Windows build.
 func Open(cfg platform.Config) (platform.Window, error) { return win32.New(cfg) }
+
+// Room is the space a window may have on the monitor it will open on (platform.Room).
+func Room() (platform.Room, error) { return win32.Room() }

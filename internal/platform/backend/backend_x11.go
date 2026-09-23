@@ -12,3 +12,6 @@ const Name = "x11"
 
 // Open creates the host window for this build.
 func Open(cfg platform.Config) (platform.Window, error) { return x11.New(cfg) }
+
+// Room is the space a window may have on this display (platform.Room).
+func Room() (platform.Room, error) { return x11.Room() }

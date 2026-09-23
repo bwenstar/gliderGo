@@ -48,6 +48,11 @@ type app struct {
 	win platform.Window
 	fb  *platform.Framebuffer
 
+	// scale is the magnification the window opened at, which is the setting made to fit the
+	// monitor (windowScale). autoScale is what auto is on this monitor, for the settings
+	// screen to show, and 0 when nothing was asked.
+	scale, autoScale int
+
 	// p is the settings, shared with the settings screen, which edits it in place. So
 	// this is not a snapshot and must not be copied: everything that reads a preference
 	// reads it through here, and reads it at the moment it needs it.
@@ -272,13 +277,30 @@ func (a *app) savedGameFor(name string, h *house.House) (*house.SavedGame, error
 // the ways it can be set; overrideFromFlags has already folded the flag into them. It is
 // read once, here, which is why the settings screen's magnification row says "next launch":
 // resizing a window mid-session is a backend change (2.8) and not a preference change.
+// Auto, and a number too big for the monitor, are settled here too (scale.go), which is the
+// only reason the display is asked for its size before the window is opened on it.
 func (a *app) openWindow(title string) error {
 	view := render.DefaultView()
+	w, h := int(view.Screen.Wide()), int(view.Screen.Tall())
+	var room *platform.Room
+	if !hermetic(a.o) {
+		// An error is the display's, and Open is about to say so better: the same error,
+		// with nothing to have guessed a size from first.
+		if r, err := backend.Room(); err == nil {
+			room = &r
+			a.autoScale = r.Fit(w, h, autoMax)
+		}
+	}
+	scale, note := windowScale(a.p.Scale, a.o.scaleGiven, room, w, h)
+	if note != "" {
+		fmt.Fprintf(os.Stderr, "glidergo: %s\n", note)
+	}
+	a.scale = scale
 	win, err := backend.Open(platform.Config{
 		Title:  title,
-		Width:  int(view.Screen.Wide()),
-		Height: int(view.Screen.Tall()),
-		Scale:  a.p.Scale,
+		Width:  w,
+		Height: h,
+		Scale:  scale,
 	})
 	if err != nil {
 		return err
@@ -587,6 +609,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 	// by the vertical retrace; wall-clock milliseconds scaled by 60/1000.66 is the
 	// same thing to within a tick, and the game measures nothing in absolute time.
 	start := time.Now()
+	cpu0, _ := cpuTime()
 	if !o.bench {
 		w.TickCount = func() int64 {
 			return int64(time.Since(start).Seconds() * 60.15)
@@ -608,7 +631,19 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 	// the clock the headless build and every test in internal/game uses, so a
 	// benchmark and a replay see the same frames.
 
+	// The slowest frame, for the line a timed run ends with. A frame is from the first present
+	// of one w.Frame to the first of the next, and the one this is here to find is a room wipe:
+	// many presents inside a single frame (below), each of which sends a strip of the window.
+	var slowest time.Duration
+	slowestAt, frameNo, frameAt := int64(0), w.Frame, start
 	w.Present = func() {
+		if w.Frame != frameNo {
+			now := time.Now()
+			if d := now.Sub(frameAt); d > slowest {
+				slowest, slowestAt = d, frameNo
+			}
+			frameNo, frameAt = w.Frame, now
+		}
 		w.Main.ToBGRX(a.fb.Pix, a.fb.Stride)
 		if err := a.win.Present(a.fb); err != nil {
 			// A failed present is a dead window, and there is nothing useful to do
@@ -1020,8 +1055,8 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 		// (docs/IMPROVEMENTS.md 4.2), and a report that does not say which build it came
 		// from costs a round trip before anything can be looked at. The title screen
 		// shows the same string on its status band, for a player who never sees stdout.
-		fmt.Printf("glidergo: version=%s backend=%s surface=%dx%d scale=%d neighbors=%d seed=%d\n",
-			version, backend.Name, a.fb.W, a.fb.H, a.p.Scale, a.p.Neighbors, seed)
+		fmt.Printf("glidergo: version=%s backend=%s surface=%dx%d scale=%s neighbors=%d seed=%d\n",
+			version, backend.Name, a.fb.W, a.fb.H, scaleWord(a.scale, a.p.Scale), a.p.Neighbors, seed)
 	}
 
 	// kNewGameMode or kResumeGameMode (Play.c:100-190), which is the only difference a resume
@@ -1069,6 +1104,13 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 			// kTicksPerFrame is 2 on a 60.15 Hz clock, so a Mac that kept up ran at
 			// 30.07 frames a second.
 			fmt.Printf("glidergo: unpaced -- %.1fx the original's 30.07 fps target\n", rate/30.07)
+		}
+		if cpu1, ok := cpuTime(); ok && o.frames > 0 && el > 0 {
+			// What a timed run cost the machine, which for a paced one is the number that
+			// means anything: its rate is the limiter's. 2.76's budgets are in these terms.
+			fmt.Printf("glidergo: %v of CPU, %.0f%% of one core; slowest frame %v, at frame %d\n",
+				(cpu1 - cpu0).Round(time.Millisecond), 100*(cpu1-cpu0).Seconds()/el.Seconds(),
+				slowest.Round(100*time.Microsecond), slowestAt)
 		}
 		reportAudio(a.eng, a.pump, a.sink)
 	}

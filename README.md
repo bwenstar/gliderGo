@@ -330,6 +330,11 @@ Settings are one JSON file in `~/.config/glidergo/prefs.json`, written when the 
 closes rather than at quit. A hand-edited or truncated one is repaired and complained about, not
 refused.
 
+The window opens at the largest whole magnification that fits the monitor, title bar and all:
+2× on 1080p, and at most 3× for now, until 4× has been measured on Windows. The settings screen's
+magnification row changes that for the next launch, and `-scale N` for one run. A settings file
+from 0.1.x keeps the 1× it was written with; step the row below 1×, or press R there, for auto.
+
 There is a `fixes` block in that file which is deliberately not on any screen: four switches,
 each correcting a genuine bug in the 1994 code — a mirror that blinks a candle flame out, a
 mirror that draws the wrong player, a stray sparkle in the corner of a room, and

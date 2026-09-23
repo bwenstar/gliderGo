@@ -14,6 +14,11 @@
 // the frames the same version renders on Linux and matched exactly. Window creation, the message
 // pump, the blit and the scaled blit all work. docs/windows-first-run.md is the write-up.
 //
+// Since that run, and not yet run anywhere: Room, which sizes the window to the monitor, the
+// window's placement in the middle of that monitor, and a Present that sends only what a frame
+// changed (docs/IMPROVEMENTS.md 2.1, 2.76). The next Windows rehearsal compares pixels again for
+// exactly that reason.
+//
 // What that does NOT cover, and what a reader should still distrust: keyboard input, because the
 // run was driven by -frames and nobody pressed a key; arm64, which no machine here or there can
 // run; and everything about a window the player interacts with -- resizing, focus loss, dragging,
@@ -29,7 +34,7 @@
 //
 // The shape mirrors internal/platform/x11 deliberately, function for function, because the two
 // have to behave identically for the game above them: one window at a fixed integer multiple of
-// 640x480, a whole-framebuffer upload per frame, a held-key bitmap that survives losing focus,
+// 640x480, an upload of what each frame changed, a held-key bitmap that survives losing focus,
 // and Event.Text carrying what the host's own layout typed so the high-score screen works on a
 // keyboard this port has never seen. Where the two differ it is Windows' doing and it is
 // commented at the point of difference.
@@ -93,6 +98,10 @@ var (
 	procBeginPaint          = user32.NewProc("BeginPaint")
 	procEndPaint            = user32.NewProc("EndPaint")
 	procLoadCursorW         = user32.NewProc("LoadCursorW")
+	procGetCursorPos        = user32.NewProc("GetCursorPos")
+	procMonitorFromRect     = user32.NewProc("MonitorFromRect")
+	procGetMonitorInfoW     = user32.NewProc("GetMonitorInfoW")
+	procIsIconic            = user32.NewProc("IsIconic")
 
 	// The two ways to say "do not scale my pixels". Neither is on every supported Windows, so
 	// both are looked up and neither is required; see dpiAware.
@@ -134,6 +143,8 @@ const (
 	cwUseDefault = 0x80000000
 
 	swShow = 5
+
+	monitorDefaultToNearest = 2
 
 	pmRemove = 0x0001
 
@@ -177,6 +188,17 @@ type (
 
 	rect struct{ left, top, right, bottom int32 }
 
+	point struct{ x, y int32 }
+
+	// monitorInfo is MONITORINFO: a monitor's rectangle, and its work area, which is the part
+	// the taskbar and any docked toolbar leave free.
+	monitorInfo struct {
+		size    uint32
+		monitor rect
+		work    rect
+		flags   uint32
+	}
+
 	paintStruct struct {
 		hdc         uintptr
 		erase       int32
@@ -216,6 +238,9 @@ type Window struct {
 
 	buf []byte // pw*ph*4 BGRX bytes, the scaled surface StretchDIBits reads
 	bmi bitmapInfoHeader
+	sub bitmapInfoHeader // the rows of buf one block of a frame is sent from; see Present
+
+	changes platform.Changes // what the window was last sent
 
 	events  []platform.Event
 	pending int // index into events of the WM_KEYDOWN a WM_CHAR belongs to, or -1
@@ -239,6 +264,7 @@ var (
 	creating *Window // the window whose CreateWindowExW has not returned yet; see windowFor
 
 	classOnce sync.Once
+	dpiOnce   sync.Once
 	classErr  error
 	classPtr  *uint16
 	instance  uintptr
@@ -248,6 +274,41 @@ var (
 	// be a leak with a hard ceiling.
 	wndProcPtr = syscall.NewCallback(wndProc)
 )
+
+// workArea is the work area of the monitor under the mouse pointer, or of the one nearest it,
+// in physical pixels. It is where New puts the window, since that is the monitor the player is
+// looking at, and so it is also what Room measures.
+func workArea() (rect, error) {
+	dpiAware() // before any monitor is asked about, or the answer is in scaled pixels
+	var pt point
+	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt))) // on failure, the monitor nearest 0,0
+	at := rect{pt.x, pt.y, pt.x + 1, pt.y + 1}
+	mon, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&at)), monitorDefaultToNearest)
+	mi := monitorInfo{size: uint32(unsafe.Sizeof(monitorInfo{}))}
+	if mon == 0 {
+		return rect{}, fmt.Errorf("win32: no monitor to put a window on")
+	}
+	if r, _, err := procGetMonitorInfoW.Call(mon, uintptr(unsafe.Pointer(&mi))); r == 0 {
+		return rect{}, fmt.Errorf("win32: GetMonitorInfoW failed: %v", err)
+	}
+	return mi.work, nil
+}
+
+// Room is the space a window may have (platform.Room): the work area of the monitor under the
+// pointer, less the caption and frame this window's style adds around the game.
+func Room() (platform.Room, error) {
+	work, err := workArea()
+	if err != nil {
+		return platform.Room{}, err
+	}
+	var frame rect
+	procAdjustWindowRect.Call(uintptr(unsafe.Pointer(&frame)), wsWindow, 0)
+	return platform.Room{
+		W:    int(work.right-work.left) - int(frame.right-frame.left),
+		H:    int(work.bottom-work.top) - int(frame.bottom-frame.top),
+		From: "the work area of the monitor under the pointer, less a title bar",
+	}, nil
+}
 
 // New opens a window. The caller owns Close, and must call it, PollEvents and Present from this
 // same goroutine -- see the package comment.
@@ -293,6 +354,16 @@ func New(cfg platform.Config) (*Window, error) {
 	procAdjustWindowRect.Call(uintptr(unsafe.Pointer(&r)), wsWindow, 0)
 	outerW, outerH := int(r.right-r.left), int(r.bottom-r.top)
 
+	// In the middle of the work area, and never above or left of it, so that a window too big
+	// for the monitor still has its title bar on screen to be dragged by. CW_USEDEFAULT would
+	// cascade it down from the top left of the primary monitor, and a window sized to fit the
+	// work area would then run off the bottom of it.
+	x, y := uintptr(cwUseDefault), uintptr(cwUseDefault)
+	if work, err := workArea(); err == nil {
+		x = uintptr(max(int(work.left)+(int(work.right-work.left)-outerW)/2, int(work.left)))
+		y = uintptr(max(int(work.top)+(int(work.bottom-work.top)-outerH)/2, int(work.top)))
+	}
+
 	win := &Window{
 		w: w, h: h, scale: scale, pw: pw, ph: ph,
 		buf:     make([]byte, pw*ph*4),
@@ -318,7 +389,7 @@ func New(cfg platform.Config) (*Window, error) {
 		uintptr(unsafe.Pointer(classPtr)),
 		uintptr(unsafe.Pointer(titlePtr)),
 		wsWindow,
-		cwUseDefault, cwUseDefault, // let Windows place it
+		x, y,
 		uintptr(outerW), uintptr(outerH),
 		0, 0, instance, 0)
 
@@ -400,15 +471,21 @@ func registerClass() error {
 // Windows 10 1703 and later; SetProcessDPIAware is Vista and later but is the older, per-process
 // form. If the awareness is already set (by a manifest, say, or by a launcher) both fail
 // harmlessly and the setting that is already there is the right one to keep.
+//
+// It runs once, before the first monitor query or the window class, whichever comes first:
+// Room asks about the monitor before New registers anything, and a process that is not yet DPI
+// aware is told the size of a monitor in scaled pixels.
 func dpiAware() {
-	if procSetProcessDpiAwarenessContext.Find() == nil {
-		if r, _, _ := procSetProcessDpiAwarenessContext.Call(dpiPerMonitorAwareV2); r != 0 {
-			return
+	dpiOnce.Do(func() {
+		if procSetProcessDpiAwarenessContext.Find() == nil {
+			if r, _, _ := procSetProcessDpiAwarenessContext.Call(dpiPerMonitorAwareV2); r != 0 {
+				return
+			}
 		}
-	}
-	if procSetProcessDPIAware.Find() == nil {
-		procSetProcessDPIAware.Call()
-	}
+		if procSetProcessDPIAware.Find() == nil {
+			procSetProcessDPIAware.Call()
+		}
+	})
 }
 
 // windowFor maps an HWND back to its Window.
@@ -469,9 +546,11 @@ func wndProc(hwnd, message, wparam, lparam uintptr) uintptr {
 		// BeginPaint/EndPaint is not optional even though nothing is drawn between them: they
 		// are what clears the update region, and without them Windows would send WM_PAINT
 		// again immediately, forever. The actual repaint is the game's, via EventExpose.
+		// All, because the repaint of a paused game is the frame the window was sent last.
 		var ps paintStruct
 		procBeginPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
 		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
+		w.changes.All()
 		w.events = append(w.events, platform.Event{Kind: platform.EventExpose})
 		return 0
 
@@ -569,14 +648,21 @@ func (w *Window) char(unit uint16) {
 	w.events = append(w.events, platform.Event{Kind: platform.EventKeyDown, Text: text})
 }
 
-// Present uploads fb and displays it, magnifying by the configured integer scale with
-// nearest-neighbour sampling.
+// Present displays fb, magnifying by the configured integer scale with nearest-neighbour
+// sampling. It sends what changed since the last frame and nothing else, one StretchDIBits per
+// block platform.Changes reports, as the x11 backend does.
 //
 // The DIB header's height is negative, which is what makes this a copy of the framebuffer rather
 // than a vertical flip of it: a positive height means a bottom-up DIB, the layout every Windows
 // bitmap file uses and no framebuffer in this port does. StretchDIBits with equal source and
 // destination rectangles is a straight blit -- the scaling has already happened, in Go, because
 // GDI's own stretch would smooth 1994 pixel art (see platform.Expand).
+//
+// A block is sent as a DIB of its own: the bits start at the block's first row of buf, the
+// header says the DIB is that many rows tall, and the source rectangle takes all of them. That is
+// deliberate. Which way StretchDIBits counts ySrc in a top-down DIB is something Windows' own
+// documentation and its drivers have disagreed on, and a source rectangle that is the whole
+// height of its DIB is the same rows whichever way it is counted.
 //
 // Its return value is deliberately not checked. A Present error ends the game (cmd/glidergo's
 // Present hook treats one as a dead window), and GDI returning zero for a frame drawn while the
@@ -591,19 +677,33 @@ func (w *Window) Present(fb *platform.Framebuffer) error {
 	if fb.W != w.w || fb.H != w.h {
 		return fmt.Errorf("win32: framebuffer is %dx%d, window expects %dx%d", fb.W, fb.H, w.w, w.h)
 	}
-	if err := platform.Expand(w.buf, w.pw*4, fb, w.scale); err != nil {
-		return err
+	if r, _, _ := procIsIconic.Call(w.hwnd); r != 0 {
+		// Minimised: nothing shows, and what showed is gone when the window is restored.
+		w.changes.All()
+		return nil
 	}
 
-	// Both pointers are fields of a live *Window, so nothing here can be collected while the
-	// call runs -- which is the rule that makes passing Go memory to a syscall safe, and the
-	// reason buf and bmi are fields rather than locals.
-	procStretchDIBits.Call(w.hdc,
-		0, 0, uintptr(w.pw), uintptr(w.ph), // destination rectangle
-		0, 0, uintptr(w.pw), uintptr(w.ph), // source rectangle, the same size
-		uintptr(unsafe.Pointer(&w.buf[0])),
-		uintptr(unsafe.Pointer(&w.bmi)),
-		dibRGBColors, srcCopy)
+	s, stride := w.scale, w.pw*4
+	for _, sp := range w.changes.Diff(fb) {
+		if err := platform.ExpandSpan(w.buf, stride, fb, s, sp); err != nil {
+			return err
+		}
+		x, y := sp.X0*s, sp.Y0*s
+		cw, ch := (sp.X1-sp.X0)*s, (sp.Y1-sp.Y0)*s
+		w.sub = w.bmi
+		w.sub.height = -int32(ch)
+		w.sub.sizeImage = uint32(stride * ch)
+
+		// Both pointers are into fields of a live *Window, so nothing here can be collected
+		// while the call runs -- which is the rule that makes passing Go memory to a syscall
+		// safe, and the reason buf and sub are fields rather than locals.
+		procStretchDIBits.Call(w.hdc,
+			uintptr(x), uintptr(y), uintptr(cw), uintptr(ch), // destination rectangle
+			uintptr(x), 0, uintptr(cw), uintptr(ch), // source: the same, in the block's own DIB
+			uintptr(unsafe.Pointer(&w.buf[y*stride])),
+			uintptr(unsafe.Pointer(&w.sub)),
+			dibRGBColors, srcCopy)
+	}
 	return nil
 }
 

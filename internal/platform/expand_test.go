@@ -2,6 +2,7 @@ package platform
 
 import (
 	"bytes"
+	"fmt"
 	"image/color"
 	"testing"
 )
@@ -147,19 +148,21 @@ func TestExpandRefusesASurfaceThatIsTooSmall(t *testing.T) {
 	}
 }
 
-// BenchmarkExpand is the frame budget for the two backends' upload path: a 640x480 frame at the
-// three scales the shell offers. Measured on the development host: 64 us at 1:1, 2.2 ms at 2:1
-// and 3.3 ms at 3:1, against a 16.7 ms frame. So a per-frame full-surface expansion is
-// affordable at every scale, which is the question this answers -- and the jump from 1:1 to 2:1
-// is 34x rather than 4x because 1:1 is one copy per row and anything above it is one per pixel.
-// Worth knowing before optimising the wrong end: at 3:1 this is a fifth of the frame.
+// BenchmarkExpand is the cost of expanding a whole 640x480 frame at the scales auto can choose
+// (docs/IMPROVEMENTS.md 2.1, 2.76). A backend pays it for the first frame, and after anything that
+// damaged its window; every other frame it expands only what changed (Changes), which over a
+// played room is a few dozen rows. Measured on the development host with other work running on
+// it: 67 us at 1:1 and 2.5 to 3.9 ms at 2:1 to 4:1, against a 16.7 ms frame. The byte-at-a-time
+// loop this replaced took about twice as long above 1:1, measured side by side. The step from 1:1
+// is large because 1:1 is one copy per row and anything above it is one store per pixel, and at
+// 4:1 a frame is 19.7 MB, so the figure is mostly memory bandwidth.
 func BenchmarkExpand(b *testing.B) {
-	for _, scale := range []int{1, 2, 3} {
+	for _, scale := range []int{1, 2, 3, 4} {
 		fb := NewFramebuffer(ScreenWidth, ScreenHeight)
 		fb.Fill(color.RGBA{R: 0x40, G: 0x80, B: 0xC0, A: 0xff})
 		dstStride := ScreenWidth * scale * 4
 		dst := make([]byte, dstStride*ScreenHeight*scale)
-		b.Run(map[int]string{1: "1x", 2: "2x", 3: "3x"}[scale], func(b *testing.B) {
+		b.Run(fmt.Sprintf("%dx", scale), func(b *testing.B) {
 			b.SetBytes(int64(len(dst)))
 			for i := 0; i < b.N; i++ {
 				if err := Expand(dst, dstStride, fb, scale); err != nil {
@@ -168,4 +171,30 @@ func BenchmarkExpand(b *testing.B) {
 			}
 		})
 	}
+}
+
+// BenchmarkDiff is what finding the changes costs a frame: the same frame again, which is a
+// title screen or a pause, and a frame with a glider's worth of rows changed. About 75 and
+// 100 us on the development host, whatever the scale, since it reads the frame before it is
+// magnified.
+func BenchmarkDiff(b *testing.B) {
+	fb := NewFramebuffer(ScreenWidth, ScreenHeight)
+	fb.Fill(color.RGBA{R: 0x40, G: 0x80, B: 0xC0, A: 0xff})
+	b.Run("unchanged", func(b *testing.B) {
+		var c Changes
+		c.Diff(fb)
+		for i := 0; i < b.N; i++ {
+			c.Diff(fb)
+		}
+	})
+	b.Run("a sprite", func(b *testing.B) {
+		var c Changes
+		c.Diff(fb)
+		for i := 0; i < b.N; i++ {
+			for y := 200; y < 236; y++ {
+				fb.Pix[y*fb.Stride+300*4+i%48*4] ^= 0xFF
+			}
+			c.Diff(fb)
+		}
+	})
 }

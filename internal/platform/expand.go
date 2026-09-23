@@ -14,7 +14,10 @@ package platform
 // 1994 pixel art honest: every source pixel becomes an exact scale x scale block of the same
 // colour, so a doubled window is the original image and not a blurred guess at it.
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 // Expand copies fb into dst, magnifying by an integer scale.
 //
@@ -30,6 +33,14 @@ import "fmt"
 // place of a message, and the sizes involved come from a window manager and from cfg, not from
 // this package.
 func Expand(dst []byte, dstStride int, fb *Framebuffer, scale int) error {
+	return ExpandSpan(dst, dstStride, fb, scale, Span{0, 0, fb.W, fb.H})
+}
+
+// ExpandSpan is Expand for one block of the framebuffer, which is how a backend expands only
+// what Changes says changed. It writes the scale x scale blocks s covers and leaves the rest of
+// dst as it was, and it checks the whole of fb and dst as Expand does, so a size that is wrong
+// is wrong whichever part of the frame changed. s is clipped to fb.
+func ExpandSpan(dst []byte, dstStride int, fb *Framebuffer, scale int, s Span) error {
 	if scale < 1 {
 		scale = 1
 	}
@@ -57,23 +68,35 @@ func Expand(dst []byte, dstStride int, fb *Framebuffer, scale int) error {
 			len(dst), need, fb.W, fb.H, scale)
 	}
 
-	for y := 0; y < fb.H; y++ {
-		src := fb.Pix[y*fb.Stride : y*fb.Stride+fb.W*4]
-		row := dst[y*scale*dstStride:][:rowBytes]
+	s.X0, s.Y0 = max(s.X0, 0), max(s.Y0, 0)
+	s.X1, s.Y1 = min(s.X1, fb.W), min(s.Y1, fb.H)
+	if s.X0 >= s.X1 || s.Y0 >= s.Y1 {
+		return nil
+	}
+
+	n := (s.X1 - s.X0) * scale * 4 // bytes of one output line of the span
+	for y := s.Y0; y < s.Y1; y++ {
+		src := fb.Pix[y*fb.Stride+s.X0*4 : y*fb.Stride+s.X1*4]
+		at := y*scale*dstStride + s.X0*scale*4
+		row := dst[at:][:n]
 		if scale == 1 {
 			copy(row, src)
 			continue
 		}
-		for x := 0; x < fb.W; x++ {
-			px := src[x*4 : x*4+4]
-			for s := 0; s < scale; s++ {
-				copy(row[(x*scale+s)*4:], px)
+		// A pixel at a time as one 32-bit word: the same bytes as four one-byte copies, in
+		// about half the time at 2x to 4x (docs/IMPROVEMENTS.md 2.76). The byte order is only
+		// a way to move four bytes; they are read and written the same way round.
+		for x := 0; x < len(src)/4; x++ {
+			v := binary.LittleEndian.Uint32(src[x*4:])
+			out := row[x*scale*4:][:scale*4]
+			for k := 0; k < scale; k++ {
+				binary.LittleEndian.PutUint32(out[k*4:], v)
 			}
 		}
-		// The row is already expanded, so the remaining scale-1 lines of the block are a
+		// The line is already expanded, so the remaining scale-1 lines of the block are a
 		// straight copy of it rather than the same per-pixel loop run again.
-		for s := 1; s < scale; s++ {
-			copy(dst[(y*scale+s)*dstStride:][:rowBytes], row)
+		for k := 1; k < scale; k++ {
+			copy(dst[at+k*dstStride:][:n], row)
 		}
 	}
 	return nil

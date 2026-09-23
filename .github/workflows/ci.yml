@@ -161,16 +161,21 @@ jobs:
       # The one thing `make check` cannot do without a display: put real pixels through
       # XPutImage. Depth matters and is the likeliest thing to break here --
       # internal/platform/x11 rejects anything but 24 or 32 ("unsupported display depth 8"),
-      # and Xvfb's historical default is 8. Hence the explicit screen argument.
+      # and Xvfb's historical default is 8. Hence the explicit screen argument, which is also
+      # big enough for the bench's 4x window, 2560x1920 (docs/IMPROVEMENTS.md 2.76): a window
+      # that runs off the screen is partly never drawn, and its row would measure less.
       - name: On-screen bench under Xvfb
-        run: xvfb-run -a -s '-screen 0 640x480x24' make bench
+        run: xvfb-run -a -s '-screen 0 2600x1980x24' make bench
 
-      # internal/platform/x11's one test asks the server whether New turned on XKB's detectable
-      # auto-repeat, and skips when DISPLAY is unset, which `make check` above always is here.
-      # Without this step a runner never asks (docs/IMPROVEMENTS.md 2.72). -noreset stops Xvfb
-      # resetting when a client disconnects, so the test's window cannot race a reset.
+      # internal/platform/x11's tests that need a server -- whether New turned on XKB's
+      # detectable auto-repeat, what Room reads from the display, and whether a changed-rows
+      # Present leaves the window showing the whole frame, read back with XGetImage -- skip when
+      # DISPLAY is unset, which `make check` above always is here. Without this step a runner
+      # never asks (docs/IMPROVEMENTS.md 2.72 and 2.76). -noreset stops Xvfb resetting when a
+      # client disconnects, so a test's window cannot race a reset. The read-back test
+      # magnifies to 2x when the screen has room, and 1x would not exercise the scaled offsets.
       - name: X11 backend test under Xvfb
-        run: xvfb-run -a -s '-screen 0 640x480x24 -noreset' go test -count=1 -v ./internal/platform/x11/
+        run: xvfb-run -a -s '-screen 0 2600x1980x24 -noreset' go test -count=1 -v ./internal/platform/x11/
 
       - name: Upload the shell screenshots
         if: always()

@@ -2,14 +2,14 @@
 //
 // It exists so that no other package has to care. Everything above it takes a platform.Window
 // and never learns whether the pixels are going to an X server, to GDI, or to a PNG on disk:
-// cmd/glidergo calls Open once (play.go's openWindow) and prints Name in its banner, and that is
-// the whole of the port's contact with the choice.
+// cmd/glidergo calls Room and Open once each (play.go's openWindow) and prints Name in its
+// banner, and that is the whole of the port's contact with the choice.
 //
 // The choice is made at compile time by build tags and never by runtime probing. That is
 // deliberate: a wrong tag is a build failure or a missing symbol, whereas a wrong probe is a
 // game that comes up headless on a machine with a perfectly good display and says nothing about
-// it. The three selectors are exact logical complements -- every build gets one Open and one
-// Name, no build gets two, and none gets none:
+// it. The three selectors are exact logical complements -- every build gets one Open, one Room
+// and one Name, no build gets two, and none gets none:
 //
 //	backend_x11.go     linux && cgo && !nullbackend                              x11    Name = "x11"
 //	backend_win32.go   windows && !nullbackend                                   win32  Name = "win32"

@@ -147,6 +147,11 @@ type Host struct {
 
 	// Version is shown on the status line.
 	Version string
+
+	// AutoScale is what auto magnification comes to on this display, for the settings
+	// screen to show beside the word; 0 when it is not known, as in a screenshot, which
+	// must not depend on the machine it was taken on.
+	AutoScale int
 }
 
 // Choice is what the shell asks Play for.

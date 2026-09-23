@@ -331,8 +331,18 @@ func TestValidateRepairsAndSaysSo(t *testing.T) {
 		name: "a negative scale",
 		set:  func(p *Prefs) { p.Scale = -1 },
 		want: func(p *Prefs) string {
-			if p.Scale != 1 {
-				return "scale is not 1"
+			if p.Scale != ScaleAuto {
+				return "scale is not auto"
+			}
+			return ""
+		},
+		says: "scale",
+	}, {
+		name: "a scale past the cap",
+		set:  func(p *Prefs) { p.Scale = MaxScale + 1 },
+		want: func(p *Prefs) string {
+			if p.Scale != ScaleAuto {
+				return "scale is not auto"
 			}
 			return ""
 		},
@@ -377,6 +387,22 @@ func TestValidateRepairsAndSaysSo(t *testing.T) {
 				t.Errorf("the notes do not mention %q:\n  %s", tc.says, strings.Join(p.Notes, "\n  "))
 			}
 		})
+	}
+}
+
+// Auto, and every scale up to the cap, is a setting and not a repair (docs/IMPROVEMENTS.md 2.1).
+// Auto is the default, so a fresh install's window fits its monitor.
+func TestEveryScaleIncludingAutoIsValid(t *testing.T) {
+	if Default().Scale != ScaleAuto {
+		t.Errorf("the default scale is %d, not auto", Default().Scale)
+	}
+	for scale := ScaleAuto; scale <= MaxScale; scale++ {
+		p := Default()
+		p.Scale = scale
+		p.Validate()
+		if p.Scale != scale || len(p.Notes) != 0 {
+			t.Errorf("scale %d came back %d, with notes %q", scale, p.Scale, p.Notes)
+		}
 	}
 }
 

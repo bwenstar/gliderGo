@@ -176,6 +176,10 @@ type options struct {
 	dump      string
 	quiet     bool
 
+	// scaleGiven is -scale on this command line, which is honoured even when the window it
+	// makes is too big for the monitor, where the same number from the settings is not.
+	scaleGiven bool
+
 	shot       string
 	shotScreen string
 
@@ -565,7 +569,7 @@ func parseFlags() (*options, error) {
 	flag.StringVar(&o.houseArt, "houseart", "", "extracted per-house resource forks to use instead of the ones built in")
 	flag.IntVar(&o.roomNum, "room", -1, "start in this room number instead of the house's first")
 	flag.IntVar(&o.neighbors, "neighbors", 9, "how much of the house to compose around the player: 1, 3 or 9")
-	flag.IntVar(&o.scale, "scale", 1, "integer nearest-neighbour magnification of the 640x480 image")
+	flag.IntVar(&o.scale, "scale", 0, "integer nearest-neighbour magnification of the 640x480 image (0 = the largest that fits the screen, up to 3)")
 	flag.BoolVar(&o.two, "two", false, "two players on one keyboard (the title screen's Two Player Game does the same)")
 	flag.Int64Var(&o.seed, "seed", 1, "the random stream's starting state; 1 is what the 1994 build launched with (0 = use the clock instead)")
 	flag.IntVar(&o.frames, "frames", 0, "quit after N frames, for headless and timed runs (0 = play)")
@@ -668,8 +672,8 @@ func parseFlags() (*options, error) {
 	if err := raceRefusals(o); err != nil {
 		return nil, err
 	}
-	if o.scale < 1 {
-		return nil, errors.New("-scale must be at least 1")
+	if o.scale < prefs.ScaleAuto || o.scale > prefs.MaxScale {
+		return nil, fmt.Errorf("-scale must be 0, for the largest that fits the screen, or 1 to %d", prefs.MaxScale)
 	}
 	switch o.neighbors {
 	case 1, 3, 9:
@@ -940,7 +944,7 @@ func shot(o *options, p *prefs.Prefs) error {
 	// `-shot -prefs some.json` is how a golden image of the settings screen gets settings
 	// to show -- that file must not be able to change the image's size out from under the
 	// comparison.
-	if err := writePNG(o.shot, scr, o.scale); err != nil {
+	if err := writePNG(o.shot, scr, max(o.scale, 1)); err != nil {
 		return err
 	}
 	if !o.quiet {
@@ -1081,8 +1085,9 @@ func (a *app) shellHost() shell.Host {
 				a.win.SetTitle(s)
 			}
 		},
-		Notify:  func(s string) { fmt.Fprintln(os.Stderr, s) },
-		Version: version,
+		Notify:    func(s string) { fmt.Fprintln(os.Stderr, s) },
+		Version:   version,
+		AutoScale: a.autoScale,
 	}
 }
 

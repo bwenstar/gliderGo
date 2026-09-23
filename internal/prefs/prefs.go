@@ -148,6 +148,11 @@ type Prefs struct {
 	// Scale is the integer magnification of the 640x480 image, applied by the backend
 	// and nowhere else (docs/IMPROVEMENTS.md 2.8). The original had no equivalent: its
 	// window was one screen pixel per game pixel on a 640x480 display.
+	//
+	// ScaleAuto, the default, is the largest that fits the monitor the window opens on,
+	// worked out each time the game starts (cmd/glidergo's windowScale, IMPROVEMENTS
+	// 2.1). A number is a number, and a window it makes too big for the monitor is
+	// made smaller, for that launch and without changing the setting.
 	Scale int `json:"scale"`
 
 	// Neighbors is `numNeighbors`: 1, 3 or 9 rooms composed around the player. The
@@ -230,7 +235,7 @@ func Default() *Prefs {
 		Player2: Controls{Left: "a", Right: "d", Batt: "s", Band: "w"},
 
 		PauseKey:  "tab",
-		Scale:     1,
+		Scale:     ScaleAuto,
 		Neighbors: 9,
 
 		Sound:        true,
@@ -514,9 +519,9 @@ func (p *Prefs) Validate() {
 	// setting a player touches; this follows it.
 	p.Sound = p.Volume != 0
 
-	if p.Scale < 1 || p.Scale > MaxScale {
-		p.note("scale %d is outside 1..%d; using %d", p.Scale, MaxScale, d.Scale)
-		p.Scale = d.Scale
+	if p.Scale < ScaleAuto || p.Scale > MaxScale {
+		p.note("scale %d is not 0 (auto) or 1..%d; using auto", p.Scale, MaxScale)
+		p.Scale = ScaleAuto
 	}
 	switch p.Neighbors {
 	case 1, 3, 9:
@@ -547,8 +552,10 @@ const (
 
 	// MaxScale is a cap on the window rather than a fidelity matter: 8x of 640x480 is
 	// 5120x3840, past any display this will run on, and a mistyped 800 should not ask
-	// the backend for a 4-gigabyte surface.
-	MaxScale = 8
+	// the backend for a 4-gigabyte surface. ScaleAuto is the Scale that asks for the
+	// largest that fits.
+	MaxScale  = 8
+	ScaleAuto = 0
 
 	// The original's Str15 wasHighName and Str31 wasHighBanner, in runes.
 	MaxHighName   = 15

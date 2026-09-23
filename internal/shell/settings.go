@@ -93,8 +93,10 @@ type setRow struct {
 	// bind points at the binding this row edits, inside the live Prefs.
 	bind func(*prefs.Prefs) *string
 
-	// show renders the value. Binding rows leave it nil and show the binding.
-	show func(*prefs.Prefs) string
+	// show renders the value. Binding rows leave it nil and show the binding. The host is
+	// for a value that means something different on different machines: auto
+	// magnification is a number only the display can supply.
+	show func(*prefs.Prefs, *Host) string
 
 	// step moves the value by -1 or +1. Binding rows leave it nil.
 	step func(*prefs.Prefs, int)
@@ -131,7 +133,7 @@ var settings = []setRow{
 
 	{
 		group: "General", label: "pause key",
-		show: func(p *prefs.Prefs) string { return p.PauseKey },
+		show: func(p *prefs.Prefs, _ *Host) string { return p.PauseKey },
 		// The original's own choice is exactly this binary -- isEscPauseKey, a
 		// checkbox in the Brains pane -- and it stays binary because the pause
 		// overlay is a picture with the key drawn into it (PICT 1015 and 1016).
@@ -145,7 +147,7 @@ var settings = []setRow{
 		},
 	}, {
 		label: "rooms in view",
-		show:  func(p *prefs.Prefs) string { return fmt.Sprintf("%d", p.Neighbors) },
+		show:  func(p *prefs.Prefs, _ *Host) string { return fmt.Sprintf("%d", p.Neighbors) },
 		step: func(p *prefs.Prefs, d int) {
 			// 1, 3 or 9 and nothing between: numNeighbors selects which of the
 			// original's three composition paths runs (Render.c), not a radius.
@@ -153,18 +155,31 @@ var settings = []setRow{
 			p.Neighbors = cycle(steps, p.Neighbors, d)
 		},
 	}, {
+		// Auto is below 1x, so that stepping down from a number reaches it and stepping
+		// up from it starts at the smallest window. It shows what it comes to on this
+		// display when the host knows, since "auto" alone does not say how big the next
+		// window is -- as "auto 3x" and not "auto (3x)", which is 108 wide at setScale
+		// and the hint starts 90 along.
 		label: "magnification", hint: "next launch",
-		show: func(p *prefs.Prefs) string { return fmt.Sprintf("%dx", p.Scale) },
-		step: func(p *prefs.Prefs, d int) { p.Scale = clamp(p.Scale+d, 1, prefs.MaxScale) },
+		show: func(p *prefs.Prefs, h *Host) string {
+			switch {
+			case p.Scale != prefs.ScaleAuto:
+				return fmt.Sprintf("%dx", p.Scale)
+			case h.AutoScale > 0:
+				return fmt.Sprintf("auto %dx", h.AutoScale)
+			}
+			return "auto"
+		},
+		step: func(p *prefs.Prefs, d int) { p.Scale = clamp(p.Scale+d, prefs.ScaleAuto, prefs.MaxScale) },
 	},
 
 	{
 		group: "Sound", label: "volume",
-		show: func(p *prefs.Prefs) string { return fmt.Sprintf("%d of %d", p.Volume, prefs.MaxVolume) },
+		show: func(p *prefs.Prefs, _ *Host) string { return fmt.Sprintf("%d of %d", p.Volume, prefs.MaxVolume) },
 		step: func(p *prefs.Prefs, d int) { p.Volume = clamp(p.Volume+d, 0, prefs.MaxVolume) },
 	}, {
 		label: "music in a game",
-		show:  func(p *prefs.Prefs) string { return yesNo(p.MusicInGame) },
+		show:  func(p *prefs.Prefs, _ *Host) string { return yesNo(p.MusicInGame) },
 		step:  func(p *prefs.Prefs, _ int) { p.MusicInGame = !p.MusicInGame },
 	}, {
 		// The original's other music preference (`isPlayMusicIdle`), and the only row
@@ -179,7 +194,7 @@ var settings = []setRow{
 		// plays when nobody is playing -- and it is true of the house picker and this
 		// screen as well as the splash, which "on the title screen" is not.
 		label: "music while idle",
-		show:  func(p *prefs.Prefs) string { return yesNo(p.MusicOnTitle) },
+		show:  func(p *prefs.Prefs, _ *Host) string { return yesNo(p.MusicOnTitle) },
 		step:  func(p *prefs.Prefs, _ int) { p.MusicOnTitle = !p.MusicOnTitle },
 	},
 }
@@ -403,7 +418,7 @@ func (s *Shell) rowValue(p *prefs.Prefs, i int) string {
 	if row.bind != nil {
 		return *row.bind(p)
 	}
-	return row.show(p)
+	return row.show(p, &s.host)
 }
 
 func lowerFirst(s string) string {

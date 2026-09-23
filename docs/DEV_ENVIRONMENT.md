@@ -155,12 +155,13 @@ xcode-select --install
 
 `./scripts/bootstrap-dev-env.sh --check` prints this table filled in for your machine.
 
-**If you run the bench under Xvfb, set the depth explicitly.** `internal/platform/x11`
+**If you run the bench under Xvfb, set the depth explicitly, and the size.** `internal/platform/x11`
 rejects anything but 24 or 32 bits, and Xvfb's historical default is 8 — which fails the build
-step rather than skipping it:
+step rather than skipping it. The bench's second row is a 2560×1920 window, and a window that runs
+off the screen is partly never drawn, so a smaller screen measures less than the row claims:
 
 ```bash
-xvfb-run -a -s '-screen 0 640x480x24' make bench
+xvfb-run -a -s '-screen 0 2600x1980x24' make bench
 ```
 
 ---
@@ -311,7 +312,10 @@ internal/platform          # interface: Window, Framebuffer, Events, AudioSink, 
 
 Rationale for each backend:
 
-- **x11** — zero downloads, already proven at 533 fps. Ships first.
+- **x11** — zero downloads, only libX11, and XPutImage rather than MIT-SHM (which needs
+  libXext). It ships first. At 1× the first probe blitted 533 whole frames a second (§6). Magnified
+  windows made the whole frame the cost, so `Present` sends only the rows that changed
+  (`internal/platform/changes.go`, IMPROVEMENTS 2.76).
 - **win32** — Windows can be reached with *pure Go* (`syscall` to `user32.dll`/`gdi32.dll`,
   `StretchDIBits` for the blit, and `waveOutWrite` to `winmm.dll` for audio — both now written).
   No cgo, no mingw, and it
@@ -356,8 +360,23 @@ blitted 120 frames of 640x480 in 225.1ms => 533.1 fps (655.0 MB/s)
 ```
 
 The original game runs its world at a fixed tick (see `docs/analysis/architecture.md`),
-so we have ~9× headroom on the display path even before MIT-SHM. Rendering is not a risk;
-**fidelity** is.
+so we have ~9× headroom on the display path even before MIT-SHM. That is true at 1×.
+
+**It stopped being true at 2× and above**, and auto magnification made 2× the default on 1080p
+(IMPROVEMENTS 2.1). A frame is scale² times the bytes, and sending a whole one to a 2600×1980
+Xephyr here costs:
+- 1.1 ms at 1×;
+- 7.6 ms at 2×;
+- 15 ms at 3×;
+- 32 ms at 4×, which is almost all of a 33 ms frame.
+
+A room wipe is over a hundred presents in one frame, so at 2× every door froze the game for 1.5 s.
+
+So `Present` sends only the rows each frame changed. A frame in play is 0.1–0.3 ms at any scale.
+Paced at 4×, the game costs 7–9% of a core, and a wipe about 0.1 s. `make bench` runs 1× and 4× flat
+out and 4× paced. `go test -bench Present ./internal/platform/x11/` measures the three kinds of
+frame on whatever `DISPLAY` is. IMPROVEMENTS 2.76 has the tables. Rendering is not a risk as long
+as that holds; **fidelity** is.
 
 ---
 

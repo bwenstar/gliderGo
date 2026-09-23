@@ -335,7 +335,7 @@ wrong for a shipped build. Each of those says what the original does, why it is 
 what the fix is, so that the fix is a decision someone can make later rather than a
 rediscovery.
 
-### 2.1 Window scaling — **remembered, 1.7b; fullscreen and a runtime toggle still open**
+### 2.1 Window scaling — **remembered, 1.7b; fitted to the monitor, the release gate's step 4; fullscreen and a runtime toggle still open**
 
 Already there: `cmd/glidergo -scale N` does integer nearest-neighbour magnification,
 which is the right filter — the art is 8-bit indexed pixel art and bilinear would smear
@@ -407,6 +407,56 @@ mismatch such as 8× on a laptop.
 
 This does not close 3.3's text-scaling item: a low-vision player on 1366×768 still gets 1× or 2×.
 3.3 gets a cross-reference.
+
+**Done, PLAN release gate step 4, with 2.76's changed-rows upload.** On this host's desktop a new
+prefs file now opens a 1280×960 window. It reads `scale=2 (auto)` on the banner and `auto 2x` on the
+settings row. The pieces:
+
+- `platform.Room` and `Room.Fit` (`internal/platform/platform.go`), and `backend.Room()` on all
+  three backends. Null answers the game's own size ("no screen"), so the fit there is 1×.
+- `cmd/glidergo/scale.go`'s `windowScale` holds the policy, and `TestWindowScale` covers 11 cases
+  with the development desktop, 1080p, 4K and a laptop.
+  - Auto is `Fit(…, autoMax)`, and `autoMax` is 3.
+  - A saved number that does not fit is fitted for this window only. The stderr line names what
+    was measured and says the setting is unchanged, and the banner reads `2 (fitted from 3)`.
+  - **An explicit `-scale` is kept even when it does not fit**, with a warning naming the largest
+    that does. That is not what the plan above said. It is so `make bench -scale 4` stays a 4×
+    row on whatever display it gets; a bench that quietly measured 2× would be worse than a
+    window off the edge.
+- **A timed or hermetic run never asks the display.** `-shot`, `-frames`, `-bench` and `-dump`
+  are 2.53's reproducible runs, so auto is 1× there. `-scale`'s default is 0 now rather than 1,
+  and `-shot` writes `max(scale, 1)`: the same 1× image as before, and a golden image that does
+  not depend on the machine it was taken on.
+- **X11** reads `_GTK_WORKAREAS_D<n>` for the monitor nearest the pointer, then `_NET_WORKAREA`,
+  then the screen. With a window manager present (`_NET_SUPPORTING_WM_CHECK`) it subtracts a
+  fixed 16×56 allowance for the frame. mutter's `_NET_FRAME_EXTENTS` for the window here is
+  0, 0, 37, 0: a 37 px title bar and no side borders. `chooseRoom` is a pure function with 8 cases
+  in `TestChooseRoom`.
+- **The server-reset bug this found.** An X server with no other client resets when its last one
+  disconnects, and refuses connections while it does. That is `xvfb-run` without `-noreset`, and a
+  bare Xephyr. `Room` opening and closing its own connection just before `New` opened one got
+  `New` refused in exactly that window, and the test suite hit it the first time a test closed a
+  window. So `Room` keeps its connection as a spare, and `New` closes the spare only after its own
+  `XOpenDisplay` succeeds.
+- **Windows** does what the plan says: `GetCursorPos`, then `MonitorFromRect` (nearest), then
+  `GetMonitorInfoW`'s `rcWork`, less `AdjustWindowRect` of an empty rect. The window is centred in
+  that work area instead of placed with `CW_USEDEFAULT`, clamped to its top left, and falls back to
+  `CW_USEDEFAULT` if the query fails. It builds and vets for amd64 and arm64 and **has not run**.
+  5.4's rehearsal checks it on the Windows test host, and `docs/windows-first-run.md` says what to
+  look for.
+- **The settings row** steps auto, 1×…8×; Left from 1× reaches auto, and R resets to it. It shows
+  `auto 2x` rather than the plan's `auto (2×)`: the value column is 90 px wide at the row's scale,
+  before "next launch" starts, and the bracketed form is 108. `TestSettingsValuesFitTheirColumn`
+  now measures every value every row can reach, including every key name a binding can show, so
+  the next wide value fails a test instead of overprinting a hint. `shell.Host.AutoScale` carries
+  the number. `-shot` leaves it 0, so the golden settings screen reads plain `auto`, and that hash
+  changed on purpose.
+- **An existing prefs file keeps its number.** Files written by 0.1.x say `"scale": 1`, because 1
+  was the default, and there is no telling that apart from a player who chose 1×. So there is no
+  migration. The CHANGELOG says that stepping below 1× on the row, or R, gives auto.
+
+Not done, and filed: per-monitor geometry on an X11 desktop that is not GNOME, where neither
+`_GTK_WORKAREAS` nor anything else in core X names a monitor (2.77).
 
 ### 2.2 The simulation is frame-locked at 30.07 fps and stays that way — **policy; interpolation is 1.7 or later**
 
@@ -502,6 +552,14 @@ one 160-strip wipe spent more than half the budget. A flag whose meaning depends
 the glider drifted is not a flag anyone can benchmark or replay with; `wrapPresentLimit`
 now tests `World.Frame`. The `-dump` PNG count is deliberately still per present, because
 one file per wipe strip is what you want when looking at a transition.
+
+**"Costs nothing measurable" was a headless figure, and on screen it was the opposite.** Every strip
+is a present, and until the release gate's step 4 every present sent the whole magnified window. On
+this host's Xephyr, a door (`-room 8`, frame 121) took 229 ms at 1×, 1.45 s at 2×, 3.0 s at 3× and
+4.2 s at 4×, in one frame. That is a freeze, not a wipe, and 2× became the 1080p default in the same
+step. 2.76's changed-rows present sends each strip's 4-pixel bar and whatever the new room changed
+under it, so the same door is 99–137 ms at every scale. That is still under this item's third of a
+second, so the pacing is still wanted, and a paced wipe can now afford its strips.
 
 ### 2.5 Pausing blocks the process, and unpausing leaves the screen black — **DONE, 1.7b**
 
@@ -2731,7 +2789,7 @@ that with `-prefs none` it could say "this session only".
 the Linux ones and says `glidergo -version` prints the resolved paths. The Linux `HOW-TO-RUN` says
 sound needs `pw-play`, `paplay` or `aplay`.
 
-### 2.76 Every frame uploads the whole magnified window, and auto scale will make that 4× — **planned; the bench row and 2.1's cap before the next tag, the changed-rows upload with it if it fits**
+### 2.76 Every frame uploads the whole magnified window, and auto scale will make that 4× — **items 1 and 4 and the bench row DONE, the release gate's step 4; the cap stays until Windows is measured; items 2 and 3 open**
 
 Both backends present the same way. `platform.Expand` writes the full pw×ph surface, then
 `XPutImage` (`x11.go:215`) or `StretchDIBits` (`win32.go:601`) sends all of it. That happens every
@@ -2839,6 +2897,156 @@ first, the cap is never written.
 Not measured: bare Xorg or XWayland (Xephyr copies every frame again into its host window), win32
 above 2×, any laptop, any battery.
 
+**Done, with 2.1: items 1 and 4, and the bench row.**
+
+- **Item 1 is `platform.Changes`** (`internal/platform/changes.go`). `Diff` compares the frame with
+  the last one it was given, row by row. It reports each run of changed rows, cut to the columns
+  that changed in any of them. Past 32 runs, the frame is sent as one block that covers them all.
+  - `ExpandSpan` expands just that block.
+  - X11 sends each block with a sub-rectangle `XPutImage`.
+  - Win32 sends each block with `StretchDIBits`, from a DIB header whose bits pointer is the
+    block's first row, whose height is the block's, and whose source is `(x, 0, w, h)`. That
+    sidesteps the question of which way a bottom-up source rect is counted on a top-down DIB.
+  - An expose, a map, `WM_PAINT` and a frame of another size all make the next frame whole.
+    `TestSendingOnlyTheChangesShowsTheWholeFrame` is the property: 60 random frames at 1–8×,
+    sending only what `Diff` reported, leave the window byte-identical to `Expand` of every frame.
+    On X11, `TestPresentSendsWhatTheFrameChanged` reads the real window back with `XGetImage`, and
+    a destination offset left at 0,0 fails it.
+- **Item 4:** X11 tracks `MapNotify`/`UnmapNotify`, and win32 checks `IsIconic`. An unmapped window
+  is sent nothing, and its next frame is whole.
+- **`Expand` writes a pixel as one 32-bit word.** That is about half the time at 2–4×, byte for
+  byte the same, measured side by side on the loaded host. It did not reproduce the 4.6 → 1.7 ms
+  above: `BenchmarkExpand` reads 67 µs at 1× and 2.5–3.9 ms at 2–4× on the same host, now under
+  more load.
+- **The bench row.** A timed run's last line reads `N of CPU, P% of one core; slowest frame D, at
+  frame F`. That is `Getrusage` on Linux and the BSDs, `GetProcessTimes` on Windows, and nothing
+  elsewhere. `make bench` runs `-scale 1` and `-scale 4` flat out, then 150 frames paced at 4×.
+  CI's two Xvfb steps are `2600x1980x24`.
+- **What the new read-back test found on CI's old screen.** `XGetImage` of a window that runs off
+  the screen is a BadMatch. With no error handler installed, Xlib's default prints it and calls
+  `exit(1)`, so at 640×480 a 2× read-back took the whole test binary down. The test now picks the
+  largest scale up to 2 that fits `Room()` and skips on a screen too small for 1×. The handler is
+  its own entry (2.78).
+
+Measured on this host, Xephyr `:57 -screen 2600x1980x24`, the same host as the table above, under a
+load average of about 4. Unpaced is `-frames 300 -bench`, three runs; paced is `-frames 240`. The
+X server's share comes from its `/proc/<pid>/stat`:
+
+| Scale | Unpaced, start room | Unpaced, through a door | Paced, glidergo | Paced, X server |
+|---|---|---|---|---|
+| 1× | 970–1490 fps | 732 fps | 7–8% of a core | 0.3–0.4% |
+| 2× | 985–1080 fps | 571 fps | 7–8% | 0.6–0.7% |
+| 3× | 1130–1180 fps | 574 fps | 7–8% | 0.7% |
+| 4× | 840–1050 fps | 477 fps | 7–9% | 0.8% |
+
+"Through a door" is `-room 8`, whose glider takes a door at frame 121 with no input. So **on X11
+both budgets are met with room to spare**: paced 4× is 7–9% of a core against 15%, and unpaced 4×
+is 477 fps or more against 120. The paced 7% is the same at 1× as at 4×, so what is left is the
+game and not the window. That covers the engine and the compositing, `ToBGRX`, and the limiter,
+which wakes every millisecond (`play.go`'s `WaitTick`, 2.17). The unpaced rows are not a fair comparison with the old table's 40–45 fps at 4×:
+the start room's frames each send a median of 1,900 of 307,200 pixels, counted with a temporary
+tally in `Present`.
+
+**A whole frame costs what it did**, and `BenchmarkPresent` (`internal/platform/x11`, which waits
+for the server with `XSync`) is there to show it:
+
+| Scale | Unchanged | A 32-row sprite | The whole frame |
+|---|---|---|---|
+| 1× | 97 µs | 152 µs | 1.1 ms |
+| 2× | 99 µs | 161 µs | 7.6 ms |
+| 3× | 96 µs | 200 µs | 15.0 ms |
+| 4× | 95 µs | 271 µs | 32.1 ms |
+
+So a shell screen appearing, or an expose, is still one 32 ms frame at 4×, which is the next item's
+case.
+
+**The wipe was the finding.** A room transition is 116 or 160 presents inside one game frame (2.4),
+and with whole frames each of those was a whole frame. The same `-room 8` run was built with a
+temporary switch that made every present whole, which is the old path plus a copy. The slowest frame
+(the wipe) and the run:
+
+| Scale | Changed rows | Every present whole |
+|---|---|---|
+| 1× | 99 ms; 732 fps | 229 ms; 314 fps |
+| 2× | 126 ms; 571 fps | **1.45 s**; 59 fps |
+| 3× | 103 ms; 574 fps | **2.98 s**; 31 fps |
+| 4× | 137 ms; 477 fps | **4.17 s**; 20 fps |
+
+Before this change, then, 2.1's new 2× default would have frozen the game for about 1.5 s at every
+door on this host, and 4× for four seconds. With it, a wipe costs about 0.1 s at every scale, and
+most of that is per-present work, not pixels. 2.4 still wants the wipe paced to about a third of a
+second, and now a door can afford that.
+
+**The cap stays.** 2.1's rule was "both backends", and win32's changed-rows present has only been
+compiled. So `autoMax` is 3, and 4× on a 4K monitor is one keystroke on the settings row. Lifting
+it is one constant once 5.4's rehearsal has read a win32 window back and run `make bench`'s three
+rows on the Windows host.
+
+Still open:
+- **Item 2**, the server-side row repeat, is now for the whole-frame case only: a shell screen, an
+  expose, a room entered without a wipe.
+- **Item 3**, win32's `COLORONCOLOR` stretch, is unchanged. The same rehearsal that reads a window
+  back can check it.
+
+### 2.77 Auto scale on a multi-monitor X11 desktop that is not GNOME measures every monitor at once — **note; after the next tag, and only if a report says it bites**
+
+`x11.Room` (2.1) takes the per-monitor work area from `_GTK_WORKAREAS_D<desktop>`. Only mutter
+publishes that, and it is the only per-monitor geometry that core X and libX11 give out.
+Elsewhere the fallback is EWMH's `_NET_WORKAREA`. For more than one monitor, that is one rectangle
+for the whole desktop: KDE's, Xfce's and most tiling window managers' span every monitor.
+
+So a 1366×768 laptop beside a 4K screen measures as about 5200×2100, and auto picks 3×. If the
+window manager then places a 1920×1440 window on the laptop, most of it is off the screen. The
+settings row fixes it in one visit, and the stderr line from `windowScale` does not fire, because
+by its measure the window fits.
+
+The real answer is per-monitor geometry, which means RandR 1.5's `RRGetMonitors` or Xinerama's
+`XineramaQueryScreens`. Both are libraries (`libXrandr`, `libXinerama`), and "only libX11" is the
+backend's first rule (DEV_ENVIRONMENT §5). Sending the RandR request by hand over Xlib's connection
+would keep the rule's letter and none of its point.
+
+The cheaper options, in order:
+
+1. **Believe the pointer less.** When `_NET_WORKAREA` is much wider than a single monitor's
+   aspect allows (wider than 2.4:1, say), take its height and a 16:9 width of it. That is a
+   heuristic and it would be written as one.
+2. **Say so on stderr.** When the only source was `_NET_WORKAREA` or the screen and the room is
+   wider than 2.4:1, `windowScale` says "if this window is too big for your screen, the settings
+   row has a smaller one". That costs nothing and catches the case without guessing.
+
+2 is worth doing when a non-GNOME multi-monitor report arrives. 1 is worth doing only if 2 is not
+enough. Nothing here is measured: this host is GNOME, and one monitor.
+
+### 2.78 An X protocol error, or a lost X server, ends the process from inside Xlib — **note; with or after 4.35**
+
+The x11 backend installs neither `XSetErrorHandler` nor `XSetIOErrorHandler`. Xlib's defaults
+print a line and call `exit(1)`. That skips every deferred function and every Go-side cleanup, and
+it would skip 4.35's crash file, because Go never sees a panic.
+
+2.76's read-back test found the first half. `XGetImage` of a window that runs off the screen is a
+BadMatch, and on CI's old 640×480 Xvfb it took the whole test binary down rather than failing one
+test.
+
+In play, a protocol error needs a request this package gets wrong. Every `XPutImage` rectangle
+comes from `Changes.Diff`, clipped to the window, so none is known. The IO half is ordinary,
+though:
+- an `ssh -X` session dropping;
+- `Xephyr` or `Xvfb` being closed under the game;
+- a DCV session ending.
+
+Each ends the game with one line and exit status 1. Killing a private Xephyr under the title screen
+printed `X connection to :58 broken (explicit kill or server shutdown).` and nothing else. A game in progress is lost,
+where a save-on-quit would have kept it, and settings changed since the screen was last closed are
+lost too.
+
+What to do:
+- An error handler that records the error and returns, so `Present` and `PollEvents` can return it
+  as the error they already have a path for. The shell and play loop then end the way a closed
+  window does.
+- An IO error handler cannot return: Xlib exits once it does. So it can only write the crash file
+  4.35 introduces and say which server went away. libX11 1.7's `XSetIOErrorExitHandler` would let
+  it unwind properly, but that raises the build floor, so it is not assumed.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -2935,8 +3143,8 @@ glider/shadow contrast (which is already low on some backgrounds), a "hold inste
 tap" input option, and not relying on sound alone for any warning. The expensive one is
 scaling text, which interacts with 2.1.
 
-**The window-size half of text scaling is 2.1's auto scale**; this item's own text-scaling part
-stays open for low-vision players on small screens.
+**The window-size half of text scaling is 2.1's auto scale**, which landed with the release gate's
+step 4; this item's own text-scaling part stays open for low-vision players on small screens.
 
 **Photosensitivity, as a measured claim (*next*).** A flash-scan test in `internal/replay` using
 WCAG 2.3.1's real rule:
@@ -6798,7 +7006,9 @@ documents, and a dozen skip rules would defeat it.
   registry, so a mirror on one is only for rehearsing locally with podman.
 
 **Pre-tag, in addition to the `Zone.Identifier` rehearsal:** the gate list in PLAN §4's release
-gate.
+gate. That includes the first run of step 4's win32 code: auto, the centred placement, the
+changed-rows present read back at 2×, and the three bench rows that decide 2.76's cap.
+`docs/windows-first-run.md`'s "What has changed since" has the steps.
 
 ### 5.5 Nothing in here has ever been compiled by a macOS or Windows toolchain — **note; windows/amd64 is now run as well as compiled, macOS and windows/arm64 are still compile-only**
 

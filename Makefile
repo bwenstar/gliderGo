@@ -214,9 +214,19 @@ levels: glidertool
 run: build
 	$(BIN)/glidergo $(ARGS)
 
-## bench: 300 frames flat out on screen, report frame rate (proves the blit path)
+## bench: frame rate and CPU on screen, at 1x and 4x (proves the blit path)
+#
+# Three rows, because docs/IMPROVEMENTS.md 2.76's budget is in two currencies: flat out at 1x
+# and at 4x for the rate the machine sustains, and paced at 4x for what a player's machine is
+# charged for the game it is actually playing, which is the CPU line of the last row. -scale is
+# explicit on all three: a timed run never asks the display (2.53), so without it this would be
+# 1x three times, and an explicit scale is kept even on a screen too small for it, with a
+# warning, rather than quietly measuring a smaller window. 4x is a 2560x1920 window; CI's Xvfb
+# is sized for it.
 bench: build
-	$(BIN)/glidergo -frames 300 -bench
+	$(BIN)/glidergo -frames 300 -bench -scale 1
+	$(BIN)/glidergo -frames 300 -bench -scale 4
+	$(BIN)/glidergo -frames 150 -scale 4
 
 ## smoke: the on-screen bench `check` runs, skipped with a note where it cannot
 #

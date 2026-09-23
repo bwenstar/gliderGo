@@ -1599,9 +1599,19 @@ means the tag is better with it and does not wait.
    - **Gate.** The first window is sized from the monitor, and a saved scale that no longer fits
      is clamped (2.1's amendment). Until a 4× bench row meets the budget 2.76 states on both
      backends, auto resolves to at most 3×; an explicit 4×–8× stays the player's choice. The
-     bench row lands with the cap (2.76).
+     bench row lands with the cap (2.76). **DONE.** A new prefs file opens at 2× on this
+     desktop, and the settings row reads `auto 2x`. An explicit `-scale` that does not fit is
+     kept, with a warning, so that the bench's 4× stays 4×. The cap is written and stays: X11
+     meets the budget (7–9% of a core paced at 4×, 477 fps or more flat out), and win32 is
+     unmeasured. Found with it: `Room`'s own connection could get `New` refused by a server
+     resetting after its last client, and an off-screen `XGetImage` exits the test binary on
+     CI's old 640×480 Xvfb (2.78).
    - **Should.** A present that sends only the rows that changed (2.76). If that and 2.76's
-     server-side row repeat land first, the cap is never written.
+     server-side row repeat land first, the cap is never written. **DONE**, with an unmapped
+     window sent nothing. It turned out to be needed rather than nice to have. A room wipe is
+     116–160 presents in one frame, and with whole frames it froze the game for 1.45 s at every
+     door at the new 2× default, and 4.2 s at 4×. It is about 0.1 s now at every scale. The
+     win32 half compiles and has not run; 5.4's rehearsal reads a window back.
    - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
 5. **One docs truth pass.** It is cheap and has no dependencies. SECURITY.md is finished last,
    because it points at 4.36. Its listener half went in with 4.33, beside the port-forwarding

@@ -822,6 +822,79 @@ func TestSettingsCursorWrapsAndCoversEveryRow(t *testing.T) {
 	}
 }
 
+// Auto is a step on the same row as the numbers, below 1x, and it says what it comes to on
+// this display when the host knows (docs/IMPROVEMENTS.md 2.1).
+func TestSettingsMagnificationStepsThroughAuto(t *testing.T) {
+	s, _, p := onSettings(t)
+	s.set = rowOf(t, "General", "magnification")
+	if p.Scale != prefs.ScaleAuto {
+		t.Fatalf("the default is %d, want auto", p.Scale)
+	}
+	if got := s.rowValue(p, s.set); got != "auto" {
+		t.Errorf("auto with no display to ask shows %q, want \"auto\"", got)
+	}
+	s.host.AutoScale = 2
+	if got := s.rowValue(p, s.set); got != "auto 2x" {
+		t.Errorf("auto on a display that fits 2x shows %q", got)
+	}
+
+	s.settingsKey(platform.KeyLeft)
+	if p.Scale != prefs.ScaleAuto {
+		t.Errorf("Left from auto went to %d; auto is the bottom of the row", p.Scale)
+	}
+	s.settingsKey(platform.KeyRight)
+	if p.Scale != 1 || s.rowValue(p, s.set) != "1x" {
+		t.Errorf("Right from auto went to %d (%q), want 1x", p.Scale, s.rowValue(p, s.set))
+	}
+	s.settingsKey(platform.KeyLeft)
+	if p.Scale != prefs.ScaleAuto {
+		t.Errorf("Left from 1x went to %d, want auto", p.Scale)
+	}
+	for range prefs.MaxScale + 2 {
+		s.settingsKey(platform.KeyRight)
+	}
+	if p.Scale != prefs.MaxScale {
+		t.Errorf("Right past the top went to %d, want %d", p.Scale, prefs.MaxScale)
+	}
+}
+
+// A value runs into its row's hint, or off the panel, without anything else noticing: the
+// text is drawn where it is told. So every value a row can reach is measured, at the
+// widest the host can make it.
+func TestSettingsValuesFitTheirColumn(t *testing.T) {
+	s, _, p := onSettings(t)
+	s.host.AutoScale = prefs.MaxScale
+	const gap = 4
+	for i, r := range settings {
+		room := int16(setRight - barPad - gap)
+		if r.hint != "" {
+			room = setHintH - gap
+		}
+		var values []string
+		if r.bind != nil {
+			values = append(platform.KeyNames(), "press a key", prefs.Unbound)
+		}
+		if r.step != nil {
+			q := *p
+			seen := map[string]bool{}
+			for _, d := range []int{-1, +1} {
+				for range 20 {
+					r.step(&q, d)
+					if v := r.show(&q, &s.host); !seen[v] {
+						seen[v] = true
+						values = append(values, v)
+					}
+				}
+			}
+		}
+		for _, v := range values {
+			if end := setValueH + render.StringWidthScaled(v, setScale); end > room {
+				t.Errorf("row %d (%q): %q ends at %d, past %d", i, r.label, v, end, room)
+			}
+		}
+	}
+}
+
 // The original wrote its preferences once, at quit, and lost them all on a crash. This
 // writes on the way out of the screen, which is the last moment the player is looking.
 func TestSettingsSaveOnClose(t *testing.T) {

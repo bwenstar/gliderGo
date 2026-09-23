@@ -16,7 +16,7 @@
 // Backends live in subpackages and are selected at build time by file-level
 // build tags, never by runtime probing:
 //
-//	x11    cgo + Xlib + XPutImage      Linux (measured 533 fps at 640x480x32)
+//	x11    cgo + Xlib + XPutImage      Linux
 //	win32  pure Go syscall to gdi32    Windows, no cgo and no dependencies
 //	sdl2   hand-written cgo binding    macOS/iOS/Android escape hatch
 //	null   headless, writes PNG/WAV    tests, CI, frame-diff fidelity checks
@@ -269,12 +269,15 @@ var usShifted = map[rune]rune{
 
 // Window is a host surface the game can present frames to.
 //
-// The contract is intentionally frame-at-a-time: Present uploads the whole
-// framebuffer. The original game does dirty-rectangle updates internally
-// (docs/analysis/rendering.md) for reasons that no longer apply -- at 533 fps
-// measured for full-screen uploads, correctness beats cleverness here.
+// The contract is frame-at-a-time: Present is handed the whole framebuffer, and the
+// game never says what changed. The original's dirty rectangles (docs/analysis/rendering.md)
+// stay inside the game. A backend works out for itself what changed since the last frame
+// (Changes) and sends that. At 1x the whole frame would do, but a magnified window multiplies
+// every byte, and a room's wipe presents 116 or 160 times inside one frame
+// (docs/IMPROVEMENTS.md 2.76).
 type Window interface {
-	// Present uploads and displays the framebuffer.
+	// Present displays the framebuffer. A backend may send only what changed since the
+	// frame before, and must send all of it after anything that damaged the window.
 	Present(fb *Framebuffer) error
 	// PollEvents drains pending host events. It never blocks.
 	PollEvents() []Event
@@ -289,11 +292,39 @@ type Window interface {
 }
 
 // Config describes the window a backend should create.
+//
+// Scale is always a number here. A player's "auto" is settled before the window is asked for,
+// from the backend's Room, because the answer is wanted before there is a window: for the
+// banner, for the settings screen, and for the line that says a saved scale did not fit
+// (cmd/glidergo's windowScale, docs/IMPROVEMENTS.md 2.1).
 type Config struct {
 	Title  string
 	Width  int // framebuffer width; 0 means ScreenWidth
 	Height int // framebuffer height; 0 means ScreenHeight
 	Scale  int // integer magnification of the presented image; 0/1 means 1:1
+}
+
+// Room is how large a window's client area can be on the screen a new window opens on. It is
+// the monitor's work area, which leaves out the panels and the taskbar, less what the window
+// manager puts round a window. A backend answers it before any window exists.
+type Room struct {
+	W, H int
+
+	// From says where the numbers came from, for the line that explains a capped window: a
+	// property name on X11, the monitor's work area on Windows.
+	From string
+}
+
+// Fit is the largest magnification, 1 to max, at which a w x h image fits in the room.
+//
+// It is never less than 1. A screen too small for the game's own 640x480 gets it at 1x and a
+// window that runs off the edge, which is what every screen got before there was a fit.
+func (r Room) Fit(w, h, max int) int {
+	n := 1
+	for n < max && w*(n+1) <= r.W && h*(n+1) <= r.H {
+		n++
+	}
+	return n
 }
 
 // AudioSink accepts interleaved 16-bit signed PCM at the mixer's sample rate.

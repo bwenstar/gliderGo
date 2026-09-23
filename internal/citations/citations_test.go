@@ -358,6 +358,7 @@ var notInTheOriginal = map[string]string{
 	"Xlib.h":    "libX11, named by internal/platform/x11 for the same reason",
 	"Xutil.h":   "libX11, same",
 	"XKBlib.h":  "libX11's XKB extension, same",
+	"Xatom.h":   "libX11's predefined atoms, same",
 	"SDL.h":     "named once, in a passage about what this port deliberately does not use",
 
 	// Metasyntactic. Both appear in the "how to read a citation" preamble several documents
