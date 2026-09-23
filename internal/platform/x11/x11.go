@@ -7,6 +7,16 @@
 // benchmarks at 533 fps for full 640x480x32 frames on this machine -- 8.9x the
 // 60 fps budget -- so MIT-SHM (which would need libxext-dev) is not required.
 // See docs/DEV_ENVIRONMENT.md §5.
+//
+// It asks the server for one thing that is not the default, XKB's detectable
+// auto-repeat, and Event.Repeat depends on it: without it X reports a held key as a
+// stream of releases and presses that cannot be told from taps (New says more). Xephyr
+// and the DCV desktop on the development host both support it. A server that does not
+// is not refused, because the game still plays -- KeyDown reads the bitmap, and the
+// pairs leave it held -- but on one, Repeat is never set and a held Escape on the house
+// picker quits the game. GLFW's answer for such a server, peeking at the queue on a
+// release for a press with the same keycode and time, is not written until a server
+// needs it (docs/IMPROVEMENTS.md 2.72).
 package x11
 
 /*
@@ -68,6 +78,7 @@ type Window struct {
 
 	wmDelete C.Atom
 	down     [256]bool // by platform.Key
+	held     [256]bool // by X keycode, for Event.Repeat
 	keysyms  map[C.KeySym]platform.Key
 	closed   bool
 }
@@ -94,6 +105,25 @@ func New(cfg platform.Config) (*Window, error) {
 		return nil, fmt.Errorf("x11: cannot open a window: %s",
 			platform.DisplayAdvice(os.Getenv("DISPLAY"), os.Getenv("WAYLAND_DISPLAY")))
 	}
+
+	// Detectable auto-repeat, before this connection has asked for a single event. By
+	// default an X server sends each repeat of a held key as a KeyRelease and a KeyPress
+	// with the same timestamp, so the bitmap has always just seen the key go up and the
+	// rule in PollEvents that marks a repeat -- a press while the key is already down --
+	// never fires. Every `!ev.Repeat` guard above this backend was dead on Linux as a
+	// result: a held Escape took the house picker back to the title screen and then quit
+	// (docs/IMPROVEMENTS.md 2.72). With the flag the server sends repeats as presses and
+	// nothing else, which is what Windows does, and the rule then marks the presses
+	// win32.go's lParam bit 30 marks.
+	//
+	// XKB is part of libX11 -- XkbKeycodeToKeysym in PollEvents already uses it -- so this
+	// costs no library. The answer is not acted on: a server that cannot do it is not
+	// refused, for the reason the package comment gives, so there is nothing to do
+	// differently here. supported is only somewhere for Xlib to write, and the test asks
+	// the server again rather than trusting it (detectableAutoRepeat).
+	var supported C.Bool
+	C.XkbSetDetectableAutoRepeat(dpy, C.True, &supported)
+
 	scr := C.XDefaultScreen(dpy)
 	depth := C.XDefaultDepth(dpy, scr)
 	if depth != 24 && depth != 32 {
@@ -197,10 +227,22 @@ func (w *Window) PollEvents() []platform.Event {
 		switch C.ev_type(&ev) {
 		case C.KeyPress, C.KeyRelease:
 			isDown := C.ev_type(&ev) == C.KeyPress
+			kc := C.ev_keycode(&ev)
 			// Index 0 is the unshifted keysym, which is what we want: the game
 			// binds physical keys, not characters.
-			ks := C.XkbKeycodeToKeysym(w.dpy, C.KeyCode(C.ev_keycode(&ev)), 0, 0)
+			ks := C.XkbKeycodeToKeysym(w.dpy, C.KeyCode(kc), 0, 0)
 			k := w.keysyms[ks]
+
+			// A press while the same physical key is already down is a repeat, now
+			// that New asks for detectable auto-repeat. It is tracked by keycode, not
+			// by k, for the two cases k gets wrong: keys that share a platform.Key
+			// (BackSpace and Delete, Return and KP_Enter, a digit and its keypad twin),
+			// where Delete tapped with BackSpace held would read as a repeat and be
+			// dropped, and keys with no platform.Key at all, which have no slot in
+			// down. Windows' lParam bit 30 is per key too, so the two backends agree.
+			// X keycodes are 8..255, so the array is always in range.
+			repeat := isDown && w.held[kc]
+			w.held[kc] = bool(isDown)
 
 			// What the keystroke typed, on presses only -- a key release types
 			// nothing, and a held key types repeatedly, so auto-repeat carries text
@@ -222,11 +264,10 @@ func (w *Window) PollEvents() []platform.Event {
 				if text == "" {
 					continue
 				}
-				out = append(out, platform.Event{Kind: platform.EventKeyDown, Text: text})
+				out = append(out, platform.Event{Kind: platform.EventKeyDown, Repeat: repeat, Text: text})
 				continue
 			}
 
-			repeat := isDown && w.down[k]
 			w.down[k] = bool(isDown)
 			kind := platform.EventKeyUp
 			if isDown {
@@ -241,7 +282,10 @@ func (w *Window) PollEvents() []platform.Event {
 		case C.FocusOut:
 			// Losing focus must clear held keys or the glider flies off on its
 			// own when the user alt-tabs away mid-press.
+			// held goes too, or a key released while another window had focus would
+			// mark its next real press as a repeat and the shell would drop it.
 			w.down = [256]bool{}
+			w.held = [256]bool{}
 			out = append(out, platform.Event{Kind: platform.EventFocus, Focused: false})
 		case C.FocusIn:
 			out = append(out, platform.Event{Kind: platform.EventFocus, Focused: true})
@@ -304,6 +348,17 @@ func (w *Window) KeyDown(k platform.Key) bool {
 
 // Closed reports whether the window manager has asked us to quit.
 func (w *Window) Closed() bool { return w.closed }
+
+// detectableAutoRepeat asks the server whether this connection has detectable
+// auto-repeat, and whether it could have. It is here rather than in the test because
+// cgo is not allowed in a _test.go file, and it asks rather than remembering what New
+// was told so that the test checks the server's state and not this package's account
+// of it.
+func (w *Window) detectableAutoRepeat() (on, supported bool) {
+	var s C.Bool
+	on = C.XkbGetDetectableAutoRepeat(w.dpy, &s) != 0
+	return on, s != 0
+}
 
 // Close releases the display connection and image memory.
 func (w *Window) Close() error {

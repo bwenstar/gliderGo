@@ -526,8 +526,11 @@ func (w *Window) key(isDown bool, wparam, lparam uintptr) {
 	k := keyFor(wparam)
 
 	// Bit 30 of lParam is the key's previous state, so a set bit on a press means auto-repeat.
-	// Windows reports this directly, which is better than the x11 backend's inference from its
-	// own bitmap: it stays correct across a lost WM_KEYUP.
+	// Windows reports this directly. The x11 backend infers it from its own record -- a press
+	// while the same keycode is already down -- and that works only because x11.New asks for
+	// XKB's detectable auto-repeat: by default X sends each repeat as a release and then a
+	// press, and the inference never fires (docs/IMPROVEMENTS.md 2.72). The bit is still the
+	// better answer, because it stays correct across a lost WM_KEYUP and a record does not.
 	repeat := isDown && lparam&0x40000000 != 0
 
 	kind := platform.EventKeyUp

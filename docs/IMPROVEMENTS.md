@@ -2181,6 +2181,103 @@ which is the same loop a player that dies at once needs to fall out of. Until th
 line still says `pw-play stopped taking samples`, which is the after-the-fact version of the same
 fact.
 
+### 2.72 X11 auto-repeat is undetectable, so every `!ev.Repeat` guard is dead on Linux — **DONE, the release gate's first step, with `Repeat` tracked by keycode**
+
+`platform.Event.Repeat` exists so that a held key does one thing, and the shell and the game test it
+wherever that matters. Win32 reports it directly (`lParam` bit 30, `win32.go:534`). The x11 backend
+infers it from its own record (`x11.go:244`: a press while the same keycode is already down).
+Until the fix below, that inference never fired, because by default an X server sends every auto-repeat as a
+`KeyRelease`/`KeyPress` pair, so the bitmap sees a release before each repeated press. On Linux,
+therefore, a held key fired its action again 25–33 times a second.
+
+What that did to a player:
+- **Holding Escape on the house picker quit the application.** Reproduced with the real binary.
+- **A flight key still held when a "press a key" screen appeared ended that screen within about 40
+  ms.** This covered the race result (`race.go:776`), which is the process's last screen, so a
+  player holding an arrow never saw YOU WIN or YOU LOSE; the high-score board after its 1 s hold;
+  and the banner and ending `Wait`s (`play.go:933`). This was from reading the code when it was
+  filed. The banner has since been driven (below).
+
+The glider's physics were unaffected, because `KeyDown` reads the bitmap and the bitmap stays held
+(one poll in 61 read not-held, and that was the first).
+
+**Done: the one call.** `x11.New` calls `XkbSetDetectableAutoRepeat(dpy, True, &supported)` straight
+after `XOpenDisplay` (`x11.go:124`). XKBlib is part of libX11, and `XkbKeycodeToKeysym` in the same
+file already used it, so nothing new is linked. The server then sends repeats as presses with no
+release between them, which is what Windows does, and the rule at `:244` marks the presses bit 30
+marks. It keys on the X keycode, not the `platform.Key` (below), and the comments at both sites say
+so. `win32.go:528-533` no longer calls the x11 inference a working second best: it says the
+inference works only because `New` asks, and that bit 30 is still the better answer, because it
+stays correct across a lost `WM_KEYUP`.
+
+**Reproduced before and after,** on a nested Xephyr with a repeat delay of 660 ms and 25 repeats a
+second. xdotool is not installed, and libXtst has its runtime here but not its headers, so each 1.5
+s hold came from a throwaway XTest helper outside the tree, with the one prototype declared by hand.
+Before: the backend delivered 22 presses and 22 releases, each release at the timestamp of the next
+press, and marked none. Escape held on the picker exited the process with status 0, a held Return
+dismissed the "Hit anything to begin" banner it had just opened, and a held Backspace emptied the
+Race screen's address field. After: 22 presses, 21 marked, and one release. The picker goes back to
+the title screen and stays there, the banner stays up and is pixel-identical to a single tap, and
+Backspace deletes one character. A held Down still moves the picker 22 rows, to the same pixels as
+before, because the shell's filter lets arrow repeats through (`internal/shell/shell.go:439`). The
+race result, the high-score board (`highscore.go:231`) and the pause's `S` (`play.go:717`) were not
+driven, because that needs a two-window race, a qualifying game over and a paused save. They read
+the same flag as the banner, which was.
+
+**The server's answer is not acted on.** A server that cannot do it is not refused, because the
+glider reads the bitmap and the release/press pairs leave it held. The package comment says what
+such a server loses: `Repeat` is never set, and a held Escape on the picker quits. It says so beside
+the 533 fps figure, which is where this backend records what it has been measured on. Xephyr and the
+DCV desktop both support the flag. GLFW's fallback stays unwritten until a server needs it: on a
+`KeyRelease`, `XEventsQueued` and then `XPeekEvent`, and a `KeyPress` with the same keycode and time
+means the release is dropped and the press is marked. It would be a pure function, testable without
+a display.
+
+**The test.** `internal/platform/x11` has its first, `TestNewAsksForDetectableAutoRepeat`, built
+where `x11.go` is. `DISPLAY` decides, as it does for `make smoke`. Unset, the test skips. Set, a
+window must open, so a stale `DISPLAY` fails `go test ./...` rather than skipping. The test asks the
+server rather than trusting what `New` was told, through an unexported `detectableAutoRepeat` that
+wraps `XkbGetDetectableAutoRepeat`. The wrapper lives in `x11.go` because cgo is not allowed in a
+`_test.go` file. On a server that does not support the flag the test skips, since it cannot then
+tell whether `New` asked. It passes on Xephyr and on the DCV desktop, and it fails against a scratch
+copy of the package with the call removed. It cannot hold a key, because that needs XTest, which is
+not a dependency, so `make check` does not repeat the runs above. CI's `make check` has `DISPLAY`
+unset, so there the test skips. A second Xvfb step (`ci.yml:149-150`) runs
+`go test ./internal/platform/x11/` under its own server, with `-noreset` so that a client
+disconnecting cannot reset the server under the test's window. Without it a runner never asks.
+
+**Both side effects came out as predicted, and neither got code.** Held Backspace and held letters
+in the Race screen's field now act once on Linux, as they already did on Windows. Before the fix, a
+held Backspace repeat-deleted on Linux by accident. The high-score name dialog (`highscore.go:159`)
+has never filtered repeats, so it still repeats on both platforms. Whether a text field should
+repeat-delete is the shell filter's decision, for both platforms at once: the filter would let
+`KeyDelete` and text-bearing repeats through on the Race screen, and still drop Escape and Return.
+
+**Done too: `Repeat` by keycode.** The first version keyed the rule on the `platform.Key` bitmap,
+and that got two cases wrong. Keys with no `platform.Key`, such as accented letters, have no slot in
+it, so they carried no `Repeat` and typed again on every repeat. And keys that share a
+`platform.Key` share its slot: Backspace and Delete, a digit and its keypad twin, Return and keypad
+Enter, and each left and right modifier. So Delete tapped while Backspace was held read as a repeat,
+and the shell dropped it, where Windows keeps bit 30 per virtual key and lets it through. `Repeat`
+now comes from a second array indexed by X keycode (`held`, `x11.go:244-245`), which is always in
+range because keycodes are 8..255. It is computed before the `KeyUnknown` branch, so that branch's
+text events carry it too. The bitmap still feeds `KeyDown` and is unchanged, so the glider's physics
+are too. Driven on the same Xephyr through the real backend. Before: Delete tapped 1 s into a held
+Backspace arrived marked `Repeat`, and a held KP_Multiply gave 22 `*` presses with none marked.
+After: the Delete press is fresh, and KP_Multiply gives one fresh press and 21 marked, which is what
+bit 30 gives.
+
+**Left open.**
+- `FocusOut` clears both arrays, so the first repeat of a key held across a focus change reads as a
+  fresh press. Bit 30 would not do that. Keeping the arrays across a focus change would be worse: a
+  key released while another window had focus would mark its next real press as a repeat. This
+  predates the fix and is minor.
+- `KeyDown` still reads the `platform.Key` bitmap. So releasing Delete while Backspace is held reads
+  as Backspace released too. That is 2.74's, where keycode against keysym is decided.
+
+Windows being right is established by reading the code only: no key has ever been pressed on the
+Windows build (PLAN Stage 4). Any future X11 backend (5.10) must keep these semantics.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -5266,6 +5363,7 @@ alone for a stated reason rather than missed.
 | 4.27 The unreachable repair in `KeepObjectLegal` and the 43 floor transporters that are 2 pixels low because of it — filed, accepted as a value rather than a tolerance, and deliberately not normalised on load | 2.4 | this stage |
 | 5.2 `tools/extract_all.py` publishes by rename: a staging tree, an OS advisory lock, and the eleven counts checked *before* the rename, so a cancelled or a miscounting run publishes nothing | 2.4 | this stage |
 | 4.28 (the first half) `internal/shell/race.go`: a Race screen on the title menu, so the mode that was reachable only from a shell is reachable with the keyboard already in the player's hands — one `shell.Race` built by both the screen and the flags, and a ninth menu row whose geometry the splash artwork's own pixels decided | 2.6 | this stage |
+| 2.72 `x11.New` asks the server for XKB's detectable auto-repeat, so `Event.Repeat` is set on Linux and a held key does one thing, as it already did on Windows — and `internal/platform/x11` has its first test, which asks the server rather than the package | release gate, step 1 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

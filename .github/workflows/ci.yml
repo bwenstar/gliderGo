@@ -142,6 +142,13 @@ jobs:
       - name: On-screen bench under Xvfb
         run: xvfb-run -a -s '-screen 0 640x480x24' make bench
 
+      # internal/platform/x11's one test asks the server whether New turned on XKB's detectable
+      # auto-repeat, and skips when DISPLAY is unset, which `make check` above always is here.
+      # Without this step a runner never asks (docs/IMPROVEMENTS.md 2.72). -noreset stops Xvfb
+      # resetting when a client disconnects, so the test's window cannot race a reset.
+      - name: X11 backend test under Xvfb
+        run: xvfb-run -a -s '-screen 0 640x480x24 -noreset' go test -count=1 -v ./internal/platform/x11/
+
       - name: Upload the shell screenshots
         if: always()
         uses: actions/upload-artifact@v5

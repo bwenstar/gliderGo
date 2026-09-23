@@ -17,6 +17,43 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A held key does one thing on Linux, which it already did on Windows (2026-09-23)
+
+`platform.Event.Repeat` exists so that a held key does one thing, and five places rely on it: the
+shell's filter (`internal/shell/shell.go:439`), the race result (`cmd/glidergo/race.go:776`), the
+high-score board (`highscore.go:231`), the pause's `S` (`play.go:717`) and the banner and ending
+waits (`play.go:933`). On Linux none of them ever saw it set. The x11 backend marks a press as a
+repeat when its bitmap says the key is already down, and by default an X server sends every
+auto-repeat as a `KeyRelease` and a `KeyPress` with the same timestamp, so the bitmap had always
+just seen the key go up. A held key fired its action at the server's repeat rate. Escape held on the
+house picker went back to the title screen and then quit the game, a held Return dismissed the "Hit
+anything to begin" banner it had just opened, and a held Backspace emptied the Race screen's address
+field. Filed as `docs/IMPROVEMENTS.md` 2.72.
+
+`x11.New` now calls `XkbSetDetectableAutoRepeat` straight after `XOpenDisplay`. The server then
+sends repeats as presses with no release between them, which is what Windows does, and the existing
+rule marks the presses `win32.go`'s `lParam` bit 30 marks. XKB is
+part of libX11, so nothing new is linked. All three cases were reproduced before and after on a
+nested Xephyr, with the key held through XTest by a throwaway helper that is not part of the build.
+Held arrows still move menu cursors, because the shell lets arrow repeats through, and the picker
+lands on the same row as before. Xephyr and the DCV desktop both support the flag. A server that
+does not is not refused, because the glider reads the bitmap and flies the same either way; the
+package comment says what such a server loses, and GLFW's peek fallback is not written until one
+turns up.
+
+A held letter in the Race field now acts once, as a held Backspace does, which is what Windows
+already did; a text field that should repeat-delete is a change to the shell's filter, for both
+platforms at once. The high-score name dialog does not filter repeats on either platform, so held
+keys still repeat there on both. `Repeat` is worked out per X keycode rather than from the bitmap,
+which is indexed by `platform.Key`, so that two cases the bitmap would get wrong match Windows too.
+A key this port has no name for, such as an accented letter, now marks its repeats, and Delete
+tapped while Backspace is held, two keys that share one `platform.Key`, is a fresh press.
+
+`internal/platform/x11` has its first test. With `DISPLAY` set, it checks that the connection has
+detectable auto-repeat on after `New`, asking the server rather than the package. It is skipped when
+`DISPLAY` is unset, which includes CI's `make check`, so CI runs the package again under its own
+Xvfb.
+
 ### A race can be arranged from the title screen, and the menu found the edge of the artwork (2026-09-23)
 
 Stage 3's networked race worked and had no way in. `-host`, `-join <address>` and `-port` were the
