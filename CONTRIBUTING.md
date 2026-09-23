@@ -62,6 +62,13 @@ the tag is for.
 no extracted asset tree — and something different on Windows and macOS, where a different backend is
 at stake). Read that list; a green run with three caveats is not the same as a green run.
 
+`make fuzz` is not part of the gate. It runs every `func Fuzz` target under Go's fuzzing engine for
+30 s each, then plays 3,000 damaged houses, in about six minutes. Run it when your patch touches
+something that reads bytes from somebody else: a house or its text, a saved game, a score board, a
+replay script, a picture, a house's sounds, or the race's wire. A target that fails writes its
+input to `testdata/fuzz/<target>/` in its package. Commit that file with the fix, and plain
+`go test` replays it from then on.
+
 ## Four rules that a patch can break without anything obvious going wrong
 
 Everything else is ordinary Go and review will sort it out. These four are worth knowing in

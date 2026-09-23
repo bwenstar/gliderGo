@@ -222,6 +222,13 @@ func (c *Conn) frame() ([]byte, error) {
 	}
 	c.in = c.in[:n]
 	if _, err := io.ReadFull(c.rw, c.in); err != nil {
+		// Here even a clean end is partway: the length has been read, so the message was
+		// begun. io.ReadFull says io.EOF when none of the message came, and passed on that
+		// would be a peer that died mid-message looking like one that said goodbye -- the
+		// race's reader takes io.EOF as a forfeit and reports nothing (FuzzRecv found it).
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
 		return nil, fmt.Errorf("netplay: reading a %d-byte message: %w", n, err)
 	}
 	return c.in, nil

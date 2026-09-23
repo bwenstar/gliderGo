@@ -91,7 +91,7 @@ export GOPROXY
 export GOTOOLCHAIN
 
 .PHONY: all build glidertool houses levels levels-zip run bench smoke headless audio fidelity \
-	test race vet fmt fmt-check check check-caveats docs-check clean clean-assets cross cross-windows assets \
+	test race fuzz vet fmt fmt-check check check-caveats docs-check clean clean-assets cross cross-windows assets \
 	assets-zip assets-check embedded tools doctor help
 
 ## all: compile both binaries -- the default target, so `make` on its own does this
@@ -447,6 +447,39 @@ race:
 		echo "race: skipped -- the detector needs cgo and a C compiler, and this machine has"; \
 		echo "      CGO_ENABLED=$$($(GO) env CGO_ENABLED) with CC=$$($(GO) env CC)"; \
 	fi
+
+## fuzz: run every fuzz target for FUZZTIME (default 30s), then SOAK damaged-house plays
+#
+# Opt-in, and not part of `check`: it takes about six minutes, and what it finds is new rather
+# than a regression (docs/IMPROVEMENTS.md 4.30). Plain `go test` already replays every target's
+# seeds, and every input committed under a package's testdata/fuzz/.
+#
+# Go's -fuzz takes one target a run, so this finds them all by name and runs each in turn. A new
+# `func Fuzz...` joins without an edit here. A target that fails has written its input to
+# testdata/fuzz/<target>/ in its package: commit that file with the fix, and from then on plain
+# `go test` replays it. The loop carries on past a failure so that one run reports all of them.
+#
+# -fuzzminimizetime is short because the seeds include shipped houses: minimising a 17 KB input
+# the default way spends the whole budget on a handful of executions.
+#
+# SOAK is TestADamagedHouseStillPlays's -soak: that many shipped houses damaged and played, about
+# 40 ms each.
+FUZZTIME ?= 30s
+SOAK     ?= 3000
+fuzz:
+	@fail=0; \
+	for file in $$(grep -rl --include='*_test.go' '^func Fuzz' cmd internal tools | sort); do \
+		dir=./$$(dirname $$file); \
+		for target in $$(sed -n 's/^func \(Fuzz[A-Za-z0-9_]*\)(.*/\1/p' $$file); do \
+			echo "fuzz: $$dir $$target, $(FUZZTIME)"; \
+			$(GO) test $$dir -run '^$$' -fuzz "^$$target\$$" -fuzztime $(FUZZTIME) \
+				-fuzzminimizetime 5s || { fail=1; echo "fuzz: $$dir $$target FAILED"; }; \
+		done; \
+	done; \
+	echo "fuzz: $(SOAK) damaged-house plays"; \
+	$(GO) test ./internal/replay -run '^TestADamagedHouseStillPlays$$' -soak $(SOAK) || fail=1; \
+	if [ $$fail = 0 ]; then echo "fuzz: every target and the soak passed"; fi; \
+	exit $$fail
 
 ## vet: static checks
 vet:

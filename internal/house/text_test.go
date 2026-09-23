@@ -455,6 +455,79 @@ func TestNumObjectsOverride(t *testing.T) {
 	}
 }
 
+// TestAnOverlongLengthByteSurvives covers a Pascal string whose length byte claims more than the
+// string holds: a room name of 255 in a PStr28, as a damaged file can have. The text of such a
+// string is the whole string, so the byte is carried on a `.length` line in residue mode, and
+// Canonical clamps it, as the original's own house check does to a room name. FuzzLoad found the
+// residue dump building back to another file without it (docs/IMPROVEMENTS.md 4.30).
+func TestAnOverlongLengthByteSurvives(t *testing.T) {
+	h := &House{Version: HouseVersion, Rooms: []Room{{}}}
+	for i := range h.Rooms[0].Objects {
+		h.Rooms[0].Objects[i].What = ObjectIsEmpty
+	}
+	h.Rooms[0].Name.SetText(strings.Repeat("r", 27))
+	h.Rooms[0].Name[0] = 0xFF
+	h.HighScores.Banner.SetText(strings.Repeat("b", 31))
+	h.HighScores.Banner[0] = 40
+	h.HighScores.Names[3].SetText(strings.Repeat("n", 15))
+	h.HighScores.Names[3][0] = 16
+	file := mustSave(t, h)
+	h, err := Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exact, err := h.Text(TextOptions{NoHeader: true, Residue: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{"name.length", "banner.length", "entry.3.length"} {
+		if !strings.Contains(exact, line) {
+			t.Errorf("the residue text has no %s line:\n%s", line, exact)
+		}
+	}
+	back, err := ParseText(strings.NewReader(exact))
+	if err != nil {
+		t.Fatalf("the residue text does not parse: %v\n%s", err, exact)
+	}
+	if d := firstDiff(file, mustSave(t, back)); d >= 0 {
+		t.Errorf("the residue text builds back to another file, first at byte %d (%s)", d, locate(d))
+	}
+
+	plain, err := h.Text(TextOptions{NoHeader: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain, ".length") {
+		t.Errorf("the canonical text carries a length byte:\n%s", plain)
+	}
+	back, err = ParseText(strings.NewReader(plain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := diffHouses(h.Canonical(), back); diff != "" {
+		t.Errorf("the canonical text is not Canonical: %s", diff)
+	}
+	if n := h.Canonical().Rooms[0].Name[0]; n != 27 {
+		t.Errorf("Canonical left the room name's length at %d, want it clamped to 27", n)
+	}
+	if h.Rooms[0].Name[0] != 0xFF {
+		t.Error("Canonical clamped its receiver's length byte")
+	}
+
+	// A length line takes only what the text cannot say.
+	for _, tc := range []struct{ src, want string }{
+		{"room 0 \"" + strings.Repeat("r", 27) + "\"\n    name.length 20\n", "a length the string holds"},
+		{"room 0 \"short\"\n    name.length 200\n", "needs all 27"},
+		{"room 0 \"a\"\n    name.length 300\n", "does not fit a byte"},
+	} {
+		if _, err := ParseText(strings.NewReader("format 1\n" + tc.src)); err == nil ||
+			!strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%q: %v, want an error saying %q", tc.src, err, tc.want)
+		}
+	}
+}
+
 // TestScoreEntryDatesAreCommentsOnly covers the one part of a board a dump has to
 // interpret. Nothing has ever drawn those timestamps (docs/IMPROVEMENTS.md 2.57), so
 // the dump is the only place the shipped dates are legible -- but a date on an `entry`

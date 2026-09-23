@@ -17,6 +17,31 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### Everything that reads somebody else's file or a race's bytes is fuzzed, and what that found is fixed (2026-09-23)
+
+Suppose the other player's game stops partway through sending something in a race. That used to
+be taken for a clean forfeit, and nothing was said. Now the race says the other game ended without
+saying goodbye. If the same thing happens during the handshake, the game says the other end hung
+up partway through, and suggests joining again. It used to print Go's "unexpected EOF".
+
+`glidertool house dump -residue` is byte-exact again for a house whose room name, or whose
+high-score banner or name, has a length byte past what the string holds. The dump carries that byte
+on a `.length` line, and the plain dump clamps it to what the string holds.
+
+A house's own sound that is an empty file used to crash the game the first time it played. It is
+refused now, with the file named. So are a sound ID too big for the original's format and a sample
+rate no sound header can hold, and a house whose sounds do not all load now has none of them. That
+is what the message it prints already said.
+
+A replay script is stricter. A number too big for its field is an error: `room 65540` used to run
+room 4. So is an argument after the last one a keyword takes: `frames 600 1200` used to run 600
+frames. A script written by `glidertool replay -script` keeps a clock's fraction of a second. It
+also refuses a house or demo name that would read back as something else.
+
+For contributors, `make fuzz` runs every fuzz target for 30 s and then plays 3,000 damaged houses,
+in about six minutes. Plain `go test`, and so CI, replays every target's seeds and saved inputs
+(IMPROVEMENTS 4.30).
+
 ### Releases are built with Go 1.27, and scanned for known vulnerabilities before they ship (2026-09-23)
 
 Releases used to be built with Go 1.23, the oldest Go that can build the code. Go no longer patches

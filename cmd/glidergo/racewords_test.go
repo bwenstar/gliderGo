@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -175,11 +176,31 @@ func TestAHandshakeThatFailsSaysWhy(t *testing.T) {
 		{&turnedAway{host: "10.0.0.9", err: &netplay.SilenceError{Wait: 5 * time.Second}}, true,
 			"turned away 10.0.0.9: it said nothing for 5s"},
 		{fmt.Errorf("meeting: %w", io.EOF), false, "the host hung up"},
+		{partway(t), false, "the host hung up partway through"},
+		{&turnedAway{host: "10.0.0.9", err: partway(t)}, true,
+			"turned away 10.0.0.9: it hung up partway through"},
 	} {
 		if got := raceWords(tc.err, tc.hosting, 0); !strings.Contains(got, tc.want) {
 			t.Errorf("%v reads %q, which does not say %q", tc.err, got, tc.want)
 		}
 	}
+}
+
+// partway is the error Meet returns when the other end hangs up in the middle of its hello: the
+// real one, from a real Meet, because the words are chosen by what errors.Is finds in it.
+func partway(t *testing.T) error {
+	t.Helper()
+	_, theirs := hellos()
+	msg := netplay.EncodeHello(theirs)
+	stream := append([]byte{0, 0, 0, byte(len(msg))}, msg[:len(msg)/2]...)
+	_, err := netplay.Meet(netplay.NewConn(struct {
+		io.Reader
+		io.Writer
+	}{bytes.NewReader(stream), io.Discard}), theirs)
+	if err == nil {
+		t.Fatal("Meet agreed a match with half a hello")
+	}
+	return err
 }
 
 // The line a guest's race ends on goes to the title screen's status band, after the house's name,
@@ -199,6 +220,7 @@ func TestEveryWayAGuestIsTurnedAwayFitsTheBand(t *testing.T) {
 		&netplay.SilenceError{Wait: 15 * time.Second},
 		&netplay.SilenceError{Wait: 15 * time.Second, Partway: true},
 		io.EOF,
+		partway(t),
 		netplay.ErrVersion,
 		netplay.ErrProtocol,
 	} {
@@ -212,7 +234,8 @@ func TestEveryWayAGuestIsTurnedAwayFitsTheBand(t *testing.T) {
 func TestTheEndOfARaceIsNotTheSocketsWords(t *testing.T) {
 	reset := &net.OpError{Op: "read", Net: "tcp", Err: os.NewSyscallError("read",
 		errors.New("connection reset by peer"))}
-	for _, err := range []error{io.EOF, reset} {
+	cut := fmt.Errorf("netplay: reading a 28-byte message: %w", io.ErrUnexpectedEOF)
+	for _, err := range []error{io.EOF, reset, cut} {
 		if got := endWords(err); !strings.Contains(got, "without saying goodbye") {
 			t.Errorf("endWords(%v) = %q", err, got)
 		}

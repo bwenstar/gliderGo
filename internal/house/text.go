@@ -20,9 +20,10 @@ package house
 //	ParseText(WriteText(h))  ==  h.Canonical()
 //
 // where Canonical zeroes exactly the bytes the text format does not carry, and
-// nothing else. WriteText(TextOptions{Residue: true}) additionally emits that
-// residue, which makes the round trip byte-exact for the price of a much noisier
-// file; the parser always accepts it.
+// nothing else, and clamps a length byte that claims more than its string holds.
+// WriteText(TextOptions{Residue: true}) additionally emits that residue, and any
+// such length byte, which makes the round trip byte-exact for the price of a much
+// noisier file; the parser always accepts it.
 //
 // Two conventions in the output are worth knowing before reading one:
 //
@@ -61,7 +62,10 @@ type TextOptions struct {
 
 // Canonical returns a copy of h with exactly the bytes the text format does not
 // carry set to zero: the residue past every Pascal string's length byte, and the
-// 10 union bytes of every empty object slot. Every named field is untouched,
+// 10 union bytes of every empty object slot. A length byte past what its string
+// holds is clamped to it, which changes no string's text -- Text clamps it too --
+// and is what CheckRoomNameLength does to a room name (HouseLegal.c:870-874).
+// Every named field is untouched,
 // including the ones the original never used and the stale saved game that
 // twenty of the shipped houses carry behind hasGame == 0.
 //
@@ -96,6 +100,7 @@ func clearResidue(b []byte) {
 	n := int(b[0])
 	if n > len(b)-1 {
 		n = len(b) - 1
+		b[0] = byte(n)
 	}
 	for i := 1 + n; i < len(b); i++ {
 		b[i] = 0
@@ -202,10 +207,23 @@ func (h *House) WriteText(w io.Writer, opt TextOptions) error {
 // pstr writes a Pascal string, plus its residue when asked for.
 func (t *textWriter) pstr(key string, b []byte) {
 	t.kv(key, "%s", QuoteMacRoman(pstrText(b)))
+	t.overlong(key, b)
 	if t.opt.Residue {
 		if res := pstrResidue(b); hasResidue(b) {
 			t.kv(key+".residue", "%s", hexBytes(res))
 		}
+	}
+}
+
+// overlong writes a Pascal string's length byte, in residue mode, when it claims more than the
+// string holds. The text on the line before is then the whole string, and the byte is the one
+// thing about the string the text cannot say. No shipped house has one; a damaged or hostile file
+// can, and without this line a residue dump built back to a different file (FuzzLoad found it).
+// Only the shorter strings can: a room name, the board's banner and its names. A byte cannot
+// claim more than the 255 a house's own banner and trailer hold.
+func (t *textWriter) overlong(key string, b []byte) {
+	if t.opt.Residue && int(b[0]) > len(b)-1 {
+		t.kv(key+".length", "%d", b[0])
 	}
 }
 
@@ -227,6 +245,7 @@ func (t *textWriter) scores(s *Scores) {
 		} else {
 			t.printf("%s\n", row)
 		}
+		t.overlong(fmt.Sprintf("entry.%d", i), s.Names[i][:])
 		if t.opt.Residue && s.Names[i].HasResidue() {
 			t.kv(fmt.Sprintf("entry.%d.residue", i), "%s", hexBytes(s.Names[i].Residue()))
 		}
@@ -266,6 +285,7 @@ func (t *textWriter) game(g *Game) {
 
 func (t *textWriter) room(n int, r *Room) {
 	t.printf("room %d %s\n", n, QuoteMacRoman(r.Name.Text()))
+	t.overlong("name", r.Name[:])
 	if t.opt.Residue && r.Name.HasResidue() {
 		t.kv("name.residue", "%s", hexBytes(r.Name.Residue()))
 	}
@@ -662,6 +682,8 @@ func (p *textParser) scoresField(toks []string) error {
 		return p.pstr(toks, s.Banner[:], "scores banner")
 	case "banner.residue":
 		return p.residue(toks, s.Banner[:])
+	case "banner.length":
+		return p.length(toks, s.Banner[:])
 	case "entry":
 		if p.scoreRow >= MaxScores {
 			return p.errf("more than %d score entries", MaxScores)
@@ -689,16 +711,19 @@ func (p *textParser) scoresField(toks []string) error {
 		s.Levels[i] = int16(v)
 		return nil
 	}
-	if row, field, ok := parseEntryResidue(toks[0]); ok && field == "residue" {
+	if row, field, ok := parseEntryResidue(toks[0]); ok && (field == "residue" || field == "length") {
 		if row < 0 || row >= MaxScores {
 			return p.errf("score entry %d out of range", row)
+		}
+		if field == "length" {
+			return p.length(toks, s.Names[row][:])
 		}
 		return p.residue(toks, s.Names[row][:])
 	}
 	return p.errf("unknown scores field %q", toks[0])
 }
 
-// parseEntryResidue splits "entry.3.residue".
+// parseEntryResidue splits "entry.3.residue" and "entry.3.length".
 func parseEntryResidue(key string) (row int, field string, ok bool) {
 	parts := strings.Split(key, ".")
 	if len(parts) != 3 || parts[0] != "entry" {
@@ -755,6 +780,8 @@ func (p *textParser) roomField(toks []string) error {
 	switch toks[0] {
 	case "name.residue":
 		return p.residue(toks, r.Name[:])
+	case "name.length":
+		return p.length(toks, r.Name[:])
 	case "bounds":
 		return p.i16(toks, &r.Bounds, "bounds")
 	case "background":
@@ -1119,6 +1146,27 @@ func (p *textParser) residue(toks []string, dst []byte) error {
 		return err
 	}
 	copy(dst[1+n:], b)
+	return nil
+}
+
+// length sets a Pascal string's length byte past what the string holds, which is the one value the
+// text line cannot carry (textWriter.overlong). It takes only that, and only after a text that
+// fills the string, so a length line cannot silently change a name either: a length the string can
+// hold is the text's to say.
+func (p *textParser) length(toks []string, dst []byte) error {
+	var n uint8
+	if err := p.u8(toks, &n, toks[0]); err != nil {
+		return err
+	}
+	switch {
+	case int(n) <= len(dst)-1:
+		return p.errf("%s: %d is a length the string holds, so its text says it; this line is "+
+			"only for a length byte past the %d it holds", toks[0], n, len(dst)-1)
+	case int(dst[0]) != len(dst)-1:
+		return p.errf("%s: the text before it is %d bytes, and a length past the end needs "+
+			"all %d", toks[0], dst[0], len(dst)-1)
+	}
+	dst[0] = n
 	return nil
 }
 

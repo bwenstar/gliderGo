@@ -1302,7 +1302,10 @@ func FormatKeys(k player.Keys) string {
 }
 
 // Parse reads a script in the text format. Unknown keywords are an error rather than a
-// warning: a typo in a bug report's script must not silently run a different game.
+// warning: a typo in a bug report's script must not silently run a different game. For the same
+// reason a number too big for its field is an error rather than the number it wraps to (`room
+// 65540` used to run room 4), and so is an argument after the last one a keyword takes (`frames
+// 600 1200` used to run 600). FuzzParse found both (docs/IMPROVEMENTS.md 4.30).
 func Parse(in io.Reader) (*Script, error) {
 	s := NewScript("", 0)
 	sc := bufio.NewScanner(in)
@@ -1318,11 +1321,15 @@ func Parse(in io.Reader) (*Script, error) {
 			continue
 		}
 		bad := func(err error) error { return fmt.Errorf("line %d: %s: %w", line, fields[0], err) }
-		num := func(i int) (int64, error) {
+		if n, ok := arity[fields[0]]; ok && len(fields) > 1+n {
+			return nil, bad(fmt.Errorf("unexpected %q after its %d argument(s)", fields[1+n], n))
+		}
+		// num reads a number into a field of the given size in bits.
+		num := func(i, bits int) (int64, error) {
 			if i >= len(fields) {
 				return 0, fmt.Errorf("missing argument")
 			}
-			return strconv.ParseInt(fields[i], 10, 64)
+			return strconv.ParseInt(fields[i], 10, bits)
 		}
 		// word is num's counterpart for the keywords whose argument is a string, and it
 		// exists because the four directory keywords used to index fields[1] directly: a
@@ -1406,25 +1413,25 @@ func Parse(in io.Reader) (*Script, error) {
 			}
 			s.Music = on
 		case "seed":
-			n, err := num(1)
+			n, err := num(1, 32)
 			if err != nil {
 				return nil, bad(err)
 			}
 			s.Seed = int32(n)
 		case "frames":
-			n, err := num(1)
+			n, err := num(1, strconv.IntSize)
 			if err != nil {
 				return nil, bad(err)
 			}
 			s.Frames = int(n)
 		case "neighbors":
-			n, err := num(1)
+			n, err := num(1, strconv.IntSize)
 			if err != nil {
 				return nil, bad(err)
 			}
 			s.Neighbors = int(n)
 		case "players":
-			n, err := num(1)
+			n, err := num(1, 64)
 			if err != nil {
 				return nil, bad(err)
 			}
@@ -1433,17 +1440,17 @@ func Parse(in io.Reader) (*Script, error) {
 			}
 			s.TwoPlayer = n == 2
 		case "room":
-			n, err := num(1)
+			n, err := num(1, 16)
 			if err != nil {
 				return nil, bad(err)
 			}
 			s.Room = int16(n)
 		case "where":
-			h, err := num(1)
+			h, err := num(1, 16)
 			if err != nil {
 				return nil, bad(err)
 			}
-			v, err := num(2)
+			v, err := num(2, 16)
 			if err != nil {
 				return nil, bad(err)
 			}
@@ -1460,13 +1467,13 @@ func Parse(in io.Reader) (*Script, error) {
 				return nil, bad(fmt.Errorf("want left or right, have %q", fields[1]))
 			}
 		case "gliders":
-			n, err := num(1)
+			n, err := num(1, 16)
 			if err != nil {
 				return nil, bad(err)
 			}
 			s.Gliders = int16(n)
 		case "stars":
-			n, err := num(1)
+			n, err := num(1, 16)
 			if err != nil {
 				return nil, bad(err)
 			}
@@ -1481,7 +1488,7 @@ func Parse(in io.Reader) (*Script, error) {
 			}
 			s.Clock = t
 		case "at":
-			f, err := num(1)
+			f, err := num(1, 64)
 			if err != nil {
 				return nil, bad(err)
 			}
@@ -1507,8 +1514,37 @@ func Parse(in io.Reader) (*Script, error) {
 	return s, nil
 }
 
-// Write writes a script in the text format Parse reads, and round-trips through it.
+// arity is how many arguments each keyword takes, for every keyword but the two whose argument is
+// the rest of the line. `at` takes up to three: a frame, and the keys of each player.
+var arity = map[string]int{
+	"housedir": 1, "artdir": 1, "houseartdir": 1, "sounddir": 1, "leveldir": 1,
+	"sound": 1, "music": 1, "seed": 1, "frames": 1, "neighbors": 1, "players": 1,
+	"room": 1, "where": 2, "facing": 1, "gliders": 1, "stars": 1, "clock": 1, "at": 3,
+}
+
+// Write writes a script in the text format Parse reads, and round-trips through it: Parse gives
+// back every field a run reads (FuzzParse holds it to that). Two kinds of field are left out, both
+// on purpose. The five directories describe the machine rather than the run, so glidertool always
+// takes them from its flags, and a script mailed in names a house rather than a path on somebody's
+// disk. And the start point's fields are written only where Run reads them: Where only with a Room,
+// and Facing, Gliders and Stars only with a Where.
+//
+// It refuses a House or Demo that Parse would read back as something else. Each is the rest of
+// its line, so a newline would end it, a '#' would start a comment, and space at either end would
+// be trimmed.
 func (s *Script) Write(out io.Writer) error {
+	for _, f := range []struct{ key, v string }{{"house", s.House}, {"demo", s.Demo}} {
+		switch {
+		case f.key == "house" && f.v == "":
+			return fmt.Errorf("replay: a script needs a house")
+		case strings.ContainsAny(f.v, "#\n"):
+			return fmt.Errorf("replay: %s %q cannot be written: a script's %s ends at a "+
+				"newline or a '#'", f.key, f.v, f.key)
+		case strings.TrimSpace(f.v) != f.v:
+			return fmt.Errorf("replay: %s %q cannot be written: a script trims the space "+
+				"around its %s", f.key, f.v, f.key)
+		}
+	}
 	bw := bufio.NewWriter(out)
 	fmt.Fprintf(bw, "# gliderGo replay script\n")
 	fmt.Fprintf(bw, "house %s\n", s.House)
@@ -1516,7 +1552,9 @@ func (s *Script) Write(out io.Writer) error {
 	fmt.Fprintf(bw, "frames %d\n", s.Frames)
 	fmt.Fprintf(bw, "neighbors %d\n", s.Neighbors)
 	fmt.Fprintf(bw, "players %d\n", players(s))
-	fmt.Fprintf(bw, "clock %s\n", s.Clock.Format(time.RFC3339))
+	// RFC3339Nano rather than RFC3339, which drops a fraction of a second Parse had read. It is
+	// the same text for a clock on the second, which is every clock NewScript makes.
+	fmt.Fprintf(bw, "clock %s\n", s.Clock.Format(time.RFC3339Nano))
 	// Written even when they are the defaults, like `neighbors` and `players` above: the whole
 	// point of the emitted template is that a reporter can see what a run's settings were
 	// without knowing what this package's defaults happen to be this month.

@@ -2629,8 +2629,8 @@ the bug-report footer and exited 1. 13 of the 22 shipped houses have a shredder.
 
 The fix is `Strip` for `Sheet`, one word. It restores what the original draws, so it is faithful and
 needs no opt-in. No golden replay visits a shredder with the full asset tree, which is why nothing
-caught it. 4.30's soak fails on any non-nil `Run` error, and once the soak is in the tree that is
-the general guard.
+caught it. 4.30's soak fails on any non-nil `Run` error, and now that it is in the tree it is the
+general guard.
 
 **Done: `Strip`, and a test for each reason nothing saw it.** `RenderShreds` asks for
 `Strip("shred")` (`internal/game/shreds.go:206`), and the comment there cites
@@ -2673,7 +2673,8 @@ this bug and nine other kinds of mistake, and requires each back at its line.
 - The accessors keyed by number (`Pict`, `Plate`, `MaskedPlate`, `UI`, `Background`, `Misc` and
   `Flower`) were checked by grep, not by the test. `Misc` and `Flower` have no callers outside
   tests. That is not a bug, but both are dead accessors today.
-- 4.30's soak, which found this, is not in the tree yet, so it has not been re-run against the fix.
+- 4.30's soak was not in the tree when this was fixed. It is now, and it has been re-run against the
+  fix: 3,000 damaged-house plays, none with an error from `Run`.
 
 ### 2.74 The glider is bound to what a key types, not where it is — **planned, soon after the next tag; before any prefs freeze**
 
@@ -5569,7 +5570,7 @@ the 22 houses, half of them in `Leviathan`, `CD Demo House` and `Art Museum`, an
 none at all. So this is the smaller half of the same complaint, waiting on the same thing 4.15 is
 waiting on: somebody with a house that wants it.
 
-### 4.30 Nothing feeds hostile bytes to the decoders on purpose — **planned; the netplay targets before the next tag, the rest right behind**
+### 4.30 Nothing feeds hostile bytes to the decoders on purpose — **DONE: nine fuzz targets, the soak and `make fuzz`, and the bugs they found**
 
 `SECURITY.md` names parsing other people's files as the whole attack surface, and the race now puts
 a socket in front of a decoder too. There are no fuzz targets anywhere in the tree.
@@ -5598,6 +5599,102 @@ per invocation, so it loops over the ten or so targets (about 5 minutes at 30 s)
 `-fuzzminimizetime`, or the shipped-house seeds spend the budget minimising (7–9 execs in 21 s,
 measured). PLAN §5's testing table gains the row. Short runs found no crash, because the dangerous
 inputs are size-driven (4.36).
+
+**Done.** Nine targets and the soak are in the tree. Plain `go test` runs each target over its
+seeds and over any input committed under its package's `testdata/fuzz/<target>/`, so CI replays
+them on every push. Each target checks the codec's own promise, not only that nothing panicked.
+- **`internal/netplay`: `FuzzRecv` and `FuzzMeet`.** The seeds are built from the package's own
+  encoders rather than kept as files, so they cannot drift from the format, and
+  `TestEveryMeetSeedEndsTheWayItSays` checks each still ends the way it is named for. `FuzzRecv`
+  requires every error to be one `meetWords` has words for, every message to decode to what its
+  encoder would write, and nothing it returned to change under the reads after it (`Recv` reuses
+  its buffer). `FuzzMeet` works the rules again from the bytes, and a match has to be the one
+  §10.4.7 makes of the two hellos.
+- **`internal/house`: `FuzzLoad`, `FuzzParseText`, `FuzzDecodeSavedGame` and `FuzzDecodeScores`.**
+  A loaded house saves back byte for byte, its residue text builds back the same bytes, its
+  canonical text gives back `Canonical`, and `Lint` finishes. A parsed house that fits a file loads
+  and saves to itself, and its canonical text is a fixed point. A decoded save or board encodes to
+  itself. The seeds are the shipped houses under 20 KB: the engine copies a seed on every mutation,
+  so the 180 KB houses are left to `TestCorpusRoundTrip`.
+- **`internal/replay`: `FuzzParse`.** A script `Parse` accepts is written, read back and compared
+  on every field `Run` reads, then written again to the same text.
+- **`internal/render`: `FuzzPicture`**, which the plan did not have. 4.36 put code of this port's
+  own around `image/png`: the header check, the second open, and the two converters to a
+  `Surface`. The standard library fuzzes only the decoder. It loads the bytes as art and as a house
+  picture. It requires a surface or an error, never both, at the size the header says and inside
+  4.36's limits, with planes that size, and with a pixel on the palette keeping its entry.
+- **`internal/audio`: `FuzzHouseSounds`**, which the plan did not have either. SECURITY.md names
+  the sounds beside a house as in scope, and a house's own sounds are the part of a sound tree a
+  house author makes: a manifest row and a `.pcm` file each. It puts both through `LoadHouse`,
+  which must load all of a house's sounds or none, and then plays each one. A sound has to hold its
+  channel for exactly the samples its length and step say, and then let go.
+
+**The soak** is `TestADamagedHouseStillPlays` (`internal/replay/soak_test.go`). Each play takes a
+shipped house and overwrites 1–12 fields or bytes of a room that is not an empty slot. A quarter
+of the changes go to another room, and two in five write a 16-bit extreme. The copy is used only if `Load`
+takes it. Then the play flies 200 frames there with the whole asset tree and changing keys, and half
+the plays start at a random point in the room. A play fails on a panic, on a run still going after
+30 s, and on any error `Run` returns. Guards are counted, and they do not fail a play. Each play is
+a subtest decided by its number alone, so a failure reruns by name. The committed default is 32
+plays, about a second, and `-soak N` asks for more. **3,000 plays took 118 s, and all passed. 2
+tripped a guard.** That is also the re-run against 2.73's fix that 2.73 was waiting for.
+
+**`make fuzz`** runs each target for `FUZZTIME` (30 s) with a 5 s minimise, then `SOAK` (3,000)
+plays. That is about six minutes. It finds the targets by name, so a new `func Fuzz` joins without
+an edit, and it carries on past a failure so that one run reports all of them.
+
+**What they found.** Each fix comes with a test that fails without it.
+1. **A race opponent that died mid-message was taken for one that forfeited** (`FuzzRecv`, on its
+   seeds). After a message's length has been read, `io.ReadFull` says `io.EOF` if none of the
+   message came, and `frame` passed that on wrapped. The race's reader takes `io.EOF` as a clean
+   hang-up and reports nothing. `frame` says `io.ErrUnexpectedEOF` there now, and the race says
+   the other game ended without saying goodbye (`TestAHangUpInsideAMessageIsNotAPoliteOne`).
+2. **The handshake had no words for that error either**, so a player saw Go's sentence.
+   `meetWords` now says the other end hung up partway through (`racewords_test.go`).
+3. **A length byte past what its string holds did not survive `-residue`** (`FuzzLoad`; the input
+   is `testdata/fuzz/FuzzLoad/26ec08a46094567c`). The text wrote the 27
+   bytes a room name holds and lost the byte that said 255, so the dump built back a different
+   file. The residue text now carries it on a `name.length` line, and on `banner.length` and
+   `entry.N.length` for the score board. Those are the only strings short enough for a byte to
+   overrun: the house banner and trailer hold 255. The canonical text and `Canonical` clamp the
+   byte, as `CheckRoomNameLength` does (HouseLegal.c:870-874) (`TestAnOverlongLengthByteSurvives`).
+4. **A script's number too big for its field wrapped, and an argument past the last was dropped**
+   (`FuzzParse`). `room 65540` ran room 4, `seed 4294967297` ran seed 1, and `frames 600 1200` ran
+   600. Each is a line-numbered error now, because a bug report's script must not quietly run
+   another game. A directory with a space in it (`housedir /tmp/my houses`) used to be read as
+   `/tmp/my` and is refused now. That is no loss, because `glidertool` takes the directories from
+   its flags.
+5. **`Write` did not round-trip the way its comment said** (`FuzzParse`). It dropped a clock's
+   fraction of a second, and it wrote a House or Demo containing a `#`, a newline or space at an
+   end, which `Parse` reads back as something else. The clock is written RFC3339Nano now, and
+   `Write` refuses those names and an empty House. Its comment names what it leaves out on purpose:
+   the five directories, and the start point's fields where `Run` does not read them.
+6. **An empty sound file crashed the game the first time it played.** This one came from checking
+   SECURITY.md's scope against the targets, and `FuzzHouseSounds`'s seeds confirm it. A `.pcm`
+   file with no bytes loaded, if its row said 0 frames or none, and `channel.next` read byte 0 of
+   it on the goroutine that feeds the sound device. The music channel already refused an empty
+   piece. The effects and a house's triggers did not. `Bank.load` refuses the file now, with its
+   name, and `playSound` declines an empty sample as `musicChannel.begin` does.
+7. **A sound's ID wrapped, and a rate could be one no header holds** (the same reading). `id 68536`
+   loaded as 3000, the wrap `FuzzParse` found in scripts. A `rate_hz` of `Inf`, `NaN`, a negative
+   number or anything unparsable was taken for something, and the conversion of `Inf` to a step
+   is left to the machine: it played at the Macintosh rate on amd64 and ended after one sample on
+   arm64. Now an ID must fit 16 bits, and a rate must be what a header's unsigned Fixed can hold,
+   0 to 65,536 Hz. An empty rate is still the Macintosh rate, and every shipped rate is inside the
+   range. `LoadHouse` also forgets the sounds before a bad row, so a house whose sounds do not all
+   load has none, which is what the game's "no custom sounds" message already said
+   (`TestABadHouseSoundIsRefused`).
+
+The first full `make fuzz` failed once, and the fault was in the test. `FuzzParse` compared a
+script's `room -2` with the `room -1` it read back. Every negative room means the house's own
+start, and `Write` writes none of them. `scriptDiff` now compares the room as `Run` reads it, and
+the input is kept as a seed.
+
+**What is not covered.**
+- The engine runs only by hand. CI replays the seeds and committed inputs; it does not mutate.
+- `demo.Decode`, `prefs.LoadFile` and `ImportLegacy` are left out, as planned.
+- The soak damages rooms, not the header, the pictures or the sounds. A damaged header either loads
+  or does not, which is `FuzzLoad`'s business, and a damaged picture is `FuzzPicture`'s.
 
 ### 4.31 A race handshake that cannot say which release or engine is on the other end — **DONE, before the first tag that carries `internal/netplay`**
 

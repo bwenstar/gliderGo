@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files from the current output")
@@ -221,6 +222,56 @@ func TestStepFor(t *testing.T) {
 	third := stepFor(7418.1818)
 	if third != FixedOne/3 && third != FixedOne/3+1 {
 		t.Errorf("stepFor(7418.1818) = %d, want %d or %d", third, FixedOne/3, FixedOne/3+1)
+	}
+}
+
+// A house's sound row is refused for what the mixer cannot play or the ID cannot hold, and a house
+// whose sounds do not all load keeps none of them (docs/IMPROVEMENTS.md 4.30).
+func TestABadHouseSoundIsRefused(t *testing.T) {
+	pcm := []byte{0x80, 0x90, 0x80}
+	for _, c := range []struct {
+		name, id, frames, rate string
+		data                   []byte
+		want                   string // in the error; "" for a row that loads
+	}{
+		{"an empty file", "3000", "0", "22254.5455", []byte{}, "at least one frame"},
+		{"an empty file, frames unsaid", "3000", "", "22254.5455", []byte{}, "at least one frame"},
+		{"an ID past 16 bits", "68536", "3", "22254.5455", pcm, "bad id"},
+		{"an ID below them", "-32769", "3", "22254.5455", pcm, "bad id"},
+		{"a rate of Inf", "3000", "3", "+Inf", pcm, "not a rate"},
+		{"a rate of NaN", "3000", "3", "NaN", pcm, "not a rate"},
+		{"a negative rate", "3000", "3", "-1", pcm, "not a rate"},
+		{"a rate past a Fixed", "3000", "3", "65536", pcm, "not a rate"},
+		{"a rate that is not a number", "3000", "3", "fast", pcm, "not a rate"},
+		{"no rate, which is the Macintosh's", "3000", "3", "", pcm, ""},
+		{"the fastest rate a Fixed holds", "32767", "3", "65535.9999", pcm, ""},
+	} {
+		man := "file\thouse\tid\tname\tframes\trate_hz\tstatus\n" +
+			"ok.pcm\tH\t3001\tFine\t3\t22254.5455\tok\n" +
+			"a.pcm\tH\t" + c.id + "\tA-hem!\t" + c.frames + "\t" + c.rate + "\tok\n"
+		b := &Bank{fsys: fstest.MapFS{
+			"houses/manifest.tsv": &fstest.MapFile{Data: []byte(man)},
+			"houses/ok.pcm":       &fstest.MapFile{Data: pcm},
+			"houses/a.pcm":        &fstest.MapFile{Data: c.data},
+		}}
+		err := b.LoadHouse("H")
+		switch {
+		case c.want == "" && err != nil:
+			t.Errorf("%s: %v", c.name, err)
+		case c.want == "" && len(b.Triggers) != 2:
+			t.Errorf("%s: %d sounds loaded, want 2", c.name, len(b.Triggers))
+		case c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)):
+			t.Errorf("%s: LoadHouse said %v, want an error saying %q", c.name, err, c.want)
+		case c.want != "" && len(b.Triggers) != 0:
+			t.Errorf("%s: refused, and %d sounds before it stayed loaded", c.name, len(b.Triggers))
+		}
+	}
+	// And the application's bank, which LoadBank refuses whole.
+	if _, err := LoadBank(fstest.MapFS{
+		"manifest.tsv": &fstest.MapFile{Data: []byte("file\tid\tframes\trate_hz\ne.pcm\t1000\t0\t\n")},
+		"e.pcm":        &fstest.MapFile{Data: []byte{}},
+	}); err == nil || !strings.Contains(err.Error(), "at least one frame") {
+		t.Errorf("LoadBank with an empty effect: %v", err)
 	}
 }
 

@@ -128,6 +128,13 @@ func meetWords(err error, hosting bool) string {
 			return "it hung up before the race started"
 		}
 		return "the host hung up before the race started"
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		// The connection ended inside a message. Without this case the line was Go's
+		// sentence, "unexpected EOF" and all (docs/IMPROVEMENTS.md 4.30).
+		if hosting {
+			return "it hung up partway through the handshake"
+		}
+		return "the host hung up partway through -- try joining again"
 	case errors.Is(err, netplay.ErrVersion):
 		// The envelope's version rather than the hello's: a build too far apart to read
 		// the other's hello at all, so there are no releases to name.

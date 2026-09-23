@@ -358,17 +358,28 @@ func (b *Bank) LoadHouse(name string) error {
 			continue
 		}
 		if st := r["status"]; st != "" && st != "ok" {
-			b.Unreadable[int16(atoiOr(r["id"], 0))] = st
+			id, err := soundID(r)
+			if err != nil {
+				return b.dropHouse(err)
+			}
+			b.Unreadable[id] = st
 			continue
 		}
 		snd, err := b.load("houses", r)
 		if err != nil {
-			return err
+			return b.dropHouse(err)
 		}
 		snd.Slot = TriggerSlot
 		b.Triggers[snd.ID] = snd
 	}
 	return nil
+}
+
+// dropHouse forgets the sounds LoadHouse had loaded before err, so that a house's sounds load all
+// or none, and the game's "no custom sounds" is true of the house it names.
+func (b *Bank) dropHouse(err error) error {
+	b.Triggers, b.Unreadable = map[int16]*Sound{}, map[int16]string{}
+	return err
 }
 
 // Trigger is the GetResource('snd ', soundID) inside LoadTriggerSound: the house's sound of
@@ -437,11 +448,18 @@ func (b *Bank) Bytes() int {
 // two coming apart is the one extraction bug this loader can detect: a truncated write leaves
 // a plausible file whose header says otherwise, and a sound that is quietly 40 bytes short is
 // a click nobody can trace.
+//
+// The rest is refused because a sound tree can come from somebody else (docs/IMPROVEMENTS.md
+// 4.30). A file with no frames in it used to load, and the mixer's first sample read past its
+// end, which panics the goroutine that feeds the sound device and so ends the game. A rate
+// past what a header's unsigned Fixed can hold can be outside what stepFor can convert, and Go
+// leaves that conversion to the machine: a rate of Inf played at the Macintosh rate on amd64
+// and ended after one sample on arm64. An empty rate is still the Macintosh rate.
 func (b *Bank) load(dir string, r map[string]string) (*Sound, error) {
 	name := r["file"]
-	id, err := strconv.Atoi(r["id"])
+	id, err := soundID(r)
 	if err != nil {
-		return nil, fmt.Errorf("audio: %s: bad id %q", name, r["id"])
+		return nil, err
 	}
 	data, err := fs.ReadFile(b.fsys, path.Join(dir, name))
 	if err != nil {
@@ -450,9 +468,19 @@ func (b *Bank) load(dir string, r map[string]string) (*Sound, error) {
 	if want := atoiOr(r["frames"], -1); want >= 0 && want != len(data) {
 		return nil, fmt.Errorf("audio: %s: manifest says %d frames, file holds %d", name, want, len(data))
 	}
-	rate, _ := strconv.ParseFloat(r["rate_hz"], 64)
+	if len(data) == 0 {
+		return nil, fmt.Errorf("audio: %s: the file is empty, and a sound needs at least one frame", name)
+	}
+	var rate float64
+	if v := r["rate_hz"]; v != "" {
+		rate, err = strconv.ParseFloat(v, 64)
+		if err != nil || !(rate >= 0 && rate < 65536) {
+			return nil, fmt.Errorf("audio: %s: rate_hz %q is not a rate a sound header can hold "+
+				"(0 to 65536 Hz)", name, v)
+		}
+	}
 	return &Sound{
-		ID:        int16(id),
+		ID:        id,
 		Name:      r["name"],
 		Data:      data,
 		RateHz:    rate,
@@ -505,6 +533,16 @@ func readManifest(fsys fs.FS, name string) ([]map[string]string, error) {
 		return nil, fmt.Errorf("audio: %s: empty manifest", name)
 	}
 	return rows, nil
+}
+
+// soundID is a row's resource ID. An ID is 16 bits, so a number past that is an error rather
+// than the ID it wraps to: `id 68536` used to load as 3000.
+func soundID(r map[string]string) (int16, error) {
+	id, err := strconv.ParseInt(r["id"], 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("audio: %s: bad id %q", r["file"], r["id"])
+	}
+	return int16(id), nil
 }
 
 func atoiOr(s string, def int) int {

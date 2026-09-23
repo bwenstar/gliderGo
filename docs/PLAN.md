@@ -1588,7 +1588,13 @@ means the tag is better with it and does not wait.
      v0.1.x releases carry, and 1.26.8 and 1.27.1 reach none. The OS floors moved with it and are
      stated.
    - **Should.** Fuzz seeds for the decoders that read outside data, and a bounded hostile-house
-     soak, with at least `netplay` `Recv`/`Meet` before the tag (4.30).
+     soak, with at least `netplay` `Recv`/`Meet` before the tag (4.30). **DONE.** Nine targets
+     (the race's two, the house's four, replay scripts, pictures and a house's sounds) and a soak
+     that plays damaged houses. Plain `go test` replays their seeds, and `make fuzz` runs the
+     engine. The worst finds: a race opponent that died mid-message was taken for one that
+     forfeited, and an empty sound file crashed the game the first time it played. The rest: no
+     handshake words for that error, a length byte `-residue` lost, script numbers and sound IDs
+     that wrapped, and a `Write` that did not round-trip.
 4. **A stranger's first minute.**
    - **Gate.** The first window is sized from the monitor, and a saved scale that no longer fits
      is clamped (2.1's amendment). Until a 4× bench row meets the budget 2.76 states on both
@@ -1734,7 +1740,7 @@ good intentions:
 | **Object behaviour tests**, one per class, from the spec docs | subtle trigger/effect mistakes in the long tail of object types |
 | **Constant audit** — a generated table diffed against `docs/analysis/constants.md` | a mistyped literal silently changing feel |
 | **Headless completability runs** per house | levels that cannot actually be finished |
-| **Fuzz seeds + hostile-house soak** — `testing.F` targets seeded from shipped data, replayed by plain `go test`; mutated houses run through `replay.Run` (IMPROVEMENTS 4.30) | panics on hostile input, and sticky asset errors on paths no golden replay visits |
+| **Fuzz seeds + hostile-house soak** — `testing.F` targets seeded from shipped data, replayed by plain `go test`; mutated houses run through `replay.Run`; `make fuzz` runs the engine and the long soak (IMPROVEMENTS 4.30) | panics on hostile input, and sticky asset errors on paths no golden replay visits |
 | **Loopback race** — two in-process apps over 127.0.0.1 under `-race` (4.34) | connect/cancel/deadline hangs, disconnect handling, two machines scoring different results |
 | **Checked by a person** — `RELEASE_TESTING.md` (planned), one numbered list with an expected result and a last-run column per step | everything above that needs hands: a house played through, Windows keys, the Windows firewall, a race between two real machines |
 | **Flash scan** — WCAG 2.3.1 over every replay's frames, with a negative control that must trip it (IMPROVEMENTS 3.3) | a house or a change that makes the screen strobe |

@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -983,10 +984,22 @@ func TestBadScriptsAreRejected(t *testing.T) {
 		"house H\nsound maybe\n",     // not on or off
 		"house H\nartdir\n",          // a keyword with its argument left off
 		"house H\ndemo\n",            // and the same for the demo path
+		"house H\nroom 65540\n",      // wraps to room 4 in an int16
+		"house H\nseed 4294967297\n", // wraps to seed 1 in an int32
+		"house H\nframes 600 1200\n", // an argument past the last one
+		"house H\nat 5 right left x\n",
+		"house H\nhousedir /tmp/my houses\n", // a directory is one word
 	}
 	for _, text := range bad {
 		if s, err := replay.Parse(strings.NewReader(text)); err == nil {
 			t.Errorf("Parse(%q) succeeded, giving %+v; want an error", text, s)
+		}
+	}
+
+	// And Write will not write a script Parse would read as another one.
+	for _, name := range []string{"", "Room #5", "two\nlines", " spaced"} {
+		if err := replay.NewScript(name, 60).Write(io.Discard); err == nil {
+			t.Errorf("Write took house %q, which Parse cannot read back", name)
 		}
 	}
 }

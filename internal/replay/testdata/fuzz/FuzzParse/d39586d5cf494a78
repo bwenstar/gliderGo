@@ -1,0 +1,2 @@
+go test fuzz v1
+string("house 0\nroom -2")

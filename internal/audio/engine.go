@@ -371,12 +371,14 @@ func (e *Engine) playSound(n int, slot, priority int16) {
 	}
 
 	s := e.sample(slot)
-	if s == nil {
+	if s == nil || len(s.Data) == 0 {
 		// The C cannot reach this: theSoundData[] is fully loaded or failedSound is set
 		// and PlayPrioritySound returned above. The port can, through exactly one door --
 		// a sound trigger whose sample was freed by a room change between the hot spot
 		// being made and the trigger firing -- so it answers the way the guarded reads in
-		// internal/game do, by declining rather than by inventing a sample.
+		// internal/game do, by declining rather than by inventing a sample. An empty sample
+		// is declined too, as musicChannel.begin declines one: the Bank refuses to load
+		// one, and this is for a Sound built by hand, which channel.next would read past.
 		e.stats.Refused++
 		e.note(Event{Slot: slot, Priority: priority, Channel: -1, Displaced: NoSoundPlaying})
 		return
