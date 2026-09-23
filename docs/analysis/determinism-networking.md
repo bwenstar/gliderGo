@@ -1450,6 +1450,10 @@ MsgHello      (msgType 0x10)
  ..      houseHash uint64         // hash of the entire house file bytes
  ..      kInputDelay uint8        // proposed
  ..      numNeighborsView uint8   // INFORMATIONAL ONLY -- see §10.3.5 R3
+ ..      engine uint64            // added by the port (IMPROVEMENTS 4.31) -- see below
+ ..      rules uint16             // added by the port: low byte informational, high byte gated
+ ..      releaseLen uint8         // added by the port
+ ..      release[releaseLen]      // added by the port: the build's version string
 
 MsgMatchStart (msgType 0x11)
   0..7   header (matchID = low 32 bits of matchSeed)
@@ -1470,6 +1474,24 @@ instead of a mystery is to compare hashes up front.
 behaves as if all nine neighbours exist, so peers may legitimately disagree about what they
 render. Sending it lets the UI warn ("your opponent can see more of the house than you
 can") without making it a compatibility gate.
+
+**The last four fields are the port's, not this document's**, and were added to version 1
+before any release spoke the race (`docs/IMPROVEMENTS.md` 4.31, `internal/netplay`'s package
+comment). A race has no `MsgChecksum` -- the two worlds are meant to differ -- so a peer on a
+build whose physics differ would otherwise race a different game and nothing would say so.
+`engine` is a hash of what the build's simulation does on a fixed set of runs
+(`internal/replay`'s `Engine`), and a mismatch refuses the match. `rules` is one bit per opt-in
+change a peer plays with: a difference in the low byte is reported, and a difference in the high
+byte refuses, so a build can gate on a rule it has never heard of. `release` is not a gate --
+two releases with one engine race each other -- and is in every refusal, because it is what a
+player can act on. Both peers check all of these from the two `MsgHello`s alone, before player 1
+sends `MsgMatchStart`, so both refuse or neither does.
+
+Four rules keep the handshake extendable after that. `MsgHello` is always sent under header
+version 1, whatever `protocolVersions` offers, because a receiver refuses any other version byte
+before it reads a field and so could never say which release it was refusing. Its layout only
+grows at the end. Every decoder accepts trailing bytes. And a rule's bit says by its position
+whether it gates.
 
 Slot assignment must be deterministic and symmetric: the peer with the numerically smaller
 nonce becomes player 1 (`kPlayer1`, `which == TRUE`). Ties are impossible in practice with

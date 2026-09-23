@@ -17,6 +17,51 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A race refuses a build that flies differently, and says which release it is (2026-09-23)
+
+Each side's `MsgHello` now carries three more fields: its release, a fingerprint of its engine,
+and the rules it plays with. `Meet` refuses a race on either of these grounds, naming both
+releases:
+
+- **Another engine.** The race's gate had been the house alone. Two builds whose gliders fly
+  differently through the same house were racing different games, and nothing said so. The
+  refusal reads `this is release "0.3.0" (engine …) and the other side is release "0.4.0" (engine
+  …); the two releases fly differently, so both machines need the same one`. Two builds calling
+  themselves the same release with different engines are told that one was built from changed
+  source.
+- **No protocol version in common.** The `Versions` bitmap had been sent and never read.
+
+The rules are one bit per opt-in change. A difference in the low byte is reported and the race
+goes ahead; a difference in the high byte refuses it. All four of today's `fixes` are in the low
+byte, because none of them changes what a race's simulation does. The stdout race line now says
+the other side's release and rules.
+
+**The fingerprint is measured, not declared** (`internal/replay/engine.go`). It is a hash of what
+the simulation does on 23 fixed runs from the built-in tree:
+- the 1994 demo through Demo House;
+- the duct run;
+- 900 frames of holding right from the start of each other 1994 house.
+
+A physics change that alters any of them changes it, and a picture, a sound or a screen does not,
+so releases with the same physics keep racing each other. It hashes only what a race can feel:
+position, mode, room, score, gliders, stars and the random stream. It leaves out render counters
+and sounds. The runs go side by side, taking 0.55 s on eight cores and 2 s on one. The connecting
+goroutine computes it once per process, before it accepts or dials. A test pins its value, so the
+change that moves it is noticed as a change that ends racing against earlier releases.
+
+This had to land before the first tag that carries the race. A build without it cannot refuse a
+newer one cleanly. Worse, as player 1 it returns from the handshake before the newer build
+refuses, and scores that build's hang-up as a win by forfeit. Every refusal is now decided from the
+two hellos alone, so both sides refuse or neither does. A loopback test runs a guest on another
+engine and checks exactly that. The layout is extendable from here on: a `Hello` is always sent
+under header version 1, it only grows at the end, and every decoder accepts trailing bytes (now
+tested for all four messages). `docs/analysis/determinism-networking.md` §10.4.7's table lists the
+new fields.
+
+The handshake's comment no longer claims that neither peer can choose the seed. A peer that tries
+nonces can steer it (`docs/IMPROVEMENTS.md` 4.38). The protocol freeze weighed a commit-reveal
+round to prevent that and left it out: it buys little in a race that runs on the honour system.
+
 ### A race is tested end to end, and the sound no longer holds up quitting (2026-09-23)
 
 `cmd/glidergo/loopback_test.go` runs both ends of a race in one process, through the same `play`
@@ -443,8 +488,9 @@ buys the forward compatibility it was written for.
 
 The handshake is symmetric, with no host authority, because there is nothing for an authority to be
 authoritative about: both sides send a `MsgHello`, the smaller nonce becomes player 1, and the match
-seed is an FNV-1a mix of the two nonces in value order, so neither peer can choose the house's
-behaviour by choosing its own number. The two houses must hash identically or the match is refused
+seed is an FNV-1a mix of the two nonces in value order, so the second peer cannot take the seed
+for free by choosing its own number. (A peer that tries nonces can still steer the seed, and this
+entry used to claim otherwise; see `docs/IMPROVEMENTS.md` 4.38.) The two houses must hash identically or the match is refused
 with both names and both hashes on screen — the names are usually the same, two builds of one house
 being the common case, so the hashes are the only thing that tells them apart. There is no starting
 gun and no countdown: the metric is rooms visited and the tie-breaks are score and then *frames

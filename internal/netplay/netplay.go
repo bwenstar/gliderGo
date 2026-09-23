@@ -62,10 +62,37 @@
 //   - kInputDelay: no use here at all, and honestly reported as such. It is in the format
 //     because the format is a lock-step protocol's; a race sends 0 and ignores what it gets.
 //
-// The one field that *is* a gate is houseHash, and §10.4.7 is emphatic about it: the house
-// file is simulation input, down to every blower's direction and every appliance's delay, so
-// two peers on differently-built houses of the same name have no shared game to play. See
-// HouseHash for what this port hashes, which is not quite what §10.4.7 says to hash, and why.
+// The one field of §10.4.7's that *is* a gate is houseHash, and §10.4.7 is emphatic about it:
+// the house file is simulation input, down to every blower's direction and every appliance's
+// delay, so two peers on differently-built houses of the same name have no shared game to play.
+// See HouseHash for what this port hashes, which is not quite what §10.4.7 says to hash, and why.
+//
+// # The three fields this port adds to MsgHello, and the rules that keep it extendable
+//
+// §10.4.7's Hello describes a house and says nothing about the program running it, which in a
+// lock-step port is caught a few frames in by MsgChecksum. A race has no checksum -- the two
+// worlds are meant to differ -- so a peer on another build flies a different game and nothing
+// ever says so. Three fields follow numNeighborsView to close that: the release, the engine
+// fingerprint (Hello.Engine, from internal/replay's Engine) and the rules (Rules). Meet refuses
+// a different engine and a difference in a gated rule, and reports the release in both refusals
+// and the rules it lets through. docs/IMPROVEMENTS.md 4.31 is the reasoning, and
+// docs/analysis/determinism-networking.md §10.4.7's table lists the fields.
+//
+// They are in version 1 rather than behind a version 2, because no release spoke the race before
+// them, and they are what makes every later change to the handshake refusable cleanly. That rests
+// on four rules, and a change that breaks one of them makes some release unable to say why it is
+// refusing another:
+//
+//   - **A Hello is always sent under header version 1**, whatever versions its bitmap offers.
+//     parseHeader refuses any other version byte before reading a field, so it is the only way a
+//     build reaches an older one with its release in hand.
+//   - **Hello's layout only grows at the end.** Nothing already in it moves or changes width, so
+//     an older build reads every field it knows at the offset it knows.
+//   - **Every decoder accepts trailing bytes.** Each one checks only that the message is long
+//     enough for what it reads, so a longer Hello or MatchStart from a later build is read, not
+//     refused -- which is what lets the second rule add anything at all.
+//   - **A rule's bit says by its position whether it gates**, so an older build refuses a later
+//     build's rule, or lets it through, without knowing its name. See Rules.
 package netplay
 
 import (
@@ -185,18 +212,21 @@ func allocated(t uint8) bool {
 	return false
 }
 
-// The errors, all sentinels so that a caller can tell the four apart with errors.Is and say
-// something different about each. That matters more here than in most packages: three of the
-// four are things a player did rather than things a program got wrong, and "your friend is
-// running a different build of the house" needs to reach the screen as that sentence and not
-// as a stack trace.
+// The errors, all sentinels so that a caller can tell the seven apart with errors.Is and say
+// something different about each. That matters more here than in most packages: four of the
+// seven are things a player did rather than things a program got wrong -- installed another
+// release, opened another house, turned on another rule -- and "your friend is running a
+// different build of the house" needs to reach the screen as that sentence and not as a stack
+// trace.
 var (
 	// ErrMagic means the first two bytes were not Magic. Almost always a connection to
 	// something that is not this game.
 	ErrMagic = errors.New("netplay: not a gliderGo message")
 
-	// ErrVersion means the peer speaks a different protocol version. Loud by §10.4.10's
-	// last rule, and there is nothing to negotiate: version 1 is the only one that exists.
+	// ErrVersion means the peer speaks a different protocol version: a message under
+	// another header version, or a Hello whose Versions bitmap has no version in common with
+	// this one. Loud by §10.4.10's last rule. Only the second kind can name the other side's
+	// release, which is why a Hello is always sent under version 1.
 	ErrVersion = errors.New("netplay: wrong protocol version")
 
 	// ErrShort means a message ended inside itself. Wrapped with the field it ended in.
@@ -211,6 +241,14 @@ var (
 	// one error in this package a player is *expected* to see, so Meet spells out both
 	// house names and both hashes rather than just failing.
 	ErrHouse = errors.New("netplay: the two sides have different houses")
+
+	// ErrEngine is the engine gate: the two builds' simulations are not the same one
+	// (Hello.Engine). Meet names both releases, because installing one of them is the fix.
+	ErrEngine = errors.New("netplay: the two sides run different engines")
+
+	// ErrRules is the rules gate: the two sides differ in a rule that decides a race
+	// (Rules, RulesGated). Nothing sets one yet, so today only a later build can cause it.
+	ErrRules = errors.New("netplay: the two sides play by different rules")
 )
 
 // short is the one error message this package builds more than twice: a message that ended

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"strconv"
+	"strings"
 )
 
 // Hello is MsgHello (§10.4.7): what each peer says about itself before there is a match.
@@ -30,11 +32,11 @@ type Hello struct {
 	// understood. §10.4 does not say which end bit 0 is, so this package fixes it -- bit n
 	// for version n, leaving bit 0 permanently clear because there is no version 0.
 	//
-	// It does nothing today, and the reason is worth being straight about: parseHeader
-	// rejects a mismatched version byte before this field is ever looked at, so two builds
-	// that could both speak version 1 but announce something else in the header never get
-	// here. That is the right order while there is one version. When there are two, this is
-	// the field that lets them meet, and the check moves.
+	// Meet refuses two bitmaps with no version in common, naming both releases. That can
+	// only work because a Hello is always sent under header version 1, whatever else a build
+	// speaks (see the package comment): parseHeader refuses any other version byte before a
+	// field is read, so a build that sent its Hello as version 2 would reach a version-1
+	// build as a bare ErrVersion that names nobody.
 	Versions uint16
 
 	// HouseName is the house this peer has loaded, named the way the picker names it: by
@@ -54,26 +56,50 @@ type Hello struct {
 	// informational per §10.3.5 R3, and worth showing: a peer rendering 9 sees hazards a
 	// peer rendering 1 does not.
 	Neighbors uint8
+
+	// Engine is the build's engine fingerprint, replay.Engine: a hash of what its
+	// simulation does on a fixed set of runs. The second gate after the house, and the one
+	// a house hash cannot stand in for -- two builds whose gliders fall at different speeds
+	// through the same house are not racing each other, whatever they are holding.
+	Engine uint64
+
+	// Rules is which of the game's opt-in changes this peer plays with. See Rules for which
+	// of them refuse a race and which are only reported.
+	Rules Rules
+
+	// Release is the build's version, as -version prints it: a tag's number, or "dev" for a
+	// build nobody tagged. Not a gate -- Engine is, so two releases with the same physics
+	// race each other -- and in every refusal all the same, because it is the thing a
+	// player can do something about. "Install 0.4.0" is advice; an engine fingerprint is
+	// not. At most 255 bytes, for the same length byte as HouseName.
+	Release string
 }
 
 func (*Hello) msgType() uint8 { return MsgHello }
 
 // The fixed parts of MsgHello, either side of the variable-length house name. §10.4.7's table
-// is the authority for every offset; these two constants exist so that the encoder and the
-// decoder cannot disagree about where the name starts and ends.
+// is the authority for every offset up to numNeighborsView; the three fields after it are this
+// port's (see the package comment), and determinism-networking.md's amended table lists them.
+// These constants exist so that the encoder and the decoder cannot disagree about where the
+// name starts and ends.
 const (
 	helloBeforeName = 21 // header, senderSlot, pad, nonce, protocolVersions, houseNameLen
-	helloAfterName  = 10 // houseHash, kInputDelay, numNeighborsView
+	helloAfterName  = 21 // houseHash, kInputDelay, numNeighborsView, engine, rules, releaseLen
 )
+
+// cut255 is a string cut to what a length byte can count.
+func cut255(s string) string {
+	if len(s) > 255 {
+		return s[:255]
+	}
+	return s
+}
 
 // EncodeHello lays out a MsgHello. matchID is 0, which §10.4.7 requires: there is no match yet,
 // and a Hello that claimed one would be a Hello from a peer that had skipped this step.
 func EncodeHello(h Hello) []byte {
-	name := h.HouseName
-	if len(name) > 255 {
-		name = name[:255]
-	}
-	b := make([]byte, helloBeforeName+len(name)+helloAfterName)
+	name, release := cut255(h.HouseName), cut255(h.Release)
+	b := make([]byte, helloBeforeName+len(name)+helloAfterName+len(release))
 	header(b, MsgHello, 0)
 	b[8] = h.Slot
 	b[9] = 0 // §10.4.7's pad, and §10.4.10's third rule: written, not left over
@@ -85,6 +111,10 @@ func EncodeHello(h Hello) []byte {
 	be64(b[at:], h.HouseHash)
 	b[at+8] = h.InputDelay
 	b[at+9] = h.Neighbors
+	be64(b[at+10:], h.Engine)
+	be16(b[at+18:], uint16(h.Rules))
+	b[at+20] = byte(len(release))
+	copy(b[at+21:], release)
 	return b
 }
 
@@ -102,6 +132,10 @@ func decodeHello(b []byte) (Msg, error) {
 		return nil, short(fmt.Sprintf("MsgHello with a %d-byte house name", n), len(b), need)
 	}
 	at := helloBeforeName + n
+	rn := int(b[at+20])
+	if len(b) < need+rn {
+		return nil, short(fmt.Sprintf("MsgHello with a %d-byte release", rn), len(b), need+rn)
+	}
 	h := &Hello{
 		Slot:     b[8],
 		Nonce:    u64(b[10:]),
@@ -113,12 +147,79 @@ func decodeHello(b []byte) (Msg, error) {
 		HouseHash:  u64(b[at:]),
 		InputDelay: b[at+8],
 		Neighbors:  b[at+9],
+		Engine:     u64(b[at+10:]),
+		Rules:      Rules(u16(b[at+18:])),
+		Release:    string(b[at+21 : at+21+rn]),
 	}
 	if h.Slot > 1 {
 		return nil, fmt.Errorf("%w: MsgHello proposes slot %d, must be 0 or 1",
 			ErrProtocol, h.Slot)
 	}
 	return h, nil
+}
+
+// Rules is Hello's rules field: the game's opt-in changes a peer plays with, one bit each.
+//
+// **Split by position, so that a build can gate on a change it has never heard of.** A
+// difference in the low byte is reported and the race goes ahead; a difference in the high byte
+// refuses it. Which byte a new change's bit goes in is decided once, when the change is added,
+// by whether it alters what the simulation does -- and every build already released then
+// refuses or allows it correctly without knowing its name. A single list of gated changes would
+// have needed each old build to know every change made after it.
+//
+// All four of today's fixes are in the low byte. MirrorFoil and Player2GiveUp act only in a
+// two-player game, which a race is not; MirrorFlame changes what is drawn and not what is
+// simulated; and SwitchSparkle drops a puff of light that draws no random number and that
+// nothing reads (docs/IMPROVEMENTS.md 2.19, 2.20, 2.23 and 2.39). They are sent so that a player
+// can be told the other screen looks different, which is all they do.
+type Rules uint16
+
+// The rules this build knows by name. A fix's bit is named as the prefs file names the fix,
+// because the prefs file is where a player turns it on.
+const (
+	RuleMirrorFlame   Rules = 1 << 0 // fixes.mirror_flame
+	RuleMirrorFoil    Rules = 1 << 1 // fixes.mirror_foil
+	RuleSwitchSparkle Rules = 1 << 2 // fixes.switch_sparkle
+	RulePlayer2GiveUp Rules = 1 << 3 // fixes.player2_give_up
+
+	// RuleAssisted is reserved for an assist a race allows, and nothing sets it: the game
+	// has no assists yet (docs/IMPROVEMENTS.md 3.2), and one added later is refused in a
+	// race unless it is given this bit. It is in the high byte because an assist is a change
+	// to what the glider can do, which is the definition of a change that decides a race.
+	RuleAssisted Rules = 1 << 15
+
+	// RulesGated is the high byte: a difference in any of these bits refuses a race.
+	RulesGated Rules = 0xFF00
+)
+
+var ruleNames = map[Rules]string{
+	RuleMirrorFlame:   "fixes.mirror_flame",
+	RuleMirrorFoil:    "fixes.mirror_foil",
+	RuleSwitchSparkle: "fixes.switch_sparkle",
+	RulePlayer2GiveUp: "fixes.player2_give_up",
+	RuleAssisted:      "an assist",
+}
+
+// String lists the rules by name, or says "none". A bit this build has no name for is given by
+// its number, which is the most an older build can say about a newer one's rule and is still
+// enough to look up.
+func (r Rules) String() string {
+	if r == 0 {
+		return "none"
+	}
+	var names []string
+	for bit := 0; bit < 16; bit++ {
+		b := Rules(1) << bit
+		if r&b == 0 {
+			continue
+		}
+		if name, ok := ruleNames[b]; ok {
+			names = append(names, name)
+		} else {
+			names = append(names, fmt.Sprintf("rule %d", bit))
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // MatchStart is MsgMatchStart (§10.4.7): player 1 telling player 2 what they have both already
@@ -210,6 +311,13 @@ type Match struct {
 	// filed under different names and a scoreboard should say which one was raced.
 	PeerHouseName string
 	PeerNeighbors uint8
+
+	// PeerRelease and PeerRules are the other side's release and rules. The engines are the
+	// same or there would be no match, so the release is here for the record rather than
+	// the gate -- a bug report about a race between 0.3.0 and 0.4.0 should say so. The rules
+	// can differ in their low byte, and when they do the player should hear about it.
+	PeerRelease string
+	PeerRules   Rules
 }
 
 // RandSeed is the seed both peers hand to their own World.RandSeed.
@@ -285,11 +393,18 @@ func HouseHash(canonical []byte) uint64 {
 // mixSeed derives the match seed from the two nonces.
 //
 // Ordered by value rather than by who sent what, so both peers compute the same number without
-// either having to know whose Hello arrived first. Mixed rather than concatenated or XORed
-// because neither peer should be able to choose the result: XOR lets the second peer pick the
-// seed by picking its nonce, and a race whose house behaviour one side chose is a race the other
-// side did not agree to. Whether that matters between two people on one LAN is arguable; the
-// version that does not need the argument costs three lines.
+// either having to know whose Hello arrived first. Mixed rather than concatenated or XORed so
+// that choosing the seed takes work: XOR would hand it to whichever peer reads the other's nonce
+// before sending its own, for free.
+//
+// **It does not stop a peer choosing the seed**, and this comment used to say it did. A peer that
+// waits for the other's Hello and then tries nonces can set any 16 bits of the seed in about
+// fifteen thousand tries, and any of the 31 bits RandSeed keeps in seconds (docs/IMPROVEMENTS.md
+// 4.38). What that buys is small -- both players fly the one seed, so a peer that chose it chose
+// the house's weather for both -- and closing it needs a commit-reveal round, a second message
+// each way before the first standing. That was weighed for the handshake freeze and left out: the
+// race is on the honour system in any case, and a peer that wants to cheat can send a winning
+// standing with far less effort than a chosen seed.
 func mixSeed(lo, hi uint64) uint64 {
 	var b [16]byte
 	be64(b[:], lo)
@@ -332,6 +447,41 @@ func Meet(c *Conn, local Hello) (Match, error) {
 			ErrProtocol, MsgName(msg.msgType()), MsgName(MsgHello))
 	}
 
+	// **Every refusal from here to the nonce is computed from the two Hellos alone, and so
+	// the same on both sides**, and every one of them is decided before player 1 sends
+	// MatchStart and returns. That is what they are for. A refusal only one side could see
+	// would let player 1 return with a match and fly, and the other side hanging up would
+	// reach it as a forfeit and a win nobody earned.
+	//
+	// The order is the order of what the player can do about it. A protocol they cannot
+	// speak and an engine they do not share both mean installing another release, and are
+	// said first, because a house or a rule is not worth fixing between two builds that
+	// cannot race anyway.
+	if local.Versions&peer.Versions == 0 {
+		return Match{}, fmt.Errorf("%w: this is %s, which speaks protocol %s, and the other "+
+			"side is %s, which speaks %s; both machines need releases with a version in common",
+			ErrVersion, release(local.Release), versions(local.Versions),
+			release(peer.Release), versions(peer.Versions))
+	}
+	if peer.Engine != local.Engine {
+		if peer.Release == local.Release {
+			// The same name on two different engines: at least one of the two is not
+			// the build it says it is. Nearly always somebody's own build from changed
+			// source, and "dev" and "dev" is the commonest case of it.
+			both := "both sides are " + release(local.Release)
+			if local.Release == "" {
+				both = "neither side names its release"
+			}
+			return Match{}, fmt.Errorf("%w: %s, and their engines differ (%016X here, %016X "+
+				"there), so at least one of them was built from changed source; build both "+
+				"from the same source, or install the same release on both",
+				ErrEngine, both, local.Engine, peer.Engine)
+		}
+		return Match{}, fmt.Errorf("%w: this is %s (engine %016X) and the other side is %s "+
+			"(engine %016X); the two releases fly differently, so both machines need the same "+
+			"one", ErrEngine, release(local.Release), local.Engine,
+			release(peer.Release), peer.Engine)
+	}
 	if peer.HouseHash != local.HouseHash {
 		// The one error a player is meant to see, so it says what to do about it rather
 		// than what went wrong. Both names and both hashes: the names are usually the
@@ -340,6 +490,14 @@ func Meet(c *Conn, local Hello) (Match, error) {
 		return Match{}, fmt.Errorf("%w: yours is %q (hash %016X), theirs is %q (hash %016X); "+
 			"both sides need the same house, byte for byte",
 			ErrHouse, local.HouseName, local.HouseHash, peer.HouseName, peer.HouseHash)
+	}
+	if diff := (local.Rules ^ peer.Rules) & RulesGated; diff != 0 {
+		// Only the bits that differ, which is what there is to change. A rule both sides
+		// play with is not the reason for anything.
+		return Match{}, fmt.Errorf("%w: of the rules that decide a race, this side (%s) plays "+
+			"with %s and the other side (%s) with %s; both sides need the same",
+			ErrRules, release(local.Release), ruleList(local.Rules&diff),
+			release(peer.Release), ruleList(peer.Rules&diff))
 	}
 
 	// §10.4.7: the numerically smaller nonce becomes player 1. Ties are impossible in
@@ -360,6 +518,8 @@ func Meet(c *Conn, local Hello) (Match, error) {
 		InputDelay:    max(local.InputDelay, peer.InputDelay),
 		PeerHouseName: peer.HouseName,
 		PeerNeighbors: peer.Neighbors,
+		PeerRelease:   peer.Release,
+		PeerRules:     peer.Rules,
 	}
 	m.ID = uint32(m.Seed)
 	if local.Nonce > peer.Nonce {
@@ -397,8 +557,10 @@ func Meet(c *Conn, local Hello) (Match, error) {
 			ErrProtocol, MsgName(msg.msgType()), MsgName(MsgMatchStart))
 	}
 	// Four checks, one per field player 1 had no freedom about. Seed is the load-bearing one
-	// -- mixSeed exists so that neither peer chooses the house's behaviour -- and the others
-	// are each a way for the two sides to have computed §10.4.7 differently.
+	// -- it is the house's behaviour -- and the others are each a way for the two sides to
+	// have computed §10.4.7 differently. Unlike the refusals above, these can only fail
+	// against a peer that is broken or lying, which is why player 1 not hearing about them
+	// is acceptable.
 	switch {
 	case start.Slot != 0:
 		return Match{}, fmt.Errorf("%w: player 1 assigned itself slot %d; the nonces say it "+
@@ -415,6 +577,41 @@ func Meet(c *Conn, local Hello) (Match, error) {
 	}
 	m.StartFrame = start.StartFrame
 	return m, nil
+}
+
+// release is a Hello's release as a refusal names it. A peer that sent none is one whose build
+// set nothing, and "an unnamed build" is a thing a player can at least ask the other one about.
+func release(r string) string {
+	if r == "" {
+		return "an unnamed build"
+	}
+	return "release " + strconv.Quote(r)
+}
+
+// ruleList is Rules.String for the middle of a sentence, where "none" would read as a rule.
+func ruleList(r Rules) string {
+	if r == 0 {
+		return "none of them"
+	}
+	return r.String()
+}
+
+// versions is a protocolVersions bitmap as a refusal names it: "version 1", "versions 1 and 2",
+// or "no version at all" from a peer that set no bit.
+func versions(v uint16) string {
+	var nums []string
+	for n := 1; n < 16; n++ {
+		if v&(1<<n) != 0 {
+			nums = append(nums, strconv.Itoa(n))
+		}
+	}
+	switch len(nums) {
+	case 0:
+		return "no version at all"
+	case 1:
+		return "version " + nums[0]
+	}
+	return "versions " + strings.Join(nums[:len(nums)-1], ", ") + " and " + nums[len(nums)-1]
 }
 
 // meetErr says which half of the handshake was in progress when the connection failed. A

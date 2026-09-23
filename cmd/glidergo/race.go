@@ -39,11 +39,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bwenstar/gliderGo/assets"
 	"github.com/bwenstar/gliderGo/internal/game"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/netplay"
 	"github.com/bwenstar/gliderGo/internal/platform"
+	"github.com/bwenstar/gliderGo/internal/prefs"
 	"github.com/bwenstar/gliderGo/internal/render"
+	"github.com/bwenstar/gliderGo/internal/replay"
 	"github.com/bwenstar/gliderGo/internal/shell"
 )
 
@@ -215,11 +218,15 @@ func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.R
 	if err != nil {
 		return nil, nil, err
 	}
+	// Engine is left for meetRace, which works it out on the connecting goroutine: it takes
+	// half a second, and this goroutine is the one drawing the window.
 	local := netplay.Hello{
 		Nonce:     nonce,
 		HouseName: name,
 		HouseHash: netplay.HouseHash(canon),
 		Neighbors: uint8(a.p.Neighbors),
+		Rules:     raceRules(a.p.Fixes),
+		Release:   version,
 	}
 
 	// **Bind before the waiting screen goes up.** A port already in use is the commonest way
@@ -259,12 +266,56 @@ func (a *app) openRace(name string, h *house.House, race shell.Race) (*netplay.R
 	if !o.quiet {
 		// The line a bug report about a race has to quote, and the one place both halves of
 		// the agreement are visible at once: which player this side is, the match the two
-		// nonces produced, the seed the house will actually run from, and what the other
-		// side calls the house it hashed the same as this one.
-		fmt.Printf("glidergo: race: player %d, match 0x%08X, seed %d, opponent %q with %d-room view\n",
-			met.m.Slot+1, met.m.ID, met.m.RandSeed(), met.m.PeerHouseName, met.m.PeerNeighbors)
+		// nonces produced, the seed the house will actually run from, what the other side
+		// calls the house it hashed the same as this one, and which release it is and what
+		// it plays with -- the rules that do not decide a race, and so were let through.
+		fmt.Printf("glidergo: race: player %d, match 0x%08X, seed %d, opponent %q with %d-room "+
+			"view, release %q, rules: %v\n",
+			met.m.Slot+1, met.m.ID, met.m.RandSeed(), met.m.PeerHouseName, met.m.PeerNeighbors,
+			met.m.PeerRelease, met.m.PeerRules)
 	}
 	return r, met.trans, nil
+}
+
+// raceEngine is this build's engine fingerprint, which a race's hello carries, or the stand-in a
+// test has put in a.engine.
+func (a *app) raceEngine() (uint64, error) {
+	if a.engine != nil {
+		return a.engine()
+	}
+	return engineFingerprint()
+}
+
+// engineFingerprint is replay.Engine over the built-in tree, worked out the first time a race
+// asks for it and kept for the rest of the process: it cannot change while the binary runs, and a
+// second race in one session should not pay for it again.
+//
+// On the built-in tree and never on -assets or -houses, because what the fingerprint stands for
+// is the binary. A race over a house from a directory is still gated on that house by its own
+// hash.
+var engineFingerprint = sync.OnceValues(func() (uint64, error) {
+	return replay.Engine(assets.Tree())
+})
+
+// raceRules is a player's fixes as the race's hello carries them. A function and not a literal at
+// the call site for the reason gameFixes is one: TestEveryFixHasARaceRule reaches it, and a fix
+// added to prefs.Fixes and not here would be one the other player is never told about.
+func raceRules(f prefs.Fixes) netplay.Rules {
+	var r netplay.Rules
+	for _, fix := range []struct {
+		on   bool
+		rule netplay.Rules
+	}{
+		{f.MirrorFlame, netplay.RuleMirrorFlame},
+		{f.MirrorFoil, netplay.RuleMirrorFoil},
+		{f.SwitchSparkle, netplay.RuleSwitchSparkle},
+		{f.Player2GiveUp, netplay.RulePlayer2GiveUp},
+	} {
+		if fix.on {
+			r |= fix.rule
+		}
+	}
+	return r
 }
 
 // hostListener binds the port a hosted race waits on: every interface, because the other player
@@ -280,8 +331,19 @@ func (a *app) hostListener(port string) (*netplay.Listener, error) {
 // blocks, which is why it is not on the frame loop's goroutine and why every blocking call has
 // been handed to rc first.
 func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, join string, local netplay.Hello) raceMeeting {
+	// The engine before the connection, so that once there is one the hello goes out at once
+	// and the other machine is not left waiting on this one's arithmetic. A player who gives
+	// up meanwhile is heard below, when the listener or the dial finds rc cancelled.
+	eng, err := a.raceEngine()
+	if err != nil {
+		// A build that cannot say what its engine is cannot be told apart from one with
+		// another engine, so it does not race -- and nothing but a broken build gets here,
+		// since the fingerprint is made from what the binary carries.
+		return raceMeeting{err: fmt.Errorf("this build cannot race: %w", err)}
+	}
+	local.Engine = eng
+
 	var trans net.Conn
-	var err error
 	if l != nil {
 		trans, err = l.Accept()
 	} else {
@@ -309,9 +371,9 @@ func (a *app) meetRace(rc *raceConnect, l *netplay.Listener, join string, local 
 		if rc.stopped() {
 			return raceMeeting{err: errRaceGaveUp}
 		}
-		// Not wrapped. netplay.Meet's house-mismatch error is the one message in this
-		// package a player is meant to read, and it already says both names, both hashes and
-		// what to do about it.
+		// Not wrapped. netplay.Meet's refusals -- another house, another engine, another
+		// rule -- are the messages in this package a player is meant to read, and each one
+		// already says what both sides have and what to do about it.
 		return raceMeeting{err: err}
 	}
 	return raceMeeting{c: c, trans: trans, m: m}

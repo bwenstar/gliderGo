@@ -21,6 +21,7 @@ package main
 import (
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +63,11 @@ func raceHouse() houseRef {
 // is most of what a present costs: ToBGRX leaves alone any row the destination has no room for,
 // which here is all of them. Under the race detector, where every byte stored is a call, that
 // is the difference between these tests taking seconds and taking a minute and a half.
+//
+// The engine fingerprint is a stand-in, loopbackEngine, because the real one is half a second of
+// flying that under the race detector becomes twenty-five, and every race here would pay it.
+// What the fingerprint is has its own test (TestTheEngineFingerprintIsPinned); what these check is
+// that the one there is gets sent, compared and refused on.
 func raceApp(t *testing.T, flying bool) *app {
 	t.Helper()
 	a, _ := playApp(t, savesNone)
@@ -71,8 +77,12 @@ func raceApp(t *testing.T, flying bool) *app {
 	}
 	a.win = win
 	a.fb = &platform.Framebuffer{}
+	a.engine = func() (uint64, error) { return loopbackEngine, nil }
 	return a
 }
+
+// loopbackEngine is the engine every raceApp claims.
+const loopbackEngine = 0x6C6F6F706261636B
 
 // hostOnLoopback makes a host bind 127.0.0.1 on a port the kernel picks, and returns where to
 // dial it. The address arrives once the listener exists, which is before the waiting screen goes
@@ -258,33 +268,41 @@ func TestLoopbackRaceOfTwoIdleGlidersIsADraw(t *testing.T) {
 	}
 }
 
-// meetAsGuest is the other machine played by hand: dial, and shake hands over the same house.
-func meetAsGuest(t *testing.T, addr string) (*netplay.Conn, io.Closer, netplay.Match) {
+// guestHello is what the other machine says about itself when it is played by hand: the same
+// house, the same engine and release, and no fixes.
+func guestHello(t *testing.T) netplay.Hello {
+	t.Helper()
+	h, err := raceHouse().open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce, err := netplay.Nonce()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return netplay.Hello{
+		Nonce:     nonce,
+		HouseName: "Grand Prix",
+		HouseHash: netplay.HouseHash(canonical(t, h)),
+		Neighbors: uint8(prefs.Default().Neighbors),
+		Engine:    loopbackEngine,
+		Release:   version,
+	}
+}
+
+// meetAsGuest is the other machine played by hand: dial, and shake hands saying hello.
+func meetAsGuest(t *testing.T, addr string, hello netplay.Hello) (*netplay.Conn, io.Closer, netplay.Match, error) {
 	t.Helper()
 	trans, err := netplay.Join(addr, "", 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := raceHouse().open()
-	if err != nil {
-		t.Fatal(err)
-	}
 	c := netplay.NewConn(trans)
-	nonce, err := netplay.Nonce()
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := netplay.Meet(c, netplay.Hello{
-		Nonce:     nonce,
-		HouseName: "Grand Prix",
-		HouseHash: netplay.HouseHash(canonical(t, h)),
-		Neighbors: uint8(prefs.Default().Neighbors),
-	})
+	m, err := netplay.Meet(c, hello)
 	if err != nil {
 		trans.Close()
-		t.Fatal(err)
 	}
-	return c, trans, m
+	return c, trans, m, err
 }
 
 func canonical(t *testing.T, h *house.House) []byte {
@@ -310,7 +328,10 @@ func TestLoopbackRaceGuestWhoLeavesMidRaceForfeits(t *testing.T) {
 	addr := hostOnLoopback(host)
 	hostDone := playInBackground(host, shell.Race{Host: true})
 
-	c, trans, m := meetAsGuest(t, awaitAddr(t, addr, hostDone))
+	c, trans, m, err := meetAsGuest(t, awaitAddr(t, addr, hostDone), guestHello(t))
+	if err != nil {
+		t.Fatal(err)
+	}
 	msg, err := c.Recv()
 	if err != nil {
 		t.Fatal(err)
@@ -356,6 +377,43 @@ func TestLoopbackRaceGuestWhoLeavesMidRaceForfeits(t *testing.T) {
 	// does not do is say so in words: the line is Go's, "write: broken pipe" here and
 	// something else on Windows (docs/IMPROVEMENTS.md 4.33).
 	t.Logf("the host reports: %v", r.err)
+}
+
+// A guest on another engine is refused by the host, and the host by it: **both** sides refuse,
+// before either flies, and both name the other's release. docs/IMPROVEMENTS.md 4.31 is the reason
+// both matters. A refusal only one side makes leaves the other -- whichever is player 1 -- with a
+// match, a glider in the air, and a peer that hung up, which it scores as a forfeit: a win shown
+// to a player who never raced anybody.
+//
+// Which of the two is player 1 is the nonces' to decide and differs from run to run, so the
+// property is checked whichever way round it came out.
+func TestLoopbackRaceWithAnotherEngineIsRefusedByBothSides(t *testing.T) {
+	raceWaits(t, 20*time.Second, 20*time.Second)
+	host := raceApp(t, false)
+	addr := hostOnLoopback(host)
+	hostDone := playInBackground(host, shell.Race{Host: true})
+
+	hello := guestHello(t)
+	hello.Engine, hello.Release = loopbackEngine+1, "9.9.9"
+	_, _, _, gerr := meetAsGuest(t, awaitAddr(t, addr, hostDone), hello)
+	hp := await(t, "host", hostDone)
+
+	for _, side := range []struct {
+		who, names string
+		err        error
+	}{{"host", `release "9.9.9"`, hp.err}, {"guest", `release "` + version + `"`, gerr}} {
+		if !errors.Is(side.err, netplay.ErrEngine) {
+			t.Errorf("the %s's handshake ended %v, want %v", side.who, side.err, netplay.ErrEngine)
+			continue
+		}
+		if !strings.Contains(side.err.Error(), side.names) {
+			t.Errorf("the %s's refusal does not name the other side, %s: %v",
+				side.who, side.names, side.err)
+		}
+	}
+	if host.raced != nil {
+		t.Errorf("the host recorded a race it refused: %+v", host.raced)
+	}
 }
 
 // A host that accepts and then says nothing leaves a guest parked in the handshake, and a bench

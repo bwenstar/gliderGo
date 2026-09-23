@@ -267,7 +267,11 @@ that depends on the two clocks agreeing, which is why a peer that started late i
 has simulated fewer frames.
 
 Both houses must hash identically or the match is refused with both names and both hashes on
-screen — usually two builds of one house, which is why the hashes are there. Both machines agree a
+screen — usually two builds of one house, which is why the hashes are there. Both machines must
+also run releases that fly the same: a release whose physics changed is refused, naming both
+releases, and any two releases with the same physics race each other. The `fixes` block below is
+told to the other side and does not refuse a race, because none of its switches changes how a
+glider flies. Both machines agree a
 random seed between themselves, so `-seed` is refused, as are `-two` and `-resume`, each with a
 sentence saying why. A small panel in the top-left corner shows where the other player is while you
 fly, and it goes away when your run ends so that the game-over and high-score screens are the

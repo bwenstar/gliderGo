@@ -1448,8 +1448,10 @@ here is genuinely just transport.
   of `docs/IMPROVEMENTS.md` 4.28, which keeps the second: a guest still names the house instead of
   being told it, because `netplay.Meet` is one symmetric exchange in which both sides send their own
   house hash, so there is no moment at which the guest knows what the host opened and has not yet
-  committed. That is a handshake change and belongs with LAN discovery, which is where a guest would
-  be *offered* a house rather than asked for one.
+  committed. That is a change to `Meet`'s order and not to the wire: a guest can read the host's
+  hello before it sends its own, and every build's host sends first, so the tag does not close it
+  (IMPROVEMENTS 4.31's amendment). It belongs with LAN discovery, which is where a guest would be
+  *offered* a house rather than asked for one.
 
   **What the first public race needs, and what can follow it.** The review ahead of the next tag
   (the release gate below) found that the handshake has to carry the release and the engine it was
@@ -1547,9 +1549,14 @@ means the tag is better with it and does not wait.
      `make race` now covers all three places that start a goroutine. `internal/audio` joined it,
      and its harness found a `Close` that hung on a stalled player and a `Write` that panicked
      after `Close` (2.71's amendment).
-   - **Gate, because the window closes at the tag.** Release, engine fingerprint and rules in
-     `Hello`, and `Meet` refusing disjoint `Versions` (4.31). If commit-reveal or 4.28's second
-     half is wanted at all, it goes in this same `Meet` change (4.38).
+   - **Gate, because the window closes at the tag, DONE.** `Hello` carries the release, an engine
+     fingerprint and the rules, and `Meet` refuses another engine, disjoint `Versions` and a
+     difference in a gated rule, naming both releases (4.31). Every refusal is decided from the
+     two hellos, so both sides refuse or neither does, which a loopback race checks. The
+     fingerprint is measured over 23 runs of the built-in 1994 houses in 0.55 s, not bumped by
+     hand. Commit-reveal was left out, and the seed claim it answers is reworded instead (4.38).
+     4.28's second half needs no wire change: a guest can read the host's hello before sending its
+     own.
    - **Should.** The host keeps listening after a connection that is not a race, and both
      handshakes get a deadline (4.32).
    - **Gate.** A failed join says why, on the plate, in words that fit. The Windows firewall is

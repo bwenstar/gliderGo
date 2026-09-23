@@ -100,6 +100,13 @@ type app struct {
 	// picks, told to the test before its guest dials.
 	listen func(port string) (*netplay.Listener, error)
 
+	// engine is this build's engine fingerprint for a race's hello, and nil -- the real one,
+	// engineFingerprint -- is the only value the program itself uses. It is here for
+	// loopback_test.go too: under the race detector the real one takes twenty-five seconds,
+	// which is a long time to spend on every loopback race for a number
+	// TestTheEngineFingerprintIsPinned checks on its own.
+	engine func() (uint64, error)
+
 	// raced is how this session's last race came out, from this side, or nil if it has not
 	// had one. play hands the shell its words (shell.Outcome.Race); the rest is for
 	// loopback_test.go, which holds the two sides of one race against each other.

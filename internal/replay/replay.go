@@ -224,6 +224,11 @@ type Script struct {
 	// keyboard-driven run, because PlayGame's demo branch is inside its one-player arm.
 	Demo string
 
+	// demo, when set, is the stream Demo names, already loaded, and loadDemo hands it back
+	// without looking at a disk. Engine is the one caller: its demo has to be the binary's
+	// own, and Demo's path is otherwise tried on disk first.
+	demo demo.Stream
+
 	// Input is the keystroke log: a timeline of *changes*, not of presses. The entry
 	// with the largest Frame at or below the current frame is the one in force, so a
 	// player who holds right for two seconds is one line, and a script with no entries
@@ -609,6 +614,9 @@ func copyInto(dst, src *render.Surface) *render.Surface {
 // is neither on disk nor in the tree reports the disk error -- the one that names what the
 // caller actually asked for.
 func loadDemo(s *Script) (demo.Stream, error) {
+	if s.demo != nil {
+		return s.demo, nil
+	}
 	stream, err := demo.Load(s.Demo)
 	if err == nil || s.Tree == nil || !errors.Is(err, fs.ErrNotExist) {
 		return stream, err

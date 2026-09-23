@@ -3,6 +3,7 @@ package netplay
 import (
 	"errors"
 	"hash/fnv"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,8 +18,16 @@ const (
 	houseHashB = uint64(0xFEDCBA9876543210)
 )
 
+// The engine and release every handshake here claims unless it is testing them.
+const (
+	engineA  = uint64(0x1111222233334444)
+	engineB  = uint64(0x5555666677778888)
+	releaseA = "0.3.0"
+)
+
 func hello(nonce uint64, hash uint64) Hello {
-	return Hello{Nonce: nonce, HouseName: houseName, HouseHash: hash, Neighbors: 9}
+	return Hello{Nonce: nonce, Versions: 1 << Version, HouseName: houseName, HouseHash: hash,
+		Neighbors: 9, Engine: engineA, Release: releaseA}
 }
 
 // meet runs both halves of the handshake at once and returns what each side got. Both sides
@@ -99,9 +108,9 @@ func TestMeetAgreesOnEverything(t *testing.T) {
 		t.Errorf("neighbour views came back as %d and %d, want 1 and 9",
 			ma.PeerNeighbors, mb.PeerNeighbors)
 	}
-	// The seed is the mix of the two nonces in value order, so a peer cannot pick it by
-	// picking its own nonce. Checking the value and not just the agreement is what makes
-	// that a property rather than a coincidence.
+	// The seed is the mix of the two nonces in value order, whichever arrived first.
+	// Checking the value and not just the agreement is what makes that a property rather
+	// than a coincidence.
 	if want := mixSeed(7, 9); ma.Seed != want {
 		t.Errorf("seed is %016X, want mixSeed(7, 9) = %016X", ma.Seed, want)
 	}
@@ -146,6 +155,176 @@ func TestMeetRefusesTwoDifferentHouses(t *testing.T) {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("%s: the message does not mention %q: %v", who, want, err)
 			}
+		}
+	}
+}
+
+// refusedByBoth runs a handshake that must fail and checks that it fails on **both** sides with
+// want, naming everything in says. Both, because a refusal only one side makes lets the other
+// return from Meet and fly: whichever of them is player 1 sends MatchStart and returns, and the
+// other hanging up reaches it as a forfeit it wins.
+func refusedByBoth(t *testing.T, ha, hb Hello, want error, says ...string) {
+	t.Helper()
+	a, b := pair(t)
+	_, ea, _, eb := meet(t, a, b, ha, hb)
+	for _, side := range []struct {
+		who string
+		err error
+	}{{"the first peer", ea}, {"the second peer", eb}} {
+		if !errors.Is(side.err, want) {
+			t.Errorf("%s: err = %v, want %v", side.who, side.err, want)
+			continue
+		}
+		for _, w := range says {
+			if !strings.Contains(side.err.Error(), w) {
+				t.Errorf("%s: the message does not mention %q: %v", side.who, w, side.err)
+			}
+		}
+	}
+}
+
+// Two builds whose simulations differ are refused, and told which releases they are: the
+// fingerprints are for a bug report, the releases are what a player can install.
+func TestMeetRefusesTwoDifferentEngines(t *testing.T) {
+	ha, hb := hello(7, houseHashA), hello(9, houseHashA)
+	hb.Engine, hb.Release = engineB, "0.4.0"
+	refusedByBoth(t, ha, hb, ErrEngine,
+		`release "0.3.0"`, `release "0.4.0"`, "1111222233334444", "5555666677778888")
+
+	// Two builds calling themselves the same release are not two releases, and are told
+	// what they are instead: one of them is not the build its name says.
+	hb.Release = releaseA
+	refusedByBoth(t, ha, hb, ErrEngine, `release "0.3.0"`, "changed source")
+
+	// The engine is decided before the house. Two builds that fly differently cannot race
+	// whatever house they open, so telling them about the house first sends them to fix
+	// the wrong thing.
+	hb.HouseHash = houseHashB
+	refusedByBoth(t, ha, hb, ErrEngine)
+}
+
+// Two releases with no protocol version in common are refused by name. Today that is only a
+// peer from the future -- this build speaks one version -- and the refusal is the whole point of
+// the rule that a Hello is always sent under header version 1.
+func TestMeetRefusesTwoReleasesWithNoVersionInCommon(t *testing.T) {
+	ha, hb := hello(7, houseHashA), hello(9, houseHashA)
+	hb.Versions, hb.Release = 1<<2|1<<3, "2.0.0"
+	refusedByBoth(t, ha, hb, ErrVersion, `release "0.3.0"`, `release "2.0.0"`,
+		"version 1", "versions 2 and 3")
+
+	// A peer that sets no bit at all speaks nothing, and is not treated as speaking
+	// everything. Hand-rolled, because Meet fills in an empty bitmap on its own side.
+	hb.Versions = 0
+	a, b := pair(t)
+	if err := a.Send(EncodeHello(hb)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Meet(b.Conn, ha); !errors.Is(err, ErrVersion) ||
+		!strings.Contains(err.Error(), "no version at all") {
+		t.Errorf("a peer offering no version: err = %v, want %v saying so", err, ErrVersion)
+	}
+}
+
+// A difference in a rule that decides a race refuses it -- including a rule this build has
+// never heard of, which is the reason the gate is by position.
+func TestMeetRefusesADifferenceInARuleThatDecidesTheRace(t *testing.T) {
+	ha, hb := hello(7, houseHashA), hello(9, houseHashA)
+	hb.Rules, hb.Release = RuleAssisted, "0.4.0"
+	refusedByBoth(t, ha, hb, ErrRules, `release "0.3.0"`, `release "0.4.0"`, "an assist",
+		"none of them")
+
+	// Bit 9 has no name in this build. It is refused all the same, by its number.
+	hb.Rules = 1 << 9
+	refusedByBoth(t, ha, hb, ErrRules, "rule 9")
+
+	// A rule in common is no reason for anything, and is not named: only the difference
+	// is what somebody has to change.
+	ha.Rules, hb.Rules = RuleAssisted, RuleAssisted|1<<9
+	a, b := pair(t)
+	_, ea, _, _ := meet(t, a, b, ha, hb)
+	if !errors.Is(ea, ErrRules) || strings.Contains(ea.Error(), "assist") {
+		t.Errorf("a gated rule both sides play with is in the refusal: %v", ea)
+	}
+}
+
+// The rules that do not decide a race let it go ahead, and each side is told the other's, with
+// its release.
+func TestMeetLetsThroughARuleThatOnlyChangesWhatIsSeen(t *testing.T) {
+	ha, hb := hello(7, houseHashA), hello(9, houseHashA)
+	ha.Rules = RuleMirrorFlame | RuleSwitchSparkle
+	hb.Rules, hb.Release = RulePlayer2GiveUp|1<<6, "0.4.0" // bit 6: a later build's, and informational
+	a, b := pair(t)
+	ma, ea, mb, eb := meet(t, a, b, ha, hb)
+	if ea != nil || eb != nil {
+		t.Fatalf("Meet refused rules that do not decide a race: %v, %v", ea, eb)
+	}
+	if ma.PeerRules != hb.Rules || mb.PeerRules != ha.Rules {
+		t.Errorf("each side was told the other plays with %v and %v, want %v and %v",
+			ma.PeerRules, mb.PeerRules, hb.Rules, ha.Rules)
+	}
+	if ma.PeerRelease != "0.4.0" || mb.PeerRelease != releaseA {
+		t.Errorf("each side was told the other is %q and %q", ma.PeerRelease, mb.PeerRelease)
+	}
+}
+
+func TestRulesSayWhatTheyAre(t *testing.T) {
+	for _, c := range []struct {
+		r    Rules
+		want string
+	}{
+		{0, "none"},
+		{RuleMirrorFlame, "fixes.mirror_flame"},
+		{RuleMirrorFoil | RulePlayer2GiveUp, "fixes.mirror_foil, fixes.player2_give_up"},
+		{RuleSwitchSparkle | 1<<5 | RuleAssisted, "fixes.switch_sparkle, rule 5, an assist"},
+	} {
+		if got := c.r.String(); got != c.want {
+			t.Errorf("Rules(0x%04X) = %q, want %q", uint16(c.r), got, c.want)
+		}
+	}
+	// Every named rule is on the side of the split its comment puts it: the fixes change
+	// what is seen, and an assist changes what the glider can do.
+	for r, name := range ruleNames {
+		if gated := r&RulesGated != 0; gated != (r == RuleAssisted) {
+			t.Errorf("%s is on the wrong side of RulesGated", name)
+		}
+	}
+}
+
+// Every message this build speaks reads a longer one from a later build as the message it
+// knows, and ignores the rest. That is the rule that lets a field be added at the end, and it is
+// a rule about every decoder, because any of them refusing a longer message would make that
+// message's layout frozen for good.
+func TestEveryMessageAcceptsTrailingBytes(t *testing.T) {
+	h := hello(7, houseHashA)
+	h.Rules = RuleMirrorFlame
+	start := MatchStart{InputDelay: 2, Seed: 0x1234_5678_9ABC_DEF0, HouseHash: houseHashA,
+		StartFrame: 3}
+	standing := Standing{Room: 3, Rooms: 5, Score: 1200, Frame: 777, State: Finished}
+	for _, c := range []struct {
+		name string
+		msg  []byte
+		want Msg
+	}{
+		{"MsgHello", EncodeHello(h), &h},
+		{"MsgMatchStart", EncodeMatchStart(start), &start},
+		{"MsgStanding", EncodeStanding(9, 1, standing), nil},
+		{"MsgBye", EncodeBye(9, 1), nil},
+	} {
+		plain, err := decode(c.msg[3], c.msg)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		longer := append(append([]byte(nil), c.msg...), 0xDE, 0xAD, 0xBE, 0xEF)
+		got, err := decode(longer[3], longer)
+		if err != nil {
+			t.Errorf("%s with four bytes more: %v", c.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, plain) {
+			t.Errorf("%s with four bytes more reads as %+v, want %+v", c.name, got, plain)
+		}
+		if c.want != nil && !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s reads as %+v, want %+v", c.name, got, c.want)
 		}
 	}
 }
@@ -260,9 +439,12 @@ func TestHelloRoundTripsIncludingItsNameLength(t *testing.T) {
 	for _, in := range []Hello{
 		{},
 		{Slot: 1, Nonce: ^uint64(0), Versions: 0xFFFF, HouseName: houseName,
-			HouseHash: houseHashA, InputDelay: 255, Neighbors: 9},
+			HouseHash: houseHashA, InputDelay: 255, Neighbors: 9, Engine: ^uint64(0),
+			Rules: 0xFFFF, Release: "0.3.0-rc.1"},
 		{HouseName: ""},
 		{HouseName: long},
+		{Release: long},
+		{HouseName: long, Release: long, Engine: engineA, Rules: RulesGated},
 	} {
 		msg, err := decodeHello(EncodeHello(in))
 		if err != nil {
@@ -276,13 +458,15 @@ func TestHelloRoundTripsIncludingItsNameLength(t *testing.T) {
 	// A name longer than the length byte can describe is truncated rather than refused. The
 	// house name is a label -- the hash is the gate -- and a house whose name is 300 bytes is
 	// a house nobody should be unable to race over.
-	over := Hello{HouseName: long + "!"}
+	// The same for a release, which is a label for the same reason: the engine is the gate.
+	over := Hello{HouseName: long + "!", Release: long + "?"}
 	msg, err := decodeHello(EncodeHello(over))
 	if err != nil {
-		t.Fatalf("256-byte name: %v", err)
+		t.Fatalf("256-byte name and release: %v", err)
 	}
-	if got := msg.(*Hello).HouseName; got != long {
-		t.Errorf("a 256-byte name came back as %d bytes, want 255", len(got))
+	if got := msg.(*Hello); got.HouseName != long || got.Release != long {
+		t.Errorf("a 256-byte name and release came back as %d and %d bytes, want 255 and 255",
+			len(got.HouseName), len(got.Release))
 	}
 }
 
@@ -296,8 +480,13 @@ func TestDecodeHelloRefusesNonsense(t *testing.T) {
 	// the message is long enough to read houseNameLen and not long enough to hold what it
 	// promises. §10.4.10's "explicit count before every variable-length array" is only worth
 	// anything if the count is checked against what followed it.
-	if _, err := decodeHello(good[:len(good)-1]); !errors.Is(err, ErrShort) {
+	if _, err := decodeHello(good[:len(good)-len(releaseA)-1]); !errors.Is(err, ErrShort) {
 		t.Errorf("truncated after the name: err = %v, want %v", err, ErrShort)
+	}
+	// And after the release's length, for the same reason and the second variable-length
+	// field.
+	if _, err := decodeHello(good[:len(good)-1]); !errors.Is(err, ErrShort) {
+		t.Errorf("truncated inside the release: err = %v, want %v", err, ErrShort)
 	}
 
 	withMatch := append([]byte(nil), good...)

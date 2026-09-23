@@ -9,10 +9,12 @@ package main
 // refused by, and nothing in the program is in a position to notice.
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/bwenstar/gliderGo/internal/netplay"
+	"github.com/bwenstar/gliderGo/internal/prefs"
 )
 
 // The house name reaches the pasteable line quoted, which it did not until the Race screen made
@@ -118,5 +120,65 @@ func TestTheFlagsAndTheScreenArrangeTheSameThing(t *testing.T) {
 			t.Errorf("asRace(%+v) and raceRequested disagree about whether this is a race",
 				tc.o)
 		}
+	}
+}
+
+// Every fix a player can turn on reaches the other player's machine as its own rule, named the
+// way the prefs file names it -- so that the other side is told "fixes.mirror_flame", the words
+// it would look for in its own settings. raceRules is a hand-written list, and a fix added to
+// prefs.Fixes and not to it is one the other player never hears about; this is what catches it.
+//
+// And every one of today's fixes is a rule that is only reported, because none of them changes
+// what a race's simulation does (netplay.Rules has the four reasons). A fix that does change it
+// needs a bit in netplay.RulesGated instead, and this test to say which fixes are allowed there.
+func TestEveryFixHasARaceRule(t *testing.T) {
+	typ := reflect.TypeOf(prefs.Fixes{})
+	seen := map[netplay.Rules]string{}
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		var one prefs.Fixes
+		reflect.ValueOf(&one).Elem().Field(i).SetBool(true)
+		r := raceRules(one)
+		want := "fixes." + strings.Split(f.Tag.Get("json"), ",")[0]
+		switch {
+		case r == 0:
+			t.Errorf("fixes.%s is not in raceRules, so a race never tells the other side about it",
+				f.Name)
+			continue
+		case r&(r-1) != 0:
+			t.Errorf("fixes.%s sets %v, more than one rule", f.Name, r)
+		case r.String() != want:
+			t.Errorf("fixes.%s goes out as %q; the other player's prefs file calls it %q",
+				f.Name, r, want)
+		case r&netplay.RulesGated != 0:
+			t.Errorf("fixes.%s goes out as a rule that refuses a race; none of today's fixes "+
+				"changes a race's simulation", f.Name)
+		}
+		if other, dup := seen[r]; dup {
+			t.Errorf("fixes.%s and fixes.%s go out as the same rule", other, f.Name)
+		}
+		seen[r] = f.Name
+	}
+	if r := raceRules(prefs.Fixes{}); r != 0 {
+		t.Errorf("no fixes go out as %v", r)
+	}
+}
+
+// The engine fingerprint this build's races carry, pinned.
+//
+// Not because it is wrong to change -- it is measured, and changes whenever the simulation does
+// (replay.Engine) -- but because **a change here is news**: from this build on, races with every
+// release before it are refused. When this fails, the change that moved it is a change to how the
+// game flies, and that is either a bug or a decision. If it is a decision, write the new value
+// here and say in CHANGELOG.md that this release does not race the ones before it.
+func TestTheEngineFingerprintIsPinned(t *testing.T) {
+	const pinned = 0xE82F4D7565428514
+	got, err := engineFingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != pinned {
+		t.Errorf("the engine fingerprint is %016X, was %016X: this build flies differently from "+
+			"the last, and will not race it", got, uint64(pinned))
 	}
 }

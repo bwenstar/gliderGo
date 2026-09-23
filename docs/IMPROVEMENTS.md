@@ -5498,6 +5498,14 @@ shell was called "most of the work", and they have not moved and should not. The
 place the program is allowed to block on a socket, which is precisely what a package with no `net`
 import cannot hold.
 
+**Amendment, with 4.31: the second half needs no change to the wire, and so is not closed by the
+tag.** The asymmetric first round can be the guest reading before it writes. Every build's host sends
+its hello as soon as it accepts. So a guest that waits for that hello, opens the house it names and
+then sends its own gives a host of any release the exchange it already expects. The version gate
+and the host's end of `handshake_test.go` stay as they are. That rests on one rule to keep: **a host
+always sends its hello first.** It belongs next to the four in `internal/netplay`'s package comment
+when this is done.
+
 **The guest can learn the host's house from the refusal, and redial, without a handshake change.**
 `Meet` refuses a mismatch after both `Hello`s are exchanged, so the guest *has* the host's house
 name and hash. It just throws them into a formatted string, and the status band cuts that string
@@ -5589,7 +5597,7 @@ per invocation, so it loops over the ten or so targets (about 5 minutes at 30 s)
 measured). PLAN §5's testing table gains the row. Short runs found no crash, because the dangerous
 inputs are size-driven (4.36).
 
-### 4.31 A race handshake that cannot say which release or engine is on the other end — **planned; must land before the first tag that carries `internal/netplay`, or never cleanly**
+### 4.31 A race handshake that cannot say which release or engine is on the other end — **DONE, before the first tag that carries `internal/netplay`**
 
 `Hello` carries a `Versions` bitmap, a nonce, the house name and hash, and `Meet` ignores the
 bitmap: a peer advertising only v2 is accepted without error. Nothing says which release or engine
@@ -5631,6 +5639,68 @@ tag goes in this change: 4.38's commit-reveal, and 4.28's asymmetric second half
 attempted. The replay-side `fix <name>` and build lines belong to 4.39, whose grammar is defined
 once with this item's fields.
 
+**Done.** `Hello` gained three fields after `numNeighborsView`: `engine` u64, `rules` u16, and
+`releaseLen` u8 followed by the release. `Meet` refuses, in this order:
+1. disjoint `Versions` (`ErrVersion`);
+2. another engine (`ErrEngine`, new);
+3. another house (`ErrHouse`, as before);
+4. a difference in a gated rule (`ErrRules`, new).
+
+Every refusal names both releases, and is decided from the two hellos before player 1 sends
+`MatchStart`. So both sides refuse, each for itself, and
+`TestLoopbackRaceWithAnotherEngineIsRefusedByBothSides` checks that with a real host and a guest on
+another engine. What was found on the way:
+
+- **The fingerprint is the measured option, over more than the plan named.** The demo and the cheap
+  scripts cover 11 rooms. Engine (`internal/replay/engine.go`) adds 900 frames of holding right from
+  the start of each of the other twenty 1994 houses. Most of those end in a game over, which puts
+  every house's opening rooms and three deaths per house in the hash. The total is 16,596 frames
+  from the built-in tree: seed 1, sound on, nine neighbours, no fixes and no prefs.
+  - **It costs 2 s serially, and nearly all of it is decoding PNG backgrounds.** The runs share
+    nothing, and the render tables are built in `init` and only read after. So the runs go side by
+    side: 0.55 s on eight cores, with the same value. That rests on no hidden shared state, which
+    `TestEngineIsTheSameOnOneCoreAsOnMany` checks, and one run under `-race` was clean.
+  - **It hashes only what a race can feel:** frame and parity, room, mode, the glider's rect,
+    score, gliders, stars and the random stream. It leaves out the render counters, which move when
+    a picture is drawn differently, and the sounds. `TestEverySampleFieldIsInOrOutOfTheFingerprint`
+    fails on any new `Sample` field until it is put on one side. It also checks each side does what
+    it says.
+  - **The demo stream comes from the binary, never the disk.** `loadDemo` tries the path on disk
+    first, so a stray `res/demo/` in the directory the game was started from would have changed the
+    fingerprint. `Script` gained an unexported `demo` stream that `Engine` sets. The duct script is
+    restated in code rather than read from `testdata`, which is not in the binary.
+  - **Only the vendored 1994 houses.** The port's own houses are the port's to change, and the
+    house hash already gates them.
+  - `cmd/glidergo` computes it once per process (`sync.OnceValues`) on the connecting goroutine,
+    before it accepts or dials, so a peer is answered as soon as there is one.
+    `TestTheEngineFingerprintIsPinned` pins E82F4D7565428514. Its message says a change is news:
+    from that build on, earlier releases are refused.
+  - The loopback races use a stand-in (`a.engine`). The real fingerprint takes 25 s under the race
+    detector.
+- **The rules field is split by position.** A difference in the low byte is reported, and one in the
+  high byte (`RulesGated`, 0xFF00) refuses. So a build refuses a later build's rule, or lets it
+  through, without knowing its name, and refusals name unknown bits by number. The four fixes are
+  bits 0–3, informational for the reasons above. Bit 15 is reserved for an assist a race allows,
+  and nothing sets it: the game has no assists (3.2). **2.38's `fixes.switch_star` goes in the high
+  byte when it lands**, because it changes `StarsLeft`. `TestEveryFixHasARaceRule` checks that
+  every `prefs.Fixes` field has its own bit, named as the prefs file names it, and in the low byte.
+- **The four rules that keep this extendable are in `internal/netplay`'s package comment and in
+  §10.4.7:** a `Hello` is always sent under header version 1, its layout only grows at the end,
+  every decoder accepts trailing bytes, and a rule gates by its position. The decoders already
+  accepted trailing bytes. `TestEveryMessageAcceptsTrailingBytes` now checks all four messages.
+- **Two builds with the same release name and different engines** get their own wording ("at
+  least one of them was built from changed source"), and "dev" against "dev" is the common case. A
+  build with no release is "an unnamed build".
+- **Commit-reveal was weighed and left out** (4.38 has the reasoning). `mixSeed`'s comment no
+  longer claims neither peer can choose the seed.
+- **4.28's second half needs no wire change**, so the freeze does not close it. A guest can read
+  the host's hello before sending its own, because every build's host sends first. See 4.28's
+  amendment.
+
+**Left for 4.33.** The informational differences — the other side's rules, release and neighbour
+view — reach only the stdout race line. The screen does not mention them. The refusal messages are
+the ones 4.33 will sort by cause and wrap on the plate.
+
 ### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **planned, before the next tag if it fits; before 4.28's redial regardless**
 
 `openRace` accepts once and closes the listener, and `Meet` has no read deadline. So:
@@ -5644,7 +5714,8 @@ once with this item's fields.
 
 **The fix:**
 - Loop on `Accept` in `meetRace` (or a `netplay.Listener` helper). Each connection gets a ~5 s
-  handshake deadline, cleared once `Meet` succeeds.
+  handshake deadline, cleared once `Meet` succeeds. 4.31's engine fingerprint is worked out before
+  `Accept` and before the first dial, so neither deadline has to allow for it.
 - **Any `Meet` error before a match exists drops that connection**, is shown through
   `rc.note`/`lastNote`, and the loop continues. That includes `ErrVersion`, the nonce tie and
   write errors, with no list of which errors count. The listener closes only after a `Meet`
@@ -5712,6 +5783,17 @@ goodbye*. That sentence goes on the plate, and the Go error goes to stdout, wher
 quotes it. The loopback test logs the error and does not pin it. Separately, a guest whose host
 accepted and then said nothing is told "could not join a race within 30s", though it did join.
 That is a handshake timeout, and it needs its own words, which 4.32's handshake deadline names.
+
+**Amendment (4.31): the handshake refusals go in the same sort, and the differences that do not
+refuse go on the screen.** `Meet` now refuses for four causes, and each has its own sentinel:
+`ErrVersion`, `ErrEngine`, `ErrHouse` and `ErrRules`. Each message names both releases and is a
+sentence or two long, so it needs the wrap more than the join line does. On the plate, the refusal
+starts with what to do ("the other player needs release 0.4.0", "open Grand Prix"), and the full
+text goes to stdout. Three differences are allowed and are shown only on the stdout race line
+today: the other side's release when it differs, a fix it has on that this side does not
+(`PeerRules`), and its neighbour view. The first two belong on the race's waiting and result
+screens in a line of small print. A player beaten by a glider with `fixes.mirror_foil` on should
+be able to see that.
 
 ### 4.34 `race.go` has no app-level test, and four changes are about to edit it — **DONE, the race chain's first step: four loopback races, 0.3 s under `-race`**
 
@@ -5886,7 +5968,10 @@ A peer can report any standing it likes. **What is done now:**
   bits of the seed were set in about 15k tries, and all 31 bits of `RandSeed` are reachable in
   seconds. The gain is small (both players fly the same seed, and the slot does not affect
   `Winner`), so the claim is reworded, or commit-reveal goes into 4.31's `Meet` change and nowhere
-  else.
+  else. **Reworded, with 4.31** (`mixSeed`'s comment, and the CHANGELOG entry that repeated it).
+  Commit-reveal was left out. It needs a second message each way before the first standing, and
+  what it protects is small: a chosen seed is the same house for both players, and a peer that
+  wants to cheat can send a winning standing far more easily.
 
 **Dropped:** a wall-time rate check. `Winner` rewards *fewer* frames (`standing.go:328`), so a liar
 sends a small `Frame` that such a check allows. It would also reject honest unpaced `-bench` races
