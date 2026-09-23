@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"image"
-	"image/png"
 	"io/fs"
 	"path"
 
@@ -355,8 +354,7 @@ func (a *Assets) loadHousePict(fsys fs.FS, label, rel string) *Surface {
 	if err != nil {
 		return a.fail(fmt.Errorf("render: %w", err))
 	}
-	defer f.Close()
-	img, err := png.Decode(f)
+	img, err := decodePNG(fsys, rel, f)
 	if err != nil {
 		return a.fail(fmt.Errorf("render: decoding %s: %w", where, err))
 	}

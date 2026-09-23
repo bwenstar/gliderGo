@@ -110,6 +110,11 @@ func peek(fsys fs.FS, name, label string) (*Summary, error) {
 	if st.IsDir() {
 		return nil, fmt.Errorf("%s: is a directory", path)
 	}
+	if st.Size() > MaxFileSize {
+		// Refused here as well as in LoadFile, so that the picker never lists a
+		// house that could only fail to open.
+		return nil, tooLarge(path)
+	}
 
 	buf := make([]byte, SizeofHouseHeader)
 	if _, err := io.ReadFull(f, buf); err != nil {

@@ -584,6 +584,13 @@ func (p *textParser) beginRoom(toks []string) error {
 			"(room numbers are addressed by links and cannot be renumbered)",
 			n, p.roomIndex+1)
 	}
+	if n >= MaxRooms {
+		// Here and not only in finish, which is where the count is written: by
+		// then an 11.9 MB text has allocated 1.9 GB of rooms that could never be
+		// saved (docs/IMPROVEMENTS.md 4.36).
+		return p.errf("room %d is past the last a house can have: nRooms is a "+
+			"short, so %d rooms at most", n, MaxRooms)
+	}
 	p.roomIndex = n
 	p.h.Rooms = append(p.h.Rooms, Room{})
 	p.room = &p.h.Rooms[len(p.h.Rooms)-1]
@@ -964,7 +971,7 @@ func (p *textParser) finish() (*House, error) {
 		return nil, fmt.Errorf("not a gliderGo house: no `format` directive")
 	}
 	h := p.h
-	if len(h.Rooms) > 0x7FFF {
+	if len(h.Rooms) > MaxRooms {
 		return nil, fmt.Errorf("%d rooms exceeds the short nRooms field", len(h.Rooms))
 	}
 	h.NRooms = int16(len(h.Rooms))

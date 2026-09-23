@@ -296,7 +296,12 @@ func (d *decoder) room(r *Room) {
 
 // LoadFile reads and parses a house file, naming the file in any error.
 func LoadFile(path string) (*House, error) {
-	b, err := os.ReadFile(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := readHouse(f, path)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +319,12 @@ func LoadFS(fsys fs.FS, name string) (*House, error) {
 	if fsys == nil {
 		return nil, fmt.Errorf("%s: no houses to read it from", name)
 	}
-	b, err := fs.ReadFile(fsys, name)
+	f, err := fsys.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := readHouse(f, name)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +333,26 @@ func LoadFS(fsys fs.FS, name string) (*House, error) {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	return h, nil
+}
+
+// readHouse reads a whole house file, and stops one byte past the largest a house
+// can be. A size from Stat is not enough to go on, because a pipe, /dev/zero or a
+// file in some fs.FS can have no size, or the wrong one, and still go on for ever.
+func readHouse(r io.Reader, name string) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, MaxFileSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > MaxFileSize {
+		return nil, tooLarge(name)
+	}
+	return b, nil
+}
+
+// tooLarge is the error for a file past MaxFileSize, which cannot be a house.
+func tooLarge(name string) error {
+	return fmt.Errorf("%s: larger than a house can be (at most %d bytes, which is %d rooms)",
+		name, MaxFileSize, MaxRooms)
 }
 
 // ------------------------------------------------------------------- encoding

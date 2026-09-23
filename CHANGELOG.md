@@ -17,6 +17,21 @@ versioning yet, because nothing has been versioned.
 
 ## Unreleased
 
+### A picture, a house or a house text too large to be one is refused before it is read (2026-09-23)
+
+A PNG in a `-houseart`, `-art` or `-levels` tree is read for its size first. One larger than 4096
+pixels on a side, or 4 megapixels in all, is refused with its size in the message. That is 14 times
+the largest picture the game ships. A 782 KB file declaring 16384×16384 used to take 12 s and 2.1 GB
+to reach the first frame, then play at 2.6 fps. Now the picture is refused in 0.12 s, using 18 MB.
+
+A house file past 11,403,784 bytes is refused too, the most a house can be: 32,767 rooms. The
+picker leaves it out from its size, and it is never read into memory. `glidergo -house /dev/zero`
+used to read until memory ran out. A house text is refused at room 32,767, not after it has built
+every room: an 18 MB text of 1.5 million rooms took 2.4 GB before, and takes 46 MB now.
+
+A symbolic link to a house in a houses directory is listed as that house. Before, it was left out
+with no message. A link that leads nowhere is reported as such (IMPROVEMENTS 4.36).
+
 ### A race that cannot start says why, in words that fit, and names the firewall (2026-09-23)
 
 A failed join used to give Go's sentence and one piece of advice for every failure, "the other

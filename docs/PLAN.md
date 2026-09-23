@@ -1576,7 +1576,9 @@ means the tag is better with it and does not wait.
        release notes gain a racing section.
      - SECURITY.md's listener half is rewritten in the same change.
 3. **Hostile input.**
-   - **Gate.** A PNG dimension cap before decoding (4.36).
+   - **Gate.** A PNG dimension cap before decoding (4.36). **DONE**, with 4.36's size refusals for
+     house files and texts. Found with it: a symlinked house was left out of the list with no
+     message, and the walk follows the link now.
    - **Gate.** Releases are built with a Go minor that Go still patches, not the `go 1.23` floor
      `go.mod` names, and `govulncheck` is clean on that minor under `GOOS=linux` and
      `GOOS=windows`. The listener and the PNG decoder are the standard library's, so its fixes

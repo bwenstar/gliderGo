@@ -27,6 +27,12 @@ stack. A panic on a hostile input is still a bug and still worth reporting. What
 serious: an allocation driven by an unvalidated count in the header, a decode loop that does not
 terminate, or a path taken from file contents and used to open something.
 
+**Size limits.** Sizes are checked before anything is allocated for them. A picture is refused
+from its header if it is over 4096 pixels on a side or 4 megapixels in all. A house file is
+refused past 11,403,784 bytes, which is 32,767 rooms, the most its header can count. That check
+is on the bytes actually read, so a file that never ends is refused too. A house text is refused
+at its 32,768th room. A file that gets past these to a large allocation is a bug worth reporting.
+
 Also in scope, more narrowly: the asset extractors in `tools/` (python3, run over the vendored
 1994 data — not over untrusted input in normal use), and the release workflow in `.github/`.
 

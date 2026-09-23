@@ -284,8 +284,7 @@ func (a *Assets) load(rel string) *Surface {
 	if err != nil {
 		return a.fail(fmt.Errorf("render: %w", err))
 	}
-	defer f.Close()
-	img, err := png.Decode(f)
+	img, err := decodePNG(a.fsys, rel, f)
 	if err != nil {
 		return a.fail(fmt.Errorf("render: decoding %s: %w", rel, err))
 	}
@@ -298,6 +297,50 @@ func (a *Assets) load(rel string) *Surface {
 	a.cache[rel] = s
 	a.mu.Unlock()
 	return s
+}
+
+// The most a picture may say it is, read from its header before anything is decoded
+// (docs/IMPROVEMENTS.md 4.36).
+//
+// A PNG's size is a promise in its first 33 bytes, and png.Decode keeps it: a 300 KB
+// file that declares 16384x16384 allocates a gigabyte of NRGBA before it has read a
+// pixel, and 2 GB by the time this package has made a Surface of it. -levels,
+// -houseart and -art all load pictures somebody else drew, and a house is a thing
+// people share. So the header is read first and anything larger than art is refused.
+//
+// The largest picture the game ships is 640x460, the title screen, at 294,400 pixels,
+// and the widest is the 1536-pixel scoreboard strip. 4 Mpx is 14 times the first, and
+// 4096 on a side is 2.7 times the second, so an author drawing at twice the original's
+// resolution is not refused. Either limit alone would leave a hole. The side cap alone
+// lets 4096x4096 through, and the pixel cap alone lets through a strip that no
+// GWorld is shaped like.
+const (
+	maxPictSide   = 4096
+	maxPictPixels = 4 << 20
+)
+
+// decodePNG decodes the picture rel, whose first open is f, once its header has been
+// checked against the limits above. It closes f.
+//
+// It opens the file a second time rather than seeking back, because the tree may be a
+// zip -- the one built into the executable is -- and a file in a zip cannot seek.
+func decodePNG(fsys fs.FS, rel string, f fs.File) (image.Image, error) {
+	cfg, err := png.DecodeConfig(f)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width > maxPictSide || cfg.Height > maxPictSide ||
+		cfg.Width*cfg.Height > maxPictPixels {
+		return nil, fmt.Errorf("it says it is %dx%d, which is larger than a picture can be "+
+			"(at most %d pixels on a side and %d megapixels in all)", cfg.Width, cfg.Height,
+			maxPictSide, maxPictPixels>>20)
+	}
+	if f, err = fsys.Open(rel); err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return png.Decode(f)
 }
 
 // newMasked allocates a surface that is white everywhere and transparent

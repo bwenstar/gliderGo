@@ -221,10 +221,25 @@ func (l *Library) walk(src Source) error {
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || strings.HasPrefix(d.Name(), ".") {
+		if strings.HasPrefix(d.Name(), ".") || !houseExts[strings.ToLower(path.Ext(d.Name()))] {
 			return nil
 		}
-		if !houseExts[strings.ToLower(path.Ext(d.Name()))] {
+		if d.Type()&fs.ModeSymlink != 0 {
+			// A link to a house is the house, as a Finder alias to one was to the original
+			// (HouseIO.c:177-178, ResolveAliasFile). Leaving it out said nothing, which is
+			// what 2.33 is against. fs.Stat follows the link. What it finds has to be a
+			// file: a link to a directory is not walked into, because links can loop, and a
+			// pipe would hold the walk up until somebody wrote to it.
+			st, err := fs.Stat(fsys, rel)
+			switch {
+			case err != nil:
+				l.Skipped = append(l.Skipped, Skip{Path: path.Join(label, rel),
+					Why: fmt.Errorf("%s: a link that leads nowhere", path.Join(label, rel))})
+				return nil
+			case !st.Mode().IsRegular():
+				return nil
+			}
+		} else if !d.Type().IsRegular() {
 			return nil
 		}
 		sum, err := house.PeekFS(fsys, rel)

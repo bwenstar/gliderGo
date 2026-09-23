@@ -6045,7 +6045,7 @@ done after 2.75 lands. It needs stdout and stderr reopened on `CONOUT$`, cmd and
 to the prompt before a GUI-subsystem program prints (which spoils the `-version` paste the footer
 asks for), and it removes the console the release notes call the diagnostic channel.
 
-### 4.36 A picture under 1 MB can cost 2 GB — **planned; the PNG cap before the next tag, the rest as Stage 2 hygiene**
+### 4.36 A picture under 1 MB can cost 2 GB — **DONE: the PNG cap, and the smaller items with it**
 
 `housepict.go`'s `loadHousePict` and `assets.go`'s `load` decode whatever PNG they are given. A
 300–800 KB file declaring 16384×16384 costs 0.5–2.1 GB (reproduced; about 20 fps after a 9 s
@@ -6059,7 +6059,7 @@ strip, and `-art` loads that tree too. A test builds the 16384² PNG at runtime.
 **Smaller, and they can follow:**
 - the `0x7FFF` room check moves into `text.go`'s `beginRoom`, because an 11.9 MB text allocates
   1.9 GB before it is rejected. Only `glidertool house build` reaches the parser;
-- a `Stat` size refusal above 11,403,984 bytes (866 + 348×32767 + 2) in `house` `peek`, so the
+- a `Stat` size refusal above 11,403,784 bytes (866 + 348×32767 + 2) in `house` `peek`, so the
   file is never listed, and in `LoadFile`/`LoadFS`, with `io.LimitReader` for `fs.FS`.
   Binary reads cost 1× the file size and then refuse trailing bytes, so this is minor.
 
@@ -6067,6 +6067,54 @@ The library walk is **not** a threat: `Discover` calls `PeekFS`, which reads 866
 arrive only through glidertool and expand about 2.7×. A zip-entry cap is a stated requirement on
 4.41's packs, since no user-supplied zip is read today. SECURITY.md (5.7) points at this item for
 its size limits.
+
+**Done.** A picture is read for its header first, and one too large to be art is refused before
+anything is allocated for it. So are a house file too large to be a house, and a house text with
+more rooms than a house can count.
+- **Pictures** (`internal/render` `decodePNG`, used by `assets.go`'s `load` and `housepict.go`'s
+  `loadHousePict`). `png.DecodeConfig` reads the header, then the file is opened again, because a
+  zip entry cannot seek. A picture over 4096 px on a side, or 4 Mpx in all, is refused through the
+  existing `a.fail` path, with its size and the limits in the message. Measured on the binary
+  with a `-houseart` tree of 782 KB, 16384² PNGs: **11.85 s to the first frame, 2.13 GB RSS and
+  2.6 fps before; 0.12 s and 18 MB after**, with the refusal on the terminal. The largest shipped
+  picture is 640×460 (294,400 px), and the widest side is the 1536 px strip, so neither limit is
+  near what ships (1,098 PNGs, all loading).
+- **House files** (`house.MaxFileSize`, 11,403,784 bytes: the header, 32,767 rooms and the
+  slack). `peek` refuses a file past it from `Stat`, so the picker never lists it. `LoadFile` and
+  `LoadFS` read through `io.LimitReader` to one byte past it, because a size from `Stat` is not
+  enough: `/dev/zero` says it is empty and never ends. Before, `glidergo -house /dev/zero` read
+  until it ran out of memory. Now it is refused in 0.06 s.
+- **House texts** (`text.go`'s `beginRoom`). Room 32,767 is refused when it begins, not after
+  every room has been built. An 18.4 MB text of 1.5 million rooms: **2.00 s and 2.36 GB RSS
+  before; 0.04 s and 46 MB after**, refused at line 32,769.
+
+The tests are `TestAPictureTooLargeToBeArtIsRefusedFromItsHeader`, whose runtime-built 16384²
+header allocates 1.07 GB without the cap and under 1 MiB with it; `TestThePictureLimitsAreWhereTheySay`;
+`TestAPictureInsideTheLimitsStillLoads`; `TestTheLargestHouseStillLoads`, which is every room
+nRooms can count, plus the slack; `TestAFileLargerThanAHouseIsRefusedBeforeItIsRead`, on a
+sparse file, for both `peek`s and both loads; `TestAFileThatNeverEndsIsReadOnlyAsFarAsAHouseCouldGo`,
+on an `fs.FS` whose file never ends and on `/dev/zero`; and
+`TestATextStopsAtTheFirstRoomAHouseCannotHave`, which feeds the parser a text that never ends.
+Each of those could only pass by stopping.
+
+The entry's own figure was 200 bytes out: it said 11,403,984, and 866 + 348×32,767 + 2 is
+11,403,784. The constant is computed, and a test pins it.
+
+**Found doing it: a link to a house was left out of the list, silently.** The library walk took
+only regular files, and a symbolic link is not one. A player who linked a house into a `-levels`
+directory saw nothing, and no reason, which is what 2.33 is against. The original followed a
+Finder alias to a house (`HouseIO.c:177-178`). So the walk follows a link now. A link to a file
+is listed as that house and opens. A link that leads nowhere is reported in Skipped. A link to a
+directory is not walked into, because links can loop. A link to a pipe is left out, because
+opening a pipe waits for a writer. That is safe to do now because of the size check above: a link
+to `/dev/zero` is refused, not read (`TestDiscoverFollowsALinkToAHouse`). SECURITY.md said links
+were followed. For houses they now are.
+
+**Still open, and not this item's:** a zip-entry cap stays a stated requirement on 4.41's packs,
+because no zip a player supplies is read today. The demo reader (`internal/demo`) reads a whole
+file with no cap. The game only reads the demo built into it (`replay.Engine`), and `glidertool
+demo` reads the file it is given. So the cap matters only once a demo can arrive from somebody
+else, and nothing plans that. Whatever first does should add the cap.
 
 ### 4.37 The race sends a standing every frame and nothing when the other side goes quiet — **planned, after the next tag (the README correction goes before it)**
 
@@ -6833,7 +6881,8 @@ Race… › Host, listens. The rewrite states what the shipped build does:
   system (4.38).
 - **Files, more precisely.** `fs.FS` stops a path taken from file contents escaping, but `os.DirFS`
   follows symlinks inside a shared `-levels`, `-houseart` or `-art` tree, and only the house listing
-  skips them. Size limits are 4.36's.
+  skips them. Size limits are 4.36's. (With 4.36 the listing follows them too, and the size limits
+  are in SECURITY.md.)
 - **Not changed:** the bind default. A loopback default breaks the feature, and "LAN only" is not a
   bind address. An optional future `-listen` is listed at most.
 - **Dependencies and Versions.** The Go minor that builds releases, and what a Go security fix

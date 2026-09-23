@@ -53,6 +53,14 @@ const (
 	// PowerPCSlack is the two bytes a PowerPC build could append past the last
 	// room. Tolerated on load, reproduced on save, never interpreted.
 	PowerPCSlack = 2
+
+	// MaxRooms is the most rooms nRooms can count, since it is a short.
+	// MaxFileSize is the largest file that can be a house: a header, that many
+	// rooms and the slack. It is 11,403,784 bytes; the largest shipped house,
+	// Teddy World, is 186 KB. A file past it is refused before it is read into
+	// memory (docs/IMPROVEMENTS.md 4.36), because nothing past it could load.
+	MaxRooms    = 0x7FFF
+	MaxFileSize = SizeofHouseHeader + SizeofRoom*MaxRooms + PowerPCSlack
 )
 
 // House versions (GliderPRO/Headers/GliderDefines.h).

@@ -228,3 +228,35 @@ func TestSameNameInTwoDirectories(t *testing.T) {
 			lib.Houses[0].Rel, lib.Houses[1].Rel)
 	}
 }
+
+// A link to a house is listed as the house, and opens (docs/IMPROVEMENTS.md 4.36, where leaving
+// links out was found). A link that leads nowhere is reported, since whoever made it meant a house.
+// A link to a directory is neither walked into nor reported.
+func TestDiscoverFollowsALinkToAHouse(t *testing.T) {
+	root, elsewhere := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(elsewhere, "Teddy World.house"), houseBytes(t, 2))
+	write(t, filepath.Join(elsewhere, "more", "Inside.house"), houseBytes(t, 1))
+	for link, target := range map[string]string{
+		"Linked.house": filepath.Join(elsewhere, "Teddy World.house"),
+		"Gone.house":   filepath.Join(elsewhere, "Deleted.house"),
+		"More":         filepath.Join(elsewhere, "more"),
+	} {
+		if err := os.Symlink(target, filepath.Join(root, link)); err != nil {
+			t.Skipf("cannot make a link here: %v", err)
+		}
+	}
+	lib, err := Discover(dirSource(root))
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(lib.Houses) != 1 || lib.Houses[0].Name != "Linked" || lib.Houses[0].Rooms != 2 {
+		t.Fatalf("houses = %+v, want the one the link leads to", lib.Houses)
+	}
+	if h, err := lib.Open(lib.Houses[0]); err != nil || len(h.Rooms) != 2 {
+		t.Errorf("opening the linked house: %v", err)
+	}
+	if len(lib.Skipped) != 1 || !strings.Contains(lib.Skipped[0].Why.Error(), "Gone.house") ||
+		!strings.Contains(lib.Skipped[0].Why.Error(), "leads nowhere") {
+		t.Errorf("skipped = %v, want Gone.house as a link that leads nowhere", lib.Skipped)
+	}
+}
