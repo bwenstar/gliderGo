@@ -2,10 +2,11 @@
 
 All notable changes to gliderGo, newest first, one section per tag.
 
-`v0.1.0`, `v0.1.1` and `v0.1.2` have been tagged and published. Their sections were split out
-afterwards, each ending at the commit its tag names, so an entry's section is the first tag that
-carried it. The version a build reports is `git describe --tags --always --dirty`. See
-`docs/IMPROVEMENTS.md` 5.4, which owns tagging and the release pipeline.
+`v0.1.0`, `v0.1.1` and `v0.1.2` were tagged and published before this file had a section per
+tag. Their sections were split out afterwards, each ending at the commit its tag names, so an
+entry's section is the first tag that carried it. The version a build reports is
+`git describe --tags --always --dirty`. See `docs/IMPROVEMENTS.md` 5.4, which owns tagging and
+the release pipeline.
 
 Because Stage 1's whole goal was *"behave exactly the same as the original, only newer"*, this
 file records stages rather than features, each naming the commit that closed it. Where the port
@@ -46,10 +47,10 @@ it. The program now goes in with `python3 -c`, and the same run installed Go and
 ### This file has a section per tag (2026-09-24)
 
 `v0.1.0`, `v0.1.1` and `v0.1.2` have sections of their own now, each ending at the commit its tag
-names, and everything since is under `v0.2.0`, which says that it is not tagged yet. Until now all
-of it sat under `Unreleased`, because the machine this file is written on had never fetched the
-tags. `RELEASING.md` step 2 says how the next tag gets its section, and its "Record" table has a
-row for `v0.1.2`.
+names, and everything since is under `v0.2.0`, whose first line says whether it is tagged. Until
+now all of it sat under `Unreleased`, because the machine this file is written on had never
+fetched the tags. `RELEASING.md` step 2 says how the next tag gets its section, and its "Record"
+table has a row for `v0.1.2`.
 
 ### What a version number promises is decided (2026-09-24)
 

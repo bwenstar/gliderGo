@@ -120,10 +120,11 @@ this release runs on, on a network that carries TCP port 1994 between the two.
     Join from the other machine with the address the waiting screen reads out, and race until both
     runs end.
     *Expect:* the dialog is Windows Defender Firewall's, with a tick box for each kind of network
-    and the two buttons the notes name. Record its exact wording, because the notes and the README
-    quote it. The race starts, the panel in the top-left corner shows where the other player is,
-    and both machines show the same result. If no dialog appears at all, check that the firewall
-    is on for this network before recording anything, because a firewall that is off never asks.
+    and the two buttons the notes name. Record its exact wording, because the notes, the README
+    and the Windows `HOW-TO-RUN.txt` describe it. The race starts, the panel in the top-left
+    corner shows where the other player is, and both machines show the same result. If no dialog
+    appears at all, check that the firewall is on for this network before recording anything,
+    because a firewall that is off never asks.
 
 13. **Refused, then undone.**
     *Do:* on Windows, open `wf.msc` and delete the inbound rules for glidergo, so that Windows asks
