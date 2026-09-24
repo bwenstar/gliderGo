@@ -1,6 +1,9 @@
 package prefs
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -133,7 +136,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Errorf("reading back what we wrote produced notes: %v", q.Notes)
 	}
 	if !reflect.DeepEqual(normalize(p), normalize(q)) {
-		t.Errorf("round trip changed the settings:\n saved %+v\n read  %+v", p, q)
+		t.Errorf("round trip changed the settings:\n saved %+v\n read  %+v", normalize(p), normalize(q))
 	}
 
 	// The file is text a person can edit, and the keys in it are the names the settings
@@ -170,7 +173,8 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 // A file written by a build with fewer settings, or by hand with just the one line
 // somebody wanted to change. Every absent field takes its default and every unknown
 // field is ignored -- which together are what make it safe to add a setting later
-// without a migration, and what the original could not do at all.
+// without a migration, and what the original could not do at all. Ignored on the way
+// in is not dropped on the way out: TestANewerBuildsSettingsSurviveASave.
 func TestPartialFileKeepsTheDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "prefs.json")
 	if err := os.WriteFile(path, []byte(`{
@@ -203,6 +207,93 @@ func TestPartialFileKeepsTheDefaults(t *testing.T) {
 	if p.Version != Version {
 		t.Errorf("Version is %d for a file that does not declare one; want the current %d",
 			p.Version, Version)
+	}
+}
+
+// A newer build's settings, read by this one and saved again. The game saves whenever
+// the remembered house or the high-score name changes, so a player who runs an older
+// release after a newer one would otherwise lose every setting the older one has no
+// field for -- and the note Validate prints for a newer file says they are kept.
+func TestANewerBuildsSettingsSurviveASave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prefs.json")
+	if err := os.WriteFile(path, []byte(`{
+	  "version": 2,
+	  "house": "Teddy World",
+	  "Volume": 2,
+	  "fixes": {"mirror_flame": true, "a_fix_from_2031": true},
+	  "player1": "not an object any more",
+	  "an_option_from_2031": {"nested": [1, 2, 3]},
+	  "another": null
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(p.Notes, "\n"), "newer build") {
+		t.Errorf("no note for a newer build's file: %v", p.Notes)
+	}
+	p.House = "Nemo's Market"
+	p.Volume = 5
+	if err := p.Save(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("the saved file is not JSON: %v\n%s", err, data)
+	}
+	for k, want := range map[string]string{
+		"an_option_from_2031": `{"nested":[1,2,3]}`,
+		"another":             `null`,
+		"version":             fmt.Sprint(Version),
+	} {
+		var b bytes.Buffer
+		if err := json.Compact(&b, got[k]); err != nil || b.String() != want {
+			t.Errorf("%s is %s after a save, want %s", k, got[k], want)
+		}
+	}
+	// Read into a field, so not unknown: kept, it would win the next load back.
+	if _, ok := got["Volume"]; ok {
+		t.Errorf("the file keeps \"Volume\" beside \"volume\":\n%s", data)
+	}
+	var fixes map[string]bool
+	if err := json.Unmarshal(got["fixes"], &fixes); err != nil || !fixes["a_fix_from_2031"] ||
+		!fixes["mirror_flame"] {
+		t.Errorf("the fixes object lost a key: %s", got["fixes"])
+	}
+
+	q, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Notes) != 0 {
+		t.Errorf("reading back what we wrote produced notes: %v", q.Notes)
+	}
+	if !reflect.DeepEqual(normalize(p), normalize(q)) {
+		t.Errorf("the save changed the settings:\n saved %+v\n read  %+v", normalize(p), normalize(q))
+	}
+	// This build's own keys come first, in the struct's order, as they always have.
+	own, kept := bytes.Index(data, []byte(`"house"`)), bytes.Index(data, []byte(`"another"`))
+	if own < 0 || kept < own {
+		t.Errorf("a kept key comes before this build's own:\n%s", data)
+	}
+
+	// And a second save is the first one again.
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(again, data) {
+		t.Errorf("a second save changed the file:\n first %s\n second %s", data, again)
 	}
 }
 
@@ -497,12 +588,13 @@ func TestDirHonoursTheEnvironment(t *testing.T) {
 	}
 }
 
-// normalize drops the two fields that describe a load rather than a setting, so
-// DeepEqual can be used on the rest.
+// normalize drops the fields that describe a load rather than a setting, so DeepEqual
+// can be used on the rest.
 func normalize(p *Prefs) Prefs {
 	q := *p
 	q.Notes = nil
 	q.path = ""
+	q.read = nil
 	q.Version = Version
 	return q
 }

@@ -14,7 +14,8 @@
 //     touched the record threw away every setting the player had -- including their
 //     high-score name. There is no migration path in the original at all. Here the
 //     version is advisory: an older file is read for whatever fields it has, a newer one
-//     is read for the fields this build knows, and nothing is ever deleted.
+//     is read for the fields this build knows, and nothing is ever deleted: Save writes
+//     back what it did not know.
 //
 //   - **A single unreadable field lost the whole record.** A fixed binary struct is all
 //     or nothing. This is JSON decoded over a struct pre-filled with defaults, so a
@@ -45,12 +46,16 @@
 package prefs
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"sort"
+	"strings"
 
 	"github.com/bwenstar/gliderGo/internal/platform"
 )
@@ -60,7 +65,10 @@ import (
 // fatal in either direction: Validate reports it and reads what it can.
 //
 // Bump it when a field changes *meaning*. Adding a field needs no bump, because an
-// absent field already takes its default.
+// absent field already takes its default and a build that has no such field writes it
+// back as it found it (Save). That makes a new field the better way to change a
+// meaning, too: an older build keeps the new one intact, where after a bump it reads
+// a newer meaning into a field it thinks it knows.
 const Version = 1
 
 // Name is the file's name inside the configuration directory.
@@ -221,6 +229,10 @@ type Prefs struct {
 
 	// path is where this came from, so Save can put it back without being told.
 	path string
+
+	// read is the file as Load found it, so that Save can put back the keys this
+	// build has no field for. See keep.
+	read []byte
 }
 
 // Default is the settings a player who has never opened the game has.
@@ -349,6 +361,7 @@ func LoadFile(path string) (*Prefs, error) {
 		// A type error, and the fields around it survived. Say which one.
 		p.Notes = append(p.Notes, fmt.Sprintf("%s: %v; that setting is back to its default", path, err))
 	}
+	p.read = data
 
 	p.Validate()
 	return p, nil
@@ -358,6 +371,10 @@ func LoadFile(path string) (*Prefs, error) {
 // temporary file in the same directory and are renamed over the target, so a crash or a
 // full disk mid-write leaves the old settings intact rather than a truncated file. The
 // original wrote its resource in place.
+//
+// A key in the file this build has no field for is written back as it was read, because
+// it is a newer build's setting and this build has no business deleting it. The version
+// written is this build's own, since every field it knows it wrote in its own meaning.
 func (p *Prefs) Save() error {
 	path := p.path
 	if path == "" {
@@ -373,11 +390,15 @@ func (p *Prefs) Save() error {
 	}
 
 	p.Version = Version
-	data, err := json.MarshalIndent(p, "", "  ")
+	ours, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
+	var out bytes.Buffer
+	if err := json.Indent(&out, keep(ours, p.read), "", "  "); err != nil {
+		return err
+	}
+	data := append(out.Bytes(), '\n')
 
 	tmp, err := os.CreateTemp(dir, Name+".tmp*")
 	if err != nil {
@@ -398,6 +419,74 @@ func (p *Prefs) Save() error {
 		return err
 	}
 	return nil
+}
+
+// keep is ours, the file Save is about to write, with every key of theirs, the file
+// Load read, that ours has no field for. It goes down into an object both have, so a
+// newer build's fix in "fixes" survives as well as its settings at the top, and ours
+// wins wherever both have a key. The kept keys go after ours, sorted, so the ones this
+// build knows stay in the struct's order.
+//
+// A key is matched the way encoding/json matches it, without regard to case. One that
+// Unmarshal read into a field is not unknown, and keeping "Volume" beside "volume" would
+// have the stale value win the next load.
+func keep(ours, theirs []byte) []byte {
+	keys, vals, ok := members(ours)
+	var old map[string]json.RawMessage
+	if !ok || json.Unmarshal(theirs, &old) != nil || old == nil {
+		return ours
+	}
+	var b bytes.Buffer
+	b.WriteByte('{')
+	put := func(k string, v []byte) {
+		if b.Len() > 1 {
+			b.WriteByte(',')
+		}
+		name, _ := json.Marshal(k)
+		b.Write(name)
+		b.WriteByte(':')
+		b.Write(v)
+	}
+	for i, k := range keys {
+		if o, ok := old[k]; ok {
+			put(k, keep(vals[i], o))
+		} else {
+			put(k, vals[i])
+		}
+	}
+	var extra []string
+	for k := range old {
+		if !slices.ContainsFunc(keys, func(o string) bool { return strings.EqualFold(o, k) }) {
+			extra = append(extra, k)
+		}
+	}
+	sort.Strings(extra)
+	for _, k := range extra {
+		put(k, old[k])
+	}
+	b.WriteByte('}')
+	return b.Bytes()
+}
+
+// members is a JSON object's keys and values in the order it has them, and false for
+// anything that is not an object.
+func members(data []byte) (keys []string, vals []json.RawMessage, ok bool) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return nil, nil, false
+	}
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return nil, nil, false
+		}
+		var v json.RawMessage
+		if err := dec.Decode(&v); err != nil {
+			return nil, nil, false
+		}
+		keys, vals = append(keys, t.(string)), append(vals, v)
+	}
+	return keys, vals, true
 }
 
 // SaveFile writes to a named file, for the -prefs flag and for tests.

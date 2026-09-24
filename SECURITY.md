@@ -34,9 +34,9 @@ is on the bytes actually read, so a file that never ends is refused too. A house
 at its 32,768th room. A file that gets past these to a large allocation is a bug worth reporting.
 
 **Fuzzing.** These readers have fuzz targets: the house file and its text, saved games, score
-boards, replay scripts, pictures, a house's own sounds, and the race's reader and handshake.
-`make fuzz` runs them. If you find an input that makes one panic or hang, attach the input to
-your report. It is the most useful part.
+boards, replay scripts, pictures, a house's own sounds, the preferences file, and the race's
+reader and handshake. `make fuzz` runs them. If you find an input that makes one panic or hang,
+attach the input to your report. It is the most useful part.
 
 Also in scope, more narrowly: the asset extractors in `tools/` (python3, run over the vendored
 1994 data — not over untrusted input in normal use), and the release workflow in `.github/`.

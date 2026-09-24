@@ -18,6 +18,16 @@ versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy
 
 ## Unreleased
 
+### An older build no longer deletes a newer build's settings (2026-09-24)
+
+`prefs.json` is read over the defaults, so a setting this build does not know was always ignored.
+It was also deleted: saving wrote only the settings this build has, and the game saves when the
+remembered house or the high-score name changes. So a player who went back to an older release
+lost everything a newer one had added, while the note printed for a newer file said those settings
+were kept. Now they are. Every key this build has no field for is written back as it was read, at
+the top and inside `fixes` and the other groups (IMPROVEMENTS 2.79). A tenth fuzz target,
+`FuzzLoadSave`, holds that for any file, with the reload and a second save (IMPROVEMENTS 4.30).
+
 ### `v0.2.0`'s gate is confirmed, and a house reworked from one of the 22 is its contributor's own (2026-09-24)
 
 The release gate in `docs/PLAN.md` §4 is no longer a proposal: the owner confirmed it, and the tag

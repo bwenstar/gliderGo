@@ -3069,6 +3069,28 @@ What to do:
   4.35 introduces and say which server went away. libX11 1.7's `XSetIOErrorExitHandler` would let
   it unwind properly, but that raises the build floor, so it is not assumed.
 
+### 2.79 An older build that saved a newer build's `prefs.json` deleted every setting it did not know — **DONE, before the `v0.2.0` tag**
+
+`prefs.LoadFile` decodes the file over the defaults, so a key this build has no field for is
+ignored on the way in, which is the design. `Save` marshalled the struct and nothing else, so the
+same key was gone on the way out. The game saves when the remembered house changes and when a
+high-score name is entered, so a player who ran `v0.2.0` after some later release would lose every
+setting the later one had added, and `Validate`'s note for a newer file said those settings "are
+kept as they are". Found while answering what a version number should promise about formats
+(`docs/PLAN.md`, after the gate): a promise that newer files open in older builds is worth
+nothing if the older build then writes over them.
+
+`Save` now keeps the file `LoadFile` read and writes back every key it has no field for, at the
+top and inside an object both know, such as `fixes`. Keys are matched without regard to case, as
+`encoding/json` matches them, so a hand-typed `"Volume"` that was read into the field is not kept
+beside the `"volume"` Save writes, where it would have won the next load. The version written is
+this build's, because every field it knows it wrote in its own meaning.
+`TestANewerBuildsSettingsSurviveASave` holds all of that, and that a second save changes nothing.
+
+It also changes what `Version`'s comment advises. A change of meaning is better made as a new key
+beside the old than as a bump, because an older build keeps a new key intact and reads a bumped
+one in its own meaning. 2.74's physical keys are the first change that will have to choose.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -5813,7 +5835,7 @@ the 22 houses, half of them in `Leviathan`, `CD Demo House` and `Art Museum`, an
 none at all. So this is the smaller half of the same complaint, waiting on the same thing 4.15 is
 waiting on: somebody with a house that wants it.
 
-### 4.30 Nothing feeds hostile bytes to the decoders on purpose — **DONE: nine fuzz targets, the soak and `make fuzz`, and the bugs they found**
+### 4.30 Nothing feeds hostile bytes to the decoders on purpose — **DONE: nine fuzz targets, the soak and `make fuzz`, and the bugs they found; a tenth with 2.79**
 
 `SECURITY.md` names parsing other people's files as the whole attack surface, and the race now puts
 a socket in front of a decoder too. There are no fuzz targets anywhere in the tree.
@@ -5935,7 +5957,13 @@ the input is kept as a seed.
 
 **What is not covered.**
 - The engine runs only by hand. CI replays the seeds and committed inputs; it does not mutate.
-- `demo.Decode`, `prefs.LoadFile` and `ImportLegacy` are left out, as planned.
+- `demo.Decode` and `ImportLegacy` are left out, as planned. `demo.Decode` has one error and no
+  field it can misread, and the importer reads a fixed 226-byte record field by field.
+  `prefs.LoadFile` was left out with them until 2.79 made `Save` build its bytes out of whatever
+  `LoadFile` read. Since then `FuzzLoadSave` (`internal/prefs`) holds any file to four things: it
+  loads and saves, what was saved loads with no notes and the same settings, every top-level key
+  no field has is written back as it was, and a second save is the same bytes. A minute of it
+  (37,732 runs) found nothing.
 - The soak damages rooms, not the header, the pictures or the sounds. A damaged header either loads
   or does not, which is `FuzzLoad`'s business, and a damaged picture is `FuzzPicture`'s.
 
@@ -7997,6 +8025,7 @@ run into 5.4's unsigned-binary warnings, so they are later and not part of the g
 | 4.28 (the first half) `internal/shell/race.go`: a Race screen on the title menu, so the mode that was reachable only from a shell is reachable with the keyboard already in the player's hands — one `shell.Race` built by both the screen and the flags, and a ninth menu row whose geometry the splash artwork's own pixels decided | 2.6 | this stage |
 | 2.72 `x11.New` asks the server for XKB's detectable auto-repeat, so `Event.Repeat` is set on Linux and a held key does one thing, as it already did on Windows — and `internal/platform/x11` has its first test, which asks the server rather than the package | release gate, step 1 | this stage |
 | 2.73 `RenderShreds` asks for the `shred` strip rather than a sheet, so a shredded glider falls as confetti and the game no longer ends with an asset error — with a replay test that shreds a glider with the art loaded, and a static test that holds every constant art name to the table its accessor reads | release gate, step 1 | this stage |
+| 2.79 `prefs.Save` writes back the keys it has no field for, so an older build that saves a newer build's file no longer deletes the newer build's settings | release gate, before the tag | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught
