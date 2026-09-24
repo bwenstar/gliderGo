@@ -6913,6 +6913,22 @@ The cheap half is to widen `ownPath` to the top-level files and to base names th
 tree, and to check the end of a range. Drift inside a file's length needs the citation to carry
 something to compare, such as a few words of the line, and is the costlier half.
 
+### 4.47 A bench row at a scale its monitor cannot hold says nothing — **note; after the next tag**
+
+`windowScale` in `cmd/glidergo/scale.go` honours a typed `-scale` that does not fit, and warns that
+it does not. The warning needs the monitor's size, and `openWindow` in `cmd/glidergo/play.go` asks
+for it only outside the four measurement modes, because a measurement must not depend on the
+machine (2.53). So `-frames` and `-bench`, which are what `make bench` and the Windows bench rows
+run, never warn: a 4× row on a monitor too small for it measures a window partly off the screen,
+and says nothing. `docs/windows-first-run.md` check 3 claimed the warning until 2026-09-24. It now
+says to check by eye, and `windowScale`'s comment no longer says `make bench` is warned.
+
+The fix is to ask the monitor in a measurement too, when `-scale` was typed, and only to warn,
+never to change the scale, so that the run still depends on nothing but its invocation. The null
+backend answers with a 640×480 "no screen", which has to be told apart, or every null run above 1×
+would warn falsely. That is a change to the game with no gain in play, so it waits until after
+`v0.2.0`.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path

@@ -27,6 +27,13 @@ Everything from here down to `v0.1.2` is what this tag carries, among it the por
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
 stranger meets with a listening socket in it.
 
+### A bench row too big for its monitor says nothing, and the Windows checks now say so (2026-09-24)
+
+`docs/windows-first-run.md` check 3 said a bench run on a monitor too small for 4× prints a
+warning. It does not, because a `-frames` run never asks the monitor its size. The check now says
+to look, and that `autoMax` changes only in a release after the rc that measured it.
+`docs/IMPROVEMENTS.md` 4.47 files the warning itself. Nothing in the game changed.
+
 ### The bootstrap script can read go.dev's index (2026-09-24)
 
 `scripts/bootstrap-dev-env.sh` could never have installed Go from go.dev. The heredoc holding

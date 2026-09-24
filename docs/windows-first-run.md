@@ -268,9 +268,12 @@ The next run on a Windows desktop checks them, in this order:
    ```
 
    2.76's budget is paced 4× under 15% of one core, which is the last row's CPU line, and flat-out
-   4× at 120 fps or more. A monitor too small for 4× prints a warning and measures a window partly
-   off the screen, which is not a result. If both rows meet the budget, `autoMax` in
-   `cmd/glidergo/scale.go` becomes 4.
+   4× at 120 fps or more. A run with `-frames` never asks the monitor its size, so a monitor too
+   small for 4× gives no warning (`docs/IMPROVEMENTS.md` 4.47). It measures a window partly off
+   the screen, which is not a result, so check by eye that the whole 4× window, title bar
+   included, is on the screen. If both rows meet the budget, `autoMax` in `cmd/glidergo/scale.go`
+   becomes 4, in a release after the rc that measured it, because that rc is the build being
+   checked.
 4. **The crash file and the console hold.** Make a shortcut to `glidergo.exe` whose target ends in
    `-house Nowhere`, and double-click it. The console must print the error and then "press Enter
    to close this window", and wait. Run the same line from PowerShell: it must print the error

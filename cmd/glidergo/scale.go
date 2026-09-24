@@ -30,9 +30,10 @@ const autoMax = 3
 // when it was not asked -- a hermetic run must not depend on the machine it runs on (2.53) --
 // or could not say. w and h are the game's size.
 //
-// A -scale that does not fit is honoured anyway, with a warning, because it was typed for this
-// run: `make bench` asks for 4x on whatever display it is given, and a bench row that quietly
-// measured 2x would be worse than a window that runs off the screen.
+// A -scale that does not fit is honoured anyway, because it was typed for this run: `make bench`
+// asks for 4x on whatever display it is given, and a bench row that quietly measured 2x would be
+// worse than a window that runs off the screen. The warning needs room, and a hermetic run has
+// none, so `make bench` itself is never warned (4.47).
 func windowScale(asked int, given bool, room *platform.Room, w, h int) (scale int, note string) {
 	if asked == prefs.ScaleAuto {
 		if room == nil {
