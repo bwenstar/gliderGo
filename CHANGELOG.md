@@ -21,9 +21,11 @@ version number promises"). The section at the top says whether its tag has been 
 
 ## `v0.2.0`
 
-Not tagged yet. Everything from here down to `v0.1.2` is what it will carry, among it the port's
-own houses, racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first
-tag a stranger meets with a listening socket in it.
+Not tagged yet.
+
+Everything from here down to `v0.1.2` is what this tag carries, among it the port's own houses,
+racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
+stranger meets with a listening socket in it.
 
 ### This file has a section per tag (2026-09-24)
 
