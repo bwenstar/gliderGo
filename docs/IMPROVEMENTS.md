@@ -144,8 +144,8 @@ repository and play without owning Glider PRO (see 5.6). But it means this decis
 - **(c) Contact John Calhoun for an explicit asset grant — still open, and now the only
   outstanding part of this item.** It is the one route to content that is unambiguously
   licensed rather than merely no worse than upstream. Route (a) does not depend on it, and it
-  would retire this item outright. A request should also name the title screen's mark, which 1.5
-  made from his logo.
+  would retire this item outright. It need not name the title screen's mark, which 1.5 made from
+  his logo: the owner ruled on 2026-09-24 that the mark ships without asking.
 
 One consequence stands whatever happens with (c), because it changes the priority of a later
 stage: **Stage 2's new houses are the only content gliderGo can ship without asking anyone.**
@@ -292,7 +292,7 @@ for this line. It is a courtesy.
 - No Go test reads release.yml or the staged file list, and none was added. The pre-seal
   assertion is the check, and it runs only on a runner.
 
-### 1.5 The title screen said "Glider PRO" — **DONE, 2026-09-23, at the owner's request; one question added to 1.2's route (c)**
+### 1.5 The title screen said "Glider PRO" — **DONE, 2026-09-23, at the owner's request; the mark's question answered by the owner, 2026-09-24**
 
 The first screen gliderGo showed was PICT 1000, Calhoun's title art, and its logo reads "Glider
 PRO / by john calhoun". The README, the About box and the credits all say this is a port of Glider
@@ -311,14 +311,15 @@ PICT itself is unchanged. `drawBackdrop` is the only caller, and it stamps only 
 under the stamp are the shipped PICT's. `credits.txt` names Brendan Ta under `[this port]` as well,
 and `TestTheTitlesCreditIsInTheCredits` keeps the painted name and the written one the same.
 
+**Decided by the owner, 2026-09-24: the mark ships as it is.** Route (a) in 1.2 rests on shipping
+the same bytes upstream distributes, and the PICT is still those bytes. `titleMark` is not: it is
+his G and d reduced and rearranged, and the credit reuses five of his letters, so the source holds
+a small derivative of his logo that upstream does not distribute. This item had left that to route
+(c), with the port's own 5x7 font as the fallback if a grant said no. The owner's ruling is that
+the mark needs no permission of its own. A request under route (c) no longer has to name it, and
+the fallback is not needed.
+
 **Left open.**
-- **The mark is new art made from Calhoun's.** Route (a) in 1.2 rests on shipping the same bytes
-  upstream distributes. The PICT is still those bytes. But `titleMark` is his G and d reduced and
-  rearranged, and the credit reuses five of his letters. So the source now holds a small
-  derivative of his logo that upstream does not distribute. That is the kind of question route (c)
-  exists to settle, and an asset grant should name it. If the answer is no, the fallback is to set
-  "Go" and the credit in the port's own 5x7 font, the one `drawOwnTitle` uses, and change nothing
-  else.
 - The no-art fallback, `drawOwnTitle`, still says "Glider PRO, ported" under "gliderGo" and
   names nobody. It is what a missing or mistyped `-art` looks like, so it is seldom seen. That is
   why it was left alone.
@@ -6724,7 +6725,7 @@ file is optional, because nothing installs it and `Exec` needs an absolute path.
 client lands (5.10), the X11 half goes into it. The macOS `.icns` comes from the same decoder in
 Stage 6.
 
-### 4.43 Houses that are not the project's: the rules for contributing one, and an importer for the 1990s ones — **the rules DONE (PLAN release gate step 5), and one question left to the owner; the importer later**
+### 4.43 Houses that are not the project's: the rules for contributing one, and an importer for the 1990s ones — **the rules DONE (PLAN release gate step 5), and the owner's question answered, 2026-09-24; the importer later**
 
 **The rules, in CONTRIBUTING's Houses and Licence sections (now).**
 - The project never bundles third-party houses.
@@ -6751,12 +6752,15 @@ A public repository invites exactly the contribution that would undo 1.2.
   Boarding House from the row fails the new test, and moving a port name into `[the houses]` fails
   the old one.
 
-**Open, and the owner's call: is a reworked house the contributor's own?** The Houses section's
-first command is `house dump` of Slumberland, because that is how the format is learnt. The rules
-do not say whether a house built by editing a dump of one of the 22 counts as its author's own
-work, and it is not this file's to decide. The licence reading in 1.2 bears on it, and so does
-how much of the original is left. Until it is decided, CONTRIBUTING asks the contributor to open
-an issue first. It gates nothing: no such contribution exists.
+**Decided by the owner, 2026-09-24: a reworked house is the contributor's own.** The Houses
+section's first command is `house dump` of Slumberland, because that is how the format is learnt,
+and the rules had not said whether a house built by editing a dump of one of the 22 counts as its
+author's own work. It does. CONTRIBUTING's first rule now says so, drops the issue it asked for
+first, and asks the pull request to name the house the new one started from, so that the history
+records it. The decision covers the 22 and nothing else: a house somebody made in the 1990s and
+published on its own is still never bundled, reworked or not, because its author granted this
+project nothing. What is left of an original in a reworked house stands where the 22 themselves
+do, on 1.2's route (a).
 
 **`glidertool house import` (after Stage 3, before the Stage 5 editor, which reuses it).**
 - It decodes BinHex 4.0, MacBinary and AppleDouble.

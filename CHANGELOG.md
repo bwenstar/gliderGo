@@ -13,10 +13,25 @@ file records stages rather than features, each naming the commit that closed it.
 knowingly departs from 1994 the entry says so and points at the numbered item in
 `docs/IMPROVEMENTS.md` that owns the deviation. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely. It does not follow semantic
-versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy, and the next tag
-gets its own section here (`RELEASING.md`, step 2).
+versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy, and the next tag,
+`v0.2.0`, gets its own section here (`RELEASING.md`, step 2).
 
 ## Unreleased
+
+### `v0.2.0`'s gate is confirmed, and a house reworked from one of the 22 is its contributor's own (2026-09-24)
+
+The release gate in `docs/PLAN.md` §4 is no longer a proposal: the owner confirmed it, and the tag
+it gates is `v0.2.0`, not 1.0. `RELEASING.md`'s rehearsal tag is `v0.2.0-rc1`, and the bug-report
+template's example `-version` block is a `v0.2.0` build by go1.27.1.
+
+CONTRIBUTING's "Whose house it is" answers the question it had left open. A house built by
+reworking a `house dump` of one of the 22 counts as its contributor's own work, so it needs no
+issue first, and the pull request says which house it started from. A house somebody else made in
+the 1990s is still never bundled, reworked or not (IMPROVEMENTS 4.43).
+
+The title screen's mark ships as it is. It is made from Calhoun's own G and d, and the owner has
+ruled that it needs no permission of its own, so a request for an asset grant no longer has to
+name it (IMPROVEMENTS 1.2, route (c), and 1.5).
 
 ### `make check` passes on a fresh clone again (2026-09-24)
 
@@ -76,8 +91,8 @@ race ranks the other way round.
 and gets a line in the credits. `go test ./internal/credits` fails for a house in `levels/` that
 has none. The two houses this port ships are now credited to it on the credits screen, which also
 says that the art, the sounds and the 22 houses are the original's. Whether a reworked 1994 house
-counts as a contributor's own work is still open, so CONTRIBUTING asks for an issue first
-(IMPROVEMENTS 4.43).
+counted as a contributor's own work was left to the owner, who has since decided that it does (the
+2026-09-24 entry above, and IMPROVEMENTS 4.43).
 
 **Releasing.** `RELEASING.md` is the checklist for a tag. It covers the steps before and after
 it, which of them need a machine that can reach GitHub, and a record per tag.

@@ -35,7 +35,7 @@ The commands here are fenced without a language, so `make docs-check` does not t
      run artifact and cannot publish anything.
 
    ```
-   git tag v0.1.2-rc1 && git push origin v0.1.2-rc1
+   git tag v0.2.0-rc1 && git push origin v0.2.0-rc1
    ```
 
 5. **govulncheck is clean on `GO_RELEASE`**, under `GOOS=linux`, `GOOS=windows` and

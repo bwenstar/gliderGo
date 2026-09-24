@@ -8,7 +8,7 @@
 # It has run since: v0.1.0 and v0.1.1 were built and published by it. Whether either tag needed
 # a correction first is not recorded on this host, so this comment claims neither. Every change
 # since is unrun until the next tag, so rehearse one first. Push an rc tag --
-# `git tag v0.1.2-rc1 && git push origin v0.1.2-rc1`, which publishes as a prerelease and can be
+# `git tag v0.2.0-rc1 && git push origin v0.2.0-rc1`, which publishes as a prerelease and can be
 # deleted -- or use the workflow_dispatch entry below, which builds and uploads the archives as a
 # run artifact and cannot create a Release from any ref, including a tag. RELEASING.md has the
 # rest of what a tag needs.
@@ -19,8 +19,8 @@
 # (assets/assets.go), so the art, the sounds, all 22 original houses and the ones written for this
 # port travel in the binary itself and the working directory means nothing.
 #
-#     tar xzf glidergo-v1.0.0-linux-amd64.tar.gz
-#     ./glidergo-v1.0.0-linux-amd64/glidergo
+#     tar xzf glidergo-v0.2.0-linux-amd64.tar.gz
+#     ./glidergo-v0.2.0-linux-amd64/glidergo
 #
 # from anywhere at all. The -art, -houses, -houseart, -sounds and -levels flags still take a
 # directory, for a player who wants to run edited art or houses of their own; empty, which is the

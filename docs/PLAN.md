@@ -1511,14 +1511,14 @@ this early.
   identical command differ from each other in ~122,000, so it is the mixer's wall clock and not
   the platform (`docs/IMPROVEMENTS.md` 4.11).
 
-### Release gate — what the next tag needs before it is pointed at strangers — **proposed; the list is the user's to confirm**
+### Release gate — what the next tag needs before it is pointed at strangers — **confirmed by the user, 2026-09-24; the tag is `v0.2.0`**
 
 `v0.1.0` and `v0.1.1` are tagged and published (`CHANGELOG.md:5`), and neither carries
 `internal/netplay` or the New houses. The next tag is therefore the first a stranger meets with a
 listening socket in it, and the first after which some things can never be changed cleanly. The
 race's `Hello` layout and `Meet`'s refusal rules are a wire format: a build in the wild cannot be
-taught to refuse a newer peer. Whether that tag is called 1.0 is **decision needed**. The list
-holds either way.
+taught to refuse a newer peer. The user confirmed this list on 2026-09-24, and the tag is `v0.2.0`,
+not 1.0.
 
 Each line names the register item that owns it. **Gate** means the tag waits for it. **Should**
 means the tag is better with it and does not wait.
@@ -1660,8 +1660,8 @@ means the tag is better with it and does not wait.
      3.2's premise is corrected (3.2's amendment), and 4.1's status is corrected (4.1's amendment).
      **DONE.**
      - CONTRIBUTING's "Whose house it is" asks for your own work and a credits row. A new test
-       fails for a house in `levels/` with no row, and 4.43 leaves one question to the owner:
-       whether a reworked 1994 house is the contributor's own.
+       fails for a house in `levels/` with no row. 4.43's one question went to the owner, who
+       decided on 2026-09-24 that a house reworked from one of the 22 is the contributor's own.
      - README's data paths are a table checked against `-version`. Found with it, and fixed: a
        relative `$XDG_CONFIG_HOME` put the settings under the directory the game was started from
        on Go 1.23, and left it with nowhere to save on the Go that builds releases (2.75).

@@ -31,11 +31,11 @@ body:
       render: text
       placeholder: |
         $ glidergo -version
-        glidergo v0.1.2
+        glidergo v0.2.0
           backend   x11
-          built by  go1.23.12
+          built by  go1.27.1
           platform  linux/amd64
-          assets    built in (1878 files, 15936 KiB)
+          assets    built in (1879 files, 15957 KiB)
     validations:
       required: true
 

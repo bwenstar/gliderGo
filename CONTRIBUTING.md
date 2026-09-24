@@ -239,10 +239,10 @@ details.
 A house in `levels/` is compiled into every executable, so it goes to everyone who downloads one,
 under this repository's licence. Three rules follow from that.
 
-- **It is your own work.** You designed its rooms, and nobody else's house is in it. The tools above
-  work on the 22 originals so that you can learn the format from them. Whether a house reworked from
-  a `house dump` of one of them counts as your own is not settled yet (`docs/IMPROVEMENTS.md` 4.43),
-  so open an issue before you build on one.
+- **It is your own work.** You designed its rooms. The tools above work on the 22 originals so that
+  you can learn the format from them, and a house you build by reworking a `house dump` of one of
+  them counts as your own (`docs/IMPROVEMENTS.md` 4.43). Say in the pull request which one it
+  started from. A house somebody else made, reworked or not, is the third rule's.
 - **It gets a credits line.** Add a row under `[this port]` in `internal/credits/credits.txt`: your
   name, a `|`, and the house's name as its file is named. `go test ./internal/credits` fails for a
   house in `levels/` with no row. The credits screen is one the fidelity corpus hashes, so run
