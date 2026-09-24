@@ -28,9 +28,10 @@ The commands here are fenced without a language, so `make docs-check` does not t
    git diff "$(git describe --tags --abbrev=0)" -- cmd/glidergo/promises_test.go
    ```
 
-   Then move what the tag carries out of `Unreleased` into its own section. If the tag carries a
-   Go security fix, say so. SECURITY.md's "Versions" makes that reason enough for a release on its
-   own.
+   Then write the tag's section in `CHANGELOG.md`: the entries since the last tag, under a heading
+   of its own whose first line says when it was tagged. `v0.2.0`'s is written, and its "Not
+   tagged yet" becomes the date. If the tag carries a Go security fix, say so. SECURITY.md's
+   "Versions" makes that reason enough for a release on its own.
 
 3. **The release gate in `docs/PLAN.md` §4.** Each **Gate** line is either done or moved out of
    the gate on purpose. That includes the first Windows run of the code written since the first
@@ -132,3 +133,4 @@ Each of these **needs a connected machine**.
 |---|---|---|---|---|
 | `v0.1.0` | not recorded here | not recorded here | Go 1.23; `docs/IMPROVEMENTS.md` 5.11 has the vulnerabilities that carries | not checked |
 | `v0.1.1` | not recorded here | not recorded here | Go 1.23, as above | not checked |
+| `v0.1.2` | not recorded here | not recorded here | Go 1.23, as above | not checked |

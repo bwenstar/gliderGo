@@ -169,8 +169,8 @@ rather than outstanding.
 What a public repository is actually missing:
 
 - `CHANGELOG.md` — **done**, at the end of Stage 1: one section per stage, each naming the
-  commit that closed it, with an `Unreleased` heading because the file has not yet been split per
-  tag (PLAN §4's release policy, "After the gate").
+  commit that closed it. Since 2026-09-24 the stages sit in one section per tag, back to `v0.1.0`
+  (PLAN §4's release policy, "After the gate").
 - A project page. Deferred until there is a release to link to; 5.4 owns tagging, versioning
   and artefacts. **Done by 5.4's amendment:** there are releases now, and the GitHub Releases
   page is the project page. README's opening links it, and so do `-version` and `-help`
@@ -7124,7 +7124,7 @@ only way to reach it). `make assets` still re-derives the tree from `GliderPRO/`
 the archive after it. And the Makefile grew an `embedded` guard: every build target refuses to
 build without `assets/extracted.zip` rather than producing an executable that comes up empty.
 
-### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0` and `v0.1.1` are published; the amendment DONE in PLAN step 5, but for what needs a connected machine**
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0`, `v0.1.1` and `v0.1.2` are published; the amendment DONE in PLAN step 5, but for what needs a connected machine**
 
 `.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
 list as future work: `make cross` plus the host's cgo build, six archives of two binaries each
@@ -7241,7 +7241,7 @@ changed-rows present read back at 2×, and the three bench rows that decide 2.76
 - README's opening says Linux and Windows, links the Releases page, and keeps `make run` as the
   second way in.
 - `RELEASING.md` is written. It has seven steps before the tag and five after, a "Still open"
-  list, and a "Record" table. The table says what is not recorded here for `v0.1.0` and `v0.1.1`
+  list, and a "Record" table. The table says what is not recorded here for the `v0.1.x` tags
   rather than guessing. CONTRIBUTING links it under "Releases".
 - The build job is pinned to `ubuntu-24.04`. The step after `make cross` fails the tag above
   glibc 2.34. It was rehearsed against this host's own build: a floor of 2.34 passes, and one of

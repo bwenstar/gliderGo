@@ -5,12 +5,12 @@
 # assets-check` and `make cross` all pass here, and the packaging steps below were rehearsed by
 # hand against the same bin/cross/ layout `make cross` writes.
 #
-# It has run since: v0.1.0 and v0.1.1 were built and published by it. Whether either tag needed
-# a correction first is not recorded on this host, so this comment claims neither. Every change
-# since is unrun until the next tag, so rehearse one first. Push an rc tag --
+# It has run since: v0.1.0, v0.1.1 and v0.1.2 were built and published by it. Whether any of
+# them needed a correction first is not recorded on this host, so this comment claims none.
+# Every change since is unrun until the next tag, so rehearse one first. Push an rc tag --
 # `git tag v0.2.0-rc1 && git push origin v0.2.0-rc1`, which publishes as a prerelease and can be
-# deleted -- or use the workflow_dispatch entry below, which builds and uploads the archives as a
-# run artifact and cannot create a Release from any ref, including a tag. RELEASING.md has the
+# deleted -- or use the workflow_dispatch entry below, which builds and uploads the archives as
+# a run artifact and cannot create a Release from any ref, including a tag. RELEASING.md has the
 # rest of what a tag needs.
 #
 # WHAT A RELEASE ARCHIVE CONTAINS, AND WHY IT IS SHAPED THIS WAY.

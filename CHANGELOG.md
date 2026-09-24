@@ -1,26 +1,37 @@
 # Changelog
 
-All notable changes to gliderGo, newest first.
+All notable changes to gliderGo, newest first, one section per tag.
 
-`v0.1.0` and `v0.1.1` have been tagged and published, but this file has not yet been split into
-version sections, so everything below is still under `Unreleased` — the entries are the work, and
-which tag happened to carry it is in `git log`. The version a build reports is `git describe
---tags --always --dirty`. See `docs/IMPROVEMENTS.md` 5.4, which owns tagging and the release
-pipeline.
+`v0.1.0`, `v0.1.1` and `v0.1.2` have been tagged and published. Their sections were split out
+afterwards, each ending at the commit its tag names, so an entry's section is the first tag that
+carried it. The version a build reports is `git describe --tags --always --dirty`. See
+`docs/IMPROVEMENTS.md` 5.4, which owns tagging and the release pipeline.
 
 Because Stage 1's whole goal was *"behave exactly the same as the original, only newer"*, this
 file records stages rather than features, each naming the commit that closed it. Where the port
 knowingly departs from 1994 the entry says so and points at the numbered item in
 `docs/IMPROVEMENTS.md` that owns the deviation. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely. `v0.1.0` and `v0.1.1` were cut
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely. The three `v0.1.x` tags were cut
 before there was a version policy. From `v0.2.0` the numbering is semantic versioning for 0.x:
 every 0.2.x is bug fixes only, races every other 0.2.x and reads the files the others wrote. New
 features, a change to how the game flies, and a change to a file format that is not an addition
 come in 0.3.0, whose section here says what it no longer races or reads (`docs/PLAN.md`, "what a
-version number promises"). Each tag from `v0.2.0` on gets its own section here (`RELEASING.md`,
-step 2).
+version number promises"). The section at the top says whether its tag has been made yet, and
+`RELEASING.md` step 2 writes it.
 
-## Unreleased
+## `v0.2.0`
+
+Not tagged yet. Everything from here down to `v0.1.2` is what it will carry, among it the port's
+own houses, racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first
+tag a stranger meets with a listening socket in it.
+
+### This file has a section per tag (2026-09-24)
+
+`v0.1.0`, `v0.1.1` and `v0.1.2` have sections of their own now, each ending at the commit its tag
+names, and everything since is under `v0.2.0`, which says that it is not tagged yet. Until now all
+of it sat under `Unreleased`, because the machine this file is written on had never fetched the
+tags. `RELEASING.md` step 2 says how the next tag gets its section, and its "Record" table has a
+row for `v0.1.2`.
 
 ### What a version number promises is decided (2026-09-24)
 
@@ -1750,6 +1761,12 @@ layout puts the suite in the low two decimal digits. It is not just unreachable,
 why version 2.0 swapped the two fields. `docs/analysis/house-format.md` §7.2 and a test that asserts
 the collision rather than avoiding it.
 
+## `v0.1.2`
+
+Tagged at `2ae2c72`. The game's code did not change from `v0.1.1`, only comments, documents and
+the release notes: this is the release whose notes stopped saying that the Windows code had never
+been run.
+
 ### The Windows backend has been run by somebody (2026-09-21)
 
 Every release so far shipped two Windows archives under a caveat in bold: *"the Windows code has
@@ -1791,6 +1808,11 @@ the six hashes and the commands to reproduce them. The honest-caveat headers in 
 `keys.go` and `waveout_windows.go`, the release-note block in `.github/workflows/release.yml`, the
 archive table, the `Makefile`'s per-target labels and the README all now say what is true instead
 of what was true.
+
+## `v0.1.1`
+
+Tagged at `069d134`: the tests that the first CI run on Windows failed, and float arithmetic that
+an arm64 build could round differently.
 
 ### The test suite had learned to spell paths the way Linux spells them (2026-09-21)
 
@@ -1843,6 +1865,11 @@ check that is still a note.
 
 Also in CI: every action reference is bumped past the Node 20 runtime that GitHub has deprecated —
 `checkout@v5`, `setup-go@v6`, `upload-artifact@v5`, `download-artifact@v5`.
+
+## `v0.1.0`
+
+Tagged at `acafec7`, the first release: Stage 1's port of the 1994 game, and the pipeline that
+builds it for Linux and Windows.
 
 ### Slumberland's basement is a trap on purpose (2026-09-18)
 
@@ -2276,7 +2303,7 @@ rubber bands and grease (`fc0be40`), and the animated locale — flames, stars, 
 - GPLv2 `LICENSE` and `docs/IMPROVEMENTS.md`, which tracks everything a public release needs that
   fidelity does not (`4e4063d`).
 
-### Known not-yet-done
+### Known not-yet-done, as it stood before the first tag
 
 The full list lives in `docs/IMPROVEMENTS.md`. The four that would matter most to someone reading
 this file first:

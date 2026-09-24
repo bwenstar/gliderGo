@@ -1513,12 +1513,12 @@ this early.
 
 ### Release gate — what the next tag needs before it is pointed at strangers — **confirmed by the user, 2026-09-24; the tag is `v0.2.0`**
 
-`v0.1.0` and `v0.1.1` are tagged and published (`CHANGELOG.md:5`), and neither carries
-`internal/netplay` or the New houses. The next tag is therefore the first a stranger meets with a
-listening socket in it, and the first after which some things can never be changed cleanly. The
-race's `Hello` layout and `Meet`'s refusal rules are a wire format: a build in the wild cannot be
-taught to refuse a newer peer. The user confirmed this list on 2026-09-24, and the tag is `v0.2.0`,
-not 1.0.
+`v0.1.0`, `v0.1.1` and `v0.1.2` are tagged and published (`CHANGELOG.md:5`), and none of them
+carries `internal/netplay` or the New houses. The next tag is therefore the first a stranger meets
+with a listening socket in it, and the first after which some things can never be changed cleanly.
+The race's `Hello` layout and `Meet`'s refusal rules are a wire format: a build in the wild cannot
+be taught to refuse a newer peer. The user confirmed this list on 2026-09-24, and the tag is
+`v0.2.0`, not 1.0.
 
 Each line names the register item that owns it. **Gate** means the tag waits for it. **Should**
 means the tag is better with it and does not wait.
@@ -1696,8 +1696,8 @@ play (4.39, the first item after the tag).
   and so must any change to how the game flies, which moves the engine fingerprint, even when it
   fixes a bug, and any change to a format that is not an addition. A minor release's CHANGELOG
   section says what it no longer races or reads. What 1.0 promises is not decided here. Every tag
-  gets a CHANGELOG section of its own. The v0.1.x commits are only on GitHub (`git tag -l` is empty
-  here), so splitting the existing `Unreleased` section waits for a clone that has the tags.
+  gets a CHANGELOG section of its own. `CHANGELOG.md` has one for every tag back to `v0.1.0`, each
+  ending at the commit its tag names.
 - **`cmd/glidergo/promises_test.go` holds the numbering to that.** It pins the engine fingerprint
   and four format numbers: `prefs.Version`, `house.SavedGameFormat`, `house.SizeofScores` and
   `netplay.Version`. A change to any of them fails with the rule above, and `RELEASING.md` step 2
