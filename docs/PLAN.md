@@ -1743,7 +1743,7 @@ Four sub-stages, because "port the editor" hides three pieces of work that each 
 - **5a — the authoring loop from a download.** `glidertool house dump|info|lint|stats` and
   `render` find a built-in house by name the way `replay` already does (4.20): the houses root,
   then the levels root, then the embedded copies. Today a player with only a release archive
-  cannot dump a starting house, so README's authoring example (`README.md:338`) fails for them.
+  cannot dump a starting house, so README's authoring example (`README.md:430`) fails for them.
   Small, and worth doing before 1.0 as an amendment to 4.20. `-room N` already jumps to a room,
   and a relaunch costs about a second, so an in-session reload is optional.
 - **5b — a headless editing core, `internal/edit`.** `ObjectAdd`, the `DragObject`/`DragHandle`

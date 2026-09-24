@@ -1765,9 +1765,9 @@ the collision rather than avoiding it.
 
 ## `v0.1.2`
 
-Tagged at `2ae2c72`. The game's code did not change from `v0.1.1`, only comments, documents and
-the release notes: this is the release whose notes stopped saying that the Windows code had never
-been run.
+Tagged at `2ae2c72`. The game's code did not change from `v0.1.1`, only comments, documents, a CI
+step's name, the labels `make cross` prints and the release notes: this is the release whose notes
+stopped saying that the Windows code had never been run.
 
 ### The Windows backend has been run by somebody (2026-09-21)
 
@@ -1871,7 +1871,7 @@ Also in CI: every action reference is bumped past the Node 20 runtime that GitHu
 ## `v0.1.0`
 
 Tagged at `acafec7`, the first release: Stage 1's port of the 1994 game, and the pipeline that
-builds it for Linux and Windows.
+builds it for Linux and Windows, with headless builds for macOS and for Linux on arm64.
 
 ### Slumberland's basement is a trap on purpose (2026-09-18)
 
@@ -2305,10 +2305,10 @@ rubber bands and grease (`fc0be40`), and the animated locale — flames, stars, 
 - GPLv2 `LICENSE` and `docs/IMPROVEMENTS.md`, which tracks everything a public release needs that
   fidelity does not (`4e4063d`).
 
-### Known not-yet-done, as it stood before the first tag
+### Known not-yet-done, as it stood on 2026-09-17
 
 The full list lives in `docs/IMPROVEMENTS.md`. The four that would matter most to someone reading
-this file first:
+this file first, as they were written with the Windows backend and not brought up to date since:
 
 - **The 1994 art, sounds and houses ship under the GPLv2 the source release carries** (1.2), which
   is a defensible reading of that release and not a cleared one — nobody has asked John Calhoun.
@@ -2316,6 +2316,6 @@ this file first:
 - The release pipeline exists but has never run, and nothing is tagged yet, so a build still
   reports a bare short hash as its version (5.4). There is no installer either.
 - Linux/X11 and Windows/GDI draw; macOS and cross-compiled arm64 still run headless (5.5). The
-  Windows backend has never been run by a human — see the entry at the top of this file — and
-  Windows has no sound unless FFmpeg or SoX is on the `PATH` (2.48).
+  Windows backend has never been run by a human — see "A Windows backend, so the Windows archives
+  can draw", above — and Windows has no sound unless FFmpeg or SoX is on the `PATH` (2.48).
 - An installed copy still looks for its assets beside the binary (5.3).

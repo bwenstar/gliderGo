@@ -253,7 +253,7 @@ The x/telemetry copy vendored in the same toolchain (`src/cmd/vendor/golang.org/
 already has the 2024 wording, `Copyright 2009 The Go Authors.`, and 5.11 moves releases to a newer
 minor. If Go's own LICENSE has changed the same way, the longer pattern would fail the first release
 built on that minor, although the notice was there. The shorter one matches both wordings. The
-release notes' `### Licence` (`:741-743`) and README's Licence section (`README.md:454-456`) carry
+release notes' `### Licence` (`:911-913`) and README's Licence section (`README.md:546-548`) carry
 the sentence above, naming `glidergo` and `glidertool` where it said "both binaries". The notes call
 the download one file and never mention glidertool, so "both" had nothing to refer to.
 
@@ -4064,7 +4064,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — and `gh release create`, the last command line nobody had run, has since run, twice, for `v0.1.0` and `v0.1.1` (5.4)**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — and `gh release create`, the last command line nobody had run, has since run three times, for `v0.1.0`, `v0.1.1` and `v0.1.2` (5.4)**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -6345,9 +6345,9 @@ goes from about 1.8 s to about 21 s warm, and `make check` runs it at `-count=2`
 joins once 2.71's harness starts the pump; `waveout_windows.go:290` is a third goroutine no Linux
 run can check.
 
-The claim that one package has goroutines is corrected in three places: `Makefile:418-436`,
-`Makefile:557` and `CONTRIBUTING.md:46-49`. CHANGELOG `:362` is history and stays. `race.go` is
-about 13% covered by statements.
+The claim that one package has goroutines is corrected in three places: `Makefile:429-460`,
+`Makefile:610-611` and `CONTRIBUTING.md:46-50`. CHANGELOG's Stage 3 entry is history and stays.
+`race.go` is about 13% covered by statements.
 
 **Done: `cmd/glidergo/loopback_test.go`, four races through `a.play` over 127.0.0.1.** The house is
 Grand Prix, because an idle glider dies in it (frame 351) and one holding right dies further on
@@ -6579,8 +6579,8 @@ else, and nothing plans that. Whatever first does should add the cap.
 
 `Report` compares whole standings, `Frame` included, so the "on change" test fires every frame:
 about 30 messages a second and ~1 KB/s. `netplay.go:9`, `standing.go:179` ("a few hundred bytes a
-minute"), `conn.go:28`, PLAN Stage 3's driver bullet and CHANGELOG `:344` say otherwise. The
-bandwidth is harmless. The comments are wrong, and the waiting screen is blind.
+minute"), `conn.go:28`, PLAN Stage 3's driver bullet and CHANGELOG's Stage 3 entry say
+otherwise. The bandwidth is harmless. The comments are wrong, and the waiting screen is blind.
 
 **The fix:**
 - The change test leaves `Frame` out, but `Report` keeps the newest standing with its current
@@ -6642,14 +6642,14 @@ A peer can report any standing it likes. **What is done now:**
   - `Rooms` going down, or above the house's room count;
   - more than 2 standings per `Frame`. It has to be at least 2, because every honest run ends with
     its final standing on the same frame as the last one in flight.
-- **"Neither peer can choose the seed" is false** (`handshake.go:289`, CHANGELOG `:312-314`). 16
-  bits of the seed were set in about 15k tries, and all 31 bits of `RandSeed` are reachable in
-  seconds. The gain is small (both players fly the same seed, and the slot does not affect
-  `Winner`), so the claim is reworded, or commit-reveal goes into 4.31's `Meet` change and nowhere
-  else. **Reworded, with 4.31** (`mixSeed`'s comment, and the CHANGELOG entry that repeated it).
-  Commit-reveal was left out. It needs a second message each way before the first standing, and
-  what it protects is small: a chosen seed is the same house for both players, and a peer that
-  wants to cheat can send a winning standing far more easily.
+- **"Neither peer can choose the seed" is false** (`handshake.go:402`, CHANGELOG's Stage 3
+  entry). 16 bits of the seed were set in about 15k tries, and all 31 bits of `RandSeed` are
+  reachable in seconds. The gain is small (both players fly the same seed, and the slot does not
+  affect `Winner`), so the claim is reworded, or commit-reveal goes into 4.31's `Meet` change and
+  nowhere else. **Reworded, with 4.31** (`mixSeed`'s comment, and the CHANGELOG entry that
+  repeated it). Commit-reveal was left out. It needs a second message each way before the first
+  standing, and what it protects is small: a chosen seed is the same house for both players, and a
+  peer that wants to cheat can send a winning standing far more easily.
 
 **Dropped:** a wall-time rate check. `Winner` rewards *fewer* frames (`standing.go:328`), so a liar
 sends a small `Frame` that such a check allows. It would also reject honest unpaced `-bench` races
@@ -6886,6 +6886,33 @@ needed". Several of these hide player-visible work that has quietly left the sch
   status table.
 - A generated `OPEN.md` is the lowest-value extra.
 
+### 4.46 The citations test cannot see most of the line numbers this repository cites in itself — **note; after the next tag**
+
+`TestEveryReferenceToOurOwnTreeResolves` matches a path only under `cmd/`, `internal/`, `docs/`,
+`tools/`, `scripts/`, `assets/` and `.github/`, and checks a line number only against the file's
+length. So these are never checked at all:
+
+- a top-level file: `README.md:N`, `CHANGELOG.md:N`, `RELEASING.md:N`, `CONTRIBUTING.md:N`,
+  `Makefile:N`;
+- a file named by its base name alone, `release.yml:N` or `handshake.go:N`, and the `:N` shorthand
+  that follows a file already named;
+- the end of a range, the `M` in `:N-M`.
+
+And a number that is still inside the file but no longer at the line it meant passes. Checking the
+`v0.2.0` release turned up ten stale ones without looking for them: `README.md:338` for the house
+dump example, `README.md:454-456` and `:741-743` for the Go licence sentence, `Makefile:418-436`,
+`Makefile:557` and `CONTRIBUTING.md:46-49` for the race detector, `handshake.go:289` for the seed,
+and three CHANGELOG line numbers, which every new entry above them moves. All ten are repointed, and
+the CHANGELOG ones now name their entry instead, which does not move.
+
+They are not all of it. A spot check of the fourteen bare `release.yml:N` citations found nearly
+every one pointing at a comment, a blank line or another step, because the file has grown by
+hundreds of lines since they were written. Those are not repointed yet, and are the first work here.
+
+The cheap half is to widen `ownPath` to the top-level files and to base names that are unique in the
+tree, and to check the end of a range. Drift inside a file's length needs the citation to carry
+something to compare, such as a few words of the line, and is the costlier half.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -6925,9 +6952,9 @@ wrong:
 None of this blocks Stage 1. It blocks the first push to a public remote, which is where it
 will announce itself loudly and cheaply.
 
-**Amended after `v0.1.0` and `v0.1.1`.** Two tags have been built and published by `release.yml`,
-so this entry is partly answered and partly not. From this host it is **unknown** whether either
-tag needed a correction.
+**Amended after `v0.1.0`, `v0.1.1` and `v0.1.2`.** Three tags have been built and published by
+`release.yml`, so this entry is partly answered and partly not. From this host it is **unknown**
+whether any of them needed a correction.
 
 1. The action versions ran. `actions/cache@v4` is listed and nothing uses it, so it comes off the
    list. Both workflows now pin `actions/checkout@v5`, `actions/setup-go@v6` and
@@ -7180,9 +7207,9 @@ than from anyone having watched it happen. The Windows half needs no network to 
 commands. It is the only unverified claim in `release.yml` that github.com is not required to settle,
 which makes it the cheapest one on the list and the last one that has an excuse.
 
-**Amended: it has executed, twice.** "It has never executed" and `release.yml:3-9`'s "it has never
-run … Expect the first tag to need a correction" are history now. They are rewritten to say what is
-known and what is not: whether either tag needed a correction is not recorded on this host.
+**Amended: it has executed, three times.** "It has never executed" and `release.yml:3-9`'s "it has
+never run … Expect the first tag to need a correction" are history now. They are rewritten to say
+what is known and what is not: whether any of the three needed a correction is not recorded here.
 "**Five** of the six archives cannot draw" is **three**.
 
 **The moment-of-the-first-tag item is overdue, and is done next, before the next tag.**
@@ -7199,8 +7226,8 @@ known and what is not: whether either tag needed a correction is not recorded on
   - an rc tag or `workflow_dispatch`;
   - the hand-written `Zone.Identifier` double-click on the Windows test host (the paragraph
     above);
-  - on a connected machine, both `.exe` hashes on VirusTotal and a Defender download check with
-    cloud protection on (5.12), because the test host cannot see Defender's cloud verdict;
+  - on a connected machine, all four `.exe` hashes on VirusTotal and a Defender download check
+    with cloud protection on (5.12), because the test host cannot see Defender's cloud verdict;
   - `govulncheck ./...` clean on `GO_RELEASE`, under `GOOS=linux`, `GOOS=windows` and `GOOS=darwin`
     (5.11; `release.yml`'s `verify` runs it, so this is reading the log);
   - a CHANGELOG section for the tag.
@@ -7246,9 +7273,9 @@ changed-rows present read back at 2×, and the three bench rows that decide 2.76
 - The build job is pinned to `ubuntu-24.04`. The step after `make cross` fails the tag above
   glibc 2.34. It was rehearsed against this host's own build: a floor of 2.34 passes, and one of
   2.32 fails with the `::error::` line.
-- The rewrite this amendment names is done. `release.yml`'s header says both tags were built by
-  it, that whether either needed a correction is not recorded here, and how to rehearse the next
-  one.
+- The rewrite this amendment names is done. `release.yml`'s header says which tags were built by
+  it, that whether any of them needed a correction is not recorded here, and how to rehearse the
+  next one.
 
 **Found doing it: SECURITY.md was a dead link in every archive.** The packaging step rewrites
 README's `docs/` links to the tagged tree, because an archive carries no `docs/`. README also
@@ -7772,8 +7799,9 @@ offline and nowhere else.
 What to do:
 
 1. **Before the tag, on a connected machine.** This is the line in 5.4's `RELEASING.md` pre-tag list
-   next to the `Zone.Identifier` rehearsal. Take the rc or `workflow_dispatch` zips. Look up both
-   `.exe` hashes on VirusTotal, and upload them if nobody has. The line that matters is Microsoft's.
+   next to the `Zone.Identifier` rehearsal. Take the rc or `workflow_dispatch` zips. Look up the
+   four `.exe` hashes, two in each zip, on VirusTotal, and upload any that nobody has. The line
+   that matters is Microsoft's.
    A handful of small engines flag most fresh Go binaries, so a hit from one of those is recorded,
    not chased. Then use a Windows machine with real-time and cloud protection on:
    `Get-MpComputerStatus` shows `RealTimeProtectionEnabled`, and `Get-MpPreference` shows a non-zero
