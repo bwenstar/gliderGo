@@ -16,8 +16,8 @@ before there was a version policy. From `v0.2.0` the numbering is semantic versi
 every 0.2.x is bug fixes only, races every other 0.2.x and reads the files the others wrote. New
 features, a change to how the game flies, and a change to a file format that is not an addition
 come in 0.3.0, whose section here says what it no longer races or reads (`docs/PLAN.md`, "what a
-version number promises"). The section at the top says whether its tag has been made yet, and
-`RELEASING.md` step 2 writes it.
+version number promises"). The section at the top says whether its tag has been made yet.
+`RELEASING.md` step 2 names it, and the commit the tag is made on dates it.
 
 ## `v0.2.0`
 
