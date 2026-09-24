@@ -68,7 +68,9 @@ import (
 // absent field already takes its default and a build that has no such field writes it
 // back as it found it (Save). That makes a new field the better way to change a
 // meaning, too: an older build keeps the new one intact, where after a bump it reads
-// a newer meaning into a field it thinks it knows.
+// a newer meaning into a field it thinks it knows. cmd/glidergo/promises_test.go pins
+// it, because a bump can only come in a minor release (docs/PLAN.md, "what a version
+// number promises").
 const Version = 1
 
 // Name is the file's name inside the configuration directory.

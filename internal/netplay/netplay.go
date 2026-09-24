@@ -111,7 +111,8 @@ const (
 
 	// Version is 1, the version §10.4 documents. It pins more than the layout: §10.4.6
 	// puts the *hash algorithm* under the version, which is why HouseHash can be FNV-1a
-	// without that choice needing a field of its own.
+	// without that choice needing a field of its own. cmd/glidergo/promises_test.go pins
+	// it, because a new version can only come in a minor release.
 	Version uint8 = 1
 
 	// HeaderSize is the 8 bytes of magic, version, msgType and matchID. Every message's

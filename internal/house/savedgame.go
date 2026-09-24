@@ -88,7 +88,8 @@ const (
 
 	// SavedGameFormat is the container version -- this file's own numbering, not the
 	// original's. 1 is the layout described above. A reader that meets a larger number
-	// should refuse the file rather than guess.
+	// should refuse the file rather than guess. cmd/glidergo/promises_test.go pins it,
+	// because a new number can only come in a minor release.
 	SavedGameFormat = 1
 
 	// SavedGameVersion is kSavedGameVersion, the version SaveGame2 would have written

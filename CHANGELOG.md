@@ -12,11 +12,28 @@ Because Stage 1's whole goal was *"behave exactly the same as the original, only
 file records stages rather than features, each naming the commit that closed it. Where the port
 knowingly departs from 1994 the entry says so and points at the numbered item in
 `docs/IMPROVEMENTS.md` that owns the deviation. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely. It does not follow semantic
-versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy, and the next tag,
-`v0.2.0`, gets its own section here (`RELEASING.md`, step 2).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely. `v0.1.0` and `v0.1.1` were cut
+before there was a version policy. From `v0.2.0` the numbering is semantic versioning for 0.x:
+every 0.2.x is bug fixes only, races every other 0.2.x and reads the files the others wrote. New
+features, a change to how the game flies, and a change to a file format that is not an addition
+come in 0.3.0, whose section here says what it no longer races or reads (`docs/PLAN.md`, "what a
+version number promises"). Each tag from `v0.2.0` on gets its own section here (`RELEASING.md`,
+step 2).
 
 ## Unreleased
+
+### What a version number promises is decided (2026-09-24)
+
+From `v0.2.0`, the first tag that races, a patch release is bug fixes only and changes nothing that
+a peer or a player's files can see. Every 0.2.x races every other 0.2.x and reads the settings,
+saved games and scores the others wrote. New features wait for 0.3.0, and so does a change to how
+the game flies, even one that fixes a bug, or to a file format in a way that is not an addition.
+That release's section here says what it no longer races or reads. A new test,
+`cmd/glidergo/promises_test.go`, pins the engine fingerprint and the four format numbers, so that
+such a change cannot reach a patch release unnoticed, and `RELEASING.md` step 2 checks that file
+against the last tag to choose the number. A replay script from a later release is refused with its
+keyword named, and the error now gives that as a reason alongside a typo. `docs/PLAN.md` has the
+decision, format by format.
 
 ### What a person checks before a tag is written down (2026-09-24)
 

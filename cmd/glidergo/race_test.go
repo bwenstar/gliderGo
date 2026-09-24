@@ -167,25 +167,6 @@ func TestEveryFixHasARaceRule(t *testing.T) {
 	}
 }
 
-// The engine fingerprint this build's races carry, pinned.
-//
-// Not because it is wrong to change -- it is measured, and changes whenever the simulation does
-// (replay.Engine) -- but because **a change here is news**: from this build on, races with every
-// release before it are refused. When this fails, the change that moved it is a change to how the
-// game flies, and that is either a bug or a decision. If it is a decision, write the new value
-// here and say in CHANGELOG.md that this release does not race the ones before it.
-func TestTheEngineFingerprintIsPinned(t *testing.T) {
-	const pinned = 0xE82F4D7565428514
-	got, err := engineFingerprint()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != pinned {
-		t.Errorf("the engine fingerprint is %016X, was %016X: this build flies differently from "+
-			"the last, and will not race it", got, uint64(pinned))
-	}
-}
-
 // Rooms counts rooms left, so every race passes through "1 room", and a player on their last
 // glider has one. Both used to read "1 rooms" and "1 gliders", on the panel a racer watches most.
 func TestTheOpponentPanelCountsInWords(t *testing.T) {

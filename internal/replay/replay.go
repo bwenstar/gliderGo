@@ -1301,11 +1301,13 @@ func FormatKeys(k player.Keys) string {
 	return strings.Join(on, ",")
 }
 
-// Parse reads a script in the text format. Unknown keywords are an error rather than a
-// warning: a typo in a bug report's script must not silently run a different game. For the same
-// reason a number too big for its field is an error rather than the number it wraps to (`room
-// 65540` used to run room 4), and so is an argument after the last one a keyword takes (`frames
-// 600 1200` used to run 600). FuzzParse found both (docs/IMPROVEMENTS.md 4.30).
+// Parse reads a script in the text format. Unknown keywords are an error rather than a warning: a
+// typo in a bug report's script must not silently run a different game, and nor must a script from
+// a later release, whose new keyword this build cannot know. Refusing it by name is the promise an
+// older build makes about newer scripts (docs/PLAN.md, "what a version number promises"). For the
+// same reason a number too big for its field is an error rather than the number it wraps to (`room
+// 65540` used to run room 4), and so is an argument after the last one a keyword takes (`frames 600
+// 1200` used to run 600). FuzzParse found both (docs/IMPROVEMENTS.md 4.30).
 func Parse(in io.Reader) (*Script, error) {
 	s := NewScript("", 0)
 	sc := bufio.NewScanner(in)
@@ -1505,7 +1507,8 @@ func Parse(in io.Reader) (*Script, error) {
 			}
 			s.Input = append(s.Input, hold)
 		default:
-			return nil, fmt.Errorf("line %d: unknown keyword %q", line, fields[0])
+			return nil, fmt.Errorf("line %d: unknown keyword %q (a typo, or a script from a later "+
+				"release, which this one cannot replay)", line, fields[0])
 		}
 	}
 	if err := sc.Err(); err != nil {

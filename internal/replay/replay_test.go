@@ -1004,6 +1004,30 @@ func TestBadScriptsAreRejected(t *testing.T) {
 	}
 }
 
+// A script from a later release is refused, and the refusal names the keyword.
+//
+// This is what an older build promises about newer scripts (docs/PLAN.md, "what a version number
+// promises"): it may refuse one, but it never runs it differently. Skipping a line it does not
+// know would fly another game from the one the later release recorded, and a reader who sees the
+// keyword named knows to fetch that release rather than suspect the port. The lines are the ones
+// docs/IMPROVEMENTS.md 4.39 plans. When it lands, they become this build's own, and this test
+// takes lines that nobody has written yet.
+func TestALaterReleasesScriptIsRefusedByName(t *testing.T) {
+	for _, line := range []string{"fix mirror_flame on", "househash 1234ABCD", "build v0.3.0"} {
+		keyword := strings.Fields(line)[0]
+		_, err := replay.Parse(strings.NewReader("house H\n" + line + "\n"))
+		if err == nil {
+			t.Errorf("Parse took %q, which this release has no keyword for", line)
+			continue
+		}
+		if msg := err.Error(); !strings.Contains(msg, fmt.Sprintf("%q", keyword)) ||
+			!strings.Contains(msg, "later release") {
+			t.Errorf("Parse(%q) = %q; want the keyword %q named, and a later release given as "+
+				"one reason", line, msg, keyword)
+		}
+	}
+}
+
 // TestRunRejectsUnrunnableScripts covers the checks Run makes before it loads anything, so
 // that a bad script fails with a sentence instead of a panic three packages down.
 func TestRunRejectsUnrunnableScripts(t *testing.T) {

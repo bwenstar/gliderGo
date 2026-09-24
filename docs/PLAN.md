@@ -1688,17 +1688,39 @@ Stage 6; 2.10's presentation split; 2.37's movie decoder; 3.5's translation; 4.1
 gamepads (2.3, reworded from "owed" to "wanted"); settings pages (3.9); records and replays of real
 play (4.39, the first item after the tag).
 
-#### After the gate: what a version number promises — **decision needed**
+#### After the gate: what a version number promises — **decided by the owner, 2026-09-24**
 
-- **Formats freeze at the tag, additively.** From the first race-bearing tag, the prefs file,
-  saved games, score side-cars, replay scripts and the race protocol change only by addition.
-  A new field or keyword has a default an older file does not carry, and a new wire field
-  trails the ones before it. A change that cannot be additive gets a version bump that the
-  reader refuses by name, never silently. Replay scripts stay open to new keywords until 4.39's
-  grammar lands.
-- **Semantic versioning, and a CHANGELOG section per tag, from the next tag.** The v0.1.x
-  commits are only on GitHub (`git tag -l` is empty here), so splitting the existing
-  `Unreleased` section waits for someone to fetch the tags.
+- **Semantic versioning for 0.x, from `v0.2.0`.** A patch release, 0.2.1 after 0.2.0, is bug fixes
+  only, and changes nothing a peer or a player's files can see: every 0.2.x races every other 0.2.x
+  and reads every file the others wrote. New features come in a minor release, 0.3.0 after 0.2.x,
+  and so must any change to how the game flies, which moves the engine fingerprint, even when it
+  fixes a bug, and any change to a format that is not an addition. A minor release's CHANGELOG
+  section says what it no longer races or reads. What 1.0 promises is not decided here. Every tag
+  gets a CHANGELOG section of its own. The v0.1.x commits are only on GitHub (`git tag -l` is empty
+  here), so splitting the existing `Unreleased` section waits for a clone that has the tags.
+- **`cmd/glidergo/promises_test.go` holds the numbering to that.** It pins the engine fingerprint
+  and four format numbers: `prefs.Version`, `house.SavedGameFormat`, `house.SizeofScores` and
+  `netplay.Version`. A change to any of them fails with the rule above, and `RELEASING.md` step 2
+  makes it the choice of number: that file unchanged since the last tag is a patch, and anything
+  else is a minor.
+- **Formats only grow, from `v0.2.0`.** It is the first tag that races, because v0.1.x had no race
+  to stay compatible with. A change that cannot be an addition bumps the format's number, which
+  every reader before it refuses by that number and never silently, and it comes only in a minor
+  release. Each format grows in its own way:
+  - *The settings file.* A new key has a default that an older file does not carry, and since
+    2.79 an older build writes back the keys it does not know. A change of meaning is a new key
+    rather than a bump of `prefs.Version`, as that constant's comment says, because after a bump
+    an older build reads the newer meaning into a field it thinks it knows.
+  - *Saved games.* The layout is 1994's `game2Type`, which cannot grow. A change is a new
+    container version, and every reader before it refuses the file by that number.
+  - *Score side-cars.* 1994's `scoresType`, 292 bytes, fixed by the original and not this port's
+    to change.
+  - *The race protocol.* The four rules in `internal/netplay`'s package comment: a hello is always
+    sent under header version 1, its layout grows only at the end, every decoder accepts trailing
+    bytes, and a rule's bit position says whether it gates.
+  - *Replay scripts.* A later release may add keywords, and 4.39 plans the first. An older build
+    may refuse a script that uses one, and names the keyword when it does, but it never skips the
+    line and runs a different game. `TestALaterReleasesScriptIsRefusedByName` holds it.
 - **Platform tiers, as the release notes already state them.** linux-amd64 (x11) and
   windows-amd64 are played. windows-arm64 is built and has never run. The three `-headless`
   archives run the whole game, draw nothing, and are for `-shot` and scripted runs. Stating the
@@ -1708,11 +1730,11 @@ play (4.39, the first item after the tag).
   (5.4's amendment). With Go 1.27 those are Windows 10 or Server 2016, macOS 13 for the headless
   darwin archives, and glibc 2.34 for linux-amd64, measured on the binaries. README's "Getting a
   build", the release notes and each `HOW-TO-RUN.txt` say the same.
-- **A status table at the top of this file**, one row per stage, checked against the stage
-  headings by one `internal/citations` test that IMPROVEMENTS' status grammar (4.45) can share.
-- **A README "Known differences from 1994" list** of about fifteen lines, drawn from 2.3, 2.4,
-  2.9, 2.37, 2.43, 2.47, 2.49, 2.68 and 2.69. 2.33 is a footnote, not a player-visible
-  difference.
+- **After the tag, and not part of the promise:** a status table at the top of this file, one row
+  per stage, checked against the stage headings by one `internal/citations` test that
+  IMPROVEMENTS' status grammar (4.45) can share; and a README "Known differences from 1994" list
+  of about fifteen lines, drawn from 2.3, 2.4, 2.9, 2.37, 2.43, 2.47, 2.49, 2.68 and 2.69. 2.33 is
+  a footnote, not a player-visible difference.
 
 ### Stage 5 — house editor
 

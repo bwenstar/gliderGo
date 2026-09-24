@@ -16,9 +16,21 @@ The commands here are fenced without a language, so `make docs-check` does not t
    git fetch --tags origin
    ```
 
-2. **A CHANGELOG section for the tag.** Move what the tag carries out of `Unreleased` into its own
-   section. If the tag carries a Go security fix, say so. SECURITY.md's "Versions" makes that
-   reason enough for a release on its own.
+2. **The number, and a CHANGELOG section for it.** A patch release, 0.2.1 after 0.2.0, carries
+   bug fixes only, and every value pinned in `cmd/glidergo/promises_test.go` must be the one the
+   last tag had. A new feature, or any pinned value that has changed, makes the tag a minor
+   release, 0.3.0 after 0.2.x, and its section says what it no longer races or reads
+   (`docs/PLAN.md`, "what a version number promises"). A diff to that file that touches only
+   comments does not count. The file starts at `v0.2.0`, so the first tag this applies to is the
+   one after it.
+
+   ```
+   git diff "$(git describe --tags --abbrev=0)" -- cmd/glidergo/promises_test.go
+   ```
+
+   Then move what the tag carries out of `Unreleased` into its own section. If the tag carries a
+   Go security fix, say so. SECURITY.md's "Versions" makes that reason enough for a release on its
+   own.
 
 3. **The release gate in `docs/PLAN.md` §4.** Each **Gate** line is either done or moved out of
    the gate on purpose. That includes the first Windows run of the code written since the first

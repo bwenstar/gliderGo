@@ -874,14 +874,14 @@ jobs:
 
           ### Racing another machine
 
-          Two machines can race the same house: **Race...** on the title screen, where one
-          player hosts and the other types in the address the host's screen reads out. On
-          Windows the first time you host, Windows Defender Firewall asks whether glidergo may
-          use the network. Tick the kind of network you are on and click **Allow access**,
-          because *Cancel* is remembered as a no. On one home network that is all it takes. Across
-          the internet it needs a forwarded port or a VPN between the two machines. The README's
-          *Racing beyond your network* explains both, and `SECURITY.md` says what a forwarded
-          port exposes.
+          Two machines can race the same house: **Race...** on the title screen, where one player
+          hosts and the other types in the address the host's screen reads out. Two releases whose
+          versions differ only in the last number always race each other. On Windows the first time
+          you host, Windows Defender Firewall asks whether glidergo may use the network. Tick the
+          kind of network you are on and click **Allow access**, because *Cancel* is remembered as a
+          no. On one home network that is all it takes. Across the internet it needs a forwarded
+          port or a VPN between the two machines. The README's *Racing beyond your network* explains
+          both, and `SECURITY.md` says what a forwarded port exposes.
 
           ### Verifying the download
 

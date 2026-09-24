@@ -299,16 +299,18 @@ Both houses must hash identically or the match is refused. The screen tells a gu
 the host is racing, or that theirs is a different copy of it, and the terminal has both names and
 both hashes. Both machines must also run releases that fly the same: a release whose physics
 changed is refused, naming both releases, and any two releases with the same physics race each
-other. The `fixes` block below is told to the other side and does not refuse a race, because none
-of its switches changes how a glider flies. The race's screens say in small print which of them
-the other side has on. Both machines agree a random seed between themselves, so `-seed` is
-refused, as are `-two` and `-resume`, each with a sentence saying why. A small panel in the
-top-left corner shows where the other player is while you fly, and it goes away when your run ends
-so that the game-over and high-score screens are the original's. The race itself is not over
-until both runs are, however far ahead you finish. Then both machines show the same result, as long
-as the connection held. A network that fails between two machines that are both still running can
-leave each one scoring the other as gone. A race started from `Race...` leaves its result on the
-title screen's status line, where a game leaves its score.
+other. A release changes the physics only with a new middle number, so every 0.2.x races every
+other 0.2.x, and the CHANGELOG says so when a release no longer races the ones before it. The
+`fixes` block below is told to the other side and does not refuse a race, because none of its
+switches changes how a glider flies. The race's screens say in small print which of them the other
+side has on. Both machines agree a random seed between themselves, so `-seed` is refused, as are
+`-two` and `-resume`, each with a sentence saying why. A small panel in the top-left corner shows
+where the other player is while you fly, and it goes away when your run ends so that the game-over
+and high-score screens are the original's. The race itself is not over until both runs are, however
+far ahead you finish. Then both machines show the same result, as long as the connection held. A
+network that fails between two machines that are both still running can leave each one scoring the
+other as gone. A race started from `Race...` leaves its result on the title screen's status line,
+where a game leaves its score.
 
 **When the other machine cannot be reached**, the joining screen says what to check: the spelling,
 the address, or that the machine answered and nothing is hosting yet. No answer at all is either a

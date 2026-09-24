@@ -6687,6 +6687,14 @@ The grammar is extended once, together with 4.31's fields: `fix <name> on`, `hou
 build line. `RunWatching` learns to apply `w.Fix`, which it never sets today; only `Player2GiveUp`
 changes physics, but all four need lines. Resumed games are refused or marked.
 
+**Decided by the owner, 2026-09-24: a build from before the new lines refuses them by name.** A
+script that uses `fix`, `househash` or the build line fails in every release before 4.39's with
+`unknown keyword`, which names the keyword and gives a later release as one reason for it. It
+never runs the script without the line (`docs/PLAN.md`, "what a version number promises").
+`TestALaterReleasesScriptIsRefusedByName` holds that for this build, and takes other lines once
+these are the grammar's own. Recording is a feature, so 4.39 comes in a minor release, and the
+new lines need no bump of anything that `cmd/glidergo/promises_test.go` pins.
+
 **The acceptance test compares simulation fields frame by frame between the live loop and the
 replay**, with sound off or `snd=` excluded. The live mixer is wall-clocked (4.11): under `-bench`,
 24 of 25 events differed. It also checks that `glidertool replay -digest FILE` equals the digest
