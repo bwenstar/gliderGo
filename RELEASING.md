@@ -139,10 +139,11 @@ Each of these **needs a connected machine**.
 
 ## Still open, and each needs a connected machine once
 
-- `scripts/bootstrap-dev-env.sh --source public` has never run, because CI gets its Go from
-  `setup-go` (`docs/IMPROVEMENTS.md` 5.1, check 2). `--dry-run` does not close this, because it
-  never touches the network. This real run installs into a directory of its own, and leaves the
-  Go you have alone:
+- `scripts/bootstrap-dev-env.sh --source public` has never run against go.dev, because CI gets
+  its Go from `setup-go` (`docs/IMPROVEMENTS.md` 5.1, check 2). `--dry-run` does not close this,
+  because it never touches the network. Its first run end to end, against a stand-in for go.dev,
+  found that it could not read the index at all, which is fixed. This real run installs into a
+  directory of its own, and leaves the Go you have alone:
 
   ```
   GLIDERGO_TOOLCHAIN_DIR=$(mktemp -d) scripts/bootstrap-dev-env.sh --source public

@@ -27,6 +27,15 @@ Everything from here down to `v0.1.2` is what this tag carries, among it the por
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
 stranger meets with a listening socket in it.
 
+### The bootstrap script can read go.dev's index (2026-09-24)
+
+`scripts/bootstrap-dev-env.sh` could never have installed Go from go.dev. The heredoc holding
+`public_go_pick`'s python program was python's stdin, so the index curl piped in was thrown away,
+and every run that asked go.dev for Go stopped at "could not read go.dev's download index". It had
+never run against a network, and its first run end to end, against a stand-in for go.dev, found
+it. The program now goes in with `python3 -c`, and the same run installed Go and wrote
+`scripts/env.sh` (`docs/IMPROVEMENTS.md` 5.1).
+
 ### This file has a section per tag (2026-09-24)
 
 `v0.1.0`, `v0.1.1` and `v0.1.2` have sections of their own now, each ending at the commit its tag

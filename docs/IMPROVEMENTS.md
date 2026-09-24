@@ -6921,7 +6921,7 @@ Everything above is about the game. This section is about the fact that the game
 written on one airgapped host and is meant to end up on GitHub, and that those two things have
 different failure modes. Added when the public build path was put in beside the private one.
 
-### 5.1 The public build path cannot be tested from the machine that wrote it — **note; check 1 retired, check 3 answered by the Actions log, check 2 and the whole `--source public` path still open**
+### 5.1 The public build path cannot be tested from the machine that wrote it — **note; check 1 retired, check 3 answered by the Actions log, check 2 still open against go.dev itself**
 
 `scripts/bootstrap-dev-env.sh --source public` and `.github/workflows/ci.yml` are the two
 pieces of this repository that have **never run**. They cannot: this host cannot resolve
@@ -6961,10 +6961,17 @@ whether any of them needed a correction.
    `actions/upload-artifact@v5`, and `release.yml` adds `actions/download-artifact@v5`. The first
    paragraph's "never run" now holds for the bootstrap script only: `ci.yml` has run on every
    push since.
-2. **Still open.** No workflow runs `scripts/bootstrap-dev-env.sh`, because CI gets Go from
-   `setup-go`. The go.dev index parse, and the whole `--source public` path in this entry's first
-   paragraph, have still never run. Closing them needs someone on a connected host to run
-   `scripts/bootstrap-dev-env.sh --source public` (or `--dry-run`).
+2. **Still open, against go.dev itself.** No workflow runs `scripts/bootstrap-dev-env.sh`,
+   because CI gets Go from `setup-go`, and `--dry-run` cannot close this, because it never touches
+   the network. On 2026-09-24 the whole `--source public` path ran end to end for the first time,
+   against a local HTTP server standing in for go.dev. Its index held an rc, an older release and
+   another platform's archive around the one to pick, and the tarball was a real Go. That run
+   found that `public_go_pick` had never been able to read any index: the heredoc holding its
+   python program was python's stdin, so the index curl piped in was thrown away and `json.load`
+   read nothing. The program now goes in with `python3 -c`, and the same run then picked the
+   right archive, verified its sha256, installed it and wrote `scripts/env.sh`. What is left is
+   whether go.dev's real index has the shape the code reads, which needs someone on a connected
+   host to run `scripts/bootstrap-dev-env.sh --source public`.
 3. Answered by the Actions log, in the `check` job's "On-screen bench under Xvfb" step and in
    `release.yml`'s `verify` job. The line is pasted here when someone reads it. The screen in
    both is now `2600x1980x24` rather than `640x480x24`, so that a 4× window fits (2.76). The

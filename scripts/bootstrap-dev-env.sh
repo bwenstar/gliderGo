@@ -273,11 +273,12 @@ install_go_from_tarball() {
 # regex over JSON. It picks the newest *stable* release that satisfies go.mod's
 # floor -- newest rather than exactly-the-floor because a patch release is where
 # security fixes live, and the floor is a floor.
+#
+# The program goes in with -c, because the index arrives on stdin: a heredoc
+# given to `python3 -` would be stdin itself, and the index would be thrown away.
 public_go_pick() {
-  local floor="$1" goos="$2" goarch="$3"
-  curl --fail --silent --show-error --location --max-time 120 \
-    "$GO_DL_HOST/dl/?mode=json&include=all" |
-    python3 - "$floor" "$goos" "$goarch" <<'PY'
+  local floor="$1" goos="$2" goarch="$3" program
+  program="$(cat <<'PY'
 import json, sys
 
 floor, goos, goarch = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -310,6 +311,10 @@ if best is None:
 _, version, filename, sha = best
 print(version, filename, sha)
 PY
+)"
+  curl --fail --silent --show-error --location --max-time 120 \
+    "$GO_DL_HOST/dl/?mode=json&include=all" |
+    python3 -c "$program" "$floor" "$goos" "$goarch"
 }
 
 install_go_public() {
