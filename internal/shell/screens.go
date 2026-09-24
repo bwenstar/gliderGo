@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bwenstar/gliderGo/internal/credits"
 	"github.com/bwenstar/gliderGo/internal/house"
 	"github.com/bwenstar/gliderGo/internal/prefs"
 	"github.com/bwenstar/gliderGo/internal/project"
@@ -294,14 +295,36 @@ func (s *Shell) drawOwnTitle(scr *render.Surface) {
 	// menu sits where it does; a fallback screen that centred on 320 put "no artwork
 	// found" half underneath that panel, which was the first thing a fresh clone saw.
 	// So the port's own title screen is laid out around the same panel the real one is.
+	//
+	// The three lines under the name say what the art's title says (title.go): whose game
+	// this is, and who ported it.
 	col := int16(menuLeft - 16)
-	centerIn(scr, 0, col, 96, "gliderGo", cream, 5)
-	centerIn(scr, 0, col, 140, "Glider PRO, ported", cream, 2)
-	centerIn(scr, 0, col, 168, "John Calhoun, 1994", render.LtGray8, 1)
+	centerIn(scr, 0, col, 96, project.Name, cream, 5)
+	centerIn(scr, 0, col, 140, "a port of "+project.Original, cream, 2)
+	by := "by " + project.OriginalAuthor + ", " + project.OriginalYear
+	centerIn(scr, 0, col, 168, by, render.LtGray8, 1)
+	centerIn(scr, 0, col, 182, "ported by "+porter(), render.LtGray8, 1)
 
 	centerIn(scr, 0, col, 240, "no artwork found", label, 2)
 	centerIn(scr, 0, col, 266, "it ships in assets/extracted;", cream, 1)
 	centerIn(scr, 0, col, 278, "`make assets` rebuilds it", cream, 1)
+}
+
+// porter is whoever credits.txt says ported it, so that the name is typed once, into the
+// data file the credits screen draws. The art's title paints the same name in pixels, and
+// TestTheTitlesCreditIsInTheCredits holds the two together.
+func porter() string {
+	for _, sec := range credits.Sections() {
+		if sec.Title != "this port" {
+			continue
+		}
+		for _, r := range sec.Rows {
+			if r.What == "ported it" {
+				return r.Who
+			}
+		}
+	}
+	return "the gliderGo authors"
 }
 
 // drawHouseLabel writes the selected house's name where DrawOnSplash writes it.

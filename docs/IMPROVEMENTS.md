@@ -319,10 +319,14 @@ a small derivative of his logo that upstream does not distribute. This item had 
 the mark needs no permission of its own. A request under route (c) no longer has to name it, and
 the fallback is not needed.
 
+The no-art fallback, `drawOwnTitle`, said "Glider PRO, ported" under "gliderGo", and named
+nobody as the porter. It is what a missing or mistyped `-art` looks like, so it is seldom seen,
+and it was left alone at first. Since 2026-09-24 it says what the art's title says, in the port's
+font: "a port of Glider PRO", "by John Calhoun, 1994" and "ported by Brendan Ta". The name comes
+from the credits file's "ported it" row, and `TestTheTitlesCreditIsInTheCredits` holds it to the
+name the art's title paints.
+
 **Left open.**
-- The no-art fallback, `drawOwnTitle`, still says "Glider PRO, ported" under "gliderGo" and
-  names nobody. It is what a missing or mistyped `-art` looks like, so it is seldom seen. That is
-  why it was left alone.
 - The README's copyright line still reads "the gliderGo authors". It is a statement about who
   holds the copyright, so this change does not touch it.
 - `project.Original` is still "Glider PRO", and should be: it names the game this is a port of,

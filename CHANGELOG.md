@@ -18,6 +18,13 @@ versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy
 
 ## Unreleased
 
+### The title screen without its art says who ported it (2026-09-24)
+
+A build that cannot find its artwork draws its own title screen, and that said "Glider PRO,
+ported" with nobody named as the porter. It now says what the art's title says: a port of Glider
+PRO, by John Calhoun, 1994, ported by Brendan Ta, with the last name read from the credits file
+(IMPROVEMENTS 1.5).
+
 ### An older build no longer deletes a newer build's settings (2026-09-24)
 
 `prefs.json` is read over the defaults, so a setting this build does not know was always ignored.

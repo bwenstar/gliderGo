@@ -271,11 +271,16 @@ func TestTheSplashCarriesTheTitle(t *testing.T) {
 
 // A name painted into pixels is one nothing can read, which is credits.txt's own complaint
 // about PICT 153. So whoever the splash says ported this is also a row under [this port],
-// which is text: the credits screen draws it, and a search of the source finds it.
+// which is text: the credits screen draws it, and a search of the source finds it. It is
+// the row the no-art title screen reads its "ported by" line from, too (porter).
 func TestTheTitlesCreditIsInTheCredits(t *testing.T) {
 	who, ok := strings.CutPrefix(creditText, "ported by ")
 	if !ok {
 		t.Fatalf("creditText is %q; this test reads the name after \"ported by \"", creditText)
+	}
+	if !strings.EqualFold(porter(), who) {
+		t.Errorf("the splash says %q, and the no-art title screen says \"ported by %s\"",
+			creditText, porter())
 	}
 	for _, sec := range credits.Sections() {
 		if sec.Title != "this port" {
