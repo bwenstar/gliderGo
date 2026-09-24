@@ -660,7 +660,8 @@ var ownPath = regexp.MustCompile(
 // that the "releasePolish N" numbering they quote exists only there -- so the references cannot
 // simply be repointed and the fix is to give the surviving decisions numbers in a committed file.
 // Deferred, deliberately. What this entry adds is that the deferral is now machine-tracked: the
-// day somebody commits that file, TestEveryExemptionIsStillEarned asks for this line back.
+// day the last reference into the directory is repointed, TestEveryReferenceToOurOwnTreeResolves
+// asks for this line back.
 var deadOwnPaths = map[string]string{
 	"docs/analysis/stage15-raw/": "gitignored drafts; the dead reference is owned by " +
 		"docs/IMPROVEMENTS.md and cannot be repointed until the surviving decisions are " +
@@ -693,20 +694,32 @@ func TestEveryReferenceToOurOwnTreeResolves(t *testing.T) {
 		return n
 	}
 
+	used := map[string]bool{}
 	dead := func(rel string) bool {
 		for p := range deadOwnPaths {
 			if strings.HasPrefix(rel, p) {
+				used[p] = true
 				return true
 			}
 		}
 		return false
 	}
 
+	// A file .gitignore names is held to .gitignore, not to the disk. scripts/env.sh is written by
+	// scripts/bootstrap-dev-env.sh and scripts/local-source.sh is a machine's own, so reading the
+	// disk passed on the machine that has them and failed on a fresh clone, which is where CI
+	// runs. That is the mistake skipDirs records for stage15-raw, and the same rule
+	// TestEveryPathTheArchitectureMapNamesExists applies to a line that says "not committed".
+	ignored, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+
 	missing, total := map[string]textLine{}, 0
 	for _, ln := range sweep(t) {
 		for _, m := range ownPath.FindAllStringSubmatch(ln.text, -1) {
 			rel, num := m[1], m[2]
-			if dead(rel) {
+			if dead(rel) || gitignores(string(ignored), rel) {
 				continue
 			}
 			total++
@@ -733,6 +746,12 @@ func TestEveryReferenceToOurOwnTreeResolves(t *testing.T) {
 	for _, rel := range sorted(missing) {
 		at := missing[rel]
 		t.Errorf("%s:%d points at %s, which is not in this repository", at.path, at.n, rel)
+	}
+	for _, p := range sorted(deadOwnPaths) {
+		if !used[p] {
+			t.Errorf("deadOwnPaths exempts %s (%q) and nothing points into it any more: delete "+
+				"the entry, so that the next reference into it gets checked", p, deadOwnPaths[p])
+		}
 	}
 	if total == 0 {
 		t.Error("the sweep found no references to our own tree, so ownPath has stopped matching")

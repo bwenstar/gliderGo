@@ -7251,9 +7251,10 @@ skip (package, test and subtests) with a committed per-OS allowlist, in two clas
 - **may-skip** — `TestWaveOutPlaysSilence`, and netplay's TEST-NET-3 and two-listener skips.
 
 It fails on any skip not listed. The lists are seeded from the static census and corrected after
-one GitHub run, since they cannot be confirmed from here. It lands after the fresh-clone citations
-failure (`TestEveryReferenceToOurOwnTreeResolves` against the gitignored `scripts/env.sh` and
-`scripts/local-source.sh`) is fixed.
+one GitHub run, since they cannot be confirmed from here. It was to land after the fresh-clone
+citations failure (`TestEveryReferenceToOurOwnTreeResolves` against the gitignored `scripts/env.sh`
+and `scripts/local-source.sh`) was fixed, and that is fixed: a reference to a file `.gitignore` names
+is held to `.gitignore`, not to the disk.
 
 ### 5.6 Is a fresh checkout playable? — **audited and yes; four defects found and fixed, 1.10a**
 

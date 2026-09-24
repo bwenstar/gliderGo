@@ -18,6 +18,20 @@ gets its own section here (`RELEASING.md`, step 2).
 
 ## Unreleased
 
+### `make check` passes on a fresh clone again (2026-09-24)
+
+`TestEveryReferenceToOurOwnTreeResolves` had failed on every clean checkout since it was written.
+`docs/DEV_ENVIRONMENT.md` tells a reader to source `scripts/env.sh`, and this file names the optional
+`scripts/local-source.sh`, and both are gitignored: `scripts/bootstrap-dev-env.sh` writes the first,
+and the second is a machine's own. Reading the disk passed on the machine that has them and failed on
+a fresh clone, which is where CI runs. A reference to a file `.gitignore` names is now held to
+`.gitignore` instead, the rule `TestEveryPathTheArchitectureMapNamesExists` already applies to a line
+that says "not committed".
+
+`deadOwnPaths` promised that its one entry, `docs/analysis/stage15-raw/`, would be asked for back
+once nothing pointed into that directory, and nothing was going to ask. The same test now fails on an
+entry no reference uses.
+
 ### The docs say what the game does, and two things they described now work (2026-09-23)
 
 **Racing.** A run no longer freezes at its end when the other machine has gone silent. If that
