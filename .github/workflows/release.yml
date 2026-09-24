@@ -897,6 +897,12 @@ jobs:
           compare the line by eye against `SHA256SUMS`. On Windows, `Get-FileHash <archive>` in
           PowerShell prints the same hash in capitals.
 
+          ### What a person checked
+
+          The tests cannot press keys, say whether a house is any fun, or answer a Windows
+          dialog, so a person does those on a release candidate before the tag. `docs/RELEASE_TESTING.md` in
+          the source says what was checked, on which build, and what nobody had a machine for.
+
           ### Licence
 
           GPLv2, inherited from Calhoun's own source release. The art, sounds and houses are

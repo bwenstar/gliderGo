@@ -22,7 +22,8 @@ The commands here are fenced without a language, so `make docs-check` does not t
 
 3. **The release gate in `docs/PLAN.md` §4.** Each **Gate** line is either done or moved out of
    the gate on purpose. That includes the first Windows run of the code written since the first
-   one, all of which `docs/windows-first-run.md` lists under "What has changed since":
+   one, all of which `docs/windows-first-run.md` lists under "What has changed since", and
+   which step 8 runs:
    - auto scale;
    - the centred window;
    - the changed-rows present, read back at 2×;
@@ -69,6 +70,11 @@ The commands here are fenced without a language, so `make docs-check` does not t
      flagged file's own SHA-256 (`Get-FileHash`). `SHA256SUMS` lists the archives, not the `.exe`
      inside each one. Record the submission ID and the date it cleared under "Record" below. A clearance covers one file,
      and every tag builds new ones, so this can be needed at every tag.
+
+8. **The list in `docs/RELEASE_TESTING.md`**, on the rc's archives: two houses played through,
+   the Windows window, keys and firewall, and a race with Windows hosting. Fill in its "Last run"
+   table. Anything it finds is fixed in the release notes' or the README's wording before the
+   tag, or filed.
 
 Then tag:
 

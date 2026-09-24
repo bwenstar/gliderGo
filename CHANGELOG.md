@@ -18,6 +18,17 @@ versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy
 
 ## Unreleased
 
+### What a person checks before a tag is written down (2026-09-24)
+
+`docs/RELEASE_TESTING.md` is the part of a release that no test can do. It has thirteen steps: the
+port's two houses played through by a person, the Windows checks that need hands (the first
+start and auto scale, keys, alt-tab, the window's size, closing it from anywhere, a name typed on
+a French layout), and a race with Windows as the host, once allowed through its firewall and once
+refused. Each step says what to do and what to expect, and a table records the build each was
+last run on, with "not run" as a result in its own right. `RELEASING.md` runs it as step 8 before
+a tag, CONTRIBUTING points to it for anyone with the machine for a step, and the release notes say
+where to read what was checked.
+
 ### A settings file that cannot be read is reported once (2026-09-24)
 
 When `prefs.json` exists and cannot be read, the game starts with the defaults and says why. It

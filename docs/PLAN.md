@@ -1351,8 +1351,8 @@ that, and what it left open.
   the house from the checked-in text rather than from a build product, so a stale binary cannot
   pass for one. **Not met: nobody has played either.** A scripted run proves a route exists, not
   that the route is one a human would find or enjoy, and that is the half this host cannot answer.
-  That clause is now owned by §5's "checked by a person" row (a planned `RELEASE_TESTING.md`
-  beside this file), which gives it a place to be marked done.
+  That clause is now owned by §5's "checked by a person" row, and its steps 1 and 2 in
+  `docs/RELEASE_TESTING.md` give it a place to be marked done.
 
 ### Stage 3 — 2-player race
 
@@ -1669,7 +1669,7 @@ means the tag is better with it and does not wait.
      this port's own tests check. Every fact about Aerofoil in it is confirmed on a connected
      host first, or cut (5.13). **Not done, on purpose.** Every fact it would state needs a
      connected host, and none was to hand. `RELEASING.md` lists it under "Still open".
-6. **Checked by a person, after the rest** (§5's new row, and the `RELEASE_TESTING.md` it plans).
+6. **Checked by a person, after the rest** (§5's new row, and `docs/RELEASE_TESTING.md`).
    The Windows subset runs on the Windows test host, next to 5.4's `Zone.Identifier` rehearsal:
    keys pressed, window closed and resized, a race hosted behind the Windows firewall, and 2.1's
    auto scale looked at. Anything it finds goes back into 4.33's wording before the tag. Defender's
@@ -1789,7 +1789,7 @@ good intentions:
 | **Headless completability runs** per house | levels that cannot actually be finished |
 | **Fuzz seeds + hostile-house soak** — `testing.F` targets seeded from shipped data, replayed by plain `go test`; mutated houses run through `replay.Run`; `make fuzz` runs the engine and the long soak (IMPROVEMENTS 4.30) | panics on hostile input, and sticky asset errors on paths no golden replay visits |
 | **Loopback race** — two in-process apps over 127.0.0.1 under `-race` (4.34) | connect/cancel/deadline hangs, disconnect handling, two machines scoring different results |
-| **Checked by a person** — `RELEASE_TESTING.md` (planned), one numbered list with an expected result and a last-run column per step | everything above that needs hands: a house played through, Windows keys, the Windows firewall, a race between two real machines |
+| **Checked by a person** — `docs/RELEASE_TESTING.md`, one numbered list with an expected result per step and a last-run table | everything above that needs hands: a house played through, Windows keys, the Windows firewall, a race between two real machines |
 | **Flash scan** — WCAG 2.3.1 over every replay's frames, with a negative control that must trip it (IMPROVEMENTS 3.3) | a house or a change that makes the screen strobe |
 
 Reference data is derived from the *source*, not from a running Mac (there is no Mac and
@@ -1797,10 +1797,8 @@ no emulator here). Where the source is ambiguous, the ambiguity is recorded in t
 doc's "Open questions" and the chosen reading is pinned by a test so a later correction
 is a one-line change with a visible blast radius.
 
-`RELEASE_TESTING.md` is a new file, planned for `docs/` beside this one and linked from
-CONTRIBUTING and the release notes. Until it exists it is named here without its directory,
-because `TestEveryReferenceToOurOwnTreeResolves` fails a path that does not resolve. Its first
-entries:
+`docs/RELEASE_TESTING.md` is that list, linked from CONTRIBUTING, `RELEASING.md` and the release
+notes. It was planned with these first entries, and it has all but the last:
 
 - play Open House and Boarding House through by hand;
 - on Windows, steer, pause, enter a high-score name on a non-US layout, resize, alt-tab and close

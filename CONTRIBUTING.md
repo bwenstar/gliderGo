@@ -294,7 +294,9 @@ One commit per idea. If a change moves pixels, the new hash is part of that comm
 
 A `v*` tag builds and publishes a release through `.github/workflows/release.yml`.
 [RELEASING.md](RELEASING.md) is the list of what a tag needs that the workflow cannot do, and the
-record of each tag's checks.
+record of each tag's checks. [docs/RELEASE_TESTING.md](docs/RELEASE_TESTING.md) is the part of
+that a person has to do by hand, such as playing a house through or racing a Windows host, and
+anyone with the machine for a step can run it on an rc and report what they saw.
 
 ## Licence
 
