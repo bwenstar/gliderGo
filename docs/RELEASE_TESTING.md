@@ -61,7 +61,7 @@ the step says otherwise. The console window that opens with it is where the game
 6. **The crash file and the console hold.**
    *Do:* check 4 of the same list.
    *Expect:* what it says. A shortcut that fails waits for Enter. The same line typed in PowerShell
-   does not wait, and `crash-last.log` is kept.
+   does not wait. The next start keeps the test binary's panic as `crash-last.log`, not an error.
 
 7. **The keys.**
    *Do:* `N` for a one-player game, in any house. Steer with `←` and `→`. If you pick up rubber
