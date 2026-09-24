@@ -81,8 +81,8 @@ The commands here are fenced without a language, so `make docs-check` does not t
      `https://www.microsoft.com/en-us/wdsi/filesubmission` as a software developer, and mark it
      incorrectly detected. Give the release URL, the tag, the zip's `SHA256SUMS` line and the
      flagged file's own SHA-256 (`Get-FileHash`). `SHA256SUMS` lists the archives, not the `.exe`
-     inside each one. Record the submission ID and the date it cleared under "Record" below. A clearance covers one file,
-     and every tag builds new ones, so this can be needed at every tag.
+     inside each one. Record the submission ID and the date it cleared under "Record" below. A
+     clearance covers one file, and every tag builds new ones, so this can be needed at every tag.
 
 8. **The list in `docs/RELEASE_TESTING.md`**, on the rc's archives: two houses played through,
    the Windows window, keys and firewall, and a race with Windows hosting. Fill in its "Last run"
