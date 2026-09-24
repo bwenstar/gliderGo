@@ -18,6 +18,13 @@ versioning yet: `v0.1.0` and `v0.1.1` were cut before there was a version policy
 
 ## Unreleased
 
+### A settings file that cannot be read is reported once (2026-09-24)
+
+When `prefs.json` exists and cannot be read, the game starts with the defaults and says why. It
+said so twice, on two lines, the second repeating the first. Now it is one line. The Windows
+auto-scale check in `docs/windows-first-run.md` told the tester to point `-prefs` at a directory,
+which is one way to cause that error. It now says `-prefs none` (IMPROVEMENTS 2.80).
+
 ### The title screen without its art says who ported it (2026-09-24)
 
 A build that cannot find its artwork draws its own title screen, and that said "Glider PRO,

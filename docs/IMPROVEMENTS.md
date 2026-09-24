@@ -3095,6 +3095,19 @@ It also changes what `Version`'s comment advises. A change of meaning is better 
 beside the old than as a bump, because an older build keeps a new key intact and reads a bumped
 one in its own meaning. 2.74's physical keys are the first change that will have to choose.
 
+### 2.80 A settings file that could not be read was reported twice, and a check told the tester to cause it — **DONE, before the `v0.2.0` tag**
+
+`prefs.LoadFile` puts a read error in `Notes` and also returns it. `loadPrefs` in
+`cmd/glidergo/prefs.go` printed the error, and `reportPrefsNotes` then printed the note, so one
+problem took two lines, the second repeating the first. `loadPrefs` no longer prints it, and
+`TestAnUnreadableFileIsANote` holds the fact that makes that safe: the error is always in a note.
+
+It was found through `docs/windows-first-run.md`. Its auto-scale check said to point `-prefs` at a
+directory that has no settings file, but `-prefs` names a file, and a directory is the unreadable
+case. The check still worked, because unreadable settings fall back to the defaults and auto is
+the default, but its first line of output was an error. It now says `-prefs none`, or a file that
+does not exist yet.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
@@ -8030,6 +8043,7 @@ run into 5.4's unsigned-binary warnings, so they are later and not part of the g
 | 2.72 `x11.New` asks the server for XKB's detectable auto-repeat, so `Event.Repeat` is set on Linux and a held key does one thing, as it already did on Windows — and `internal/platform/x11` has its first test, which asks the server rather than the package | release gate, step 1 | this stage |
 | 2.73 `RenderShreds` asks for the `shred` strip rather than a sheet, so a shredded glider falls as confetti and the game no longer ends with an asset error — with a replay test that shreds a glider with the art loaded, and a static test that holds every constant art name to the table its accessor reads | release gate, step 1 | this stage |
 | 2.79 `prefs.Save` writes back the keys it has no field for, so an older build that saves a newer build's file no longer deletes the newer build's settings | release gate, before the tag | this stage |
+| 2.80 An unreadable settings file is reported once, and the Windows auto-scale check names `-prefs none` rather than a directory | release gate, before the tag | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

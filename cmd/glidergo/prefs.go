@@ -75,23 +75,19 @@ func loadPrefs(o *options) (*prefs.Prefs, bool) {
 	case o.prefsPath != "":
 		// An explicit file wins even for a measurement: `-shot -prefs testdata/x.json`
 		// is how a golden screenshot of the settings screen gets settings to show.
-		p, err := prefs.LoadFile(o.prefsPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
-		}
+		// An error is not printed here: it is in p.Notes as well, and reportPrefsNotes
+		// prints those, so printing it here too said the same thing twice.
+		p, _ := prefs.LoadFile(o.prefsPath)
 		return p, true
 
 	case hermetic(o):
 		return prefs.Default(), false
 	}
 
-	p, err := prefs.Load()
-	if err != nil {
-		// Load's contract is that p is usable anyway. The commonest cause is a machine
-		// with no configuration directory, where the game still plays and only the
-		// remembering is lost.
-		fmt.Fprintf(os.Stderr, "glidergo: %v\n", err)
-	}
+	// Load's contract is that p is usable anyway. The commonest error is a machine with no
+	// configuration directory, where the game still plays and only the remembering is
+	// lost, and it reaches the player as a note, as above.
+	p, _ := prefs.Load()
 	return p, true
 }
 

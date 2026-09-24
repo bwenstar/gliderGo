@@ -363,6 +363,22 @@ func TestCorruptFileIsMovedAsideNotDeleted(t *testing.T) {
 	}
 }
 
+// TestAnUnreadableFileIsANote: the error LoadFile returns is in Notes as well, because Notes
+// are the one thing cmd/glidergo prints. Printing the error too said it twice.
+func TestAnUnreadableFileIsANote(t *testing.T) {
+	path := t.TempDir() // a directory: it exists, and reading it fails
+	p, err := LoadFile(path)
+	if err == nil {
+		t.Fatal("reading a directory as a settings file returned no error")
+	}
+	if !reflect.DeepEqual(normalize(p), normalize(Default())) {
+		t.Error("an unreadable file did not leave the defaults in hand")
+	}
+	if len(p.Notes) != 1 || !strings.Contains(p.Notes[0], err.Error()) {
+		t.Errorf("notes are %q; one of them has to carry the error %q", p.Notes, err)
+	}
+}
+
 func TestValidateRepairsAndSaysSo(t *testing.T) {
 	for _, tc := range []struct {
 		name string

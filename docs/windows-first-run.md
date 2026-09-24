@@ -250,10 +250,10 @@ on Windows either:
 
 The next run on a Windows desktop checks them, in this order:
 
-1. **Auto.** With `-prefs` pointed at a directory that has no settings file, and no `-scale`, the
-   console's banner says `scale=N (auto)`. N is the largest that fits the monitor, at most 3. The
-   window is centred and clear of the taskbar. On a second monitor, launched with the pointer on
-   it, the window opens there.
+1. **Auto.** With `-prefs none`, or `-prefs` naming a file that does not exist yet, and no
+   `-scale`, the console's banner says `scale=N (auto)`. N is the largest that fits the monitor,
+   at most 3. The window is centred and clear of the taskbar. On a second monitor, launched with
+   the pointer on it, the window opens there.
 2. **The pixels, at 2×.** This is the paced run and screenshot comparison above, with `-scale 2`.
    Halve the crop by nearest neighbour and compare it with the Linux frames, as above. A block sent
    to the wrong row or column shows as a strip of the previous frame. Minimise and restore the
