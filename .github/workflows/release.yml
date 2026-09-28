@@ -690,7 +690,7 @@ jobs:
           for f in dist/*.tar.gz; do tar -tzf "$f" >/dev/null; echo "  ok $f"; done
           for f in dist/*.zip;    do unzip -qt "$f";            echo "  ok $f"; done
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: release-archives
           path: dist/
@@ -719,7 +719,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: release-archives
           path: dist

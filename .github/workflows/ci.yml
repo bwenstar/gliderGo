@@ -11,8 +11,10 @@
 # It has run on GitHub since, and the prediction above held: the first push needed two
 # corrections. The action versions had to move off Node 20 (checkout v4 -> v5, setup-go v5 -> v6),
 # and windows-latest failed `go test ./...` on two tests that had spelled a path the way Linux
-# spells one. Both are fixed. Whether the current run is green is not visible from this host, so
-# this comment does not claim it.
+# spells one. Both are fixed. A later push needed two more: upload-artifact v5 was Node 20 too
+# (v5 -> v6, with download-artifact v5 -> v7), and the `native` job failed, most likely on a
+# loopback race test that assumed an idle machine and a Linux socket (docs/IMPROVEMENTS.md 4.48).
+# Whether the current run is green is not visible from here, so this comment does not claim it.
 #
 # The `native` job's Windows half is the exception to "verified locally": nothing here can run a
 # Windows binary. It used to be the first execution of internal/platform/win32 and of the waveOut
@@ -179,7 +181,7 @@ jobs:
 
       - name: Upload the shell screenshots
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: shell-screens
           path: ${{ runner.temp }}/glidergo-shell
@@ -321,7 +323,7 @@ jobs:
       # host's cgo glidergo as `-x11`. Each one carries its own assets and would play from the
       # download, but they are inspection copies and not a release: unpackaged, unchecksummed, no
       # licence and no note saying which of them can draw. That is release.yml's job, on `v*` tags.
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: cross-binaries
           path: bin/cross/
@@ -468,7 +470,7 @@ jobs:
 
       - name: Keep the test log
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: go-test-log-${{ matrix.os }}
           path: go-test-${{ matrix.os }}.log

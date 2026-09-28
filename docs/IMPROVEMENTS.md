@@ -6908,7 +6908,8 @@ the CHANGELOG ones now name their entry instead, which does not move.
 
 They are not all of it. A spot check of the fourteen bare `release.yml:N` citations found nearly
 every one pointing at a comment, a blank line or another step, because the file has grown by
-hundreds of lines since they were written. Those are not repointed yet, and are the first work here.
+hundreds of lines since they were written. The eight `ci.yml:N` ones are the same. Those are not
+repointed yet, and are the first work here.
 
 The cheap half is to widen `ownPath` to the top-level files and to base names that are unique in the
 tree, and to check the end of a range. Drift inside a file's length needs the citation to carry
@@ -7073,9 +7074,14 @@ whether any of them needed a correction.
 
 1. The action versions ran. `actions/cache@v4` is listed and nothing uses it, so it comes off the
    list. Both workflows now pin `actions/checkout@v5`, `actions/setup-go@v6` and
-   `actions/upload-artifact@v5`, and `release.yml` adds `actions/download-artifact@v5`. The first
+   `actions/upload-artifact@v6`, and `release.yml` adds `actions/download-artifact@v7`. The first
    paragraph's "never run" now holds for the bootstrap script only: `ci.yml` has run on every
-   push since.
+   push since. Both artifact actions were `@v5` until 2026-09-28, when a CI run's annotations said
+   `upload-artifact@v5` still targets Node 20. `download-artifact` is run only by a tag, and the
+   `v0.1.2` release run's annotations, which would say whether `@v5` does too, have not been read
+   here. It moved to `@v7` anyway. By the two actions' release notes, which cannot be fetched from
+   this host, the first majors to run on Node 24 by default are `upload-artifact@v6` and
+   `download-artifact@v7`. That was not checked against GitHub before this commit.
 2. **Still open, against go.dev itself.** No workflow runs `scripts/bootstrap-dev-env.sh`,
    because CI gets Go from `setup-go`, and `--dry-run` cannot close this, because it never touches
    the network. On 2026-09-24 the whole `--source public` path ran end to end for the first time,

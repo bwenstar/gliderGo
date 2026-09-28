@@ -28,6 +28,13 @@ Everything from here down to `v0.1.2` is what this tag carries, among it the por
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
 stranger meets with a listening socket in it.
 
+### CI's artifact actions leave Node 20 (2026-09-28)
+
+`actions/upload-artifact` moves from `@v5` to `@v6`, because GitHub reported that `@v5` still
+targets Node 20. `actions/download-artifact` moves from `@v5` to `@v7`, which by its release notes
+is its first major on Node 24. `v0.1.1`'s entry says that release took every action past Node 20.
+For these two it did not.
+
 ### A player whose opponent said goodbye is no longer told it did not (2026-09-28)
 
 A player still flying when the other finished, said goodbye and closed its window was told "the
