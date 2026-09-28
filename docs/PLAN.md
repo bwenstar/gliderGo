@@ -1006,7 +1006,7 @@ backwards and is now corrected. Two of its load-bearing claims were re-verified 
       six-byte encoding to get wrong. The only streams worth writing are ones a game recorded.
     - What building it pinned: **the demo is a fidelity oracle, and the port now passes every
       check the recording can support.** When this bullet was written the glider died three
-      times in the start room, 573 of the 1117 records in. The `'bnds'` fix (`03d0cf0`,
+      times in the start room, 573 of the 1117 records in. The `'bnds'` fix (`b6f4986`,
       IMPROVEMENTS 4.24) changed that: the run now consumes all 1117 records, the game over is
       flagged at frame 3417, three frames after the stream's last record at 3414, and the run ends
       at 3432. The recorder logs nothing once `gameOver` is set, and nothing while the glider

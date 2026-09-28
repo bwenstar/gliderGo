@@ -484,7 +484,7 @@ and the new one differs from the old in 185 pixels, all of them the top of PRO.
 
 `TestTheDemoReplaysTheSameWayTwice` guards the records the shipped attract recording consumes, from
 below, with `demoRecordsFloor`. The floor was 573, the figure from the days when the glider lost all
-three lives in the start room. The `'bnds'` fix (`03d0cf0`, `docs/IMPROVEMENTS.md` 4.24) took the
+three lives in the start room. The `'bnds'` fix (`b6f4986`, `docs/IMPROVEMENTS.md` 4.24) took the
 run to all 1117 records, so the floor sat 544 below the truth and would have passed a change that
 threw most of that back. The floor is now `demo.ShippedRecords`
 (`internal/replay/replay_test.go:1281-1304`). The branch that logged a request to raise it is gone,
@@ -1782,7 +1782,7 @@ the collision rather than avoiding it.
 
 ## `v0.1.2`
 
-Tagged at `2ae2c72`. The game's code did not change from `v0.1.1`, only comments, documents, a CI
+Tagged at `27e12a0`. The game's code did not change from `v0.1.1`, only comments, documents, a CI
 step's name, the labels `make cross` prints and the release notes: this is the release whose notes
 stopped saying that the Windows code had never been run.
 

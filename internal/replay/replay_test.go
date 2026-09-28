@@ -1316,7 +1316,7 @@ func TestTheDemoReplaysTheSameWayTwice(t *testing.T) {
 }
 
 // demoRecordsFloor is how far the shipped attract recording has to get, and that is all of it.
-// Since the 'bnds' fix (03d0cf0, docs/IMPROVEMENTS.md 4.24) the run consumes every one of the
+// Since the 'bnds' fix (b6f4986, docs/IMPROVEMENTS.md 4.24) the run consumes every one of the
 // 1117 records, and the third death flags the game over three frames after the last record.
 //
 // The guard is one-sided, and the reason has not changed. The test above logs how the run goes

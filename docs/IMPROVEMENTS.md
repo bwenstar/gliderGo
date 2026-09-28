@@ -274,7 +274,7 @@ and exited 0. It is an `if` that exits 1 now (`:533-536`), and the same rehearsa
 target with `README.md still links into docs/`. The planted link has to be one the rewrite cannot
 match, such as `](docs/` with no closing parenthesis, or the `sed` rewrites it and the check passes.
 No archive shipped a bad link because of this. README.md at each of the 35 commits from `56fab17`,
-which added the pipeline, to `12bd322` comes out of the rewrite with no `](docs/` left, and 4.13's
+which added the pipeline, to `1797f9f` comes out of the rewrite with no `](docs/` left, and 4.13's
 rehearsals found none to catch.
 
 **And the `-version` line, the same day.** Both programs print `go        BSD-3-Clause, © The Go
@@ -932,7 +932,7 @@ it. That closes it as far as it can be closed without a Mac to ask; what remains
 only whether Apple's trap really was Park-Miller, which §1.5 argues from the documentation and
 §1.13 bounds the cost of.
 
-**Amended at `03d0cf0`'s follow-up: the gap this entry called the sharpest target is closed as far
+**Amended at `b6f4986`'s follow-up: the gap this entry called the sharpest target is closed as far
 as the recording can say.** The `'bnds'` fix (4.24) took the demo from 573 to all 1117 records
 consumed. The deaths are at f1781, f2043 and f3417. The third flags the game over three frames
 after the last record at 3414, and the countdown ends the run at f3432. Nothing shows those are
@@ -2828,7 +2828,7 @@ Every figure behind "fast enough" was taken at 1× or 2×:
 
 `make bench` is hermetic (2.53), so it always runs at 1×.
 
-Measured on this host (Xeon 8488C, 8 cores), HEAD `12bd322`, `Xephyr :57 -screen 2600x1980x24`.
+Measured on this host (Xeon 8488C, 8 cores), HEAD `1797f9f`, `Xephyr :57 -screen 2600x1980x24`.
 Unpaced is `-frames 300 -bench`, three runs each. Paced is `-frames 240`, with CPU taken from
 `/usr/bin/time` and from Xephyr's `/proc/<pid>/stat`:
 
@@ -7766,7 +7766,7 @@ names, and a reader will take it to cover the fourth. Defender does look.
 
 The Windows binary has most of the traits that Defender's machine-learning detections
 (`Trojan:Win32/Wacatac.B!ml` and its relatives, which the Go FAQ's entry on virus scanners exists to
-answer) tend to key on. Measured on `bin/cross/glidergo-windows-amd64.exe` at 12bd322:
+answer) tend to key on. Measured on `bin/cross/glidergo-windows-amd64.exe` at `1797f9f`:
 
 - it is unsigned and new, so it has no reputation;
 - it has no `.rsrc` section at all: no VERSIONINFO, no icon, no manifest;
@@ -7790,13 +7790,14 @@ that weak version has since run, with the result below.
 **Measured on the Windows test host, 2026-09-23: nothing fired, which answers a narrower question
 than a player's machine will ask.** The probe was `make cross`'s `glidergo-windows-amd64.exe`:
 15,716,352 bytes, sha256 `66c459714811f8dc92c6ae4f006fc7b3754a22c0b51dcd841489489cfd87f3f1`, stamped
-`9becf4b-dirty` because it was built nineteen seconds before 12bd322 was committed, and copied there
-with `scp`. The host is Windows Server 2025, with Defender platform 4.18.26030.3011 and engine
-1.1.26030.3008. Real-time, on-access, IOAV and behaviour monitoring are on and there are no
-exclusions. MAPS is at Advanced, `SubmitSamplesConsent` is 1, and Block at First Sight is left
-enabled. Those are the defaults, so the policy is a player's. Tamper Protection is off, where
-consumer Windows turns it on, and that does not change what is detected. Only the connectivity is
-not a player's.
+`9becf4b-dirty` because it was built nineteen seconds before `1797f9f` was committed, and copied
+there with `scp`. `9becf4b` is the hash that `1797f9f`'s parent, `dae1a26`, had before the commits
+after `v0.1.2` were moved onto the tag's published commit. The host is Windows Server 2025, with
+Defender platform 4.18.26030.3011 and engine 1.1.26030.3008. Real-time, on-access, IOAV and
+behaviour monitoring are on and there are no exclusions. MAPS is at Advanced, `SubmitSamplesConsent`
+is 1, and Block at First Sight is left enabled. Those are the defaults, so the policy is a player's.
+Tamper Protection is off, where consumer Windows turns it on, and that does not change what is
+detected. Only the connectivity is not a player's.
 - The file was still on disk with its hash intact 32 s after the on-write scan, and no Defender
   event had been logged.
 - `MpCmdRun -Scan -ScanType 3 -File … -DisableRemediation` reported "found no threats" and exited 0.
@@ -7874,7 +7875,7 @@ What to do:
 
 ### 5.13 A Glider PRO port with a public page and not a word about Aerofoil — **note; the README paragraph waits for a connected host (not done in the gate's docs pass, on purpose), the refusal with 4.43's importer**
 
-At 12bd322, `grep -rniE 'aerofoil|lasota'` over the whole tree returned nothing: not the README, not
+At 1797f9f, `grep -rniE 'aerofoil|lasota'` over the whole tree returned nothing: not the README, not
 PLAN, not this file, not a code comment. Aerofoil is Eric Lasota's port of the same GPLv2 source release, and
 it has been public since about 2020. Somebody who has played Glider PRO in the last few years has
 most likely played it there, so the first question they bring to this README is "why this one?", and
