@@ -6362,7 +6362,8 @@ Grand Prix, because an idle glider dies in it (frame 351) and one holding right 
   `determinism-networking.md` §10.4.9's proposed draw vector, arrived at with no recording.
 - **The guest that hangs up mid-race.** A raw peer hears the host's first report, sends one room and
   closes without a goodbye. The host settles without waiting and flies its own run to the end. It
-  scores the guest through `Abandoned` and wins by forfeit.
+  scores the guest through `Abandoned` and wins by forfeit. It is the likeliest cause of the CI
+  failure on its first run on GitHub, and is two subtests now (4.48).
 - **The host that accepts and never speaks.** The guest gives up at `raceConnectWait` and closes its
   socket, and the silent end hears its hello and then the end of the stream.
 
@@ -6595,7 +6596,7 @@ A `Report` test runs with a rising `Frame` and an injectable heartbeat interval.
 `TestReportSendsNothingWhenNothingChanged` still guards a real case (116–160 `Present`s in one
 frame during a wipe).
 
-A heartbeat is what would make a read deadline possible at all (`conn.go:32-35`). That is why
+A heartbeat is what would make a read deadline possible at all (`conn.go:32-37`). That is why
 README's "wins on the spot" is corrected now and the deadline is a later decision.
 
 **The README correction is done (PLAN release gate, step 5).** Quit, a closed window or a killed
@@ -6928,6 +6929,76 @@ never to change the scale, so that the run still depends on nothing but its invo
 backend answers with a 640×480 "no screen", which has to be told apart, or every null run above 1×
 would warn falsely. That is a change to the game with no gain in play, so it waits until after
 `v0.2.0`.
+
+### 4.48 A peer that dies mid-race can take its last standing with it, and the test that said it could not most likely failed CI — **the test DONE, 2026-09-28; the race's half a note, after the next tag**
+
+`go test ./...` failed in CI's `native` job on 2026-09-28, which is the Windows and macOS legs. The
+run's annotations name only the step, and its log has not been read here. The likeliest cause is
+`TestLoopbackRaceGuestWhoLeavesMidRaceForfeits`, 4.34's guest that hangs up mid-race, which ran on
+GitHub for the first time in that run. It could fail two ways, and `make check` on Linux had shown
+neither:
+
+- **The host's first report could be its last.** The host is a bench run, which is unpaced, and an
+  idle glider in Grand Prix dies at frame 351, a few milliseconds in. A pending standing is
+  replaced rather than queued behind (`netplay.Race.Report`). So on a busy machine the first
+  standing to go out can already say "out of gliders", and the test stopped there. At
+  `GOMAXPROCS=1` it failed 28 of 30 runs.
+- **The host could lose the guest's one report.** The guest closed with the host's standings
+  unread, which is a reset. Windows discards data that has arrived unread when a reset comes in,
+  so the host scored the guest on nothing instead of on its one room. On Windows Server 2025 that
+  happened in 12 of 30 runs.
+
+**The test, DONE.** `heldWin` stops the host's run at its first frame's present, until the guest
+has gone, so the guest always leaves a race the host is still flying. The host then flies on to the
+end, as before. The guest's first read has a deadline, so a held host that says nothing fails the
+test instead of hanging it. The test is two subtests now, one for each way the host can hear the
+guest go:
+
+- `closing`: the guest shuts its sending side and goes on reading, which no dying process does. The
+  host hears the report and then the end of the stream, and nothing it writes is refused. It must
+  score exactly that standing, and report no error.
+- `reset`: `SetLinger(0)` resets the connection whether or not anything is unread. A dying process
+  comes to a reset either way: at its close if anything is unread, and otherwise at the host's next
+  write. The result must be the same forfeit, with the reset reported. The guest may be scored on
+  nothing.
+
+Both passed 50 runs at `GOMAXPROCS=1`, 30 at each of `-cpu=1,2,4,8`, and 20 at `-cpu=1,4` under
+`-race`. With a busy loop on every CPU they passed 100 runs at each of `GOMAXPROCS=1` and `2`.
+
+**What the reset subtest found is the race's, not the test's.** With a busy loop on every CPU, the
+host scored the guest on nothing on Linux too: 95 of 100 runs at `GOMAXPROCS=1`, 27 of 100 at
+`GOMAXPROCS=2`. Each time, the host's writer met the reset first, and `markBroken` settled the race.
+`finishRace` took its result at once, while the guest's report was still unread in the socket. So
+on any system, a peer that dies can be scored on a standing older than its last. A plain close
+with nothing unread does the same, because the host's next write draws the reset. With the guest's
+report sent just before a plain close, 19 of 20 runs at `GOMAXPROCS=1` scored it on nothing, and
+none of 20 at `GOMAXPROCS=4`, and all 40 reported a broken pipe.
+
+`read`'s comment said a dying peer arrives as a reset but not what the reset can cost. `Conn`'s said
+it arrives as an EOF, and so did `Abandoned`'s. `markBroken`'s said waiting for the reader would
+only delay a result already decided. All four are corrected, and `read`'s also says that on Linux a
+reset the writer met first reaches the reader as a plain end of stream.
+
+The score it costs is a few frames of progress. For a peer that left mid-flight the result does not
+change: it forfeits whichever of its standings it is scored on. It would change the result only if
+the lost standing was the one that ended the peer's run. A peer that reported `Died` or `Finished`
+and then died would be scored through `Abandoned` from the standing before, as a forfeit rather
+than on its run. For that, the final standing and the reset have to arrive together. On Windows,
+both have to arrive before this side reads the socket. Elsewhere, this side's own run also has to
+end in that moment. A final standing goes out before the waiting screen is drawn, and a player
+takes longer than that to close a window. No race has shown it.
+
+The fix, after the next tag, is in two halves:
+
+- the writer's failure is recorded at once, and only its settle waits a moment for the reader. On
+  a reset the reader returns at once, and Linux and macOS hand it what arrived before the reset. On
+  Linux a writer that met the reset first has taken the error with it, so the reader then sees a
+  plain end of stream, which `read` counts as no error. The writer's error is the one to keep;
+- nothing on the receiving side can stop Windows discarding data. The side that is leaving on
+  purpose can close gracefully instead: shut its sending side, go on reading for a moment, then
+  close. Its last standing and the end of its stream then reach the other side before any reset
+  can, so a reset that follows costs nothing. A peer still flying draws that reset with its next
+  write and is refused the one after. A killed process gets no say.
 
 ---
 

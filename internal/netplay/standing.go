@@ -185,12 +185,12 @@ func (c *Conn) SendStanding(slot uint8, s Standing) error {
 // only if its run had not already ended.
 //
 // It exists because "the connection went away" is two different events wearing one face, and the
-// difference decides the race. A peer that vanishes while still flying -- MsgBye, an io.EOF from
-// a killed process, a pulled cable -- has forfeited, and Winner's first rule says the other side
-// wins. A peer that reported Finished or Died and *then* hung up has not forfeited anything; it
-// finished the race and closed the window, which is the ordinary way a match ends. Fold the two
-// together and the common case comes out as a forfeit, which would mean every completed race was
-// decided by whoever quit second.
+// difference decides the race. A peer that vanishes while still flying -- MsgBye, the end of stream
+// or the reset of a killed process, a pulled cable -- has forfeited, and Winner's first rule says
+// the other side wins. A peer that reported Finished or Died and *then* hung up has not forfeited
+// anything; it finished the race and closed the window, which is the ordinary way a match ends.
+// Fold the two together and the common case comes out as a forfeit, which would mean every
+// completed race was decided by whoever quit second.
 //
 // Both peers must apply this, to the same input, or they disagree about a result they each
 // compute for themselves -- so it lives here next to Winner rather than in whatever loop happens

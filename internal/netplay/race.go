@@ -230,6 +230,14 @@ func (r *Race) read() {
 			// data unread is reset rather than closed -- so what arrives is a reset here, or
 			// a refused write in the writer, and it is reported. cmd/glidergo's
 			// loopback_test.go is where that was found.
+			//
+			// A reset can also cost the standing the peer sent just before it. Windows
+			// discards whatever had arrived unread when the reset comes in. On any system
+			// the writer can meet the reset first and settle the race while that standing
+			// is still waiting here to be read -- on Linux this reader then gets it and a
+			// plain end of stream, because the writer took the error. A caller that takes
+			// the result at once, as finishRace does when this side's run has just ended,
+			// scores the peer without it (docs/IMPROVEMENTS.md 4.48).
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
@@ -308,8 +316,9 @@ func (r *Race) sendPending() bool {
 func (r *Race) markGone(err error) { r.mark(err, false) }
 
 // markBroken records that this side can no longer send, which also means the peer will say nothing
-// more -- a socket that will not take 28 bytes is not going to deliver any either, and waiting for
-// the reader to reach the same conclusion only delays a result that is already decided.
+// more -- a socket that will not take 28 bytes is not going to receive any either. It settles the
+// race without waiting for the reader, and what the socket received before the failure may still
+// be unread then: a caller that takes the result at once scores the peer without it (see read).
 func (r *Race) markBroken(err error) { r.mark(err, true) }
 
 func (r *Race) mark(err error, broken bool) {

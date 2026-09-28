@@ -303,7 +303,7 @@ func guestHello(t *testing.T) netplay.Hello {
 }
 
 // meetAsGuest is the other machine played by hand: dial, and shake hands saying hello.
-func meetAsGuest(t *testing.T, addr string, hello netplay.Hello) (*netplay.Conn, io.Closer, netplay.Match, error) {
+func meetAsGuest(t *testing.T, addr string, hello netplay.Hello) (*netplay.Conn, net.Conn, netplay.Match, error) {
 	t.Helper()
 	trans, err := netplay.Join(context.Background(), addr, "", 5*time.Second)
 	if err != nil {
@@ -326,69 +326,149 @@ func canonical(t *testing.T, h *house.House) []byte {
 	return b
 }
 
+// heldWin is an idleWin that holds its run in the air: from the first present after the run has
+// asked for its keys, which is its first frame's, the frame loop stops until letGo is closed.
+// Presents before that are the waiting screens and the run's opening, which have to keep going
+// for the handshake to finish and the run to start.
+//
+// A bench run is unpaced, and an idle glider in Grand Prix dies in a few milliseconds of it, so a
+// test that has to do something while the host is still flying would be racing the host's CPU.
+// On a loaded machine the host's first report to go out can already be its last. Held here, the
+// run cannot end before the test lets it go. It has reported every frame it presented, because
+// wrapPresentRace reports before it presents.
+type heldWin struct {
+	idleWin
+	flying bool          // the run has asked for its keys; the play goroutine's alone
+	letGo  chan struct{} // closed by the test
+}
+
+func (w *heldWin) KeyDown(k platform.Key) bool {
+	w.flying = true
+	return w.idleWin.KeyDown(k)
+}
+
+func (w *heldWin) Present(*platform.Framebuffer) error {
+	if w.flying {
+		<-w.letGo
+	}
+	return nil
+}
+
 // A guest whose process ends mid-race -- no goodbye, just a socket closing -- has forfeited, and
 // the host is told so without waiting out anything: PLAN Stage 3's "killing the guest mid-race
 // leaves the host in a defined state". A process cannot be killed in-process, so the guest is a
-// raw peer that meets, hears the host flying, reports one room and hangs up.
+// raw peer that meets, hears the host flying, reports one room and hangs up. The host's run is
+// held until then (heldWin), and then flies on to its end. A forfeit does not stop the other
+// player's game, and a host whose glider froze when the guest's machine crashed would be a worse
+// bug than the one this is checking for.
 //
-// The host flies on to the end of its own run first. A forfeit does not stop the other player's
-// game, and a host whose glider froze when the guest's machine crashed would be a worse bug than
-// the one this is checking for.
+// The host can hear the guest go two ways, and each is a subtest:
+//
+//   - closing: the end of the stream, and nothing after it. The guest shuts only its sending
+//     side and goes on reading, which no dying process does, so nothing the host writes
+//     afterwards is refused. The host must score exactly the standing it was sent, and report no
+//     error, because a peer that closed is a forfeit and not a fault.
+//   - reset: what a dying process comes to either way. Its socket is reset if anything is unread,
+//     and mid-race a standing arrives every frame. If nothing is unread it closes, and the host's
+//     next write draws the reset. SetLinger(0) makes the close a reset whether or not anything is
+//     unread. A reset can cost the host the standing sent just before it (docs/IMPROVEMENTS.md
+//     4.48). Windows throws away what has arrived unread when the reset comes in. On any system,
+//     the host's writer can meet the reset first and settle the race before the reader has read
+//     what came ahead of it, and a host whose run ends then scores the guest on nothing. The
+//     result must be the same forfeit either way, with the reset reported.
 func TestLoopbackRaceGuestWhoLeavesMidRaceForfeits(t *testing.T) {
-	raceWaits(t, 20*time.Second, 20*time.Second)
-	host := raceApp(t, false)
-	addr := hostOnLoopback(host)
-	hostDone := playInBackground(host, shell.Race{Host: true})
+	for _, tc := range []struct {
+		name   string
+		reset  bool
+		hangUp func(net.Conn) error
+	}{
+		{"closing", false, func(c net.Conn) error {
+			if err := c.(*net.TCPConn).CloseWrite(); err != nil {
+				return err
+			}
+			go io.Copy(io.Discard, c)
+			return nil
+		}},
+		{"reset", true, func(c net.Conn) error {
+			if err := c.(*net.TCPConn).SetLinger(0); err != nil {
+				return err
+			}
+			return c.Close()
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raceWaits(t, 20*time.Second, 20*time.Second)
+			host := raceApp(t, false)
+			win := &heldWin{idleWin: *host.win.(*idleWin), letGo: make(chan struct{})}
+			host.win = win
+			addr := hostOnLoopback(host)
+			hostDone := playInBackground(host, shell.Race{Host: true})
 
-	c, trans, m, err := meetAsGuest(t, awaitAddr(t, addr, hostDone), guestHello(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	msg, err := c.Recv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r, ok := msg.(*netplay.Report); !ok || r.State.Ended() {
-		t.Fatalf("the host's first word after the handshake was %T %+v, want a standing of a "+
-			"run in progress", msg, msg)
-	}
-	left := netplay.Standing{Rooms: 1, Frame: 1}
-	if err := c.SendStanding(m.Slot, left); err != nil {
-		t.Fatal(err)
-	}
-	trans.Close()
+			c, trans, m, err := meetAsGuest(t, awaitAddr(t, addr, hostDone), guestHello(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer trans.Close()
+			// The host is held until the guest has answered, so without a deadline a host
+			// that said nothing would hang both sides until go test's own timeout.
+			trans.SetReadDeadline(time.Now().Add(loopbackPatience))
+			msg, err := c.Recv()
+			if err != nil {
+				t.Fatal(err)
+			}
+			trans.SetReadDeadline(time.Time{})
+			if r, ok := msg.(*netplay.Report); !ok || r.State.Ended() {
+				t.Fatalf("the host's first word after the handshake was %T %+v, want a "+
+					"standing of a run in progress", msg, msg)
+			}
+			left := netplay.Standing{Rooms: 1, Frame: 1}
+			if err := c.SendStanding(m.Slot, left); err != nil {
+				t.Fatal(err)
+			}
+			if err := tc.hangUp(trans); err != nil {
+				t.Fatal(err)
+			}
+			close(win.letGo)
 
-	hp := await(t, "host", hostDone)
-	if hp.err != nil {
-		t.Fatal(hp.err)
+			hp := await(t, "host", hostDone)
+			if hp.err != nil {
+				t.Fatal(hp.err)
+			}
+			r := host.raced
+			if r == nil {
+				t.Fatal("the host recorded no race")
+			}
+			if !r.settled {
+				t.Error("the host waited out raceSettleWait for a guest that had already gone")
+			}
+			if r.mine.State != netplay.Died {
+				t.Errorf("the host's run ended %v; its glider should have flown on and died",
+					r.mine.State)
+			}
+			want, lost := netplay.Abandoned(left), netplay.Abandoned(netplay.Standing{})
+			if r.theirs != want && !(tc.reset && r.theirs == lost) {
+				t.Errorf("the guest is scored as %+v, want its last standing folded as a "+
+					"departure, %+v", r.theirs, want)
+			}
+			forfeit := netplay.Outcome{Slot: int8(r.match.Slot), Reason: netplay.ByForfeit}
+			if r.out != forfeit {
+				t.Errorf("the race came out %v, want %v", r.out, forfeit)
+			}
+			if r.verdict() != "you win" {
+				t.Errorf("the host's screen says %q", r.verdict())
+			}
+			// The words are Go's and differ by system: "connection reset by peer" or "broken
+			// pipe" here, and something else on Windows (docs/IMPROVEMENTS.md 4.33).
+			switch {
+			case tc.reset && r.err == nil:
+				t.Error("the host reports nothing wrong with a connection that was reset")
+			case !tc.reset && r.err != nil:
+				t.Errorf("the host reports %q for a guest that closed its end, which is a "+
+					"forfeit and not a fault", r.err)
+			}
+			t.Logf("the guest is scored as %+v, and the host reports: %v", r.theirs, r.err)
+		})
 	}
-	r := host.raced
-	if r == nil {
-		t.Fatal("the host recorded no race")
-	}
-	if !r.settled {
-		t.Error("the host waited out raceSettleWait for a guest that had already gone")
-	}
-	if r.mine.State != netplay.Died {
-		t.Errorf("the host's run ended %v; its glider should have flown on and died", r.mine.State)
-	}
-	if want := netplay.Abandoned(left); r.theirs != want {
-		t.Errorf("the guest is scored as %+v, want its last standing folded as a departure, %+v",
-			r.theirs, want)
-	}
-	if want := (netplay.Outcome{Slot: int8(r.match.Slot), Reason: netplay.ByForfeit}); r.out != want {
-		t.Errorf("the race came out %v, want %v", r.out, want)
-	}
-	if r.verdict() != "you win" {
-		t.Errorf("the host's screen says %q", r.verdict())
-	}
-	// r.err is not checked, and is nearly always set. A process that ends with the host's
-	// standings unread in its socket -- which, mid-race, is every process that ends -- resets
-	// the connection rather than closing it, so the host's next write is refused and its result
-	// screen adds "the connection failed". From the host's end that is what happened. What it
-	// does not do is say so in words: the line is Go's, "write: broken pipe" here and
-	// something else on Windows (docs/IMPROVEMENTS.md 4.33).
-	t.Logf("the host reports: %v", r.err)
 }
 
 // A guest on another engine is refused by the host, and the host by it: **both** sides refuse,

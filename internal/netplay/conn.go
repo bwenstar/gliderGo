@@ -29,15 +29,16 @@ const lenPrefix = 4
 // window closed. Receives are not, and must not be -- one reader, because a second one would
 // take half of somebody's message.
 //
-// Conn deliberately owns no timeout. A peer whose process is killed closes its socket and the
-// reader gets io.EOF, which is the whole of what "killing the guest leaves the host in a
-// defined state" needs. A peer whose machine loses power sends nothing at all, and nothing
-// times that out: no caller sets a deadline on the net.Conn it owns, because silence scored as
-// a forfeit would let a network split score two different results (docs/IMPROVEMENTS.md 4.37).
-// Until the operating system gives up on the connection, silence is only something the panel
-// shows. What it must not do is freeze this side, and Race.Close's closeWait is what stops that.
-// §10.2.6's kStallTimeout is the lock-step equivalent and does not apply: nothing here waits
-// on the peer to take the next step, because the two simulations do not share one.
+// Conn deliberately owns no timeout. A peer whose process is killed closes its socket, and this
+// side meets the end of the stream or a reset, in the reader or the writer (Race.read). Either one
+// is the whole of what "killing the guest leaves the host in a defined state" needs. A peer whose
+// machine loses power sends nothing at all, and nothing times that out: no caller sets a deadline
+// on the net.Conn it owns, because silence scored as a forfeit would let a network split score two
+// different results (docs/IMPROVEMENTS.md 4.37). Until the operating system gives up on the
+// connection, silence is only something the panel shows. What it must not do is freeze this side,
+// and Race.Close's closeWait is what stops that. §10.2.6's kStallTimeout is the lock-step
+// equivalent and does not apply: nothing here waits on the peer to take the next step, because the
+// two simulations do not share one.
 //
 // The one exception is the handshake, and it is MeetWithin's rather than Conn's: before a match
 // is agreed, silence means only that whatever answered is not going to race.

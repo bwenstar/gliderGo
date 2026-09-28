@@ -23,9 +23,9 @@ type end struct {
 	r, w *os.File
 }
 
-// kill closes this side's writing end, which is what the other side sees when a peer's process
-// is killed: a clean end of stream, mid-match, with no MsgBye. docs/PLAN.md Stage 3's second
-// acceptance clause is exactly this.
+// kill closes this side's writing end: a clean end of stream, mid-match, with no MsgBye, which is
+// what a process killed with nothing unread looks like. docs/PLAN.md Stage 3's second acceptance
+// clause is this. Over TCP a killed process often has something unread, and is reset (Race.read).
 func (e *end) kill() { e.w.Close() }
 
 // pair gives two Conns talking to each other.

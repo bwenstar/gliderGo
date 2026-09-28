@@ -28,6 +28,19 @@ Everything from here down to `v0.1.2` is what this tag carries, among it the por
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
 stranger meets with a listening socket in it.
 
+### The race test of a guest that hangs up holds its host in the air (2026-09-28)
+
+CI's Windows and macOS job failed `go test ./...`, most likely on the loopback test of a guest that
+leaves mid-race. On a busy machine the host's run could end before the guest heard it flying. On
+Windows the host could also lose the guest's one report, because a reset throws away data that has
+arrived unread. The test now holds the host's run until the guest has gone. It checks a guest that
+shuts its sending side and goes on reading, where the host must keep its last standing exactly and
+report no error. It also checks a guest whose connection is reset, which is what a dying process
+comes to, where the result must be the same forfeit. The reset case found that on any system the
+host can score a peer that dies on a standing a few frames old. For a peer still flying that is the
+same forfeit. It would change the result only if the lost standing was the one that ended the
+peer's run, which no race has shown, and `docs/IMPROVEMENTS.md` 4.48 files the fix.
+
 ### A bench row too big for its monitor says nothing, and the Windows checks now say so (2026-09-24)
 
 `docs/windows-first-run.md` check 3 said a bench run on a monitor too small for 4× prints a
