@@ -487,7 +487,7 @@ below, with `demoRecordsFloor`. The floor was 573, the figure from the days when
 three lives in the start room. The `'bnds'` fix (`b6f4986`, `docs/IMPROVEMENTS.md` 4.24) took the
 run to all 1117 records, so the floor sat 544 below the truth and would have passed a change that
 threw most of that back. The floor is now `demo.ShippedRecords`
-(`internal/replay/replay_test.go:1281-1304`). The branch that logged a request to raise it is gone,
+(`internal/replay/replay_test.go:1318-1341`). The branch that logged a request to raise it is gone,
 because a cursor cannot consume more records than its stream holds, so it could never run again.
 
 Every figure was measured again before any document was changed. The run consumes 1117 of 1117

@@ -995,7 +995,7 @@ gone green while this entry and two other documents went on claiming 573. Stage 
 ratchet, `demoRecordsFloor` in `internal/replay/replay_test.go`, at 573: below it failed, and above
 it the test logged a request to raise the floor. The floor is now `demo.ShippedRecords`, all 1117,
 and the request branch is gone, because no run can consume more records than the stream holds
-(`internal/replay/replay_test.go:1281-1304`). Fewer than 1117 fails. A change to the physics still
+(`internal/replay/replay_test.go:1318-1341`). Fewer than 1117 fails. A change to the physics still
 does not turn the determinism test red unless it stops the flight short. And the run that plays the
 whole stream reads 3 frames past the last record, frames 3415 to 3417, before the third death flags
 the game over. That is the off-the-end read the original performed and the port counts as

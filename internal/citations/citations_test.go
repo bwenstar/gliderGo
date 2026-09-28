@@ -1277,8 +1277,8 @@ var (
 	hasAlpha = regexp.MustCompile(`[a-f]`)
 
 	// A short revision is only read as a claim about upstream when its own line says so. This
-	// repository quotes its *own* commits in the same shape -- docs/windows-first-run.md 85
-	// credits `66f6e6f` and docs/IMPROVEMENTS.md 2314 credits `acafec7` -- and those must not
+	// repository quotes its *own* commits in the same shape -- docs/windows-first-run.md
+	// credits `66f6e6f` and docs/IMPROVEMENTS.md credits `acafec7` -- and those must not
 	// be dragged into an assertion about the 1994 C. Hence the per-line requirement rather
 	// than a bare hex match, and hence .github/ISSUE_TEMPLATE/fidelity_difference.yml saying
 	// "upstream commit" on the line that names it rather than on the line above.
