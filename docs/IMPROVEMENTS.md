@@ -7875,11 +7875,14 @@ What to do:
 
 ### 5.13 A Glider PRO port with a public page and not a word about Aerofoil — **note; the README paragraph waits for a connected host (not done in the gate's docs pass, on purpose), the refusal with 4.43's importer**
 
-At 1797f9f, `grep -rniE 'aerofoil|lasota'` over the whole tree returned nothing: not the README, not
-PLAN, not this file, not a code comment. Aerofoil is Eric Lasota's port of the same GPLv2 source release, and
-it has been public since about 2020. Somebody who has played Glider PRO in the last few years has
-most likely played it there, so the first question they bring to this README is "why this one?", and
-nothing here answers it. The README has no section that compares gliderGo with anything.
+At `1797f9f`, `grep -rniE 'aerofoil|lasota'` over the whole tree found the word in one place, and
+not about the port: room 222 of ImagineHouse PRO II, one of the 22 original houses, is named
+"Aerofoil", and grep reports that house's binary file as a match. There was nothing else: not the
+README, not PLAN, not this file, not a code comment. Aerofoil is Eric Lasota's port of the same
+GPLv2 source release, and it has been public since about 2020. Somebody who has played Glider PRO in
+the last few years has most likely played it there, so the first question they bring to this README
+is "why this one?", and nothing here answers it. The README has no section that compares gliderGo
+with anything.
 
 **What can be said, sorted by how far it can be trusted.** This host cannot open Aerofoil's
 repository, so every claim about it below is labelled.
