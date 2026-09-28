@@ -6998,7 +6998,35 @@ The fix, after the next tag, is in two halves:
   purpose can close gracefully instead: shut its sending side, go on reading for a moment, then
   close. Its last standing and the end of its stream then reach the other side before any reset
   can, so a reset that follows costs nothing. A peer still flying draws that reset with its next
-  write and is refused the one after. A killed process gets no say.
+  write and is refused the one after, which after a goodbye is not an error (4.49). A killed
+  process gets no say.
+
+### 4.49 A player whose opponent said goodbye was told it had not — **DONE, 2026-09-28**
+
+Found by the review of 4.48's test. The first to finish a race sends its last standing and a
+goodbye, then waits for the other run. If its player presses Esc and then leaves the result screen,
+its socket closes while the other player is still flying. That side's next report draws a reset,
+and the one after it is refused. `Race.mark` recorded the refusal as the race's error, because the
+goodbye before it had recorded none. So the other player's result screen said "the other player's
+game ended without saying goodbye" (`endWords`), and stdout said the connection had failed.
+`Race.Err`'s comment says a peer that said goodbye is not an error. The result and the standing
+were right, and only the words were wrong.
+
+**DONE.** A goodbye is kept as the reason the peer went, and a write refused after it is not
+recorded (`Race.bye`, `markGone`). Sending still stops.
+`TestRaceDoesNotBlameAPeerThatSaidGoodbyeForHangingUp` failed before the change, with `write |1:
+broken pipe`, and passes after it, 20 runs under `-race`. Its pipe refuses the first write where
+TCP would take it and refuse the next, which makes no difference to what it checks.
+
+A peer that goes without a goodbye is unchanged. Its end of stream is followed by the same refused
+write, which is still reported, and for a killed process the words are true. `Race.Err`'s comment
+now says so.
+
+The goodbye has to be read before the refusal, and from this game it is. A side that says goodbye
+while the other is still flying waits for that run, or for its player, before its socket closes. A
+peer that closed in the same moment as its goodbye could have one of this side's writes refused
+before the goodbye is read, and that refusal would still be recorded. That is 4.48's writer-first
+case, and the second half of its fix covers it.
 
 ---
 

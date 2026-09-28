@@ -28,6 +28,13 @@ Everything from here down to `v0.1.2` is what this tag carries, among it the por
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
 stranger meets with a listening socket in it.
 
+### A player whose opponent said goodbye is no longer told it did not (2026-09-28)
+
+A player still flying when the other finished, said goodbye and closed its window was told "the
+other player's game ended without saying goodbye". The flying player's next report drew a reset,
+the one after it was refused, and that refusal was recorded as the race's error. A write refused
+after a goodbye is not an error now (`docs/IMPROVEMENTS.md` 4.49).
+
 ### The race test of a guest that hangs up holds its host in the air (2026-09-28)
 
 CI's Windows and macOS job failed `go test ./...`, most likely on the loopback test of a guest that

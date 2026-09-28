@@ -550,6 +550,77 @@ func TestRaceKeepsAProtocolErrorWhereSomebodyWillSeeIt(t *testing.T) {
 	}
 }
 
+func TestRaceDoesNotBlameAPeerThatSaidGoodbyeForHangingUp(t *testing.T) {
+	// The first finisher who does not wait. It sends its last standing and a goodbye, its player
+	// presses Esc on the waiting screen, and its window closes while this side is still flying.
+	// Over TCP this side's next report draws a reset and the one after it is refused; over the
+	// pipe here the next one is refused at once. That refusal is the goodbye's consequence.
+	// Recorded as the race's error, it put "the other player's game ended without saying
+	// goodbye" on the result screen of a player whose opponent had said it (docs/IMPROVEMENTS.md
+	// 4.49).
+	a, b := pair(t)
+
+	said := make(chan struct{})
+	failed := make(chan error, 1)
+	go func() {
+		m, err := Meet(b.Conn, hello(9, houseHashA))
+		if err != nil {
+			failed <- err
+			return
+		}
+		if err := b.SendStanding(m.Slot, guestRun[2]); err != nil {
+			failed <- err
+			return
+		}
+		if err := b.Bye(m.Slot); err != nil {
+			failed <- err
+			return
+		}
+		close(said)
+	}()
+
+	m, err := Meet(a.Conn, hello(7, houseHashA))
+	if err != nil {
+		t.Fatalf("Meet: %v", err)
+	}
+	r := Start(a.Conn, m)
+	defer r.Close() //nolint:errcheck // closed below; this is for the ways out before that
+
+	select {
+	case err := <-failed:
+		t.Fatalf("the guest could not say goodbye: %v", err)
+	case <-said:
+	}
+	// The guest hangs up after this side has read the goodbye, as a player does: seconds after,
+	// on a result screen.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(time.Millisecond) {
+		if _, gone := r.Opponent(); gone {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the host never heard the goodbye")
+		}
+	}
+	b.r.Close()
+
+	r.Report(hostRun[1])
+	if err := r.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	r.mu.Lock()
+	broken := r.broken
+	r.mu.Unlock()
+	if !broken {
+		t.Fatal("the host's report went through; this test is meaningless unless it was refused")
+	}
+	if err := r.Err(); err != nil {
+		t.Errorf("Err = %v, for a guest that said goodbye before it hung up", err)
+	}
+	if theirs, _ := r.Opponent(); theirs != guestRun[2] {
+		t.Errorf("Opponent = %+v, want the guest's last report %+v", theirs, guestRun[2])
+	}
+}
+
 func TestCloseIsSafeTwice(t *testing.T) {
 	// Because it will be called twice. The result screen closes the race, and so does the deferred
 	// cleanup on the way out of the game loop, and neither knows about the other.

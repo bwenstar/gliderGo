@@ -59,6 +59,7 @@ type Race struct {
 	// err carries the reason when the end was not a clean departure.
 	theirs Standing
 	gone   bool
+	bye    bool // gone by a goodbye; see markGone
 	broken bool
 	err    error
 
@@ -156,7 +157,9 @@ func (r *Race) Opponent() (Standing, bool) {
 func (r *Race) Settled() <-chan struct{} { return r.settled }
 
 // Err is the protocol or transport error that ended the match, or nil. A peer that closed cleanly
-// or said goodbye is not an error: it is a forfeit, which Result already accounts for.
+// or said goodbye is not an error: it is a forfeit, which Result already accounts for. Nor is a
+// write refused after the goodbye (docs/IMPROVEMENTS.md 4.49). One refused after a clean close is,
+// because that is how a process killed with nothing unread looks.
 func (r *Race) Err() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -255,6 +258,9 @@ func (r *Race) read() {
 				r.settle()
 			}
 		case *Bye:
+			r.mu.Lock()
+			r.bye = true
+			r.mu.Unlock()
 			r.markGone(nil)
 			return
 		}
@@ -313,6 +319,11 @@ func (r *Race) sendPending() bool {
 // markGone records that the peer will say nothing more, keeping the first reason. The first,
 // because the second is usually a consequence: a reader that got a protocol error and a writer that
 // then failed to send describe one event, and the reader's is the one that explains it.
+//
+// A goodbye is a reason too, though not an error, and what follows it is its consequence. The peer
+// has finished its run, and when its player stops waiting and closes the window, this side's next
+// write draws a reset and the one after it is refused. Recorded as the race's error, that refusal
+// told a player whose opponent had said goodbye that it had not (docs/IMPROVEMENTS.md 4.49).
 func (r *Race) markGone(err error) { r.mark(err, false) }
 
 // markBroken records that this side can no longer send, which also means the peer will say nothing
@@ -325,7 +336,7 @@ func (r *Race) mark(err error, broken bool) {
 	r.mu.Lock()
 	r.gone = true
 	r.broken = r.broken || broken
-	if r.err == nil {
+	if r.err == nil && !r.bye {
 		r.err = err
 	}
 	r.mu.Unlock()
