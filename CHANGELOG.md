@@ -22,7 +22,7 @@ version number promises"). The section at the top says whether its tag has been 
 
 ## `v0.2.0`
 
-Not tagged yet.
+Tagged on 2026-09-29.
 
 Everything from here down to `v0.1.2` is what this tag carries, among it the port's own houses,
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
