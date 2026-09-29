@@ -232,8 +232,9 @@ Three things in `internal/platform/win32` were written after this run, for the r
 step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76). They build and vet for amd64 and arm64, and no
 Windows screen has shown them. CI's service-session bench asks for the centred window at every
 push to `main`, and draws into it with the new present if the window opens. Neither is checked:
-the step is best-effort, its log has not been read, and `Present` ignores what `StretchDIBits`
-returns. A `-frames` run never calls `Room`.
+the step is best-effort, the one copy of its log read here (the run for `dbfc021`) stops before
+the bench's own lines, and `Present` ignores what `StretchDIBits` returns. A `-frames` run never
+calls `Room`.
 
 - **`Room`**: the work area of the monitor under the pointer, less the frame.
 - **The placement**: the window is centred in that work area instead of `CW_USEDEFAULT`.

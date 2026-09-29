@@ -1511,7 +1511,7 @@ this early.
   identical command differ from each other in ~122,000, so it is the mixer's wall clock and not
   the platform (`docs/IMPROVEMENTS.md` 4.11).
 
-### Release gate — what the next tag needs before it is pointed at strangers — **confirmed by the user, 2026-09-24; the tag is `v0.2.0`**
+### Release gate — what the next tag needs before it is pointed at strangers — **confirmed by the user, 2026-09-24; the tag is `v0.2.0`, made on 2026-09-29**
 
 `v0.1.0`, `v0.1.1` and `v0.1.2` are tagged and published (`CHANGELOG.md:5`), and none of them
 carries `internal/netplay` or the New houses. The next tag is therefore the first a stranger meets
@@ -1686,13 +1686,14 @@ means the tag is better with it and does not wait.
    this step, and without Mark of the Web and Defender (`RELEASING.md` steps 6 and 7).
    `docs/RELEASE_TESTING.md` records no step as run on `v0.2.0-rc1`. Nobody has seen the Windows
    code written since the first run working. CI's service-session bench asks for the centred window
-   at every push to `main`, and draws into it if it opens, but the step is best-effort and its log
-   has not been read. The crash file has run on Windows only in the tests. `Room`, which auto scale
-   sizes the first window from, and the console hold have not run there at all. The release notes,
-   README and the Windows `HOW-TO-RUN.txt` all say the window has not been seen on Windows, and the
-   last two say the same of the console hold. Every test passes on Windows, in CI's `native` job
-   and, on 2026-09-29, on the Windows test host. This step is the first work after the tag, a fix it
-   needs can be 0.2.1, and step 7 still comes after it.
+   at every push to `main`, and draws into it if it opens, but the step is best-effort, and the one
+   copy of its log read here, from the run for `dbfc021`, stops before the bench's own lines. The
+   crash file has run on Windows only in the tests. `Room`, which auto scale sizes the first window
+   from, and the console hold have not run there at all. The release notes, README and the Windows
+   `HOW-TO-RUN.txt` all say the window has not been seen on Windows, and the last two say the same
+   of the console hold. Every test passes on Windows, in CI's `native` job and, on 2026-09-29, on
+   the Windows test host. This step is the first work after the tag, a fix it needs can be 0.2.1,
+   and step 7 still comes after it.
 7. **Announced, last.** After step 6 and after 5.1's connected-host checks, because the
    announcement is when strangers arrive. Where to announce is the user's call. Package-manager
    manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag and run into 5.4's

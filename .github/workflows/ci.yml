@@ -12,9 +12,9 @@
 # corrections. The action versions had to move off Node 20 (checkout v4 -> v5, setup-go v5 -> v6),
 # and windows-latest failed `go test ./...` on two tests that had spelled a path the way Linux
 # spells one. Both are fixed. A later push needed two more: upload-artifact v5 was Node 20 too
-# (v5 -> v6, with download-artifact v5 -> v7), and the `native` job failed, most likely on a
-# loopback race test that assumed an idle machine and a Linux socket (docs/IMPROVEMENTS.md 4.48).
-# The push with both fixes ran green, and so did the v0.2.0-rc1 tag's release, which published.
+# (v5 -> v6, with download-artifact v5 -> v7), and on Windows the `native` job failed a loopback
+# race test that assumed an idle machine and a Linux socket (docs/IMPROVEMENTS.md 4.48). The push
+# with both fixes ran green, and so did the release runs of the v0.2.0-rc1 and v0.2.0 tags.
 #
 # The `native` job's Windows half is the exception to "verified locally": nothing here can run a
 # Windows binary. It used to be the first execution of internal/platform/win32 and of the waveOut

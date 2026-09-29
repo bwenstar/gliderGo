@@ -2945,7 +2945,7 @@ above 2×, any laptop, any battery.
   byte the same, measured side by side on the loaded host. It did not reproduce the 4.6 → 1.7 ms
   above: `BenchmarkExpand` reads 67 µs at 1× and 2.5–3.9 ms at 2–4× on the same host, now under
   more load.
-- **The bench row.** A timed run's last line reads `N of CPU, P% of one core; slowest frame D, at
+- **The bench row.** A timed run's CPU line reads `N of CPU, P% of one core; slowest frame D, at
   frame F`. That is `Getrusage` on Linux and the BSDs, `GetProcessTimes` on Windows, and nothing
   elsewhere. `make bench` runs `-scale 1` and `-scale 4` flat out, then 150 frames paced at 4×.
   CI's two Xvfb steps are `2600x1980x24`.
@@ -6366,8 +6366,8 @@ Grand Prix, because an idle glider dies in it (frame 351) and one holding right 
   `determinism-networking.md` §10.4.9's proposed draw vector, arrived at with no recording.
 - **The guest that hangs up mid-race.** A raw peer hears the host's first report, sends one room and
   closes without a goodbye. The host settles without waiting and flies its own run to the end. It
-  scores the guest through `Abandoned` and wins by forfeit. It is the likeliest cause of the CI
-  failure on its first run on GitHub, and is two subtests now (4.48).
+  scores the guest through `Abandoned` and wins by forfeit. It failed CI's Windows leg on its first
+  run on GitHub, and is two subtests now (4.48).
 - **The host that accepts and never speaks.** The guest gives up at `raceConnectWait` and closes its
   socket, and the silent end hears its hello and then the end of the stream.
 
@@ -6942,10 +6942,11 @@ backend answers with a 640×480 "no screen", which has to be told apart, or ever
 would warn falsely. That is a change to the game with no gain in play, so it waits until after
 `v0.2.0`.
 
-### 4.48 A peer that dies mid-race can take its last standing with it, and the test that said it could not most likely failed CI — **the test DONE, 2026-09-28; the race's half a note, after the next tag**
+### 4.48 A peer that dies mid-race can take its last standing with it, and the test that said it could not was the one that failed CI — **the test DONE, 2026-09-28; the race's half a note, after the next tag**
 
 `go test ./...` failed in CI's `native` job on 2026-09-28, which is the Windows and macOS legs. The
-run's annotations name only the step, and its log has not been read here. The likeliest cause is
+run's annotations name only the step, and whether the macOS leg failed too is not recorded here.
+The Windows leg's log, read on 2026-09-29, names the test:
 `TestLoopbackRaceGuestWhoLeavesMidRaceForfeits`, 4.34's guest that hangs up mid-race, which ran on
 GitHub for the first time in that run. It could fail two ways, and `make check` on Linux had shown
 neither:
@@ -6954,7 +6955,9 @@ neither:
   idle glider in Grand Prix dies at frame 351, a few milliseconds in. A pending standing is
   replaced rather than queued behind (`netplay.Race.Report`). So on a busy machine the first
   standing to go out can already say "out of gliders", and the test stopped there. At
-  `GOMAXPROCS=1` it failed 28 of 30 runs.
+  `GOMAXPROCS=1` it failed 28 of 30 runs. CI's Windows leg failed that way. Its log quotes the check
+  at `cmd/glidergo/loopback_test.go:352` at `f62aa21`, and the host's first report there already
+  said "out of gliders", at frame 351.
 - **The host could lose the guest's one report.** The guest closed with the host's standings
   unread, which is a reset. Windows discards data that has arrived unread when a reset comes in,
   so the host scored the guest on nothing instead of on its one room. On Windows Server 2025 that
@@ -6980,8 +6983,7 @@ Both passed 50 runs at `GOMAXPROCS=1`, 30 at each of `-cpu=1,2,4,8`, and 20 at `
 On Windows Server 2025, on 2026-09-29, the test built with Go 1.27.1 passed 530 of 530 runs: 60
 at `-cpu=1,2`, 40 in a run of all seven loopback race tests at `-cpu=1,2` (280 of 280), 30 beside
 a run of the whole suite, and 400 in two processes at once beside another. The old test had failed
-12 of 30 there, and CI's `native` job has been green since the change. Both fit the likeliest cause
-without proving it, because the failing run's log has still not been read.
+12 of 30 there, and CI's `native` job has been green since the change.
 
 **What the reset subtest found is the race's, not the test's.** With a busy loop on every CPU, the
 host scored the guest on nothing on Linux too: 95 of 100 runs at `GOMAXPROCS=1`, 27 of 100 at
@@ -7113,10 +7115,25 @@ whether any of them needed a correction.
    right archive, verified its sha256, installed it and wrote `scripts/env.sh`. What is left is
    whether go.dev's real index has the shape the code reads, which needs someone on a connected
    host to run `scripts/bootstrap-dev-env.sh --source public`.
-3. Answered by the Actions log, in the `check` job's "On-screen bench under Xvfb" step and in
-   `release.yml`'s `verify` job. The line is pasted here when someone reads it. The screen in
-   both is now `2600x1980x24` rather than `640x480x24`, so that a 4× window fits (2.76). The
-   depth argument still matters for the reason given above.
+3. **Answered by the Actions log.** The step is the `check` job's "On-screen bench under Xvfb", and
+   `release.yml`'s `verify` job has one too. The screen in both is now `2600x1980x24` rather than
+   `640x480x24`, so that a 4× window fits (2.76). The depth argument still matters for the reason
+   given above. In CI's run for `dbfc021`, the commit that dated `CHANGELOG.md`'s `v0.2.0` section,
+   both unpaced rows ran on the X11 backend, and 4× was as fast as 1×. Xvfb draws into memory and
+   shows nothing, so this says the backend works there, not what a screen costs (2.76). Here are
+   each row's lines from its banner to its CPU line, from the one copy of the log read here, which
+   stops inside the 4× row's CPU line:
+
+   ```
+   glidergo: version=dbfc021 backend=x11 surface=640x480 scale=1 neighbors=9 seed=16807
+   glidergo: 300 frames in 223ms (1343.7 fps), score 0, 6 stars left
+   glidergo: unpaced -- 44.7x the original's 30.07 fps target
+   glidergo: 226ms of CPU, 101% of one core; slowest frame 27.4ms, at frame 0
+   glidergo: version=dbfc021 backend=x11 surface=640x480 scale=4 neighbors=9 seed=16807
+   glidergo: 300 frames in 218ms (1378.4 fps), score 0, 6 stars left
+   glidergo: unpaced -- 45.8x the original's 30.07 fps target
+   glidergo: 220ms of CPU, 101% of one core; slo
+   ```
 
 ### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **found, planned, and DONE, 2.4 — all four consequences, and the fix turned out to have a fifth property nobody asked for**
 
@@ -7299,7 +7316,7 @@ only way to reach it). `make assets` still re-derives the tree from `GliderPRO/`
 the archive after it. And the Makefile grew an `embedded` guard: every build target refuses to
 build without `assets/extracted.zip` rather than producing an executable that comes up empty.
 
-### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0`, `v0.1.1` and `v0.1.2` are published, and `v0.2.0-rc1` as a prerelease on 2026-09-29; the amendment DONE in PLAN step 5, but for what needs a connected machine**
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0`, `v0.1.1` and `v0.1.2` are published, `v0.2.0-rc1` as a prerelease on 2026-09-29, and `v0.2.0` the same day; the amendment DONE in PLAN step 5, but for what needs a connected machine**
 
 `.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
 list as future work: `make cross` plus the host's cgo build, six archives of two binaries each
@@ -7833,7 +7850,7 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
     racing (`internal/netplay`). They were built with whichever 1.23 patch setup-go chose for
     `go.mod`'s `go 1.23`, which was not recorded, and no 1.23 patch fixes either of the two. Until
     2026-09-29 this bullet said they carry all three, and so did `CHANGELOG.md` and PLAN §4.
-    `v0.2.0` is the fix.
+    `v0.2.0` is the fix. Its notes were to say so, and do not (**`v0.2.0`, 2026-09-29**, below).
 - **The toolchain.** `release.yml`'s `verify` and `build` and `ci.yml`'s `cross` and `native` use
   `go-version: ${{ env.GO_RELEASE }}` with `check-latest: true`, because without it setup-go takes
   whatever 1.27 patch the runner image has cached. `check` and `citations` stay on `go.mod`.
@@ -7891,6 +7908,15 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
 that job, so govulncheck found none that the code calls on `GO_RELEASE`, for `GOOS=linux`,
 `windows` and `darwin`. The log has not been read here, so whether it listed any that the code
 does not call is not known.
+
+**`v0.2.0`, 2026-09-29.** Its Release run was green first time, so its `verify` job's scan found
+nothing the code calls either, and its notes name go1.27.1, the patch scanned and tested here
+(**Done**, above). As with the rc, whether the log listed any that the code does not call is not
+known. The notes do not say that the `v0.1.x` releases reach two vulnerabilities that this release
+fixes, which this item asked of them before the tag. Nor does anything in the tag: its
+`CHANGELOG.md`, which every archive has, says the `v0.1.x` releases carry all three. Only `main`'s
+copy says two, since it was corrected after the tag. Adding a line to the published notes by hand
+is the owner's call.
 
 ### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the whole price DONE (PLAN release gate step 5); the connected-machine check before each tag, and for `v0.2.0` after it (PLAN §4, step 6), the resource experiments after 4.42**
 

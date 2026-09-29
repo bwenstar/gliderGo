@@ -155,7 +155,6 @@ Each of these **needs a connected machine**.
   GLIDERGO_TOOLCHAIN_DIR=$(mktemp -d) scripts/bootstrap-dev-env.sh --source public
   ```
 
-- Paste the bench line from a CI run's "On-screen bench under Xvfb" step into 5.1, check 3.
 - README has no word yet about Aerofoil, the other Glider PRO port. Every fact that paragraph
   would state is to be checked against Aerofoil's own pages first (`docs/IMPROVEMENTS.md` 5.13).
 
@@ -166,3 +165,4 @@ Each of these **needs a connected machine**.
 | `v0.1.0` | not recorded here | not recorded here | Go 1.23; `docs/IMPROVEMENTS.md` 5.11 has the vulnerabilities that carries | not checked |
 | `v0.1.1` | not recorded here | not recorded here | Go 1.23, as above | not checked |
 | `v0.1.2` | not recorded here | not recorded here | Go 1.23, as above | not checked |
+| `v0.2.0` | green first time, 2026-09-29; its URL is not recorded here yet | no; whether the published notes get a line by hand is the owner's call (`docs/IMPROVEMENTS.md` 5.11) | go1.27.1 | not checked yet, and the first work after this tag ("After the tag", step 4) |
