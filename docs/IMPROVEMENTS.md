@@ -7812,7 +7812,7 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
   (`golang.org/x/vulndb`), so `cmd/indexdb` built one: 4,474 entries, as of vulndb commit
   `f197f14625e2` (2026-09-17). The Go toolchains came out of `golang:1.27-bookworm` (go1.27.1) and
   `golang:1.26-bookworm` (go1.26.8), by DEV_ENVIRONMENT §3's container trick.
-  - **go1.23.12**, the Go the v0.1.x releases were built with, reaches three vulnerabilities,
+  - **go1.23.12**, the last 1.23 patch, reaches three vulnerabilities in the code as it is now,
     identically under `GOOS=linux` and `GOOS=windows`:
     - GO-2026-4971, a panic in `net`'s Dial and LookupPort on a NUL byte, on Windows (fixed in
       1.25.10). It is reached from `cmd/glidergo/race.go:741` (`defaultRoute`) and
@@ -7823,10 +7823,17 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
       game uses no `os.Root`, but govulncheck counts the `ReadDir` it goes through.
     - GO-2026-4342, CPU spent building a zip's index (fixed in 1.24.12). It is reached from
       `internal/house/binary.go:322` (`LoadFS` on a zip), which is how a house in an archive loads.
-    - Also 3 in imported packages and 39 in modules, which the code does not call.
+    - Also, as Linux, 3 in imported packages and 39 in modules, which the code does not call. As
+      Windows it is 2 and 40.
   - **go1.26.8 and go1.27.1**: "No vulnerabilities found", as Linux and as Windows, and 1.27.1 as
     macOS too, and as Linux with cgo off.
-  - The v0.1.x releases carry the three. The next release is the fix, and its notes should say so.
+  - The `v0.1.x` releases reach two of the three. Scanned here with go1.23.12 on 2026-09-29, as
+    Linux and as Windows, the commit of each of their tags (`acafec7`, `069d134`, `27e12a0`) reaches
+    GO-2026-4602 and GO-2026-4342. None of those commits imports `net`, so GO-2026-4971 came in with
+    racing (`internal/netplay`). They were built with whichever 1.23 patch setup-go chose for
+    `go.mod`'s `go 1.23`, which was not recorded, and no 1.23 patch fixes either of the two. Until
+    2026-09-29 this bullet said they carry all three, and so did `CHANGELOG.md` and PLAN §4.
+    `v0.2.0` is the fix.
 - **The toolchain.** `release.yml`'s `verify` and `build` and `ci.yml`'s `cross` and `native` use
   `go-version: ${{ env.GO_RELEASE }}` with `check-latest: true`, because without it setup-go takes
   whatever 1.27 patch the runner image has cached. `check` and `citations` stay on `go.mod`.

@@ -1584,10 +1584,10 @@ means the tag is better with it and does not wait.
      `go.mod` names, and `govulncheck` is clean on that minor under `GOOS=linux` and
      `GOOS=windows`. The listener and the PNG decoder are the standard library's, so its fixes
      are this port's (5.11). **DONE.** Releases build with 1.27.x, and a scan as Linux, Windows
-     and macOS gates the tag and runs weekly. Run here first: go1.23.12 reaches three standard-
-     library vulnerabilities (the Windows dialer, a directory walk, the zip index), which the
-     v0.1.x releases carry, and 1.26.8 and 1.27.1 reach none. The OS floors moved with it and are
-     stated.
+     and macOS gates the tag and runs weekly. Run here first: go1.23.12 reaches three
+     standard-library vulnerabilities (the Windows dialer, a directory walk, the zip index), and
+     1.26.8 and 1.27.1 reach none. The v0.1.x releases reach the last two. The OS floors moved
+     with the Go and are stated.
    - **Should.** Fuzz seeds for the decoders that read outside data, and a bounded hostile-house
      soak, with at least `netplay` `Recv`/`Meet` before the tag (4.30). **DONE.** Nine targets
      (the race's two, the house's four, replay scripts, pictures and a house's sounds) and a soak

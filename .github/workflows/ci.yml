@@ -76,8 +76,8 @@ env:
   GOTOOLCHAIN: local
   # The Go that releases are built with, which is not go.mod's `go 1.23` (docs/IMPROVEMENTS.md
   # 5.11). That line is the oldest Go that can build the code, and Go stopped patching 1.23 when
-  # 1.25 shipped; a release built with it carried three standard-library vulnerabilities its
-  # code reaches, in the listener's dial, the directory walk and the zip reader. `check` and
+  # 1.25 shipped. Built with it, the code reaches three standard-library vulnerabilities, in the
+  # dialer, a directory walk and the zip reader, and the v0.1.x releases reach two. `check` and
   # `citations` stay on go.mod so the floor README promises is still tested; `cross`, `native`
   # and `vuln` use this, and so does release.yml, which states it again. A newer Go keeps
   # 1.23's GODEBUG defaults, because those follow the `go` line, and the engine fingerprint
