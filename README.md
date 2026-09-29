@@ -59,9 +59,9 @@ desktop, and the pixels its window put on that screen match a Linux-rendered fra
 for pixel — [docs/windows-first-run.md](docs/windows-first-run.md) is the write-up, including the
 four things it did not cover. Two of those are worth knowing before you file a bug: nobody has
 played it with a keyboard yet, and `windows/arm64` has still never run at all. Some Windows code
-written since that run has not run on Windows yet either: the first window sized from the
-monitor, where that window is placed, a present that sends only what changed, and a console that
-waits after an error.
+written since that run has not been seen working on Windows yet either: the first window sized
+from the monitor, where that window is placed, a present that sends only what changed, and a
+console that waits after an error.
 
 ## Where it is up to
 

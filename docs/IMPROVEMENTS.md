@@ -253,7 +253,7 @@ The x/telemetry copy vendored in the same toolchain (`src/cmd/vendor/golang.org/
 already has the 2024 wording, `Copyright 2009 The Go Authors.`, and 5.11 moves releases to a newer
 minor. If Go's own LICENSE has changed the same way, the longer pattern would fail the first release
 built on that minor, although the notice was there. The shorter one matches both wordings. The
-release notes' `### Licence` (`:911-913`) and README's Licence section (`README.md:546-548`) carry
+release notes' `### Licence` (`:925-927`) and README's Licence section (`README.md:546-548`) carry
 the sentence above, naming `glidergo` and `glidertool` where it said "both binaries". The notes call
 the download one file and never mention glidertool, so "both" had nothing to refer to.
 
@@ -448,7 +448,8 @@ settings row. The pieces:
 - **Windows** does what the plan says: `GetCursorPos`, then `MonitorFromRect` (nearest), then
   `GetMonitorInfoW`'s `rcWork`, less `AdjustWindowRect` of an empty rect. The window is centred in
   that work area instead of placed with `CW_USEDEFAULT`, clamped to its top left, and falls back to
-  `CW_USEDEFAULT` if the query fails. It builds and vets for amd64 and arm64 and **has not run**.
+  `CW_USEDEFAULT` if the query fails. It builds and vets for amd64 and arm64, and **has not been
+  seen working**: CI's best-effort service-session bench asks for the centred window, unchecked.
   5.4's rehearsal checks it on the Windows test host, and `docs/windows-first-run.md` says what to
   look for.
 - **The settings row** steps auto, 1×…8×; Left from 1× reaches auto, and R resets to it. It shows
@@ -3001,10 +3002,11 @@ door on this host, and 4× for four seconds. With it, a wipe costs about 0.1 s a
 most of that is per-present work, not pixels. 2.4 still wants the wipe paced to about a third of a
 second, and now a door can afford that.
 
-**The cap stays.** 2.1's rule was "both backends", and win32's changed-rows present has only been
-compiled. So `autoMax` is 3, and 4× on a 4K monitor is one keystroke on the settings row. Lifting
-it is one constant once 5.4's rehearsal has read a win32 window back and run `make bench`'s three
-rows on the Windows host.
+**The cap stays.** 2.1's rule was "both backends", and win32's changed-rows present has not been
+seen working: CI's best-effort bench draws with it only if its window opens, and checks nothing. So
+`autoMax` is 3, and 4× on a 4K monitor is one keystroke on the settings row. Lifting it is one
+constant once 5.4's rehearsal has read a win32 window back and run `make bench`'s three rows on the
+Windows host.
 
 Still open:
 - **Item 2**, the server-side row repeat, is now for the whole-frame case only: a shell screen, an
@@ -7385,9 +7387,10 @@ documents, and a dozen skip rules would defeat it.
   registry, so a mirror on one is only for rehearsing locally with podman.
 
 **Pre-tag, in addition to the `Zone.Identifier` rehearsal:** the gate list in PLAN §4's release
-gate. That includes the first run of step 4's win32 code: auto, the centred placement, the
-changed-rows present read back at 2×, and the three bench rows that decide 2.76's cap.
-`docs/windows-first-run.md`'s "What has changed since" has the steps.
+gate. That includes the first run on a Windows desktop of step 4's win32 code: auto, the centred
+placement, the changed-rows present read back at 2×, and the three bench rows that decide 2.76's
+cap. `v0.2.0` is tagged without either (PLAN §4, step 6), so for that tag both are the first work
+after it. `docs/windows-first-run.md`'s "What has changed since" has the steps.
 
 **Done, in PLAN release gate step 5, except what needs a connected machine.**
 - `project.Releases` is back. `-version` has a `releases` row between `home` and `bugs`, in both
@@ -7857,7 +7860,7 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
   checksums. Neither is compiled into gliderGo, and CI's install checks against the real checksum
   database. A local result is a second opinion, and CI's is the one that gates.
 
-### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the whole price DONE (PLAN release gate step 5); the connected-machine check before the next tag, the resource experiments after 4.42**
+### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the whole price DONE (PLAN release gate step 5); the connected-machine check before each tag, and for `v0.2.0` after it (PLAN §4, step 6), the resource experiments after 4.42**
 
 4.13 and 5.4 prepare a player for SmartScreen, Mark of the Web and Gatekeeper. All three are
 warnings with a way past them. Microsoft Defender Antivirus is a different component, and it does a
@@ -7935,7 +7938,8 @@ What to do:
    not chased. Then use a Windows machine with real-time and cloud protection on:
    `Get-MpComputerStatus` shows `RealTimeProtectionEnabled`, and `Get-MpPreference` shows a non-zero
    `MAPSReporting`. Download the zip in Edge, extract it in Explorer and double-click the exe. The
-   expected result is the SmartScreen dialog and nothing from Defender.
+   expected result is the SmartScreen dialog and nothing from Defender. `v0.2.0` is tagged
+   without it (PLAN §4, step 6), so for that tag it is `RELEASING.md`'s after-the-tag step 4 alone.
 2. **If Microsoft flags either file,** submit it at
    `https://www.microsoft.com/en-us/wdsi/filesubmission` as a software developer, marked incorrectly
    detected. Give the release URL, the tag, the zip's `SHA256SUMS` line and the flagged file's own

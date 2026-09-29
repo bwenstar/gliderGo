@@ -226,11 +226,14 @@ Four gaps, stated plainly because the release notes point here for them.
 Also untested: more than one sound device, a machine with no sound device at all (the code has a
 path for it), any non-US keyboard layout, and a full game played through to a high score.
 
-## What has changed since, and has not run on Windows
+## What has changed since, and has not been seen working on Windows
 
 Three things in `internal/platform/win32` were written after this run, for the release gate's
-step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76). They build and vet for amd64 and arm64, and nothing
-has executed them:
+step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76). They build and vet for amd64 and arm64, and no
+Windows screen has shown them. CI's service-session bench asks for the centred window at every
+push to `main`, and draws into it with the new present if the window opens. Neither is checked:
+the step is best-effort, its log has not been read, and `Present` ignores what `StretchDIBits`
+returns. A `-frames` run never calls `Room`.
 
 - **`Room`**: the work area of the monitor under the pointer, less the frame.
 - **The placement**: the window is centred in that work area instead of `CW_USEDEFAULT`.
@@ -350,6 +353,7 @@ whether *Run anyway* is behind *More info* as
 [`.github/workflows/release.yml`](../.github/workflows/release.yml)'s release notes tell a player it
 is. `Unblock-File .\glidergo.exe` removes the stream again, so the test can be repeated.
 
-Worth doing before the next tag is pushed, because those notes currently describe this from
-documentation rather than from having watched it (`docs/IMPROVEMENTS.md` 4.13). It is also the only
-caveat in that file which does not need github.com to check.
+Worth doing before every tag, because those notes describe this from documentation rather than
+from having watched it (`docs/IMPROVEMENTS.md` 4.13). `v0.2.0` is tagged without it (`docs/PLAN.md`
+§4, step 6), so for that tag it is the first work after it. It is also the only caveat in that file
+which does not need github.com to check.

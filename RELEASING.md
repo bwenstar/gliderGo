@@ -37,9 +37,9 @@ No test runs the commands in this file: `make docs-check` reads only README.md a
    for a release on its own.
 
 3. **The release gate in `docs/PLAN.md` §4.** Each **Gate** line is either done or moved out of
-   the gate on purpose. That includes the first Windows run of the code written since the first
-   one, all of which `docs/windows-first-run.md` lists under "What has changed since", and
-   which step 8 runs:
+   the gate on purpose. That includes the first run on a Windows desktop of the code written
+   since the first one, all of which `docs/windows-first-run.md` lists under "What has changed
+   since", and which step 8 runs:
    - auto scale;
    - the centred window;
    - the changed-rows present, read back at 2×;
@@ -91,7 +91,10 @@ No test runs the commands in this file: `make docs-check` reads only README.md a
 8. **The list in `docs/RELEASE_TESTING.md`**, on the rc's archives: two houses played through,
    the Windows window, keys and firewall, and a race with Windows hosting. Fill in its "Last run"
    table. Anything it finds is fixed in the release notes' or the README's wording before the
-   tag, or filed.
+   tag, or filed. Then make the notes' "What a person checked" agree with the table. That section
+   ends by saying `v0.2.0` went without the list, and the next tag says what the table records
+   instead. Steps 6 to 8 are left out only when the owner moves them out of the gate in
+   `docs/PLAN.md` §4, as for `v0.2.0`.
 
 Then date the section and tag, on the same day. The date is one command, for GNU `sed` as on
 Linux, and `git diff --stat` shows it changed one line of `CHANGELOG.md`:
@@ -133,6 +136,9 @@ Each of these **needs a connected machine**.
    which writes Mark of the Web itself. Double-clicking the exe should give what step 6 recorded,
    "Windows protected your PC" with **Run anyway** behind **More info**, and nothing from
    Defender. A file copied over `scp` carries no stream, which is why step 6 writes one by hand.
+   For `v0.2.0`, which left out steps 6 to 8, there is nothing recorded to compare with: expect
+   what the release notes say, and record this as the first run of steps 6 and 7. Step 8's list
+   follows on the same archives, as the first work after that tag (`docs/PLAN.md` §4, step 6).
 
 5. **Fill in the tag's row** under "Record": the Release run's URL, whether the tag needed a
    correction, the Go the release notes name, and what steps 6, 7 and 4 found.

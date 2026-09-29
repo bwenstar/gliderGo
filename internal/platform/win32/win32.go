@@ -14,10 +14,11 @@
 // the frames the same version renders on Linux and matched exactly. Window creation, the message
 // pump, the blit and the scaled blit all work. docs/windows-first-run.md is the write-up.
 //
-// Since that run, and not yet run anywhere: Room, which sizes the window to the monitor, the
-// window's placement in the middle of that monitor, and a Present that sends only what a frame
+// Since that run, and not yet seen working anywhere: Room, which sizes the window to the monitor,
+// the window's placement in the middle of that monitor, and a Present that sends only what a frame
 // changed (docs/IMPROVEMENTS.md 2.1, 2.76). The next Windows rehearsal compares pixels again for
-// exactly that reason.
+// exactly that reason. CI's service-session bench (below) asks for the placement, and reaches the
+// Present only if its window opens; nothing checks what it drew, and no hermetic run calls Room.
 //
 // What that does NOT cover, and what a reader should still distrust: keyboard input, because the
 // run was driven by -frames and nobody pressed a key; arm64, which no machine here or there can

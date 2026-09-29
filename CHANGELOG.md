@@ -28,6 +28,19 @@ Everything from here down to `v0.1.2` is what this tag carries, among it the por
 racing another machine, and the release gate that `docs/PLAN.md` §4 set for the first tag a
 stranger meets with a listening socket in it.
 
+### `v0.2.0` goes out without the checks by a person (2026-09-29)
+
+No Windows desktop was to hand, and the owner moved `docs/RELEASE_TESTING.md`'s list out of
+`v0.2.0`'s gate, its two houses included, with Mark of the Web and the Defender check
+(`docs/PLAN.md` §4, step 6). Its "Last run" table says so row by row, and the release notes'
+"What a person checked" says so too. The notes, their table of archives included, and the
+Windows `HOW-TO-RUN.txt` now say that this release's window has not been seen on Windows: its
+size, its place and the present that sends only what changed. `HOW-TO-RUN.txt` says the same of
+the console's wait after an error. README had said that code had not run there. CI's
+best-effort service-session bench may run the placement and the present, but its log has not
+been read, so README and `docs/windows-first-run.md` now say the code has not been seen
+working. Every test passes on Windows.
+
 ### CI's artifact actions leave Node 20 (2026-09-28)
 
 `actions/upload-artifact` moves from `@v5` to `@v6`, because GitHub reported that `@v5` still

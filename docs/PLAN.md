@@ -1612,7 +1612,8 @@ means the tag is better with it and does not wait.
      window sent nothing. It turned out to be needed rather than nice to have. A room wipe is
      116–160 presents in one frame, and with whole frames it froze the game for 1.45 s at every
      door at the new 2× default, and 4.2 s at 4×. It is about 0.1 s now at every scale. The
-     win32 half compiles and has not run; 5.4's rehearsal reads a window back.
+     win32 half has not been seen working. CI's best-effort bench draws with it if its window
+     opens, and nothing checks what it drew; 5.4's rehearsal reads a window back.
    - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
      **DONE.** A run a player starts keeps `crash.log` beside `scores/` and `saves/`: the
      `-version` block, then whatever stopped the run. The next start keeps a crash as
@@ -1678,6 +1679,19 @@ means the tag is better with it and does not wait.
    more. So both `.exe`s are looked up on VirusTotal, and one zip is downloaded through
    Edge on a connected Windows machine with cloud protection on (5.12, step 1). The quarantine
    paragraph is step 5's.
+
+   **Moved out of `v0.2.0`'s gate by the owner, 2026-09-29.** No Windows desktop was to hand, and
+   the two houses played through went out with the Windows checks, so `v0.2.0` is tagged without
+   this step, and without Mark of the Web and Defender (`RELEASING.md` steps 6 and 7).
+   `docs/RELEASE_TESTING.md` records no step as run on `v0.2.0-rc1`. Nobody has seen the Windows
+   code written since the first run working. CI's service-session bench asks for the centred window
+   at every push to `main`, and draws into it if it opens, but the step is best-effort and its log
+   has not been read. The crash file has run on Windows only in the tests. `Room`, which auto scale
+   sizes the first window from, and the console hold have not run there at all. The release notes,
+   README and the Windows `HOW-TO-RUN.txt` all say the window has not been seen on Windows, and the
+   last two say the same of the console hold. Every test passes on Windows, in CI's `native` job
+   and, on 2026-09-29, on the Windows test host. This step is the first work after the tag, a fix it
+   needs can be 0.2.1, and step 7 still comes after it.
 7. **Announced, last.** After step 6 and after 5.1's connected-host checks, because the
    announcement is when strangers arrive. Where to announce is the user's call. Package-manager
    manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag and run into 5.4's

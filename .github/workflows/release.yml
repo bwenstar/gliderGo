@@ -38,13 +38,15 @@
 # archives are named `-headless` so nobody downloads one expecting to play. macOS is stage 6.
 #
 # The windows archives used to carry a caveat the linux one did not -- that neither the backend nor
-# the sound behind it had ever been executed. For windows-amd64 that is no longer true: it has been
+# the sound behind it had ever been executed. For windows-amd64 that is no longer true: v0.1.1 was
 # run on Windows Server 2025 on a real interactive desktop, and the window's pixels matched a
-# Linux-rendered frame exactly (docs/windows-first-run.md). windows-arm64 keeps the caveat, because
-# the machine that ran the tests was x86-64 and nothing here has an ARM64 Windows to try. What is
-# also no longer a gap is sound: internal/audio has a native waveOut driver, so an unzipped .exe
-# plays without FFmpeg or anything else installed, and `-audio ffplay` is the way round it if the
-# driver misbehaves (docs/IMPROVEMENTS.md 2.48). The release notes below say all of this in the
+# Linux-rendered frame exactly (docs/windows-first-run.md). The window code written since -- auto
+# scale, the centred placement and the changed-rows present -- has not been seen working there yet
+# (that file's "What has changed since"), and the notes say so. windows-arm64 keeps the caveat,
+# because the machine that ran the tests was x86-64 and nothing here has an ARM64 Windows to try.
+# What is also no longer a gap is sound: internal/audio has a native waveOut driver, so an unzipped
+# .exe plays without FFmpeg or anything else installed, and `-audio ffplay` is the way round it if
+# the driver misbehaves (docs/IMPROVEMENTS.md 2.48). The release notes below say all of this in the
 # reader's terms rather than the maintainer's.
 #
 # NOTHING HERE IS SIGNED, AND TWO OPERATING SYSTEMS SAY SO LOUDLY. This is the last thing between a
@@ -77,8 +79,9 @@
 #
 #     Set-Content -Path .\glidergo.exe -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3"
 #
-# then double-click it in Explorer. Worth doing before the next tag; it is the one caveat in this
-# file that does not need the network to test.
+# then double-click it in Explorer. Worth doing before every tag, and v0.2.0 went without it
+# (docs/PLAN.md §4, step 6). It is the one caveat in this file that does not need the network to
+# test.
 
 name: Release
 
@@ -496,10 +499,10 @@ jobs:
           Double-clicking glidergo.exe in Explorer works too, and so does copying it wherever you
           keep programs: everything the game needs -- the art, the sounds, all 22 of the 1994
           houses and the ones written for this port -- is inside the .exe, which is why it is
-          15 MB. A console window opens alongside the game;
-          that is where it says which house it loaded and what it could not find. If the game
-          stops with an error, that window waits for Enter before it closes. If it crashes, the
-          report is kept in %AppData%\glidergo\crash-last.log, and the next start says so.
+          15 MB. A console window opens alongside the game; that is where it says which house it
+          loaded and what it could not find. If the game stops with an error, that window should
+          wait for Enter before it closes, which has not been tried on Windows yet. If it crashes,
+          the report is kept in %AppData%\glidergo\crash-last.log, and the next start says so.
 
           It needs Windows 10 or 11, or Windows Server 2016 or newer. An older Windows will not
           start it: the Go it is built with has dropped Windows 7 and 8, and the .exe says so in
@@ -508,12 +511,13 @@ jobs:
           ONE THING TO EXPECT ON WINDOWS.
 
           The code behind this has had far less wear than the Linux equivalent: the window, the
-          keyboard and the sound were all written on Linux, which cannot run any of them. The
-          x86-64 build has since been run on Windows Server 2025, where its screens came out
-          pixel for pixel the same as on Linux, but nobody has yet steered a glider through a
-          house on Windows by hand, and the arm64 build has never run at all. If something looks
-          wrong it probably is, and a bug report with crash-last.log or the console output in it
-          is worth a great deal. See README.md.
+          keyboard and the sound were all written on Linux, which cannot run any of them. An
+          earlier x86-64 build has been run on Windows Server 2025, where its screens came out
+          pixel for pixel the same as on Linux. This one sizes, places and draws its window in
+          new ways that nobody has yet watched on a Windows screen. Nobody has steered a glider
+          through a house on Windows by hand either, and the arm64 build has never run at all.
+          If something looks wrong it probably is, and a bug report with crash-last.log or the
+          console output in it is worth a great deal. See README.md.
 
           Sound needs nothing installed -- the game talks to Windows' own audio directly. If it
           is silent or stutters, "${cmd} -audio list" shows what this machine has, "${cmd}
@@ -743,7 +747,7 @@ jobs:
           | Archive | Plays on screen? |
           |---|---|
           | `linux-amd64` | **Yes** — X11 backend, built against libX11. |
-          | `windows-amd64` | **Yes** — GDI backend, and it has been watched doing it. |
+          | `windows-amd64` | **Yes** — GDI backend. `v0.1.1` was watched doing it; this release has not been yet (see below). |
           | `windows-arm64` | **Yes** — the same GDI backend, but never run on an ARM64 machine. |
           | anything marked `headless` | No. It runs the whole game but draws nothing yet. |
 
@@ -809,13 +813,14 @@ jobs:
 
           ### If you are on Windows, read this first
 
-          Two things, both honest rather than apologetic.
+          Three things, all honest rather than apologetic.
 
-          **The x86-64 Windows build has been run, on Windows Server 2025 (build 26100).** For
-          the first releases it had not been, and this section said so: the window, the keyboard
-          and the sound were all written on an offline Linux machine with no Windows to test on.
-          It has since been run on a real interactive desktop — 4,320 frames of *Slumberland*
-          across six runs, the paced one holding 29.9 fps against the original's 30.07 target.
+          **An earlier x86-64 Windows build has been run, on Windows Server 2025 (build 26100).**
+          For the first releases none had been, and this section said so: the window, the
+          keyboard and the sound were all written on an offline Linux machine with no Windows to
+          test on. `v0.1.1` was then run on a real interactive desktop — 4,320 frames of
+          *Slumberland* across six runs, the paced one holding 29.9 fps against the original's
+          30.07 target.
           The `waveOut` driver found a device and played every sound it asked for, 0 refused.
           The strongest result is that the six title screens the game renders came out
           **byte-identical** to the same version's output on Linux, and so did the window
@@ -830,6 +835,14 @@ jobs:
           is genuinely useful. Attach `%AppData%\glidergo\crash-last.log` if the game crashed
           (the next start points at it), or the console output. `docs/windows-first-run.md` in the
           source tree is the full write-up, including the hashes and how to reproduce them.
+
+          **This release's window has not been seen on Windows.** Since that run the game sizes
+          its window to fit the monitor, centres it on the monitor, and redraws only the parts of
+          each frame that changed. All of it builds, and every test passes on Windows, but no
+          test opens a window there, and this release was tagged before anyone had watched it on
+          a Windows screen. A window at the wrong size or in the wrong place, or strips of an old
+          frame left in it, would most likely be this new code: `-scale 2` sets the size by hand,
+          and a bug report is how it gets fixed.
 
           **Sound needs nothing installed.** The game carries its own `waveOut` driver and
           talks to Windows' audio directly — no FFmpeg, no redistributable. `-audio list` shows
@@ -900,8 +913,9 @@ jobs:
           ### What a person checked
 
           The tests cannot press keys, say whether a house is any fun, or answer a Windows
-          dialog, so a person does those on a release candidate before the tag. `docs/RELEASE_TESTING.md` in
-          the source says what was checked, on which build, and what nobody had a machine for.
+          dialog, so a person does those on a release candidate. `docs/RELEASE_TESTING.md` in the
+          source says what was checked, on which build, and what was not. For `v0.2.0` nothing
+          on that list was checked, because the tag went ahead without it.
 
           ### Licence
 

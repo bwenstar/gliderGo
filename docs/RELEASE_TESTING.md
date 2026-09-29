@@ -145,19 +145,22 @@ this release runs on, on a network that carries TCP port 1994 between the two.
 
 ## Last run
 
+`v0.2.0` went without this list. No Windows desktop was to hand, and on 2026-09-29 the owner moved
+it out of that tag's gate (`docs/PLAN.md` §4, step 6), so nobody has run a step below on any build.
+
 | Step | Build | Date | Result |
 |---|---|---|---|
-| 1 Open House | — | — | not run |
-| 2 Boarding House | — | — | not run |
-| 3 The first start | — | — | not run |
-| 4 The pixels at 2× | — | — | not run |
-| 5 The bench rows | — | — | not run |
-| 6 The crash file and the console hold | — | — | not run |
-| 7 The keys | — | — | not run |
-| 8 Away and back | — | — | not run |
-| 9 The window's size | — | — | not run |
-| 10 Closing the window | — | — | not run |
-| 11 A name on another layout | — | — | not run |
-| 12 A race, allowed | — | — | not run |
-| 13 A race, refused and undone | — | — | not run |
-| `windows-arm64` | — | — | no machine for it |
+| 1 Open House | `v0.2.0-rc1` | 2026-09-29 | not run |
+| 2 Boarding House | `v0.2.0-rc1` | 2026-09-29 | not run |
+| 3 The first start | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 4 The pixels at 2× | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 5 The bench rows | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 6 The crash file and the console hold | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 7 The keys | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 8 Away and back | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 9 The window's size | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 10 Closing the window | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 11 A name on another layout | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 12 A race, allowed | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 13 A race, refused and undone | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| `windows-arm64` | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
