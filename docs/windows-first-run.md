@@ -241,8 +241,8 @@ returns. A `-frames` run never calls `Room`.
   pointer is the block's first row. It also includes the `IsIconic` skip and a whole frame after
   `WM_PAINT`.
 
-Step 4 also added two things outside the backend (`docs/IMPROVEMENTS.md` 4.35), which have not run
-on Windows either:
+Step 4 also added two things outside the backend (`docs/IMPROVEMENTS.md` 4.35). The console hold
+has not run on Windows, and the crash file has run there only in the test binary (check 4):
 
 - **The crash file**: `%AppData%\glidergo\crash.log`, kept as `crash-last.log` by the start after
   a crash. `runtime/debug.SetCrashOutput` writes it, and the rename falls back to a copy when
@@ -290,7 +290,10 @@ The next run on a Windows desktop checks them, in this order:
    ```
 
    That makes the runtime panic in a child process on Windows, and then checks its report was
-   kept. The band test checks the `%AppData%` form of the path.
+   kept. The band test checks the `%AppData%` form of the path. That half is done: CI's `native`
+   job runs those tests on `windows-latest` at every push to `main`, and they passed on Windows
+   Server 2025 on 2026-09-29 too. The shortcut, the wait and a report in the real `%AppData%` are
+   left.
 
 ## Repeating it
 

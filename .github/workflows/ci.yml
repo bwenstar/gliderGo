@@ -14,7 +14,7 @@
 # spells one. Both are fixed. A later push needed two more: upload-artifact v5 was Node 20 too
 # (v5 -> v6, with download-artifact v5 -> v7), and the `native` job failed, most likely on a
 # loopback race test that assumed an idle machine and a Linux socket (docs/IMPROVEMENTS.md 4.48).
-# Whether the current run is green is not visible from here, so this comment does not claim it.
+# The push with both fixes ran green, and so did the v0.2.0-rc1 tag's release, which published.
 #
 # The `native` job's Windows half is the exception to "verified locally": nothing here can run a
 # Windows binary. It used to be the first execution of internal/platform/win32 and of the waveOut

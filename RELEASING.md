@@ -52,7 +52,7 @@ No test runs the commands in this file: `make docs-check` reads only README.md a
      run artifact and cannot publish anything.
 
    ```
-   git tag v0.2.0-rc1 && git push origin v0.2.0-rc1
+   git tag vX.Y.Z-rc1 && git push origin vX.Y.Z-rc1
    ```
 
 5. **govulncheck is clean on `GO_RELEASE`**, under `GOOS=linux`, `GOOS=windows` and

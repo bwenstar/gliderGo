@@ -183,7 +183,7 @@ What a public repository is actually missing:
   2.0**, plus a third issue form for fidelity differences, which is the report this project most
   wants; 5.7 records what each one says and why the covenant is still the odd one out.
 
-### 1.4 The archives ship Go's runtime and standard library without Go's licence — **DONE, the release gate's first step, as `THIRD-PARTY-NOTICES.txt` in every archive and a `-version` line; rehearsed on this host, unrun on a runner until the next tag**
+### 1.4 The archives ship Go's runtime and standard library without Go's licence — **DONE, the release gate's first step, as `THIRD-PARTY-NOTICES.txt` in every archive and a `-version` line; rehearsed on this host, and first run on a runner in `v0.2.0-rc1`'s release, 2026-09-29, which was green**
 
 Every archive has the Go runtime and standard library compiled into both of its binaries: the cgo
 linux-amd64 build, the five CGO_ENABLED=0 builds, and every `glidertool`. That code is BSD-3-Clause,
@@ -285,9 +285,10 @@ README's Licence sentence to it, and README now says `-version` prints it. The l
 for this line. It is a courtesy.
 
 **What this does not cover.**
-- release.yml cannot run on this airgapped host. Whether setup-go's GOROOT on a GitHub runner has a
-  LICENSE, and what it says, stays unverified until the next tag's workflow runs. The assertion is
-  what makes a surprise there loud.
+- release.yml cannot run on this airgapped host. The notices step first ran on a runner in
+  `v0.2.0-rc1`'s release, on 2026-09-29. That run was green, so setup-go's GOROOT there has a
+  LICENSE with the Go Authors' notice in it. Nobody here has read the rest of the file that run
+  wrote. The assertion is what makes a surprise there loud.
 - Nothing went into `credits.txt`. The licence does not ask for it.
 - No Go test reads release.yml or the staged file list, and none was added. The pre-seal
   assertion is the check, and it runs only on a runner.
@@ -4066,7 +4067,7 @@ prototype-only companions to two of the most heavily cited `.c` files in the tre
 `#define` or `struct` between them. Coverage is therefore asserted for the 67 sources and not for the
 headers.
 
-### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — and `gh release create`, the last command line nobody had run, has since run three times, for `v0.1.0`, `v0.1.1` and `v0.1.2` (5.4)**
+### 4.13 The documented command lines nobody had run, and the two that hang or say nothing — **four DONE, 2.1; nine more DONE, 2.4 (the flag ordering, `docs-check`, the walkthrough, the help lines, the `GOOS` guards, `project.Releases`, PLAN's architecture map, the unsigned-binary warnings, `release.yml`'s four `sed`s), and with that the section is closed — and `gh release create`, the last command line nobody had run, has since run four times, for `v0.1.0`, `v0.1.1`, `v0.1.2` and the prerelease `v0.2.0-rc1` (5.4)**
 
 A companion sweep to 4.12, over a different kind of claim. 4.12 checks pointers into the C; this one
 is about the instructions this project gives a *person*: the commands in the READMEs, the ones the
@@ -6968,6 +6969,12 @@ guest go:
 Both passed 50 runs at `GOMAXPROCS=1`, 30 at each of `-cpu=1,2,4,8`, and 20 at `-cpu=1,4` under
 `-race`. With a busy loop on every CPU they passed 100 runs at each of `GOMAXPROCS=1` and `2`.
 
+On Windows Server 2025, on 2026-09-29, the test built with Go 1.27.1 passed 530 of 530 runs: 60
+at `-cpu=1,2`, 40 in a run of all seven loopback race tests at `-cpu=1,2` (280 of 280), 30 beside
+a run of the whole suite, and 400 in two processes at once beside another. The old test had failed
+12 of 30 there, and CI's `native` job has been green since the change. Both fit the likeliest cause
+without proving it, because the failing run's log has still not been read.
+
 **What the reset subtest found is the race's, not the test's.** With a busy loop on every CPU, the
 host scored the guest on nothing on Linux too: 95 of 100 runs at `GOMAXPROCS=1`, 27 of 100 at
 `GOMAXPROCS=2`. Each time, the host's writer met the reset first, and `markBroken` settled the race.
@@ -7019,7 +7026,8 @@ were right, and only the words were wrong.
 recorded (`Race.bye`, `markGone`). Sending still stops.
 `TestRaceDoesNotBlameAPeerThatSaidGoodbyeForHangingUp` failed before the change, with `write |1:
 broken pipe`, and passes after it, 20 runs under `-race`. Its pipe refuses the first write where
-TCP would take it and refuse the next, which makes no difference to what it checks.
+TCP would take it and refuse the next, which makes no difference to what it checks. On Windows
+Server 2025 it passed 40 of 40, in 20 runs of the whole `netplay` package at each of `-cpu=1,2`.
 
 A peer that goes without a goodbye is unchanged. Its end of stream is followed by the same refused
 write, which is still reported, and for a killed process the words are true. `Race.Err`'s comment
@@ -7083,7 +7091,9 @@ whether any of them needed a correction.
    `v0.1.2` release run's annotations, which would say whether `@v5` does too, have not been read
    here. It moved to `@v7` anyway. By the two actions' release notes, which cannot be fetched from
    this host, the first majors to run on Node 24 by default are `upload-artifact@v6` and
-   `download-artifact@v7`. That was not checked against GitHub before this commit.
+   `download-artifact@v7`. That was not checked against GitHub before this commit. Both have run
+   since: `ci.yml`'s uploads in the green run for `99fc9c0`, and `release.yml`'s download in the
+   publish job of `v0.2.0-rc1`, which put up its prerelease with `SHA256SUMS` on 2026-09-29.
 2. **Still open, against go.dev itself.** No workflow runs `scripts/bootstrap-dev-env.sh`,
    because CI gets Go from `setup-go`, and `--dry-run` cannot close this, because it never touches
    the network. On 2026-09-24 the whole `--source public` path ran end to end for the first time,
@@ -7281,7 +7291,7 @@ only way to reach it). `make assets` still re-derives the tree from `GliderPRO/`
 the archive after it. And the Makefile grew an `embedded` guard: every build target refuses to
 build without `assets/extracted.zip` rather than producing an executable that comes up empty.
 
-### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0`, `v0.1.1` and `v0.1.2` are published; the amendment DONE in PLAN step 5, but for what needs a connected machine**
+### 5.4 There is no release pipeline, and the CI that exists deliberately does not publish — **DONE as `release.yml`, and it has run: `v0.1.0`, `v0.1.1` and `v0.1.2` are published, and `v0.2.0-rc1` as a prerelease on 2026-09-29; the amendment DONE in PLAN step 5, but for what needs a connected machine**
 
 `.github/workflows/release.yml` triggers on `v*` tags, and it does every item this entry used to
 list as future work: `make cross` plus the host's cgo build, six archives of two binaries each
@@ -7337,10 +7347,11 @@ than from anyone having watched it happen. The Windows half needs no network to 
 commands. It is the only unverified claim in `release.yml` that github.com is not required to settle,
 which makes it the cheapest one on the list and the last one that has an excuse.
 
-**Amended: it has executed, three times.** "It has never executed" and `release.yml:3-9`'s "it has
-never run … Expect the first tag to need a correction" are history now. They are rewritten to say
-what is known and what is not: whether any of the three needed a correction is not recorded here.
-"**Five** of the six archives cannot draw" is **three**.
+**Amended: it has executed.** `v0.1.0`, `v0.1.1` and `v0.1.2` were published by it, and `v0.2.0-rc1`
+as a prerelease. "It has never executed" and `release.yml:3-9`'s "it has never run … Expect the
+first tag to need a correction" are history now. They are rewritten to say what is known and what is
+not: whether any of the `v0.1.x` tags needed a correction is not recorded here. "**Five** of the six
+archives cannot draw" is **three**.
 
 **The moment-of-the-first-tag item is overdue, and is done next, before the next tag.**
 - `project.Releases` comes back, read by `-version`/`-help`. It is not read by the About box or
@@ -7859,6 +7870,11 @@ DEV_ENVIRONMENT §3's container trick works unchanged with `golang:1.NN-bookworm
   so govulncheck and vulndb were downloaded with `GOSUMDB=off`, trusting the mirror for their
   checksums. Neither is compiled into gliderGo, and CI's install checks against the real checksum
   database. A local result is a second opinion, and CI's is the one that gates.
+
+**`v0.2.0-rc1`, 2026-09-29.** Its `verify` job was green, and a vulnerability the code calls stops
+that job, so govulncheck found none that the code calls on `GO_RELEASE`, for `GOOS=linux`,
+`windows` and `darwin`. The log has not been read here, so whether it listed any that the code
+does not call is not known.
 
 ### 5.12 Defender can quarantine the `.exe` outright, and nothing a player is told covers that — **note; the offline scan has run, and is clean; the notes paragraph and the whole price DONE (PLAN release gate step 5); the connected-machine check before each tag, and for `v0.2.0` after it (PLAN §4, step 6), the resource experiments after 4.42**
 

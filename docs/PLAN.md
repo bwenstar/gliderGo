@@ -1540,8 +1540,8 @@ means the tag is better with it and does not wait.
    - **Gate, DONE.** No archive carried Go's own licence, although both binaries in every archive
      have Go's BSD-3-Clause runtime and standard library compiled in. The package loop now writes
      `THIRD-PARTY-NOTICES.txt` from the building toolchain's `GOROOT`, and the step fails if the
-     file lacks the Go Authors' notice. The step was rehearsed here against go1.23.12. It has not
-     run on a runner yet, and the next tag is the first time it will (1.4).
+     file lacks the Go Authors' notice. The step was rehearsed here against go1.23.12, and it
+     first ran on a runner in `v0.2.0-rc1`'s release, 2026-09-29, which was green (1.4).
 2. **The race chain, in this order, and nothing in `cmd/glidergo/race.go` before the first.**
    - **Should, and first, DONE.** An app-level loopback race under `-race` (4.34), as the net for
      everything after it. Four races run through `a.play`: a normal one, a draw, a guest that hangs

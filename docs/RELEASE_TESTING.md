@@ -146,7 +146,8 @@ this release runs on, on a network that carries TCP port 1994 between the two.
 ## Last run
 
 `v0.2.0` went without this list. No Windows desktop was to hand, and on 2026-09-29 the owner moved
-it out of that tag's gate (`docs/PLAN.md` §4, step 6), so nobody has run a step below on any build.
+it out of that tag's gate (`docs/PLAN.md` §4, step 6), so no step below has been run in full on any
+build. Step 6's test-binary half has run, in CI and in the test suite on Windows Server 2025.
 
 | Step | Build | Date | Result |
 |---|---|---|---|
@@ -155,7 +156,7 @@ it out of that tag's gate (`docs/PLAN.md` §4, step 6), so nobody has run a step
 | 3 The first start | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | 4 The pixels at 2× | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | 5 The bench rows | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
-| 6 The crash file and the console hold | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 6 The crash file and the console hold | `v0.2.0-rc1` | 2026-09-29 | no machine for it; its test-binary half, built from source, passes in CI and passed on Windows Server 2025 |
 | 7 The keys | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | 8 Away and back | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | 9 The window's size | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
