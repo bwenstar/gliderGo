@@ -1453,7 +1453,7 @@ here is genuinely just transport.
   (IMPROVEMENTS 4.31's amendment). It belongs with LAN discovery, which is where a guest would be
   *offered* a house rather than asked for one.
 
-  **What the first public race needs, and what can follow it.** The review ahead of the next tag
+  **What the first public race needs, and what can follow it.** The review ahead of `v0.2.0`
   (the release gate below) found that the handshake has to carry the release and the engine it was
   built from before a build that speaks it is public (IMPROVEMENTS 4.31). It found a host that
   stops hosting after one stray connection (4.32), a join that fails off the edge of the screen and

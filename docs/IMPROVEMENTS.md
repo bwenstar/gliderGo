@@ -375,7 +375,7 @@ already decoupled — the risk is a future "derive it from the window like the o
 change reintroducing the coupling. It should become an explicit setting, documented as
 affecting gameplay and not just how much you can see.
 
-**The next step, before the next tag: the first window fits the monitor.** A per-monitor-DPI-aware
+**The next step, before `v0.2.0`: the first window fits the monitor.** A per-monitor-DPI-aware
 640×480 window is small on 1080p and 1/27 of the area of a 4K panel. The window cannot be resized,
 so a saved scale bigger than the screen runs the playfield off it. It is recoverable (`-scale 1`,
 editing prefs, or the settings row if it lands on screen), and effectively lost only for a large
@@ -2743,7 +2743,7 @@ this bug and nine other kinds of mistake, and requires each back at its line.
 - 4.30's soak was not in the tree when this was fixed. It is now, and it has been re-run against the
   fix: 3,000 damaged-house plays, none with an error from `Run`.
 
-### 2.74 The glider is bound to what a key types, not where it is — **planned, soon after the next tag; before any prefs freeze**
+### 2.74 The glider is bound to what a key types, not where it is — **planned, soon after `v0.2.0`; before any prefs freeze**
 
 Four comments (`platform.go`, `x11.go`, `win32/keys.go` and `prefs.go`'s "one canonical name for
 the physical key") say bindings are physical. They are not. x11 reads
@@ -3016,7 +3016,7 @@ Still open:
 - **Item 3**, win32's `COLORONCOLOR` stretch, is unchanged. The same rehearsal that reads a window
   back can check it.
 
-### 2.77 Auto scale on a multi-monitor X11 desktop that is not GNOME measures every monitor at once — **note; after the next tag, and only if a report says it bites**
+### 2.77 Auto scale on a multi-monitor X11 desktop that is not GNOME measures every monitor at once — **note; after `v0.2.0`, and only if a report says it bites**
 
 `x11.Room` (2.1) takes the per-monitor work area from `_GTK_WORKAREAS_D<desktop>`. Only mutter
 publishes that, and it is the only per-monitor geometry that core X and libX11 give out.
@@ -3333,7 +3333,7 @@ Two separate things follow, and neither is a fidelity change:
 Deliberately not fixed: the vents stay off, the trigger box stays 112x32, and the basement stays a
 trap. Stage 1's contract is the 1994 behaviour, and this *is* the 1994 behaviour.
 
-### 3.7 The house picker says nothing about what a house is, and points a newcomer nowhere — **planned, soon after the next tag; one commit with 3.1's footer half**
+### 3.7 The house picker says nothing about what a house is, and points a newcomer nowhere — **planned, soon after `v0.2.0`; one commit with 3.1's footer half**
 
 **Three changes and one warning.**
 
@@ -6093,7 +6093,7 @@ view — reach only the stdout race line. The screen does not mention them. The 
 the ones 4.33 will sort by cause and wrap on the plate. 4.33 put the release and the rules in small
 print on the race's screens, and left the neighbour view on stdout.
 
-### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **DONE, before the next tag**
+### 4.32 One stray connection ends hosting, and a silent host leaves a guest on JOINING forever — **DONE, before `v0.2.0`**
 
 `openRace` accepts once and closes the listener, and `Meet` has no read deadline. So:
 - **a house-mismatched guest ends hosting** (measured: a Fun House guest against a Slumberland
@@ -6164,7 +6164,7 @@ one. Internet play with port forwarding is not a stated goal. The argument is th
   answered this time, with its HTTP/0.9 error page, so the guest was told `"<!DO"` in 1.3 s rather
   than waiting.
 
-### 4.33 A failed join runs off the screen and blames the other machine — **DONE, before the next tag (the UPnP half is a separate note, not planned)**
+### 4.33 A failed join runs off the screen and blames the other machine — **DONE, before `v0.2.0` (the UPnP half is a separate note, not planned)**
 
 `netplay.Join`'s one piece of advice for every failure is "the other machine has to be hosting"
 (`race.go:238`). The error line starts on the plate's left frame and runs off the right edge of the
@@ -6580,7 +6580,7 @@ file with no cap. The game only reads the demo built into it (`replay.Engine`), 
 demo` reads the file it is given. So the cap matters only once a demo can arrive from somebody
 else, and nothing plans that. Whatever first does should add the cap.
 
-### 4.37 The race sends a standing every frame and nothing when the other side goes quiet — **planned, after the next tag; the README correction and a freeze it turned up DONE in PLAN release gate step 5**
+### 4.37 The race sends a standing every frame and nothing when the other side goes quiet — **planned, after `v0.2.0`; the README correction and a freeze it turned up DONE in PLAN release gate step 5**
 
 `Report` compares whole standings, `Frame` included, so the "on change" test fires every frame:
 about 30 messages a second and ~1 KB/s. `netplay.go:9`, `standing.go:179` ("a few hundred bytes a
@@ -6637,7 +6637,7 @@ would need something to decide, and there is no referee.
 on `Settled`. The repro host printed "player 2 wins: by forfeit" and then "the other player never
 finished, so there is no result".
 
-### 4.38 The race takes each peer's word for its result — **the honour-system line and the state-machine fix before the next tag; re-simulation much later**
+### 4.38 The race takes each peer's word for its result — **the honour-system line and the state-machine fix before `v0.2.0`; re-simulation much later**
 
 A peer can report any standing it likes. **What is done now:**
 - README's race section and SECURITY.md (5.7) say results are on the honour system.
@@ -6666,7 +6666,7 @@ before `Bye`, because `finishRace` sends `Bye` before `awaitSettled`. That waits
 It proves "this engine produced this run", not "a person flew it", since a headless bot at about
 90× real time passes.
 
-### 4.39 A game somebody played cannot be replayed — **planned, the first item after the next tag**
+### 4.39 A game somebody played cannot be replayed — **planned, the first item after `v0.2.0`**
 
 4.2 built the bug-report format, and nothing records a real game in it. The proposal:
 - Wrap `World.KeyPoll` in `cmd/glidergo/play.go` so that it appends a `replay.Hold` whenever the
@@ -6761,7 +6761,7 @@ In order of value:
 A single-set release already draws two sets, so the claim is narrower: an empty folder adds no
 strip entry.
 
-### 4.42 The game has no icon, no class and no version resource — **planned, after the next tag**
+### 4.42 The game has no icon, no class and no version resource — **planned, after `v0.2.0`**
 
 The original 1994 application icon (`icl8`/`ICN#` 128, with `ics8`/`ics#` 128 for 16×16) is
 already in the embedded archive. Runtime Go decodes its 1.3 KB through `render.Palette` and the
@@ -6868,7 +6868,7 @@ Entry points: a `-challenge FILE` flag first (`-ghost` would promise a sprite th
 Race-screen row listing recordings from the data directory. That changes the race screen's hash.
 M, given 4.39.
 
-### 4.45 The register's statuses are prose, and some point at stages that have closed — **note; after the next tag**
+### 4.45 The register's statuses are prose, and some point at stages that have closed — **note; after `v0.2.0`**
 
 A hand re-triage comes first. Close 2.8, 2.12 and 2.34 (both halves have Done rows), and the
 table-test clause of 2.18. Narrow 2.13 to per-sound loading plus separate volumes, and restate 4.8.
@@ -6876,6 +6876,10 @@ Retarget 2.2, 2.4, 2.10, 2.11, 2.17, 2.29, 2.37, 2.57, 2.58, 3.3 and 4.3. Give t
 name no stage (2.1, 2.14, 2.18, 2.22, 2.23, 2.49, 2.71, 4.28, 4.29, 5.5) a stage or "decision
 needed". Several of these hide player-visible work that has quietly left the schedule (2.4's wipes,
 3.3).
+
+On 2026-09-29, after `v0.2.0` was tagged, the statuses here that said "the next tag" were made to
+say `v0.2.0`, which each meant when it was written. Read as written, they had come to mean the tag
+after it.
 
 **Then, optionally:**
 - The rule at the top of this file admits **note** as a fourth form, and "decision taken" is
@@ -6891,7 +6895,7 @@ needed". Several of these hide player-visible work that has quietly left the sch
   status table.
 - A generated `OPEN.md` is the lowest-value extra.
 
-### 4.46 The citations test cannot see most of the line numbers this repository cites in itself — **note; the workflow line numbers DONE, 2026-09-29; the test's reach after the next tag**
+### 4.46 The citations test cannot see most of the line numbers this repository cites in itself — **note; the workflow line numbers DONE, 2026-09-29; the test's reach after `v0.2.0`**
 
 `TestEveryReferenceToOurOwnTreeResolves` matches a path only under `cmd/`, `internal/`, `docs/`,
 `tools/`, `scripts/`, `assets/` and `.github/`, and checks a line number only against the file's
@@ -6926,7 +6930,7 @@ The cheap half is to widen `ownPath` to the top-level files and to base names th
 tree, and to check the end of a range. Drift inside a file's length needs the citation to carry
 something to compare, such as a few words of the line, and is the costlier half.
 
-### 4.47 A bench row at a scale its monitor cannot hold says nothing — **note; after the next tag**
+### 4.47 A bench row at a scale its monitor cannot hold says nothing — **note; after `v0.2.0`**
 
 `windowScale` in `cmd/glidergo/scale.go` honours a typed `-scale` that does not fit, and warns that
 it does not. The warning needs the monitor's size, and `openWindow` in `cmd/glidergo/play.go` asks
@@ -6942,7 +6946,7 @@ backend answers with a 640×480 "no screen", which has to be told apart, or ever
 would warn falsely. That is a change to the game with no gain in play, so it waits until after
 `v0.2.0`.
 
-### 4.48 A peer that dies mid-race can take its last standing with it, and the test that said it could not was the one that failed CI — **the test DONE, 2026-09-28; the race's half a note, after the next tag**
+### 4.48 A peer that dies mid-race can take its last standing with it, and the test that said it could not was the one that failed CI — **the test DONE, 2026-09-28; the race's half a note, after `v0.2.0`**
 
 `go test ./...` failed in CI's `native` job on 2026-09-28, which is the Windows and macOS legs. The
 run's annotations name only the step, and whether the macOS leg failed too is not recorded here.
@@ -7008,7 +7012,7 @@ both have to arrive before this side reads the socket. Elsewhere, this side's ow
 end in that moment. A final standing goes out before the waiting screen is drawn, and a player
 takes longer than that to close a window. No race has shown it.
 
-The fix, after the next tag, is in two halves:
+The fix, after `v0.2.0`, is in two halves:
 
 - the writer's failure is recorded at once, and only its settle waits a moment for the reader. On
   a reset the reader returns at once, and Linux and macOS hand it what arrived before the reset. On
@@ -7378,7 +7382,7 @@ correction" of `release.yml:3-8` at `b8f4115` are history now. They are rewritte
 known and what is not (`:3-15` now): whether any of the `v0.1.x` tags needed a correction is not
 recorded here. "**Five** of the six archives cannot draw" is **three**.
 
-**The moment-of-the-first-tag item is overdue, and is done next, before the next tag.**
+**The moment-of-the-first-tag item is overdue, and is done next, before `v0.2.0`.**
 - `project.Releases` comes back, read by `-version`/`-help`. It is not read by the About box or
   the title screen, which are faithful, so fidelity is untouched.
 - `.github/ISSUE_TEMPLATE/config.yml` gets one `contact_link` to it. `bug_report.yml` already asks
