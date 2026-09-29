@@ -1649,7 +1649,8 @@ means the tag is better with it and does not wait.
      amendment, 5.11). It stopped saying there is no listener with 4.33. **DONE** with 4.36 and
      5.11.
    - **Gate.** The release notes and `HOW-TO-RUN.txt` say what to do if Defender quarantines the
-     exe, and `release.yml:658` stops reading as if it covers antivirus (5.12, step 3). **DONE.**
+     exe, and `release.yml:793-795` stops reading as if it covers antivirus (5.12, step 3).
+     **DONE.**
      Both say what quarantine looks like, what `!ml` means, and to check the zip with
      `Get-FileHash` before restoring from Protection history. The check is on the zip because
      `SHA256SUMS` has no line for the `.exe`, which `RELEASING.md` and 5.12 had wrong. README's

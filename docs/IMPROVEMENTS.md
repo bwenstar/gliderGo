@@ -190,7 +190,7 @@ linux-amd64 build, the five CGO_ENABLED=0 builds, and every `glidertool`. That c
 and its second clause is about exactly this. A binary redistribution must "reproduce the above
 copyright notice, this list of conditions and the following disclaimer in the documentation and/or
 other materials provided with the distribution". Nothing in a gliderGo archive does that. The
-packaging step (`release.yml:352-361`) stages the rewritten README, `LICENSE`, `CHANGELOG.md`,
+packaging step (`release.yml:423-432`) stages the rewritten README, `LICENSE`, `CHANGELOG.md`,
 `GliderPRO/README.md` and `GliderPRO/GPLv2-LICENSE.md`, then writes `HOW-TO-RUN.txt`. None of them
 names the Go Authors. `-version` prints `built by go1.23.12` and `licence GPL-2.0-only` and stops
 there, and `glidertool version` does the same. `credits.txt` has no line for Go, and the release
@@ -217,8 +217,8 @@ The fix is a few lines in the package loop, next to `cp LICENSE CHANGELOG.md`:
 
 The text comes from `go env GOROOT` rather than a committed copy. Under `GOTOOLCHAIN: local` that is
 the toolchain that built these exact binaries, so the notice can't drift from them. The zip branch's
-CRLF `sed` (`:507`) should convert this file as well as HOW-TO-RUN.txt, for the same Notepad reason.
-The pre-seal assertions (`:517`) get one more line,
+CRLF `sed` (`:629`) should convert this file as well as HOW-TO-RUN.txt, for the same Notepad reason.
+The pre-seal assertions (`:639-641`) get one more line,
 `grep -q 'Copyright (c) 2009 The Go Authors' "$stage/THIRD-PARTY-NOTICES.txt"`. Then a runner
 toolchain with no LICENSE, or a later edit that drops the file, fails the build instead of shipping.
 This has been rehearsed against go1.23.12: `$HOME/.local/opt/go/LICENSE` is there (1,479 bytes), and
@@ -229,7 +229,7 @@ condition.
 
 Two sentences go with the file:
 
-- **In the release notes' `### Licence` (`:736`) and in README's Licence section, which is in every
+- **In the release notes' `### Licence` (`:921`) and in README's Licence section, which is in every
   archive.** "The Go runtime and standard library compiled into both binaries are BSD-3-Clause, ©
   The Go Authors; every release archive carries their licence as THIRD-PARTY-NOTICES.txt."
 - **Optionally, a `-version` line.** `go  BSD-3-Clause, © The Go Authors`, beside the existing
@@ -242,18 +242,18 @@ The licence only requires the file. The `-version` line is a courtesy. If a line
 no exemption needs editing.
 
 **Done: the file in all six archives, and a check that fails without it.** The block above is in
-the package loop at `release.yml:367-372`, after the `GliderPRO/` copies, with its two header lines
+the package loop at `release.yml:438-443`, after the `GliderPRO/` copies, with its two header lines
 reworded. As proposed, "They are distributed under the licence below" followed a sentence whose
 subject was glidergo and glidertool, so it could be read as putting the binaries under BSD-3-Clause.
 The header now calls the runtime and standard library "That code" and points at LICENSE for
 gliderGo's own. The zip branch's `sed` converts the file to CRLF along with HOW-TO-RUN.txt
-(`:507`). The assertion is at `:543`, after the README check. Its pattern is `2009 The Go Authors`,
+(`:629`). The assertion is at `:672`, after the README check. Its pattern is `2009 The Go Authors`,
 not the `Copyright (c) 2009 The Go Authors` proposed above. go1.23.12's own LICENSE has the "(c)".
 The x/telemetry copy vendored in the same toolchain (`src/cmd/vendor/golang.org/x/telemetry/LICENSE`)
 already has the 2024 wording, `Copyright 2009 The Go Authors.`, and 5.11 moves releases to a newer
 minor. If Go's own LICENSE has changed the same way, the longer pattern would fail the first release
 built on that minor, although the notice was there. The shorter one matches both wordings. The
-release notes' `### Licence` (`:925-927`) and README's Licence section (`README.md:546-548`) carry
+release notes' `### Licence` (`:926-928`) and README's Licence section (`README.md:546-548`) carry
 the sentence above, naming `glidergo` and `glidertool` where it said "both binaries". The notes call
 the download one file and never mention glidertool, so "both" had nothing to refer to.
 
@@ -270,7 +270,7 @@ The notes step renders the new paragraph with no `VERSION` left in it.
 **Found on the way: the README assertion could never fail.** `! grep -q '](docs/' "$stage/README.md"`
 sat in the middle of a `set -e` script, and bash does not exit on a command whose status is inverted
 with `!`. A rehearsal that appended a `](docs/` link to the staged README sealed all six archives
-and exited 0. It is an `if` that exits 1 now (`:533-536`), and the same rehearsal stops at the first
+and exited 0. It is an `if` that exits 1 now (`:655-658`), and the same rehearsal stops at the first
 target with `README.md still links into docs/`. The planted link has to be one the rewrite cannot
 match, such as `](docs/` with no closing parenthesis, or the `sed` rewrites it and the check passes.
 No archive shipped a bad link because of this. README.md at each of the 35 commits from `56fab17`,
@@ -2648,7 +2648,7 @@ wraps `XkbGetDetectableAutoRepeat`. The wrapper lives in `x11.go` because cgo is
 tell whether `New` asked. It passes on Xephyr and on the DCV desktop, and it fails against a scratch
 copy of the package with the call removed. It cannot hold a key, because that needs XTest, which is
 not a dependency, so `make check` does not repeat the runs above. CI's `make check` has `DISPLAY`
-unset, so there the test skips. A second Xvfb step (`ci.yml:149-150`) runs
+unset, so there the test skips. A second Xvfb step (`ci.yml:179-180`) runs
 `go test ./internal/platform/x11/` under its own server, with `-noreset` so that a client
 disconnecting cannot reset the server under the test's window. Without it a runner never asks.
 
@@ -2905,8 +2905,9 @@ MIT-SHM stays out. It needs libXext headers at build time (DEV_ENVIRONMENT.md:13
 **The budget becomes a bench row.** `-bench`'s summary line reports the process's CPU time next to
 its frame rate: `syscall.Getrusage` on Linux, `syscall.GetProcessTimes` on Windows. It also reports
 the slowest frame, because item 1 makes the average flatter than the worst case. `make bench` runs
-`-scale 1` and `-scale 4`. CI's `xvfb-run -s '-screen 0 640x480x24'` (`ci.yml:143`,
-`release.yml:173`) is too small to show a 4× window, so it becomes `2600x1980x24`.
+`-scale 1` and `-scale 4`. CI's `xvfb-run -s '-screen 0 640x480x24'` (`ci.yml:143` and
+`release.yml:173` at `b8f4115`; now `ci.yml:170` and `release.yml:213`) is too small to show a 4×
+window, so it becomes `2600x1980x24`.
 
 Proposed budget, on the dev host:
 - paced 4× under 15% of one core;
@@ -4302,7 +4303,7 @@ cost is the part worth remembering:
   one pinned at the 40-character SHA rather than at a branch, and the `! grep -q '](docs/'` assertion
   underneath finds nothing left behind. (Had it found something, the step would have gone on:
   `set -e` ignores a command inverted with `!`, so that assertion could never fail. It has been an
-  `if` since 1.4 was done, `release.yml:533-536`.) The CRLF `sed` and the `VERSION` `sed` in the
+  `if` since 1.4 was done, `release.yml:655-658`.) The CRLF `sed` and the `VERSION` `sed` in the
   notes step were run the same way. Four `sed`s, none of them unrun now.*
 
   *The cost of rehearsing it is 150 MB in `/dist/`, which `.gitignore` already excludes and says is
@@ -6890,7 +6891,7 @@ needed". Several of these hide player-visible work that has quietly left the sch
   status table.
 - A generated `OPEN.md` is the lowest-value extra.
 
-### 4.46 The citations test cannot see most of the line numbers this repository cites in itself — **note; after the next tag**
+### 4.46 The citations test cannot see most of the line numbers this repository cites in itself — **note; the workflow line numbers DONE, 2026-09-29; the test's reach after the next tag**
 
 `TestEveryReferenceToOurOwnTreeResolves` matches a path only under `cmd/`, `internal/`, `docs/`,
 `tools/`, `scripts/`, `assets/` and `.github/`, and checks a line number only against the file's
@@ -6909,10 +6910,17 @@ dump example, `README.md:454-456` and `:741-743` for the Go licence sentence, `M
 and three CHANGELOG line numbers, which every new entry above them moves. All ten are repointed, and
 the CHANGELOG ones now name their entry instead, which does not move.
 
-They are not all of it. A spot check of the fourteen bare `release.yml:N` citations found nearly
+They were not all of it. A spot check of the fourteen bare `release.yml:N` citations found nearly
 every one pointing at a comment, a blank line or another step, because the file has grown by
-hundreds of lines since they were written. The eight `ci.yml:N` ones are the same. Those are not
-repointed yet, and are the first work here.
+hundreds of lines since they were written. The eight `ci.yml:N` ones were the same, and so were
+fourteen of the fifteen `:N` shorthands that follow a `release.yml` already named.
+
+**Done, 2026-09-29.** Each of those now points at the line it meant in today's file, found by what
+the line says rather than by counting. Where the text describes a line that has since changed, such
+as the bench's old 640x480 screen, a sentence 5.12 reworded or the caveat 5.4's amendment quotes,
+the citation names the commit it was true at, and says where the line is now if it is still there.
+The three in a dated CHANGELOG entry are left, because each is true of the commit that entry
+records. Every edit to either workflow moves these again, which is the costlier half below.
 
 The cheap half is to widen `ownPath` to the top-level files and to base names that are unique in the
 tree, and to check the end of a range. Drift inside a file's length needs the citation to carry
@@ -7348,10 +7356,10 @@ commands. It is the only unverified claim in `release.yml` that github.com is no
 which makes it the cheapest one on the list and the last one that has an excuse.
 
 **Amended: it has executed.** `v0.1.0`, `v0.1.1` and `v0.1.2` were published by it, and `v0.2.0-rc1`
-as a prerelease. "It has never executed" and `release.yml:3-9`'s "it has never run … Expect the
-first tag to need a correction" are history now. They are rewritten to say what is known and what is
-not: whether any of the `v0.1.x` tags needed a correction is not recorded here. "**Five** of the six
-archives cannot draw" is **three**.
+as a prerelease. "It has never executed" and the "it has never run … Expect the first tag to need a
+correction" of `release.yml:3-8` at `b8f4115` are history now. They are rewritten to say what is
+known and what is not (`:3-15` now): whether any of the `v0.1.x` tags needed a correction is not
+recorded here. "**Five** of the six archives cannot draw" is **three**.
 
 **The moment-of-the-first-tag item is overdue, and is done next, before the next tag.**
 - `project.Releases` comes back, read by `-version`/`-help`. It is not read by the About box or
@@ -7384,7 +7392,7 @@ Its commands are fenced as non-bash, so `docs-check` leaves them alone. That too
 documents, and a dozen skip rules would defeat it.
 
 **The Linux archive's glibc floor, stated and asserted.**
-- `release.yml:217` (the build job; `:121` and `:688` do not affect the shipped binary) is pinned
+- `release.yml:228` (the build job; `:132` and `:720` do not affect the shipped binary) is pinned
   to `ubuntu-24.04`. That keeps today's measured floor of GLIBC_2.34. 22.04 and bookworm give the
   same 2.34, so neither lowers it, and `-tags netgo,osusergo` removes only `res_search`.
 - After `make cross`, a step takes the highest `GLIBC_x.y` from
@@ -7706,9 +7714,9 @@ Public binaries are built on GitHub runners, so they embed runner paths, not the
 and a bench under xvfb, and hands the binary to the packaging job. So `linux-arm64` draws instead of
 being `-headless`.
 
-It is not a one-line change. The build job both cross-compiles and packages (`release.yml:183-569`),
-so it needs `needs:` plus `download-artifact`, `:317` becoming `linux-arm64|-x11||tar`, and
-rewritten text at `:30-35`, `:419-421` and README `:52`. The runner is free only for public
+It is not a one-line change. The build job both cross-compiles and packages (`release.yml:223-703`),
+so it needs `needs:` plus `download-artifact`, `:384` becoming `linux-arm64|-x11||tar`, and
+rewritten text at `:34-39`, `:490-492` and README `:53`. The runner is free only for public
 repositories. It carries the same GLIBC_2.34 floor: Pi OS Bookworm is fine and Bullseye is not. It
 shares its runner-label edits with 5.4's glibc amendment.
 
@@ -7734,25 +7742,26 @@ is not Stage 6.
 ### 5.11 Releases are built with Go 1.23, which Go no longer patches, and nothing scans them — **DONE: releases build with Go 1.27.x, govulncheck gates the tag, and the OS floors are stated**
 
 `go.mod` says `go 1.23`, and every `setup-go` step reads it with `go-version-file: go.mod`
-(`ci.yml:99`, `:205`, `:276`, `:319`; `release.yml:127` and `:208`). So every release is built with
-some 1.23.x. Which patch the runner picks is in the Actions log, not on this host. Go supports "the
-past two Go releases" (`$(go env GOROOT)/SECURITY.md:5`), so 1.23 stopped getting fixes when 1.25
-shipped. That mattered less while the game only read files. The race-bearing tag listens on TCP
-(`internal/netplay/dial.go:65`) and decodes the PNGs a shared house carries
-(`internal/render/housepict.go:359`). SECURITY.md says the standard library is "the only third-party
-code in a gliderGo binary" (`:48`), so the toolchain *is* the supply chain, and nobody has looked at
-it. `govulncheck` has never run, and nothing says which later `net` or `image/png` fix a 1.23 build
-is missing.
+(at `5f5fbf9`: `ci.yml:99`, `:205`, `:276`, `:319`; `release.yml:127` and `:208`; now `ci.yml:124`,
+`:242`, `:315`, `:410` and `release.yml:149`, `:252`, where only the first two still read `go.mod`).
+So every release is built with some 1.23.x. Which patch the runner picks is in the Actions log, not
+on this host. Go supports "the past two Go releases" (`$(go env GOROOT)/SECURITY.md:5`), so 1.23
+stopped getting fixes when 1.25 shipped. That mattered less while the game only read files. The
+race-bearing tag listens on TCP (`internal/netplay/dial.go:74`) and decodes the PNGs a shared house
+carries (`internal/render/housepict.go:357`). SECURITY.md says the standard library is "the only
+third-party code in a gliderGo binary" (`:100`), so the toolchain *is* the supply chain, and nobody
+has looked at it. `govulncheck` has never run, and nothing says which later `net` or `image/png` fix
+a 1.23 build is missing.
 
 The `go` line sets the lowest Go that can build this code. It does not have to be the Go that builds
 a release. `GOTOOLCHAIN=local` stops this airgapped host from trying to download a newer Go
-(DEV_ENVIRONMENT §3). On a runner it only means "keep the Go that setup-go installed" (`ci.yml:66`).
+(DEV_ENVIRONMENT §3). On a runner it only means "keep the Go that setup-go installed" (`ci.yml:74`).
 A newer toolchain builds this module unchanged and keeps 1.23's GODEBUG defaults, because those
 follow the `go` line (`doc/godebug.md`, "Default GODEBUG Values"). So security fixes land and
 GODEBUG-gated behaviour changes do not. The repo already makes this choice for contributors:
 `bootstrap-dev-env.sh --source public` installs the newest stable Go at or above the floor, "because
-a patch release is where security fixes live" (`:273-275`). `ci.yml:96` calls the `go` line "one
-source of truth", but its two readers do different things with it.
+a patch release is where security fixes live" (`:273-275`). At `5f5fbf9`, `ci.yml:96` called the
+`go` line "one source of truth", but its two readers did different things with it.
 
 - **The toolchain.** Set `GO_RELEASE: "1.NN.x"` once in each workflow's `env`. `1.NN` is a minor Go
   still supports, chosen on a connected host. `release.yml`'s `verify` and `build` and `ci.yml`'s
@@ -7785,9 +7794,9 @@ source of truth", but its two readers do different things with it.
   minors raise, are unverified here; "Windows 10 or Server 2016 since 1.21" is remembered, not
   checked. Copy them from the chosen minor's release notes ("Ports") when `GO_RELEASE` is written,
   and re-check them at every bump. They go into README's "Getting a build", the release notes (which
-  today say only "Windows needs nothing at all", `release.yml:721`), both HOW-TO-RUN.txt variants
-  and the platform tiers in PLAN §4's release policy. `otool -l` on `macos-latest` can assert the
-  macOS one.
+  at `aecd81f` said only "Windows needs nothing at all", `release.yml:721`; now
+  `release.yml:884-885`), both HOW-TO-RUN.txt variants and the platform tiers in PLAN §4's release
+  policy. `otool -l` on `macos-latest` can assert the macOS one.
 - **The documents.** This goes into 5.7's rewrite. In SECURITY.md, "Dependencies" names the Go minor
   that builds releases and says `go version -m` shows it. "Versions" says a Go security fix that
   reaches gliderGo is reason enough for a release. RELEASING.md's pre-tag list (5.4's amendment) and
@@ -7885,8 +7894,9 @@ or on the first double-click, and no dialog offers a Run anyway button. The play
 directory with `glidergo.exe` missing, or a double-click that does nothing and a "Threats found"
 notification. Nothing in `release.yml`'s notes, either `HOW-TO-RUN.txt`, README, SECURITY.md or
 `docs/windows-first-run.md` mentions antivirus. One sentence in the notes points the wrong way.
-"None of the three looks at what is *in* the archive" (`release.yml:658`) is true of the three it
-names, and a reader will take it to cover the fourth. Defender does look.
+"None of the three looks at what is *in* the archive" (`release.yml:658` at `aecd81f`; now
+`:793-795`) is true of the three it names, and a reader will take it to cover the fourth. Defender
+does look.
 
 The Windows binary has most of the traits that Defender's machine-learning detections
 (`Trojan:Win32/Wacatac.B!ml` and its relatives, which the Go FAQ's entry on virus scanners exists to
@@ -7971,7 +7981,8 @@ What to do:
      administrator;
    - and that a report should be an issue quoting the detection name.
 
-   `release.yml:658` also gets reworded so it no longer reads as covering antivirus.
+   `release.yml:658` (at `aecd81f`; now `:793-795`) also gets reworded so it no longer reads as
+   covering antivirus.
 
    **Done, in PLAN release gate step 5.** The notes' "None of the three looks at what is *in* the
    archive" is now "Those three are about who signed the file", followed by "Antivirus is
@@ -7989,7 +8000,7 @@ What to do:
    compared by VirusTotal result on an rc build. 4.35's `crash.log` is an ordinary file write in the
    data directory and is not worth an experiment.
 5. **Price the unsigned decision fully.** Add one sentence to the decision in 4.13 and
-   `release.yml:47-61`. Signing is also what lets reputation carry from one release to the next.
+   `release.yml:53-70`. Signing is also what lets reputation carry from one release to the next.
    Unsigned, every tag's binaries start at none, and step 2 may be needed each time. The decision
    can stand, but the price stated for it should be the whole price. **Done with step 3.** The
    notes no longer say a certificate is "the only thing that removes" SmartScreen's dialog, which
