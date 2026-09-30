@@ -130,7 +130,7 @@ Every `v*` tag packages six archives and attaches them to a
 [GitHub Release](https://github.com/bwenstar/gliderGo/releases) with a `SHA256SUMS` beside them.
 Unpack one and run it from anywhere: the 1994 art, the sounds, all 22 of the original houses and the
 ones this port has written since are compiled into the binary, so there is no asset directory to
-keep beside it and nothing to install. That is why it is 15 MB. `linux-amd64` and the two `windows`
+keep beside it and nothing to install. That is why it is 16 MB. `linux-amd64` and the two `windows`
 archives draw to a screen; the other three are marked `headless` and explain themselves in the
 archive. Every archive carries a `HOW-TO-RUN.txt`.
 

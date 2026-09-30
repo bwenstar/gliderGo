@@ -3216,15 +3216,15 @@ there counts in ticks of 15.6 ms, and an earlier round had `v0.2.0` at 5% and 6%
 is larger than that desktop, so these are two builds compared on the same window and not 2.76's
 4× result, which `docs/windows-first-run.md` says needs the whole window on the screen.
 
-**A probe for the laptop.** `glidergo-wincheck.exe` is a stand-alone program written for this,
-and not in the tree. It names each display adapter and monitor, then opens a window made as
-gliderGo makes its own on each monitor in turn. It paints that window 18 ways: whole, in bands of
-480 rows down to 3, in blocks and tiles, through `SetDIBitsToDevice`, through a DIB section and
-`BitBlt`, and bottom-up. It reads each one back from the window, from the screen and from the
-compositor. On this desktop every way read 100% right. Its `-drop N` self-test skips every send
-over N bytes and reports it a success. With the reproduction's 2 MB it read each case whose DIB
-was over that as not drawn and each smaller one as right, so a report from the laptop can tell
-the two apart.
+**A probe for the laptop.** `glidergo-wincheck.exe` is a stand-alone program written for this, and
+not in the tree. It names each display adapter and monitor, then opens a window made as gliderGo
+makes its own on each monitor in turn. It paints that window 18 times: whole, in bands of 480 rows
+down to 3, in blocks and tiles, through `SetDIBitsToDevice`, through a DIB section and `BitBlt`,
+bottom-up, and with one `FillRect`. It reads each one back from the window, from the screen and from
+the compositor. On this desktop every way read 100% right. Its `-drop N` self-test skips every send
+over N bytes and reports it a success. With the reproduction's 2 MB it read each case whose DIB was
+over that as not drawn and each smaller one as right, so a report from the laptop can tell the two
+apart.
 
 Still open:
 - **Whether it works on that laptop.** Nobody has run the fix there. A fixed build and the probe
@@ -3238,7 +3238,13 @@ Still open:
 - **`maxSend` from evidence.** Once the laptop's report is in, the cap can be set from what that
   driver draws rather than as a third of the largest send known to have landed.
 - **The probe in the tree**, if the laptop's report shows it earns a place, as `tools/`'s first
-  Windows program.
+  Windows program. Its package comment would need correcting on the way in. It says the report holds
+  the Windows version, the adapters, each monitor's size, position and DPI and the results, and
+  nothing else. The report also gives when it ran, the CPUs, whether the session is remote, each
+  output's display mode, each monitor's work area, the monitor under the pointer, and where each
+  window opened and in what state. None of it names the player or the machine. The `HOW-TO-TEST.txt`
+  sent with it gives the whole list. The copy sent is the one that was run here, left unchanged,
+  since any edit to its source changes its hash.
 
 ---
 
@@ -7181,6 +7187,35 @@ peer that closed in the same moment as its goodbye could have one of this side's
 before the goodbye is read, and that refusal would still be recorded. That is 4.48's writer-first
 case, and the second half of its fix covers it.
 
+### 4.50 `make check OUT=<dir>` still writes to four fixed paths in `/tmp` — **note, 2026-09-30**
+
+Found by the review of 2.81. `OUT` moves the scratch PNGs and WAVs that `make check`'s own recipes
+write. The `Makefile`'s comment on it, and `ci.yml`'s above `make check OUT="$RUNNER_TEMP"`, say
+that this keeps two jobs on one self-hosted runner from writing the same files. Nothing in `make
+docs-check`, which is part of `make check`, uses it. `tools/docscheck` runs each documented line as
+it is written, and four of them write to fixed paths in `/tmp`:
+
+    bin/glidertool render -all -o /tmp/demo "assets/extracted/houses/Demo House.house"
+    bin/glidertool replay -house "CD Demo House" -frames 600 -wav /tmp/run.wav
+    bin/glidergo -shot /tmp/screen.png -shot-screen about
+    tr '\r' '\n' < "GliderPRO/Sources/Player.c" > /tmp/Player.c
+
+The first writes 45 PNGs, and the last runs only where `GliderPRO/Sources` is present. The package
+comment in `tools/docscheck/main.go` says that files a documented line writes land in its scratch
+directory, which is true only of relative paths. Two jobs sharing a runner would write these files
+at the same time. They run as one user, and nothing reads the files afterwards, so nothing fails
+there, but three comments claim a separation that is not there. Once one user has run it, another
+user's `make check` on the same machine does fail, with `OUT` or without it: `/tmp/demo` and the
+three files belong to the first, and docs-check cannot write them.
+
+One fix is for `docscheck` to point each path in a line that starts with `/tmp/` at its scratch
+directory. That breaks a rule its package comment gives under "How a line is classified": what gets
+executed is the line exactly as written, because the check should not be running a line the reader
+cannot see. Taking it means rewriting that rule, not adding a sentence beside it. The smaller fix
+keeps the rule: the three comments name these four paths as the exception. Relative paths in the
+documents would keep it too, but would leave `demo/`, `run.wav`, `screen.png` and `Player.c` in a
+reader's clone. None of the three touches the game.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -8142,8 +8177,8 @@ What to do:
    - what quarantine looks like;
    - that a name ending in `!ml` is a model's guess, not a match against known malware;
    - that the check to run is the file's hash against `SHA256SUMS`;
-   - that Windows Security → Protection history → Restore brings the file back and needs an
-     administrator;
+   - that Windows Security → Protection history → the entry → Actions → Restore brings the file
+     back and needs an administrator;
    - and that a report should be an issue quoting the detection name.
 
    `release.yml:658` (at `aecd81f`; now `:793-795`) also gets reworded so it no longer reads as

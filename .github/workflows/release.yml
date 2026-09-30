@@ -500,7 +500,7 @@ jobs:
           Double-clicking glidergo.exe in Explorer works too, and so does copying it wherever you
           keep programs: everything the game needs -- the art, the sounds, all 22 of the 1994
           houses and the ones written for this port -- is inside the .exe, which is why it is
-          15 MB. A console window opens alongside the game; that is where it says which house it
+          16 MB. A console window opens alongside the game; that is where it says which house it
           loaded and what it could not find. If the game stops with an error, that window should
           wait for Enter before it closes, which has not been tried on Windows yet. If it crashes,
           the report is kept in %AppData%\glidergo\crash-last.log, and the next start says so.
@@ -560,9 +560,9 @@ jobs:
 
           and compare what it prints with that line. It prints capitals and SHA256SUMS
           does not; the characters are otherwise the same. If they match, open Windows
-          Security, Virus & threat protection, Protection history, pick the entry and
-          choose Restore. That needs an administrator. Then please open an issue that
-          quotes the detection name exactly.
+          Security, Virus & threat protection, Protection history, pick the entry,
+          then Actions, then Restore. That needs an administrator. Then please open an
+          issue that quotes the detection name exactly.
 
           RACING ANOTHER MACHINE.
 
@@ -582,7 +582,7 @@ jobs:
               ${cmd}
 
           It needs no files beside it. The art, the sounds, all 22 of the 1994 houses and the
-          ones written for this port are inside the binary, which is why it is 15 MB, so you can
+          ones written for this port are inside the binary, which is why it is 16 MB, so you can
           copy glidergo to ~/bin or /usr/local/bin and run it from anywhere. Linux needs glibc
           2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or later), libX11 at run
           time -- libx11-6, which every desktop install already has -- and a 24- or 32-bit
@@ -741,7 +741,7 @@ jobs:
           cat > notes.md <<'HEADER'
           A Go port of Glider PRO, John Calhoun's 1994 Macintosh game. One file, nothing to
           install: the original art, the sounds, all 22 of the 1994 houses and the ones written
-          for this port are inside the binary, which is why it is 15 MB.
+          for this port are inside the binary, which is why it is 16 MB.
 
           ### Which one do I want?
 
@@ -803,9 +803,9 @@ jobs:
           Check the zip first. `SHA256SUMS` has a line for each archive and none for the `.exe`
           inside, so run `Get-FileHash <archive>` in PowerShell and compare it with the zip's line;
           it prints capitals where `SHA256SUMS` does not. If they match, Windows Security → Virus &
-          threat protection → Protection history → the entry → **Restore** brings the file back.
-          That needs an administrator. Then please open an issue that quotes the detection name
-          exactly.
+          threat protection → Protection history → the entry → **Actions** → **Restore** brings the
+          file back. That needs an administrator. Then please open an issue that quotes the
+          detection name exactly.
 
           These click paths are the documented behaviour rather than something this
           project has watched happen — it is built on an offline machine with no browser to

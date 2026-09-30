@@ -39,12 +39,16 @@ scripts/local-source.sh
 # hand is how it gets tested, and that should not leave a log to commit.
 /go-test-*.log
 
-# `go build ./...` -- which is what .github/workflows/ci.yml runs and what anyone reaching for
-# the toolchain directly will type -- drops one executable per main package into the working
-# directory rather than into /bin/. Ignored so that the first thing a new contributor does
-# does not leave two untracked 14 MB files behind.
+# `go build ./cmd/glidergo`, the line docs/DEV_ENVIRONMENT.md gives for a machine without make,
+# and `go build ./cmd/glidertool` write the executable into the working directory rather than
+# into /bin/, with .exe on the end on Windows. The native Windows job in .github/workflows/ci.yml
+# builds glidergo.exe there too. Ignored so that none of them leaves an untracked file behind.
+# `go build ./...`, which ci.yml also runs, writes nothing: given more than one package, it only
+# checks that they build.
 /glidergo
 /glidertool
+/glidergo.exe
+/glidertool.exe
 
 # assets/extracted/ IS committed, and so is assets/extracted.zip, the copy of it that every
 # binary embeds: the game plays from a clone with no extraction step and from a downloaded
