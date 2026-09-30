@@ -58,10 +58,12 @@ plainly rather than in a footnote. It has since been run: 4,320 frames on a Wind
 desktop, and the pixels its window put on that screen match a Linux-rendered frame exactly, pixel
 for pixel — [docs/windows-first-run.md](docs/windows-first-run.md) is the write-up, including the
 four things it did not cover. Two of those are worth knowing before you file a bug: nobody has
-played it with a keyboard yet, and `windows/arm64` has still never run at all. Some Windows code
-written since that run has not been seen working on Windows yet either: the first window sized
-from the monitor, where that window is placed, a present that sends only what changed, and a
-console that waits after an error.
+checked its keys by hand yet, and `windows/arm64` has still never run at all. The window code
+written since, which sizes the window from the monitor, centres it and sends only what changed,
+has been run on that desktop by a script. On one player's Windows 10 laptop `v0.2.0`'s window
+stayed white and drew only what moved. The fix sends the picture in smaller pieces and has not
+been run on that laptop yet ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 2.81). The console
+that waits after an error has not run on Windows at all.
 
 ## Where it is up to
 

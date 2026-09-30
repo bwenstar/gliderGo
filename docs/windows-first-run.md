@@ -19,9 +19,12 @@ operating system off a real desktop, is an exact pixel-for-pixel match for a fra
 renders. Not "looks right" — no differing pixel.
 
 That last part is the one that needed a camera rather than an exit code. `Present` in
-`internal/platform/win32/win32.go` **deliberately does not check what `StretchDIBits` returns**,
-so a clean exit and a plausible frame rate prove the blit was *called*, not that anything reached
+`internal/platform/win32/win32.go` **deliberately did not check what `StretchDIBits` returned**,
+so a clean exit and a plausible frame rate proved the blit was *called*, not that anything reached
 a screen. A green bench is consistent with a window that never painted. The screenshot is not.
+`Present` now notes a refusal, but that does not change this: a driver can lose a send and report
+success. One player's white window fits a driver that lost its large sends, but what that driver
+returned is not known (`docs/IMPROVEMENTS.md` 2.81).
 
 **2. The sound device took every sound the game gave it.** `-audio list` found `waveout`, the sink
 opened, and across the four runs that used the device rather than a WAV file the game asked for 73
@@ -226,21 +229,26 @@ Four gaps, stated plainly because the release notes point here for them.
 Also untested: more than one sound device, a machine with no sound device at all (the code has a
 path for it), any non-US keyboard layout, and a full game played through to a high score.
 
-## What has changed since, and has not been seen working on Windows
+## What has changed since, and how much of it a script has seen on Windows
 
-Three things in `internal/platform/win32` were written after this run, for the release gate's
-step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76). They build and vet for amd64 and arm64, and no
-Windows screen has shown them. CI's service-session bench asks for the centred window at every
-push to `main`, and draws into it with the new present if the window opens. Neither is checked:
-the step is best-effort, the one copy of its log read here (the run for `dbfc021`) stops before
-the bench's own lines, and `Present` ignores what `StretchDIBits` returns. A `-frames` run never
-calls `Room`.
+Four things in `internal/platform/win32` were written after this run: three for the release gate's
+step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76), and after the `v0.2.0` tag a fourth, for one player's
+white window (2.81). They build and vet for amd64 and arm64, and no Windows screen had shown the
+first three when `v0.2.0` was tagged. CI's service-session bench asks for the centred window at
+every push to `main`, and draws into it with the new present if the window opens. Neither is
+checked: the step is best-effort, the one copy of its log read here (the run for `dbfc021`) stops
+before the bench's own lines, and `Present` ignored what `StretchDIBits` returned until 2.81. A
+`-frames` run never calls `Room`.
 
 - **`Room`**: the work area of the monitor under the pointer, less the frame.
 - **The placement**: the window is centred in that work area instead of `CW_USEDEFAULT`.
 - **The changed-rows present**: one `StretchDIBits` per changed block, from a DIB header whose bits
   pointer is the block's first row. It also includes the `IsIconic` skip and a whole frame after
   `WM_PAINT`.
+- **The bands and the sweep** (2.81), which change the third: no send of more than 64 KiB, so a
+  block goes in bands and a narrow one is first copied into a DIB of its own width, one more band of
+  the window sent at every present, a whole frame after a refused send, and `WM_PAINT` painting the
+  damage itself.
 
 Step 4 also added two things outside the backend (`docs/IMPROVEMENTS.md` 4.35). The console hold
 has not run on Windows, and the crash file has run there only in the test binary (check 4):
@@ -251,6 +259,24 @@ has not run on Windows, and the crash file has run there only in the test binary
 - **The console hold**: `holdConsole` in `cmd/glidergo/console_windows.go`. If
   `GetConsoleProcessList` finds only this process on the console, the game stopped in a window
   that it opened itself, so it waits for Enter before that window closes.
+
+**What a script saw, 2026-09-30.** Builds of `v0.2.0`'s tree and of the fix ran on this desktop,
+now 2528×1312, started in its session by a scheduled task and captured from the screen. This
+covers part of the list below, and nobody watched:
+
+- **Check 1, in part.** With `-prefs none` and no `-scale`, the window was 1280×960, which is 2×
+  and the largest that fits, and the fix's banner said `scale=2 (auto)`. It was centred on the
+  work area to the pixel and clear of the taskbar. There is one monitor, so the second-monitor half
+  is not done.
+- **Check 2, in part.** The title screen matched the Linux frame exactly. The fix's matched it but
+  for the version string, and did again after a minimise and restore. The runs sent keys, Down,
+  Enter and Right, which moved the menu and started a game. The fix drew room 8 as `v0.2.0` does
+  after a wipe, and a test-only pair of builds that turns that wipe sideways drew the same as each
+  other but for what animates. There was no paced run against the Linux frames, and no person
+  played.
+- **Check 3, not done.** The 4× window is taller than this desktop, so its bench is not a result,
+  and there was no `-scale 1` row. `autoMax` stays 3.
+- **Check 4, not done.** Neither the shortcut nor the wait was tried.
 
 The next run on a Windows desktop checks them, in this order:
 

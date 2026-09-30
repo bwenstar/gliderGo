@@ -1496,9 +1496,9 @@ this early.
   across six runs, all six `-shot` renders hashing identically to Linux's, and an OS screenshot
   of the running window, cropped to its client area, an exact pixel-for-pixel match for a frame
   the Linux build renders. That last part is the one that needed a camera rather than an exit
-  code: `Present` deliberately does not check what `StretchDIBits` returns, so a clean exit and a
-  good frame rate are equally consistent with a window that never painted. The paced run held
-  29.9 fps against the original's 30.07 target, and `waveOut` played 73 of 73 sounds asked of it.
+  code: `Present` then ignored what `StretchDIBits` returned, and a driver can lose a send unseen,
+  so a clean exit and a good frame rate fit a window that never painted. The paced run held 29.9 fps
+  against the original's 30.07 target, and `waveOut` played 73 of 73 sounds asked of it.
   `docs/windows-first-run.md` is the write-up, and `make check`'s cross-build table now says
   *"run on Server 2025"* where it used to say *"never run"*.
 - **What that run did not prove**, because the release notes point at it: no key was ever pressed
@@ -1612,8 +1612,10 @@ means the tag is better with it and does not wait.
      window sent nothing. It turned out to be needed rather than nice to have. A room wipe is
      116–160 presents in one frame, and with whole frames it froze the game for 1.45 s at every
      door at the new 2× default, and 4.2 s at 4×. It is about 0.1 s now at every scale. The
-     win32 half has not been seen working. CI's best-effort bench draws with it if its window
-     opens, and nothing checks what it drew; 5.4's rehearsal reads a window back.
+     win32 half was run on the Windows test host's desktop by a script after the `v0.2.0` tag.
+     On one player's laptop it left the window white, and it now sends in bands and sweeps
+     (2.81). CI's best-effort bench draws with it if its window opens, and nothing checks what
+     it drew; 5.4's rehearsal reads a window back.
    - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
      **DONE.** A run a player starts keeps `crash.log` beside `scores/` and `saves/`: the
      `-version` block, then whatever stopped the run. The next start keeps a crash as
@@ -1684,16 +1686,23 @@ means the tag is better with it and does not wait.
    **Moved out of `v0.2.0`'s gate by the owner, 2026-09-29.** No Windows desktop was to hand, and
    the two houses played through went out with the Windows checks, so `v0.2.0` is tagged without
    this step, and without Mark of the Web and Defender (`RELEASING.md` steps 6 and 7).
-   `docs/RELEASE_TESTING.md` records no step as run on `v0.2.0-rc1`. Nobody has seen the Windows
+   `docs/RELEASE_TESTING.md` records no step as run on `v0.2.0-rc1`. Nobody had seen the Windows
    code written since the first run working. CI's service-session bench asks for the centred window
    at every push to `main`, and draws into it if it opens, but the step is best-effort, and the one
    copy of its log read here, from the run for `dbfc021`, stops before the bench's own lines. The
-   crash file has run on Windows only in the tests. `Room`, which auto scale sizes the first window
-   from, and the console hold have not run there at all. The release notes, README and the Windows
-   `HOW-TO-RUN.txt` all say the window has not been seen on Windows, and the last two say the same
+   crash file had run on Windows only in the tests. `Room`, which auto scale sizes the first window
+   from, and the console hold had not run there at all. `v0.2.0`'s release notes, README and Windows
+   `HOW-TO-RUN.txt` all say its window has not been seen on Windows, and the last two say the same
    of the console hold. Every test passes on Windows, in CI's `native` job and, on 2026-09-29, on
    the Windows test host. This step is the first work after the tag, a fix it needs can be 0.2.1,
    and step 7 still comes after it.
+
+   **After the tag, 2026-09-30.** A script ran builds of `v0.2.0`'s tree on the Windows test
+   host's desktop. Auto scale chose 2×, the window was centred and the title matched Linux
+   exactly, and keys sent to test builds moved the menu and started a game. That is not this
+   step, which needs a person at the keyboard. A player had reported `v0.2.0`'s window white on a
+   Windows 10 laptop, drawing only what moved. The fix is 2.81, for 0.2.1, and has not been run on
+   that laptop.
 7. **Announced, last.** After step 6 and after 5.1's connected-host checks, because the
    announcement is when strangers arrive. Where to announce is the user's call. Package-manager
    manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag and run into 5.4's
@@ -1759,7 +1768,7 @@ Four sub-stages, because "port the editor" hides three pieces of work that each 
 - **5a — the authoring loop from a download.** `glidertool house dump|info|lint|stats` and
   `render` find a built-in house by name the way `replay` already does (4.20): the houses root,
   then the levels root, then the embedded copies. Today a player with only a release archive
-  cannot dump a starting house, so README's authoring example (`README.md:430`) fails for them.
+  cannot dump a starting house, so README's authoring example (`README.md:432`) fails for them.
   Small, and worth doing before 1.0 as an amendment to 4.20. `-room N` already jumps to a room,
   and a relaunch costs about a second, so an in-session reload is optional.
 - **5b — a headless editing core, `internal/edit`.** `ObjectAdd`, the `DragObject`/`DragHandle`

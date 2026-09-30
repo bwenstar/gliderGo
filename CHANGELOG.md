@@ -20,6 +20,27 @@ come in 0.3.0, whose section here says what it no longer races or reads (`docs/P
 version number promises"). The section at the top says whether its tag has been made yet.
 `RELEASING.md` step 2 names it, and the commit the tag is made on dates it.
 
+## Unreleased
+
+Not tagged yet.
+
+### A Windows window that stayed white fills in (2026-09-30)
+
+On one player's Windows 10 laptop `v0.2.0`'s window opened white and drew only what moved: the menu
+rows as the highlight passed over them, and in a game the glider's track. Minimising and restoring
+it did not help, and `-scale 1` looked better. The report fits a display driver that drops a large
+`StretchDIBits` and draws the small ones. `v0.2.0` sent a whole frame, 4.9 MB at 2×, when the window
+opened or was repainted, and one block around the changes when a frame changed most of the screen,
+and nothing sent again what was lost. Now no send is bigger than 64 KiB, and each frame sends one
+more band of the window, a 64th of it, so whatever is lost anyway is sent again within a second or
+two. A send GDI refuses makes the next frame whole, and `WM_PAINT` repaints from what was last sent
+rather than waiting for the next frame. On the Windows desktop the port is tested on, a test build
+that dropped large sends in the same way showed the player's symptoms with `v0.2.0`, and with the
+fix the title screen that `v0.2.0` draws when nothing is lost, but for its version string. It has
+not been run on that laptop. It costs paced play nothing measurable and the unpaced bench a tenth at
+2× and a fifth at 4×, and the frame a room changes in takes up to 30% longer at 4×. It is a 0.2.x
+fix: `cmd/glidergo/promises_test.go` is unchanged (`docs/IMPROVEMENTS.md` 2.81).
+
 ## `v0.2.0`
 
 Tagged on 2026-09-29.

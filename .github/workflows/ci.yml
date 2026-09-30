@@ -487,10 +487,10 @@ jobs:
       # interesting thing is its log, not a red X on a pull request that has nothing to do with
       # Windows.
       #
-      # Note that a pass here does NOT prove pixels reached a screen: Present deliberately does
-      # not check StretchDIBits' return value (see its comment in internal/platform/win32), so a
-      # frame rate is reported whether or not anything was drawn. Proving that took a screenshot,
-      # which is what the manual run did.
+      # Note that a pass here does NOT prove pixels reached a screen: a driver can lose a send and
+      # still report success (docs/IMPROVEMENTS.md 2.81), and Present notes a refusal rather than
+      # failing (see its comment in internal/platform/win32), so a frame rate is reported whether or
+      # not anything was drawn. Proving that took a screenshot, which is what the manual run did.
       #
       # -frames bounds the run so it cannot hang waiting for a quit event that no automated
       # session will ever send; timeout-minutes is the belt to that braces. The bench needs a

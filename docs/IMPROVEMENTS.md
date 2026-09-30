@@ -253,7 +253,7 @@ The x/telemetry copy vendored in the same toolchain (`src/cmd/vendor/golang.org/
 already has the 2024 wording, `Copyright 2009 The Go Authors.`, and 5.11 moves releases to a newer
 minor. If Go's own LICENSE has changed the same way, the longer pattern would fail the first release
 built on that minor, although the notice was there. The shorter one matches both wordings. The
-release notes' `### Licence` (`:926-928`) and README's Licence section (`README.md:546-548`) carry
+release notes' `### Licence` (`:926-928`) and README's Licence section (`README.md:548-550`) carry
 the sentence above, naming `glidergo` and `glidertool` where it said "both binaries". The notes call
 the download one file and never mention glidertool, so "both" had nothing to refer to.
 
@@ -398,7 +398,7 @@ mismatch such as 8× on a laptop.
   `New`, because cmd needs the number for the banner (`play.go:1005`) and the row. The
   `platform.Config` comment changes with it.
 - **Windows:** `MonitorFromPoint`/`MonitorFromWindow` plus `GetMonitorInfoW`'s `rcWork`, the
-  existing `AdjustWindowRect` (`win32.go:289-294`), and the window placed inside `rcWork`, centred,
+  existing `AdjustWindowRect` (`win32.go:357-361`), and the window placed inside `rcWork`, centred,
   instead of `CW_USEDEFAULT`. The cascade can put a fitting 2× window under the taskbar at 1080p.
   `SPI_GETWORKAREA` covers the primary monitor only. All of these are user32, a KnownDLL, so the
   preloading rule holds. Unverified here, so it is checked on the Windows test host in 5.4's
@@ -449,10 +449,10 @@ settings row. The pieces:
 - **Windows** does what the plan says: `GetCursorPos`, then `MonitorFromRect` (nearest), then
   `GetMonitorInfoW`'s `rcWork`, less `AdjustWindowRect` of an empty rect. The window is centred in
   that work area instead of placed with `CW_USEDEFAULT`, clamped to its top left, and falls back to
-  `CW_USEDEFAULT` if the query fails. It builds and vets for amd64 and arm64, and **has not been
-  seen working**: CI's best-effort service-session bench asks for the centred window, unchecked.
-  5.4's rehearsal checks it on the Windows test host, and `docs/windows-first-run.md` says what to
-  look for.
+  `CW_USEDEFAULT` if the query fails. It builds and vets for amd64 and arm64. On 2026-09-30 **a
+  script saw it work** on the Windows test host's one-monitor desktop: auto chose 2×, and the window
+  was centred on the work area to the pixel, clear of the taskbar. A second monitor and a person's
+  look are still 5.4's rehearsal, and `docs/windows-first-run.md` says what to look for.
 - **The settings row** steps auto, 1×…8×; Left from 1× reaches auto, and R resets to it. It shows
   `auto 2x` rather than the plan's `auto (2×)`: the value column is 90 px wide at the row's scale,
   before "next launch" starts, and the bracketed form is 108. `TestSettingsValuesFitTheirColumn`
@@ -2590,7 +2590,7 @@ The `errs` comment is corrected. A race-built child also sleeps a second before 
 ### 2.72 X11 auto-repeat is undetectable, so every `!ev.Repeat` guard is dead on Linux — **DONE, the release gate's first step, with `Repeat` tracked by keycode**
 
 `platform.Event.Repeat` exists so that a held key does one thing, and the shell and the game test it
-wherever that matters. Win32 reports it directly (`lParam` bit 30, `win32.go:534`). The x11 backend
+wherever that matters. Win32 reports it directly (`lParam` bit 30, `win32.go:629`). The x11 backend
 infers it from its own record (`x11.go:244`: a press while the same keycode is already down).
 Until the fix below, that inference never fired, because by default an X server sends every auto-repeat as a
 `KeyRelease`/`KeyPress` pair, so the bitmap sees a release before each repeated press. On Linux,
@@ -2612,7 +2612,7 @@ after `XOpenDisplay` (`x11.go:124`). XKBlib is part of libX11, and `XkbKeycodeTo
 file already used it, so nothing new is linked. The server then sends repeats as presses with no
 release between them, which is what Windows does, and the rule at `:244` marks the presses bit 30
 marks. It keys on the X keycode, not the `platform.Key` (below), and the comments at both sites say
-so. `win32.go:528-533` no longer calls the x11 inference a working second best: it says the
+so. `win32.go:623-628` no longer calls the x11 inference a working second best: it says the
 inference works only because `New` asks, and that bit 30 is still the better answer, because it
 stays correct across a lost `WM_KEYUP`.
 
@@ -2818,15 +2818,16 @@ note under the table was already right, and it is now true.
 ### 2.76 Every frame uploads the whole magnified window, and auto scale will make that 4× — **items 1 and 4 and the bench row DONE, the release gate's step 4; the cap stays until Windows is measured; items 2 and 3 open**
 
 Both backends present the same way. `platform.Expand` writes the full pw×ph surface, then
-`XPutImage` (`x11.go:215`) or `StretchDIBits` (`win32.go:601`) sends all of it. That happens every
-frame, whether anything moved or not. At 4× it is 19.7 MB a frame, about 590 MB/s at 30.07 fps.
+`XPutImage` (`x11.go:216`) or `StretchDIBits` (`win32.go:601`), both at `b8f4115`, send all of it.
+That happens every frame, whether anything moved or not. At 4× it is 19.7 MB a frame, about 590 MB/s
+at 30.07 fps.
 
 Every figure behind "fast enough" was taken at 1× or 2×:
 - `x11.go:6-8`'s 533 fps;
 - DEV_ENVIRONMENT §6's "Rendering is not a risk";
 - `BenchmarkExpand` at 1–3× against a 16.7 ms frame (`expand_test.go:150-155`), which calls those
   "the three scales the shell offers" when `MaxScale` is 8;
-- `windows-first-run.md:116-119`, at `-scale 2` only.
+- `windows-first-run.md:119-122`, at `-scale 2` only.
 
 `make bench` is hermetic (2.53), so it always runs at 1×.
 
@@ -2892,7 +2893,7 @@ of it touches a game coordinate (2.8):
    (5.10) can do the same.
 3. **On Windows, stop expanding.** Call `SetStretchBltMode(hdc, COLORONCOLOR)`, then `StretchDIBits`
    straight from a 640×480 DIB into the pw×ph destination. For an integer magnification only
-   `HALFTONE` averages pixels, so `win32.go:577-579`'s "GDI's own stretch would smooth" is true of
+   `HALFTONE` averages pixels, so `win32.go:743`'s "GDI's own stretch would smooth" is true of
    `HALFTONE` only. This is unverified here. Read the window back on the Windows test host and
    compare it byte for byte with `Expand` at 2–4× before `Expand` is dropped from that path. The
    same readback checks item 1's rect arithmetic on a top-down DIB.
@@ -2933,7 +2934,8 @@ above 2×, any laptop, any battery.
   - X11 sends each block with a sub-rectangle `XPutImage`.
   - Win32 sends each block with `StretchDIBits`, from a DIB header whose bits pointer is the
     block's first row, whose height is the block's, and whose source is `(x, 0, w, h)`. That
-    sidesteps the question of which way a bottom-up source rect is counted on a top-down DIB.
+    sidesteps the question of which way a bottom-up source rect is counted on a top-down DIB. 2.81
+    later cut each send to 64 KiB or less, a narrow block copied first into a DIB of its own width.
   - An expose, a map, `WM_PAINT` and a frame of another size all make the next frame whole.
     `TestSendingOnlyTheChangesShowsTheWholeFrame` is the property: 60 random frames at 1–8×,
     sending only what `Diff` reported, leave the window byte-identical to `Expand` of every frame.
@@ -3004,11 +3006,12 @@ door on this host, and 4× for four seconds. With it, a wipe costs about 0.1 s a
 most of that is per-present work, not pixels. 2.4 still wants the wipe paced to about a third of a
 second, and now a door can afford that.
 
-**The cap stays.** 2.1's rule was "both backends", and win32's changed-rows present has not been
-seen working: CI's best-effort bench draws with it only if its window opens, and checks nothing. So
-`autoMax` is 3, and 4× on a 4K monitor is one keystroke on the settings row. Lifting it is one
-constant once 5.4's rehearsal has read a win32 window back and run `make bench`'s three rows on the
-Windows host.
+**The cap stays.** 2.1's rule was "both backends", and a script has since seen win32's changed-rows
+present, with 2.81's bands, draw the title and room 8 after its wipe as `v0.2.0` does on the Windows
+test host. That desktop is too small for the whole 4× window, so its 4× bench there is not a result
+(`docs/windows-first-run.md`, check 3). So `autoMax` is 3, and 4× on a 4K monitor is one keystroke
+on the settings row. Lifting it is one constant once 5.4's rehearsal has run `make bench`'s three
+rows with the whole window on a Windows screen.
 
 Still open:
 - **Item 2**, the server-side row repeat, is now for the whole-frame case only: a shell screen, an
@@ -3111,6 +3114,131 @@ directory that has no settings file, but `-prefs` names a file, and a directory 
 case. The check still worked, because unreadable settings fall back to the defaults and auto is
 the default, but its first line of output was an error. It now says `-prefs none`, or a file that
 does not exist yet.
+
+### 2.81 On one player's Windows 10 laptop the window stayed white and drew only what moved — **DONE after the `v0.2.0` tag, for 0.2.1; not yet run on that laptop**
+
+**The report.** A player downloaded `glidergo-v0.2.0-windows-amd64.zip` and ran it on Windows 10
+22H2 (build 19045), on a laptop with three monitors whose own screen is 1920×1080. Its GPU is not
+known. The banner said `backend=win32 surface=640x480 scale=2 (auto)`. The window opened
+completely white. Moving through the title menu drew the rows the highlight passed over, and in
+a game the room appeared only where the glider had flown. Minimising and restoring the window
+did not bring the picture back, and `-scale 1` looked better.
+
+**What `v0.2.0` sends.** 2.76's changed-rows present sends a whole frame when the window opens
+and after `WM_PAINT` or a restore. When a frame changes more than 32 separate runs of rows, it
+sends one block around all of them, which can be most of the screen. At 2× a whole frame is one
+`StretchDIBits` of 4.9 MB. A still screen sends nothing after it. The menu highlight at 2× is a
+block of 568×38, whose DIB is 38 whole rows of the window, 190 KiB, and a moving glider's is
+smaller. So the report fits one rule: the laptop's driver drew the small sends and not the whole
+frames. Nothing sent those pixels again, so the title stayed white until each part of it happened
+to change. `v0.2.0` ignored what `StretchDIBits` returned. Whether reading it would have helped is
+not known, because nothing says what that driver returned, so the fix acts on a zero and does not
+rely on one. At `-scale 1` a whole frame is 1.2 MB, which may be under whatever that driver's
+limit is. Why it drops them is not known. There is no driver name or version to go on.
+
+**The reproduction.** This ran on the Windows Server 2025 desktop of `docs/windows-first-run.md`.
+A test-only build of `v0.2.0`'s source, whose `StretchDIBits` drew nothing and reported success
+for a DIB over 2 MB, showed all three symptoms. The window was 100% white; after one key the two
+menu rows appeared and nothing else; after a minimise and restore it was no different. In a game
+it drew the glider, its shadow and the sky along its track, a star and the status line, and
+nothing else. A build of `v0.2.0`'s tree without the test's loss draws the title on the same
+desktop pixel for pixel as Linux does.
+
+**The fix**, in `internal/platform/win32/win32.go`'s `Present` and `send`:
+
+1. **Nothing is sent in a piece bigger than 64 KiB** (`maxSend`). A block as wide as the window
+   goes in bands of whole rows, 25 at 1×, 12 at 2× and 6 at 4×, so a whole frame at 2× is 80
+   calls. A narrower block is copied into a DIB of its own width first, so a wipe's column, 4
+   pixels wide, is one call at 2× and two at 3× and 4×. 64 KiB is a third of the menu
+   highlight's DIB, the largest send known to have reached that screen.
+2. **The sweep.** After the changed blocks, every present sends one more band, a 64th of the
+   window, working down it. Whatever is lost anyway is sent again within 64 presents: about 1.5 s
+   in the menus, about two in play, and sooner in a wipe, which presents once a strip.
+3. **A refused send is noted.** `send` reports whether GDI took every band. A zero makes the next
+   present send the whole frame. It is still not an error from `Present`, for the reason that
+   function's comment gives.
+4. **`WM_PAINT` paints.** Between `BeginPaint` and `EndPaint` the damaged rectangle is sent from
+   `buf`, which holds what the window was last sent, so a repair does not wait for the next frame.
+
+**Tested on the same desktop, 2026-09-30.** The tests used test-only builds (never committed),
+whose `StretchDIBits` modelled a driver's loss. The captures are of the screen, not of the
+window. `PrintWindow` makes the window paint, and a first round was healed by that rather than
+by the sweep, which the build's log of its calls showed. "Exact" is the title as `v0.2.0` draws
+it with no model, but for the version string.
+
+| Model | `v0.2.0` | Fixed |
+|---|---|---|
+| A DIB over 2 MB draws nothing and reports success | white; the menu rows only; still white after a minimise and restore; in a game, only what moved | never met, because no send is over 64 KiB: the title exact at 1.5 s, after a key and after a minimise and restore |
+| Every third send does the same | — | the title exact at the first capture, 0.8 s; in a game, see below |
+| The first 40 sends are refused | — | exact at the first capture, 0.8 s |
+| The first sends draw nothing and report success: 400 of them, or both of the two `v0.2.0` makes on a still title | white at 5 s | the sweep alone, in three runs: 60–90 rows right at 2.1 s, 315–360 at 2.5 s and 645–735 at 3.0 s, working down from row 240, and all 960 at 3.5 s in the two that looked |
+
+With no model the fixed build is identical to `v0.2.0` at 1×, 2× and 4× but for its version
+string. `Room` chose 2× on that 2528×1312 desktop and the window was centred on its work area.
+The runs pressed keys through `SendKeys`: Down, Enter and Right. That is the first time a script
+has put a key into this window on Windows, and the menu moved and a game started. It is not
+`docs/RELEASE_TESTING.md`'s step 7, the keys, which wants a person steering a glider.
+
+In play, the fixed build drew room 8 as `v0.2.0` does at 5.5 s and 8 s, after the wipe of frame 121,
+which runs up the window. A test-only pair of builds that turns that wipe sideways drew the same as
+each other but for the glider and a barbecue's coals, which both animate, so the narrow path puts a
+column where it belongs. In a game with every third send lost, the picture at 9 s was still wrong on
+43 rows of the window. 39 of them were wrong across its width, and 33 of those were the 3-row ends
+of sweep bands, which at 2× go as 12 rows and then as 3. A loss in step with a frame's calls can
+keep missing the same piece of every band.
+
+A first version of the fix sent every band as whole rows of `buf`, whatever the block's width,
+and review found what that does to a sideways wipe: 77 calls a column at 2× and 307 at 4×,
+each present. Measured with the sideways builds, that version's wipe took 307–310 ms at 2× and
+510–516 ms at 4×. The "Fixed" column below is the version that copies a narrow block into a
+DIB of its own width.
+
+What it costs, on the same machine, with two runs of each `-bench` row and one of each paced one.
+The wipe rows are `-room 8 -frames 300 -bench`'s slowest frame, the one the room changes in:
+
+| | `v0.2.0` | Fixed |
+|---|---|---|
+| `-bench`, 2× | 837–842 fps | 751–757 fps |
+| `-bench`, 4× | 712–723 fps | 578–594 fps |
+| `-frames 300`, 2× | 7% of a core | 5% |
+| `-frames 300`, 4× | 7% | 6% |
+| Slowest frame, frame 0, at 2× | 73–79 ms | 81–85 ms |
+| Slowest frame, frame 0, at 4× | 96–103 ms | 114–121 ms |
+| Room 8's wipe, 116 presents, at 2× | 108–109 ms | 110–117 ms |
+| Room 8's wipe, at 4× | 120–128 ms | 141–145 ms |
+| The same wipe sideways, 160 presents, at 2× | 205–214 ms | 237–247 ms |
+| The same wipe sideways, at 4× | 215 ms | 260–278 ms |
+
+That is about 0.3 ms a frame at 4× and half that at 2×. Most of it is probably the sweep, which
+at 4× is five more calls and 300 KB a frame. The probe below timed a whole frame at 2× at
+1.62 ms as one call and 3.02 ms as 80. The paced rows show no difference either way: CPU time
+there counts in ticks of 15.6 ms, and an earlier round had `v0.2.0` at 5% and 6%. The 4× window
+is larger than that desktop, so these are two builds compared on the same window and not 2.76's
+4× result, which `docs/windows-first-run.md` says needs the whole window on the screen.
+
+**A probe for the laptop.** `glidergo-wincheck.exe` is a stand-alone program written for this,
+and not in the tree. It names each display adapter and monitor, then opens a window made as
+gliderGo makes its own on each monitor in turn. It paints that window 18 ways: whole, in bands of
+480 rows down to 3, in blocks and tiles, through `SetDIBitsToDevice`, through a DIB section and
+`BitBlt`, and bottom-up. It reads each one back from the window, from the screen and from the
+compositor. On this desktop every way read 100% right. Its `-drop N` self-test skips every send
+over N bytes and reports it a success. With the reproduction's 2 MB it read each case whose DIB
+was over that as not drawn and each smaller one as right, so a report from the laptop can tell
+the two apart.
+
+Still open:
+- **Whether it works on that laptop.** Nobody has run the fix there. A fixed build and the probe
+  together answer that and give the driver's limit.
+- **A sweep by the clock.** A wipe is 116 or 160 presents in one frame, and each now carries a
+  band, which is probably most of what the wipe rows above gained. A band sent only once a
+  frame's worth of time has passed would cost a wipe nothing and heal in the same two seconds
+  everywhere.
+- **A loss in step with the calls.** Band edges that moved each time round would stop the same
+  piece being lost every time. Nothing known of the laptop suggests its loss is periodic.
+- **`maxSend` from evidence.** Once the laptop's report is in, the cap can be set from what that
+  driver draws rather than as a third of the largest send known to have landed.
+- **The probe in the tree**, if the laptop's report shows it earns a place, as `tools/`'s first
+  Windows program.
 
 ---
 
@@ -5588,7 +5716,7 @@ the three had drifted apart.
 
 `CONTRIBUTING.md` quotes the target's prerequisites **verbatim**, which is the right thing to do —
 somebody comparing a CI log against the document should be comparing the same words — and it had
-already fallen a step behind, listing the twelve steps that preceded `docs-check`. `README.md:151`
+already fallen a step behind, listing the twelve steps that preceded `docs-check`. `README.md:184`
 and `docs/DEV_ENVIRONMENT.md:25` each carry a prose summary instead, and DEV_ENVIRONMENT's named six
 of the fourteen steps. None of the three is redundant with the others; all three were stale in
 different directions.
@@ -6778,7 +6906,7 @@ mask, and the backend gets it through `platform.Config`, not by importing render
   because the version is known only at build time. It names gliderGo, its version and licence,
   and credits the original. `CompanyName` is not "Casady & Greene".
 
-No manifest: DPI is set at runtime (`win32.go:404`) and nothing uses Common Controls. A `.desktop`
+No manifest: DPI is set at runtime (`win32.go:486`) and nothing uses Common Controls. A `.desktop`
 file is optional, because nothing installs it and `Exec` needs an absolute path. If a pure-Go X11
 client lands (5.10), the X11 half goes into it. The macOS `.icns` comes from the same decoder in
 Stage 6.
@@ -7942,7 +8070,7 @@ answer) tend to key on. Measured on `bin/cross/glidergo-windows-amd64.exe` at `1
 - it is unsigned and new, so it has no reputation;
 - it has no `.rsrc` section at all: no VERSIONINFO, no icon, no manifest;
 - its import table names `kernel32.dll` only. `user32`, `gdi32` and `winmm` are resolved at run time
-  through `LoadLibraryExW` and `GetProcAddress` (`syscall.NewLazyDLL` in `win32.go:76-78`,
+  through `LoadLibraryExW` and `GetProcAddress` (`syscall.NewLazyDLL` in `win32.go:86-88`,
   `syscall.LoadDLL` in `waveout_windows.go:122`). That is ordinary Go, and it is also what a loader
   does;
 - 11.4 MB of its 15.7 MB is `.data` at 7.98 bits per byte. That is `assets/extracted.zip`, and to a
@@ -8280,6 +8408,7 @@ run into 5.4's unsigned-binary warnings, so they are later and not part of the g
 | 2.73 `RenderShreds` asks for the `shred` strip rather than a sheet, so a shredded glider falls as confetti and the game no longer ends with an asset error — with a replay test that shreds a glider with the art loaded, and a static test that holds every constant art name to the table its accessor reads | release gate, step 1 | this stage |
 | 2.79 `prefs.Save` writes back the keys it has no field for, so an older build that saves a newer build's file no longer deletes the newer build's settings | release gate, before the tag | this stage |
 | 2.80 An unreadable settings file is reported once, and the Windows auto-scale check names `-prefs none` rather than a directory | release gate, before the tag | this stage |
+| 2.81 Win32 sends no piece bigger than 64 KiB and sweeps the window a 64th a frame, so a driver that drops whole frames no longer leaves it white | after the `v0.2.0` tag, for 0.2.1 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

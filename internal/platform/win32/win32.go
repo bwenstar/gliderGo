@@ -9,22 +9,26 @@
 // carries no build tag for exactly that reason), and the nearest-neighbour expansion below is
 // platform.Expand -- the same function the x11 backend uses, tested at every scale and benchmarked.
 //
-// It has been run, once, elsewhere: Windows Server 2025 (build 26100, amd64) on a real interactive
-// desktop, 4,320 frames across six runs, and the pixels it put in its window were compared against
+// It was first run elsewhere on Windows Server 2025 (build 26100, amd64), on a real interactive
+// desktop: 4,320 frames across six runs, and the pixels it put in its window were compared against
 // the frames the same version renders on Linux and matched exactly. Window creation, the message
 // pump, the blit and the scaled blit all work. docs/windows-first-run.md is the write-up.
 //
-// Since that run, and not yet seen working anywhere: Room, which sizes the window to the monitor,
-// the window's placement in the middle of that monitor, and a Present that sends only what a frame
-// changed (docs/IMPROVEMENTS.md 2.1, 2.76). The next Windows rehearsal compares pixels again for
-// exactly that reason. CI's service-session bench (below) asks for the placement, and reaches the
-// Present only if its window opens; nothing checks what it drew, and no hermetic run calls Room.
+// Since that run, Room sizes the window to the monitor, the window is placed in the middle of that
+// monitor, and Present sent only what a frame changed (docs/IMPROVEMENTS.md 2.1, 2.76). v0.2.0 is
+// the first release with all three. A build of its tree ran on the same desktop on 2026-09-30: Room
+// chose 2x, the window was centred, and the title screen matched the Linux frame exactly. On one
+// player's Windows 10 laptop the release showed a white window that filled in only where something
+// moved, which is why Present now sends in bands and sweeps (2.81). Builds with that change ran on
+// the same desktop that day, some made to lose sends on purpose, and a script typed keys into them.
+// CI's service-session bench (below) asks for the placement, and reaches the Present only if its
+// window opens; nothing checks what it drew, and no hermetic run calls Room.
 //
-// What that does NOT cover, and what a reader should still distrust: keyboard input, because the
-// run was driven by -frames and nobody pressed a key; arm64, which no machine here or there can
-// run; and everything about a window the player interacts with -- resizing, focus loss, dragging,
-// closing. ci.yml's `native` job compiles it on every push and benches it in a service session,
-// which is a different case from a logged-in desktop and deliberately best-effort.
+// What that does NOT cover, and what a reader should still distrust: keyboard input beyond the
+// arrow keys and Enter the script typed and the player steered with; arm64, which no machine here
+// or there can run; and everything about a window the player interacts with -- resizing, focus
+// loss, dragging, closing. ci.yml's `native` job compiles it on every push and benches it in a
+// service session, which is a different case from a logged-in desktop and deliberately best-effort.
 //
 // No cgo and no dependencies, which is not a preference: the build host has no Go module proxy
 // and no reachable GitHub, so go-sdl2, Ebitengine and golang.org/x/sys are simply unobtainable
@@ -212,7 +216,7 @@ type (
 	// bitmapInfoHeader is a 32-bit BI_RGB DIB header, which is the one description of memory
 	// that makes this backend a copy rather than a conversion: a BI_RGB 32bpp scan line is
 	// 0x00RRGGBB per pixel as a little-endian DWORD, so its bytes are B, G, R, X -- exactly
-	// platform.Framebuffer's documented layout. height is stored negative; see Present.
+	// platform.Framebuffer's documented layout. height is stored negative; see send.
 	bitmapInfoHeader struct {
 		size          uint32
 		width         int32
@@ -237,11 +241,13 @@ type Window struct {
 	scale  int
 	pw, ph int // presented (physical) size
 
-	buf []byte // pw*ph*4 BGRX bytes, the scaled surface StretchDIBits reads
-	bmi bitmapInfoHeader
-	sub bitmapInfoHeader // the rows of buf one block of a frame is sent from; see Present
+	buf  []byte // pw*ph*4 BGRX bytes, the scaled surface StretchDIBits reads
+	bmi  bitmapInfoHeader
+	sub  bitmapInfoHeader // the header of the band being sent; see send
+	band []byte           // a narrow band's pixels, copied out of buf; see send
 
 	changes platform.Changes // what the window was last sent
+	sweep   int              // the next row Present sends whether it changed or not
 
 	events  []platform.Event
 	pending int // index into events of the WM_KEYDOWN a WM_CHAR belongs to, or -1
@@ -368,12 +374,13 @@ func New(cfg platform.Config) (*Window, error) {
 	win := &Window{
 		w: w, h: h, scale: scale, pw: pw, ph: ph,
 		buf:     make([]byte, pw*ph*4),
+		band:    make([]byte, max(maxSend, pw*4)),
 		pending: -1,
 	}
 	win.bmi = bitmapInfoHeader{
 		size:   uint32(unsafe.Sizeof(bitmapInfoHeader{})),
 		width:  int32(pw),
-		height: -int32(ph), // top-down; see Present
+		height: -int32(ph), // top-down; see send
 		planes: 1, bitCount: 32,
 		compression: biRGB,
 		sizeImage:   uint32(pw * ph * 4),
@@ -544,12 +551,20 @@ func wndProc(hwnd, message, wparam, lparam uintptr) uintptr {
 		return 1
 
 	case wmPaint:
-		// BeginPaint/EndPaint is not optional even though nothing is drawn between them: they
-		// are what clears the update region, and without them Windows would send WM_PAINT
-		// again immediately, forever. The actual repaint is the game's, via EventExpose.
-		// All, because the repaint of a paused game is the frame the window was sent last.
+		// BeginPaint/EndPaint is not optional: they are what clears the update region, and
+		// without them Windows would send WM_PAINT again immediately, forever. Between them
+		// the damaged part is put back from buf, which holds the frame the window was sent
+		// last, so the repair does not wait on the game. All and EventExpose as well, so the
+		// next Present sends the whole of the current frame and a paused game redraws; a paint
+		// that arrives before the first Present puts back black, not whatever was there.
 		var ps paintStruct
-		procBeginPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
+		if dc, _, _ := procBeginPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps))); dc != 0 {
+			x0, y0 := max(int(ps.paint.left), 0), max(int(ps.paint.top), 0)
+			x1, y1 := min(int(ps.paint.right), w.pw), min(int(ps.paint.bottom), w.ph)
+			if x1 > x0 && y1 > y0 {
+				w.send(dc, x0, y0, x1-x0, y1-y0)
+			}
+		}
 		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
 		w.changes.All()
 		w.events = append(w.events, platform.Event{Kind: platform.EventExpose})
@@ -650,27 +665,25 @@ func (w *Window) char(unit uint16) {
 }
 
 // Present displays fb, magnifying by the configured integer scale with nearest-neighbour
-// sampling. It sends what changed since the last frame and nothing else, one StretchDIBits per
-// block platform.Changes reports, as the x11 backend does.
+// sampling. It sends what changed since the last frame, block by block as platform.Changes
+// reports it and as the x11 backend does, and then one band of the window whether it changed or
+// not.
 //
-// The DIB header's height is negative, which is what makes this a copy of the framebuffer rather
-// than a vertical flip of it: a positive height means a bottom-up DIB, the layout every Windows
-// bitmap file uses and no framebuffer in this port does. StretchDIBits with equal source and
-// destination rectangles is a straight blit -- the scaling has already happened, in Go, because
-// GDI's own stretch would smooth 1994 pixel art (see platform.Expand).
+// That band is the sweep, and it is there because a send can go missing without a word. On one
+// player's Windows 10 laptop the whole-frame sends v0.2.0 made -- 4.9 MB each at 2x -- by all the
+// signs never reached the screen, while the smaller ones for a moving glider or a menu's highlight
+// did: the window came up white and filled in only where something moved (docs/IMPROVEMENTS.md
+// 2.81). What StretchDIBits returned went unread, and nothing would have sent those pixels again.
+// Now nothing goes in a piece bigger than maxSend, and the sweep works down the window a 64th of it
+// a frame, so whatever is lost regardless is sent again within 64 frames: about 1.5 s in the
+// menus, two in play. On the one Windows machine this has been timed on, that costs paced play
+// nothing measurable and the unpaced bench a tenth at 2x and a fifth at 4x, and a sideways wipe
+// between rooms, 160 Presents in one frame with a band each, 237 to 278 ms rather than 205 to 215.
 //
-// A block is sent as a DIB of its own: the bits start at the block's first row of buf, the
-// header says the DIB is that many rows tall, and the source rectangle takes all of them. That is
-// deliberate. Which way StretchDIBits counts ySrc in a top-down DIB is something Windows' own
-// documentation and its drivers have disagreed on, and a source rectangle that is the whole
-// height of its DIB is the same rows whichever way it is counted.
-//
-// Its return value is deliberately not checked. A Present error ends the game (cmd/glidergo's
-// Present hook treats one as a dead window), and GDI returning zero for a frame drawn while the
-// window is minimised or mid-transition would be a game that quits itself. The x11 backend does
-// not check XPutImage either, for the related reason that X reports asynchronously. A failing
-// blit shows as a window that stops updating, which is diagnosable; a game that exits on its own
-// is not.
+// A failed send is not an error either. A Present error ends the game (cmd/glidergo's Present
+// hook treats one as a dead window), and GDI refusing a frame drawn while the window is
+// mid-transition would be a game that quits itself. It is noted instead, and the next Present
+// sends the whole frame again.
 func (w *Window) Present(fb *platform.Framebuffer) error {
 	if w.hwnd == 0 {
 		return fmt.Errorf("win32: the window is closed")
@@ -684,28 +697,87 @@ func (w *Window) Present(fb *platform.Framebuffer) error {
 		return nil
 	}
 
-	s, stride := w.scale, w.pw*4
+	s := w.scale
 	for _, sp := range w.changes.Diff(fb) {
-		if err := platform.ExpandSpan(w.buf, stride, fb, s, sp); err != nil {
+		if err := platform.ExpandSpan(w.buf, w.pw*4, fb, s, sp); err != nil {
 			return err
 		}
-		x, y := sp.X0*s, sp.Y0*s
-		cw, ch := (sp.X1-sp.X0)*s, (sp.Y1-sp.Y0)*s
+		if !w.send(w.hdc, sp.X0*s, sp.Y0*s, (sp.X1-sp.X0)*s, (sp.Y1-sp.Y0)*s) {
+			w.changes.All()
+		}
+	}
+
+	rows := min((w.ph+63)/64, w.ph-w.sweep)
+	if !w.send(w.hdc, 0, w.sweep, w.pw, rows) {
+		w.changes.All()
+	}
+	if w.sweep += rows; w.sweep >= w.ph {
+		w.sweep = 0
+	}
+	return nil
+}
+
+// maxSend is the most one StretchDIBits call is given: 64 KiB of DIB, which is 12 whole rows of
+// the window at 2x and 6 at 4x, or a wipe's column whole at 2x and in two at 3x and 4x. The
+// largest send the laptop in Present's comment is known to have drawn is v0.2.0's for a menu
+// highlight, a DIB of 38 whole rows at 2x and 190 KiB, and the only ones known lost there are
+// whole frames. The cap is a third of the first. What it costs is calls: a whole frame at 2x is
+// 80 of them rather than one, 3 ms against 1.6 on the one Windows machine this has been timed on.
+const maxSend = 64 << 10
+
+// send puts the block of buf with its top left at x, y, cw by ch pixels, into the window through
+// dc, a band of at most maxSend bytes at a time. It reports whether GDI took every band.
+//
+// Each band is sent as a DIB of its own, and the source rectangle is all of it. A band as wide as
+// the window is buf's own rows. A narrower one is copied into band first, so that its DIB is as
+// wide as the block: a DIB of buf's rows would be whole rows of the window, and a wipe's column 4
+// pixels wide would be a call for every few rows of it. The source rectangle being the whole DIB
+// is deliberate. Which way StretchDIBits counts ySrc in a top-down DIB is something Windows' own
+// documentation and its drivers have disagreed on, and a source rectangle that is the whole of its
+// DIB is the same pixels whichever way it is counted.
+//
+// The DIB header's height is negative, which is what makes this a copy of the framebuffer rather
+// than a vertical flip of it: a positive height means a bottom-up DIB, the layout every Windows
+// bitmap file uses and no framebuffer in this port does. StretchDIBits with equal source and
+// destination rectangles is a straight blit -- the scaling has already happened, in Go, because
+// GDI's own stretch would smooth 1994 pixel art (see platform.Expand).
+func (w *Window) send(dc uintptr, x, y, cw, ch int) bool {
+	stride, ok := cw*4, true
+	rows := max(maxSend/stride, 1)
+	for top := y; top < y+ch; top += rows {
+		n := min(rows, y+ch-top)
+		bits := w.band
+		if cw == w.pw {
+			bits = w.buf[top*stride:]
+		} else {
+			for i := range n {
+				at := ((top+i)*w.pw + x) * 4
+				copy(bits[i*stride:(i+1)*stride], w.buf[at:at+stride])
+			}
+		}
 		w.sub = w.bmi
-		w.sub.height = -int32(ch)
-		w.sub.sizeImage = uint32(stride * ch)
+		w.sub.width = int32(cw)
+		w.sub.height = -int32(n)
+		w.sub.sizeImage = uint32(stride * n)
 
 		// Both pointers are into fields of a live *Window, so nothing here can be collected
 		// while the call runs -- which is the rule that makes passing Go memory to a syscall
-		// safe, and the reason buf and sub are fields rather than locals.
-		procStretchDIBits.Call(w.hdc,
-			uintptr(x), uintptr(y), uintptr(cw), uintptr(ch), // destination rectangle
-			uintptr(x), 0, uintptr(cw), uintptr(ch), // source: the same, in the block's own DIB
-			uintptr(unsafe.Pointer(&w.buf[y*stride])),
+		// safe, and the reason buf, band and sub are fields rather than locals.
+		r, _, _ := procStretchDIBits.Call(dc,
+			uintptr(x), uintptr(top), uintptr(cw), uintptr(n), // destination rectangle
+			0, 0, uintptr(cw), uintptr(n), // source: all of the band's own DIB
+			uintptr(unsafe.Pointer(&bits[0])),
 			uintptr(unsafe.Pointer(&w.sub)),
 			dibRGBColors, srcCopy)
+
+		// The rows copied, as a C int, so only the low 32 bits mean anything. Zero is a refusal,
+		// or nothing copied, and either way the band may not be on the screen. GDI_ERROR is for
+		// JPEG and PNG DIBs, and a negative count is a success on a mirrored DC.
+		if int32(r) == 0 {
+			ok = false
+		}
 	}
-	return nil
+	return ok
 }
 
 // PollEvents runs the message pump until the queue is empty and returns what it produced.

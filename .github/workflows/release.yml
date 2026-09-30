@@ -41,10 +41,10 @@
 # The windows archives used to carry a caveat the linux one did not -- that neither the backend nor
 # the sound behind it had ever been executed. For windows-amd64 that is no longer true: v0.1.1 was
 # run on Windows Server 2025 on a real interactive desktop, and the window's pixels matched a
-# Linux-rendered frame exactly (docs/windows-first-run.md). The window code written since -- auto
-# scale, the centred placement and the changed-rows present -- has not been seen working there yet
-# (that file's "What has changed since"), and the notes say so. windows-arm64 keeps the caveat,
-# because the machine that ran the tests was x86-64 and nothing here has an ARM64 Windows to try.
+# Linux-rendered frame exactly (docs/windows-first-run.md). On one player's laptop v0.2.0's window
+# stayed white and drew only what moved, which fits a driver that drops large sends, and the bands
+# and sweep meant to fix that have not run there (docs/IMPROVEMENTS.md 2.81). windows-arm64 keeps
+# the caveat: the machine that ran the tests was x86-64, and nothing here has an ARM64 Windows.
 # What is also no longer a gap is sound: internal/audio has a native waveOut driver, so an unzipped
 # .exe plays without FFmpeg or anything else installed, and `-audio ffplay` is the way round it if
 # the driver misbehaves (docs/IMPROVEMENTS.md 2.48). The release notes below say all of this in the
@@ -512,13 +512,13 @@ jobs:
           ONE THING TO EXPECT ON WINDOWS.
 
           The code behind this has had far less wear than the Linux equivalent: the window, the
-          keyboard and the sound were all written on Linux, which cannot run any of them. An
-          earlier x86-64 build has been run on Windows Server 2025, where its screens came out
-          pixel for pixel the same as on Linux. This one sizes, places and draws its window in
-          new ways that nobody has yet watched on a Windows screen. Nobody has steered a glider
-          through a house on Windows by hand either, and the arm64 build has never run at all.
-          If something looks wrong it probably is, and a bug report with crash-last.log or the
-          console output in it is worth a great deal. See README.md.
+          keyboard and the sound were all written on Linux, which cannot run any of them. Its
+          x86-64 builds have been run on Windows Server 2025, where the screens came out pixel for
+          pixel the same as on Linux. On one Windows 10 laptop v0.2.0's window stayed white and
+          drew only what moved. This one sends its picture in smaller pieces because of it, and
+          has not been tried on that laptop. Nobody has steered a glider through a house on
+          Windows by hand, and the arm64 build has never run at all. A bug report with
+          crash-last.log or the console output in it is worth a lot. See README.md.
 
           Sound needs nothing installed -- the game talks to Windows' own audio directly. If it
           is silent or stutters, "${cmd} -audio list" shows what this machine has, "${cmd}
@@ -748,7 +748,7 @@ jobs:
           | Archive | Plays on screen? |
           |---|---|
           | `linux-amd64` | **Yes** — X11 backend, built against libX11. |
-          | `windows-amd64` | **Yes** — GDI backend. `v0.1.1` was watched doing it; this release has not been yet (see below). |
+          | `windows-amd64` | **Yes** — GDI backend. `v0.1.1` was watched doing it; this release's code has been seen doing it only by a script (see below). |
           | `windows-arm64` | **Yes** — the same GDI backend, but never run on an ARM64 machine. |
           | anything marked `headless` | No. It runs the whole game but draws nothing yet. |
 
@@ -837,13 +837,13 @@ jobs:
           (the next start points at it), or the console output. `docs/windows-first-run.md` in the
           source tree is the full write-up, including the hashes and how to reproduce them.
 
-          **This release's window has not been seen on Windows.** Since that run the game sizes
-          its window to fit the monitor, centres it on the monitor, and redraws only the parts of
-          each frame that changed. All of it builds, and every test passes on Windows, but no
-          test opens a window there, and this release was tagged before anyone had watched it on
-          a Windows screen. A window at the wrong size or in the wrong place, or strips of an old
-          frame left in it, would most likely be this new code: `-scale 2` sets the size by hand,
-          and a bug report is how it gets fixed.
+          **This release's window code has been watched on Windows only by a script.** Since that
+          run the game sizes its window to fit the monitor, centres it, and redraws only what each
+          frame changed. On one player's Windows 10 laptop `v0.2.0`'s window stayed white and drew
+          only what moved. This release sends the picture in pieces of 64 KiB or less and redraws
+          a band of the window more each frame. A script ran a build of this code on the Windows
+          Server desktop, but nobody has run it on that laptop. A window that stays white, or
+          keeps strips of an old frame, is worth a bug report, and `-scale 1` looked better there.
 
           **Sound needs nothing installed.** The game carries its own `waveOut` driver and
           talks to Windows' audio directly — no FFmpeg, no redistributable. `-audio list` shows
