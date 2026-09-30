@@ -3246,6 +3246,58 @@ Still open:
   sent with it gives the whole list. The copy sent is the one that was run here, left unchanged,
   since any edit to its source changes its hash.
 
+### 2.82 On a monitor at a DPI other than the system's, the window is sized for the wrong frame — **note; not observed: none of our own Windows runs has had more than one DPI**
+
+Found while reviewing 2.81's fix, in `internal/platform/win32/win32.go`. It is a different fault
+from 2.81's: a window whose edges are off still draws its middle, and the player's drew nothing that
+had not moved.
+
+**What the code does.** `dpiAware` makes the process per-monitor DPI aware, version 2, where Windows
+has it, which is Windows 10 1703 and later. Under that awareness Windows draws each window's caption
+and frame at the DPI of the monitor the window is on. `New` still sizes the window with
+`AdjustWindowRect`, which works the frame out at the system DPI: one DPI for the whole process,
+taken from the primary monitor, which does not follow the window to another monitor or change while
+the program runs. `Room` takes the same frame off the work area. On a monitor at the system DPI the
+two agree and the client area is `pw`×`ph` exactly. On any other, the window is the right size for a
+frame of the wrong thickness. Nothing calls `AdjustWindowRectExForDpi` or `GetClientRect`, so
+nothing notices, and `WM_DPICHANGED`, which Windows sends when the window moves to a monitor of
+another DPI or its monitor's scale is changed, goes to `DefWindowProc`.
+
+**What it would look like.** On a monitor at a higher DPI than the system's, the caption and frame
+are thicker than allowed for, so the client area is smaller than the frame `Present` sends, and the
+picture is cut off along its right and bottom edges: a few pixels across and more down, where the
+caption is. `Room` takes off the same too-thin frame, so the scale it picks is chosen for a client
+area larger than the one the window gets. The window itself still fits the work area, since `New`
+adds back only what `Room` took off. On a lower DPI the client area is larger than `pw`×`ph`, and
+the strip beyond it is never painted, since the class has no background brush, `WM_ERASEBKGND`
+erases nothing, and `WM_PAINT` sends only the frame. A laptop with monitors plugged in is the usual
+way to have two DPIs on one desktop: its own screen at 125% or 150%, say, and a desk monitor at
+100%. The player's report does not say what theirs are set to.
+
+**Reading the probe's report.** `glidergo-wincheck.exe` makes its window as `New` does, with
+`AdjustWindowRect`, and its report prints the size it asked for as "window client", next to that
+window's DPI. It never asks for the client area it got, and reads back only the size it asked for. A
+shortfall that is only in the last of a reading's 16 strips, and the same in every case on that
+monitor whatever the send, is this entry, not the driver, when the dpi on that monitor's line is
+higher than the system DPI. A cut a few pixels wide at the right edge is about 1% of each strip or
+less, and may not show in them at all. On a monitor at a lower DPI this entry shows in no strip,
+since the strip it leaves unpainted is outside what the probe reads. The report does not print the
+system DPI. If neither the primary monitor nor its scale has changed since the player signed in, it
+is the dpi on the line for the monitor the report lists as primary; signing out and in again before
+running the probe makes sure of that.
+
+**The fix.** After `CreateWindowExW`, ask `GetClientRect` for the client area, and if it is not
+`pw`×`ph`, grow or shrink the window by the difference with `SetWindowPos`. The backend loads
+neither yet, but every Windows has both. A window grown that way could be a little taller than the
+work area, so `Room` would take the frame off at the monitor's own DPI, through
+`AdjustWindowRectExForDpi` where Windows has it. `WM_DPICHANGED` would keep the position Windows
+suggests and size the window the same way, not take the suggested size, which scales the window by
+the ratio of the two DPIs and so would change what `-scale` asked for. Part of it can be tried on
+one monitor: changing that monitor's scale in Settings while the game is open leaves the window on a
+monitor at a DPI other than the system's, and sends `WM_DPICHANGED`. Opening the window on such a
+monitor is what two monitors at different scales give, which the player's laptop may have. None of
+our own Windows runs has done either.
+
 ---
 
 ## 3. Things the original did not have and a 2026 release is expected to have
