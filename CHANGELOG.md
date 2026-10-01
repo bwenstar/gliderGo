@@ -20,9 +20,9 @@ come in 0.3.0, whose section here says what it no longer races or reads (`docs/P
 version number promises"). The section at the top says whether its tag has been made yet.
 `RELEASING.md` step 2 names it, and the commit the tag is made on dates it.
 
-## Unreleased
+## `v0.2.1`
 
-Not tagged yet.
+Tagged on 2026-10-01.
 
 ### A Windows window that stayed white fills in (2026-09-30)
 

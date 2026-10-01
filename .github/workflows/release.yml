@@ -915,8 +915,8 @@ jobs:
 
           The tests cannot press keys, say whether a house is any fun, or answer a Windows
           dialog, so a person does those on a release candidate. `docs/RELEASE_TESTING.md` in the
-          source says what was checked, on which build, and what was not. For `v0.2.0` nothing
-          on that list was checked, because the tag went ahead without it.
+          source says what was checked, on which build, and what was not. For `v0.2.0` and
+          `v0.2.1` nothing on that list was checked, because both tags went ahead without it.
 
           ### Licence
 
