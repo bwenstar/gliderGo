@@ -235,10 +235,13 @@ Four things in `internal/platform/win32` were written after this run: three for 
 step 4 (`docs/IMPROVEMENTS.md` 2.1 and 2.76), and after the `v0.2.0` tag a fourth, for one player's
 white window (2.81). They build and vet for amd64 and arm64, and no Windows screen had shown the
 first three when `v0.2.0` was tagged. CI's service-session bench asks for the centred window at
-every push to `main`, and draws into it with the new present if the window opens. Neither is
-checked: the step is best-effort, the one copy of its log read here (the run for `dbfc021`) stops
-before the bench's own lines, and `Present` ignored what `StretchDIBits` returned until 2.81. A
-`-frames` run never calls `Room`.
+every push to `main`, and draws into it with the new present if the window opens. In the run for
+`7ec246e`, on 2026-10-01, the first whose bench lines were read here, the window opened and took
+all 300 frames at 1×, 1120.6 fps flat out, and no `Present` error cut the run short. That says the
+window is made and stays open in a service session, and no more. Where it was placed is not
+printed, and what it showed is not checked. `Present` sends nothing while the window is minimised,
+and its errors are for a closed window or a frame it cannot use, never for a send: one GDI refuses
+is noted, not returned (2.81). A `-frames` run never calls `Room`.
 
 - **`Room`**: the work area of the monitor under the pointer, less the frame.
 - **The placement**: the window is centred in that work area instead of `CW_USEDEFAULT`.

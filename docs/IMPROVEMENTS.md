@@ -3216,6 +3216,11 @@ there counts in ticks of 15.6 ms, and an earlier round had `v0.2.0` at 5% and 6%
 is larger than that desktop, so these are two builds compared on the same window and not 2.76's
 4× result, which `docs/windows-first-run.md` says needs the whole window on the screen.
 
+**In CI, 2026-10-01.** In the run for `7ec246e`, `ci.yml`'s service-session bench opened its
+window and presented 300 frames to it through this `Present` at 1×, 1120.6 fps flat out, and no
+`Present` error cut the run short. That is a window made and kept open in a service session, not a
+picture, for the reasons `docs/windows-first-run.md`'s "What has changed since" gives.
+
 **A probe for the laptop.** `glidergo-wincheck.exe` is a stand-alone program written for this, and
 not in the tree. It names each display adapter and monitor, then opens a window made as gliderGo
 makes its own on each monitor in turn. It paints that window 18 times: whole, in bands of 480 rows
@@ -7268,6 +7273,23 @@ keeps the rule: the three comments name these four paths as the exception. Relat
 documents would keep it too, but would leave `demo/`, `run.wav`, `screen.png` and `Player.c` in a
 reader's clone. None of the three touches the game.
 
+### 4.51 With no sound output, `-version` says `-audio list` names what it looks for, and it names nothing — **note, 2026-10-01**
+
+Found in the log of CI's Windows bench for `7ec246e`, on a runner with no sound output. There,
+`-version`'s audio line says "nothing -- no sound output on this machine", and sends the reader on:
+"`-audio list` names what it looks for, and -wav writes a file instead". `-audio list` prints one
+line and exits, and with nothing found that line is "glidergo: no sound output found; -wav writes
+a file instead". It names nothing, so a player who does as `-version` says learns nothing new.
+
+The names are in the game already. The error it prints when it opens no output carries
+`installHint`'s text (`internal/audio/sink.go`). On Windows that is "the built-in output is
+unavailable, so install FFmpeg (ffplay) or SoX (play) and put it on your PATH", and elsewhere it
+names the five players it tries. The same log has it on the next line, from the bench. The fix is
+for `-audio list`, with nothing found, to give that text too, which means exporting `installHint`,
+or for `-version` to stop promising it. It changes only what a player reads, so it can go in a
+0.2.x. It is filed and not fixed because the commit that found it records what CI showed and
+changes no code.
+
 ---
 
 ## 5. Getting off this machine: the build, the package and the public path
@@ -7353,6 +7375,24 @@ whether any of them needed a correction.
    glidergo: unpaced -- 45.8x the original's 30.07 fps target
    glidergo: 220ms of CPU, 101% of one core; slo
    ```
+
+   In the run for `7ec246e`, on 2026-10-01, both 4× rows came through whole: flat out, and then 150
+   frames paced. Each is given from its banner to its CPU line:
+
+   ```
+   glidergo: version=7ec246e backend=x11 surface=640x480 scale=4 neighbors=9 seed=16807
+   glidergo: 300 frames in 240ms (1252.5 fps), score 0, 6 stars left
+   glidergo: unpaced -- 41.7x the original's 30.07 fps target
+   glidergo: 242ms of CPU, 101% of one core; slowest frame 27.9ms, at frame 0
+   glidergo: version=7ec246e backend=x11 surface=640x480 scale=4 neighbors=9 seed=16807
+   glidergo: 150 frames in 5.006s (30.0 fps), score 0, 6 stars left
+   glidergo: 260ms of CPU, 5% of one core; slowest frame 55.7ms, at frame 1
+   ```
+
+   No Go outside `internal/platform/win32` changed between the two commits, so the gap between
+   their flat-out 4× rates, 1378.4 and 1252.5 fps, is the runners'. Paced 4× at 5% of a core and
+   flat-out 4× at 1252.5 fps are inside 2.76's two numbers, 15% and 120 fps. As above, that says
+   the backend works under Xvfb, not what a screen costs, so it is not 2.76's 4× row.
 
 ### 5.2 `tools/extract_all.py` writes its output tree in place, and something has already been corrupted by it — **found, planned, and DONE, 2.4 — all four consequences, and the fix turned out to have a fifth property nobody asked for**
 

@@ -1614,8 +1614,8 @@ means the tag is better with it and does not wait.
      door at the new 2× default, and 4.2 s at 4×. It is about 0.1 s now at every scale. The
      win32 half was run on the Windows test host's desktop by a script after the `v0.2.0` tag.
      On one player's laptop it left the window white, and it now sends in bands and sweeps
-     (2.81). CI's best-effort bench draws with it if its window opens, and nothing checks what
-     it drew; 5.4's rehearsal reads a window back.
+     (2.81). CI's best-effort bench draws with it if its window opens, which it did in the run
+     for `7ec246e`, and nothing checks what it drew; 5.4's rehearsal reads a window back.
    - **Should.** A crash leaves a file, and a double-clicked console waits before it closes (4.35).
      **DONE.** A run a player starts keeps `crash.log` beside `scores/` and `saves/`: the
      `-version` block, then whatever stopped the run. The next start keeps a crash as
@@ -1689,7 +1689,7 @@ means the tag is better with it and does not wait.
    `docs/RELEASE_TESTING.md` records no step as run on `v0.2.0-rc1`. Nobody had seen the Windows
    code written since the first run working. CI's service-session bench asks for the centred window
    at every push to `main`, and draws into it if it opens, but the step is best-effort, and the one
-   copy of its log read here, from the run for `dbfc021`, stops before the bench's own lines. The
+   copy of its log read then, from the run for `dbfc021`, stopped before the bench's own lines. The
    crash file had run on Windows only in the tests. `Room`, which auto scale sizes the first window
    from, and the console hold had not run there at all. `v0.2.0`'s release notes, README and Windows
    `HOW-TO-RUN.txt` all say its window has not been seen on Windows, and the last two say the same
@@ -1702,7 +1702,8 @@ means the tag is better with it and does not wait.
    exactly, and keys sent to test builds moved the menu and started a game. That is not this
    step, which needs a person at the keyboard. A player had reported `v0.2.0`'s window white on a
    Windows 10 laptop, drawing only what moved. The fix is 2.81, for 0.2.1, and has not been run on
-   that laptop.
+   that laptop. In CI's run for `7ec246e`, on 2026-10-01, the service-session bench's window opened
+   and took its 300 frames through the fix, which says the window opens there, not what it shows.
 7. **Announced, last.** After step 6 and after 5.1's connected-host checks, because the
    announcement is when strangers arrive. Where to announce is the user's call. Package-manager
    manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag and run into 5.4's

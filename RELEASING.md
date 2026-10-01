@@ -165,4 +165,4 @@ Each of these **needs a connected machine**.
 | `v0.1.0` | not recorded here | not recorded here | Go 1.23; `docs/IMPROVEMENTS.md` 5.11 has the vulnerabilities that carries | not checked |
 | `v0.1.1` | not recorded here | not recorded here | Go 1.23, as above | not checked |
 | `v0.1.2` | not recorded here | not recorded here | Go 1.23, as above | not checked |
-| `v0.2.0` | green first time, 2026-09-29; its URL is not recorded here yet | no; whether the published notes get a line by hand is the owner's call (`docs/IMPROVEMENTS.md` 5.11) | go1.27.1 | not checked yet, and the first work after this tag ("After the tag", step 4) |
+| `v0.2.0` | green first time, 2026-09-29: <https://github.com/bwenstar/gliderGo/actions/runs/36516488437> | no; whether the published notes get a line by hand is the owner's call (`docs/IMPROVEMENTS.md` 5.11) | go1.27.1 | not checked yet, and the first work after this tag ("After the tag", step 4) |
