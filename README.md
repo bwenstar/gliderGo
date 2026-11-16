@@ -180,6 +180,17 @@ On Windows there is no equivalent line, because there is nothing to install: `go
 ./cmd/glidergo` with no cgo produces a `.exe` that draws. `make cross-windows` builds it from
 Linux, and `make cross` builds every target a release ships.
 
+The browser build needs nothing more either:
+
+```bash
+make web                                   # the page, and the game for it, in bin/web/
+python3 -m http.server -d bin/web 8000     # then open http://localhost:8000/
+```
+
+Any static web server will do for the second line. Opening `index.html` as a file will not, because
+a page loaded from a file can fetch nothing. `make web-check` plays the build in a headless Chrome
+against the native one, and `make check` does the same whenever there is a Chrome to do it with.
+
 ```bash
 make check      # fmt, vet, tests, build, headless, audio, pixel corpus, cross-compile, these docs
 make doctor     # what your machine has and what it is missing
@@ -269,7 +280,8 @@ the network carries how far each of you has got.
 
 **From the title screen: `Race...`.** One player chooses Host and reads the address off the screen
 that comes up; the other types it into Join and presses Return. Both have to have the same house
-open first, and the screen names the one it is about to race in.
+open first, and the screen names the one it is about to race in. In a browser the row is greyed: a
+web page cannot open a connection to another machine, so racing needs the downloaded game.
 
 From a shell, which skips the title screen and is what a script or a second window wants:
 
@@ -358,13 +370,19 @@ On Linux, `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` move the first column's two ro
 spec says. `GLIDERGO_CONFIG=DIR` puts all four under one directory. `GLIDERGO_DATA=DIR` puts the
 scores, the saves and the crash report in `DIR` itself, with no subdirectories.
 
+In a browser all four are in the browser's storage for the page, in one directory that the game
+calls `/browser storage`. Clearing the site's data clears them, and Safari does that by itself
+after seven days without a visit.
+
 Settings are one JSON file, written when the settings screen closes rather than at quit. A hand-edited or truncated one is repaired and complained about, not
 refused.
 
-The window opens at the largest whole magnification that fits the monitor, title bar and all:
-2× on 1080p, and at most 3× for now, until 4× has been measured on Windows. The settings screen's
-magnification row changes that for the next launch, and `-scale N` for one run. A settings file
-from 0.1.x keeps the 1× it was written with; step the row below 1×, or press R there, for auto.
+The window opens at the largest whole magnification that fits the monitor, title bar and all: 2× on
+1080p, and at most 3× for now, until 4× has been measured on Windows. The settings screen's
+magnification row changes that for the next launch, and `-scale N` for one run. In a browser it is
+the most the page draws the game at, and a window too small for that shrinks the game to fit. A
+settings file from 0.1.x keeps the 1× it was written with; step the row below 1×, or press R there,
+for auto.
 
 There is a `fixes` block in that file which is deliberately not on any screen: four switches,
 each correcting a genuine bug in the 1994 code — a mirror that blinks a candle flame out, a
@@ -491,13 +509,14 @@ worth having: measuring Open House is how that miss was found in the first place
 | `internal/render/` | Room composition on an 8-bit indexed surface, because the original's shadows OR palette *indices* together. |
 | `internal/shell/` | Everything before and around the game: title screen, house picker, settings, about, credits, the score board. |
 | `internal/audio/` | The 22 kHz mixer, the `'snd '` bank and the score, plus the platform sinks. |
-| `internal/platform/` | 640×480 software framebuffer; X11 (cgo), Windows (pure `syscall`) and headless (PNG/WAV) backends. |
+| `internal/platform/` | 640×480 software framebuffer; X11 (cgo), Windows (pure `syscall`), browser (WebAssembly and a canvas) and headless (PNG/WAV) backends. |
 | `internal/netplay/` | The two-player race over a network: the handshake, the wire format from `docs/analysis/determinism-networking.md` §10.4, and the arithmetic that decides a winner. Two separate worlds, one result both sides compute for themselves. |
 | `internal/replay/`, `internal/fidelity/` | The determinism harness and the pixel corpus. |
 | `internal/citations/` | The check that every pointer into the 1994 C resolves. See `docs/CITATIONS.md`. |
 | the other eleven | `internal/prefs/`, `internal/scores/`, `internal/saved/`, `internal/demo/`, `internal/credits/`, `internal/project/`, `internal/datadir/`, `internal/assetfs/`, `internal/assetpack/`, `internal/cliargs/`, `internal/module/` — one job each, and each opens with a package comment saying which. |
 | `cmd/glidergo`, `cmd/glidertool` | The game, and the tool above. |
-| `tools/` | The asset extractors — BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers — in standard-library python3; and two Go commands `make` runs, `packassets` for the archives the binaries embed and `docscheck` for the command lines this document and `CONTRIBUTING.md` tell you to run. `make tools` lists them all. |
+| `web/` | The page the browser build runs in: its cover, the small file system that keeps the game's files in the browser's storage, and the Web Audio worklet. `make web` builds the game and puts the page around it, in a directory any static web server can serve. |
+| `tools/` | The asset extractors — BinHex, Rez, PICT → PNG, `'snd '` → PCM, QuickTime → index buffers — in standard-library python3; and three Go commands `make` runs: `packassets` for the archives the binaries embed, `docscheck` for the command lines this document and `CONTRIBUTING.md` tell you to run, and `webcheck`, which plays the browser build in a headless Chrome against the native one. `make tools` lists them all. |
 | `docs/ORIGINAL_GAME.md` | How the original behaves. Read this one first. |
 | `docs/analysis/` | 29 byte-level specs reverse-documented from the C. The detailed authority. |
 | `docs/CITATIONS.md` | What a citation into the 1994 C means here, how to make one resolve, and what the checker does and does not promise. |

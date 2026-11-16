@@ -48,6 +48,10 @@ type app struct {
 	win platform.Window
 	fb  *platform.Framebuffer
 
+	// pres is the game's presenter while a game is being played, and nil between games
+	// (present.go). The presents made around it -- app.present, presentSurface -- tell it so.
+	pres *presenter
+
 	// scale is the magnification the window opened at, which is the setting made to fit the
 	// monitor (windowScale). autoScale is what auto is on this monitor, for the settings
 	// screen to show, and 0 when nothing was asked.
@@ -610,6 +614,23 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 	// same thing to within a tick, and the game measures nothing in absolute time.
 	start := time.Now()
 	cpu0, _ := cpuTime()
+
+	// Every present World.Present makes, and every sleep this function makes, go through pres,
+	// so that a present the window puts off is always sent before the next sleep (present.go).
+	// The send is the present itself: Main, or the copy of it a put-off present kept.
+	pres := newPresenter(a.win, func(frame *render.Surface) {
+		frame.ToBGRX(a.fb.Pix, a.fb.Stride)
+		if err := a.win.Present(a.fb); err != nil {
+			// A failed present is a dead window, and there is nothing useful to do
+			// with the error from inside a void hook. Ending the game is the honest
+			// response and it goes through the same door the Quit menu item does.
+			w.Quitting = true
+			w.SwitchedOut = false
+		}
+	})
+	a.pres = pres
+	defer func() { a.pres = nil }()
+
 	if !o.bench {
 		w.TickCount = func() int64 {
 			return int64(time.Since(start).Seconds() * 60.15)
@@ -620,7 +641,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 		// Sleeping for a tick instead is docs/IMPROVEMENTS.md 2.17, and it is safe
 		// because it changes only *how* the wait is spent, not when it ends:
 		// awaitFrame still returns on the same tick.
-		w.WaitTick = func() { time.Sleep(time.Millisecond) }
+		w.WaitTick = func() { pres.sleep(time.Millisecond) }
 	}
 	// -bench leaves both hooks nil, which is how the game is told to run flat out:
 	// with no tick source awaitFrame skips its wait entirely and Ticks answers from
@@ -644,14 +665,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 			}
 			frameNo, frameAt = w.Frame, now
 		}
-		w.Main.ToBGRX(a.fb.Pix, a.fb.Stride)
-		if err := a.win.Present(a.fb); err != nil {
-			// A failed present is a dead window, and there is nothing useful to do
-			// with the error from inside a void hook. Ending the game is the honest
-			// response and it goes through the same door the Quit menu item does.
-			w.Quitting = true
-			w.SwitchedOut = false
-		}
+		pres.present(w.Main)
 
 		// The mixer's only pacer on the live path, and it is *here* rather than on
 		// the frame loop for one reason: Present is called once per frame during play
@@ -659,7 +673,8 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 		// frame, which is the one part of the game that takes far longer than a frame
 		// to draw. A pump driven by the frame counter would starve the player through
 		// every door the glider takes. Nil until the bank loads, and safe on a nil
-		// receiver.
+		// receiver. A present the window put off is still a present here: the clock is
+		// the wall's, and the mix is due whether or not this frame reached the screen.
 		a.pump.ClockTick()
 	}
 
@@ -826,7 +841,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 		// where it matters is this one: PlayGame spins on this hook while switched
 		// out, and without a yield a backgrounded game burns a core.
 		if w.SwitchedOut {
-			time.Sleep(2 * time.Second / 60)
+			pres.sleep(2 * time.Second / 60)
 		}
 	}
 
@@ -931,7 +946,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 			}
 
 			paint()
-			time.Sleep(2 * time.Second / 60)
+			pres.sleep(2 * time.Second / 60)
 		}
 	}
 
@@ -1021,7 +1036,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 				if left > pollWait {
 					left = pollWait
 				}
-				time.Sleep(left)
+				pres.sleep(left)
 			}
 		}
 	}
@@ -1071,6 +1086,7 @@ func (a *app) play(ref houseRef, two, resume bool, race shell.Race) (shell.Outco
 		mode = game.ResumeGameMode
 	}
 	w.NewGame(mode)
+	pres.flush() // the frame the game ended on, if the window put it off
 
 	// The other half of the race, and it has to be here: **the run is over and the race is
 	// not.** The other player may still be flying, so this side reports how its run ended, says

@@ -152,6 +152,16 @@ var rules = map[string]rule{
 	"make doctor": {},
 	"make help":   {},
 
+	// README's browser block. Neither runs here, and neither goes unchecked: `make check` builds
+	// bin/web and serves it to a browser itself, in `web-check`.
+	"make web": {
+		skip: "is a target `make check` runs itself, through web-check",
+	},
+	"python3 -m http.server -d bin/web 8000": {
+		skip: "serves until it is interrupted; web-check serves the same directory itself, on a " +
+			"port of its own, and plays it",
+	},
+
 	// README's glidertool block -- the first commands anybody runs against the 1994 data. The
 	// house the block invents is `my-house.txt`, which the prose says came from a `house dump`;
 	// setup makes it from a house this repository actually carries.

@@ -1221,6 +1221,7 @@ func (a *app) presentSurface(s *render.Surface) error {
 	if err := a.win.Present(a.fb); err != nil {
 		return err
 	}
+	a.pres.superseded() // as app.present
 	// The mixer's pacer, as on every other present in this program: the title score is still
 	// playing behind the waiting screen, and a screen that did not clock the pump would be a
 	// gap in the sound for as long as the other player took to arrive.
@@ -1228,18 +1229,36 @@ func (a *app) presentSurface(s *render.Surface) error {
 	return nil
 }
 
-// raceRefusals are the four command lines that name a race and something it cannot be, checked in
-// parseFlags. Each one is two answers to one question, and the house rule for those is to refuse
-// rather than to guess -- see the -resume/-room pair, whose failure mode (an hour wondering why a
-// flag did nothing) is the one this is written to avoid.
+// cannotRace is why this build cannot race at all, or "" for one that can. The browser's is the
+// one that cannot: a page can open no connection to another machine, and js/wasm's net package is
+// a stand-in that would let -host wait for ever (docs/IMPROVEMENTS.md 3.10). The title screen's
+// Race... row says this, greyed (shellHost), and so does raceRefusals, because a page served from
+// the player's own machine passes its query's ?arg= to the game and -host can arrive that way. A
+// variable and not a constant only so that the tests on this machine can say what the browser
+// would.
+var cannotRace = func() string {
+	if runtime.GOOS == "js" {
+		return "a browser cannot connect to the other machine -- racing needs the downloaded game"
+	}
+	return ""
+}()
+
+// raceRefusals are the five command lines that name a race and something it cannot be, checked in
+// parseFlags. Four of them are two answers to one question, and the house rule for those is to
+// refuse rather than to guess -- see the -resume/-room pair, whose failure mode (an hour wondering
+// why a flag did nothing) is the one this is written to avoid. The fifth is a race asked of a
+// build that cannot race, which is the same failure mode with nothing to choose between.
 //
-// There used to be a fifth, refusing `-port` without `-host` or `-join`, and the Race screen
+// There used to be another, refusing `-port` without `-host` or `-join`, and the Race screen
 // retired it: a port given on its own is no longer a flag with nothing to act on, it is the port
 // the title screen's Race row will host and dial on. That is not two answers to one question, so
 // it is not this function's business.
 func raceRefusals(o *options) error {
 	race := raceRequested(o)
 	switch {
+	case race && cannotRace != "":
+		// First, because it is the answer whatever else the line says.
+		return errors.New("-host and -join need a network: " + cannotRace)
 	case o.host && o.join != "":
 		return errors.New("-host and -join cannot both be given: one machine hosts and the " +
 			"other joins it")

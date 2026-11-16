@@ -20,6 +20,34 @@ come in 0.3.0, whose section here says what it no longer races or reads (`docs/P
 version number promises"). The section at the top says whether its tag has been made yet.
 `RELEASING.md` step 2 names it, and the commit the tag is made on dates it.
 
+## Unreleased
+
+Not tagged yet. A browser build is a new feature, so by the rule above the tag it goes out in is a
+minor release, `v0.3.0`. It moves none of the numbers `cmd/glidergo/promises_test.go` pins, so it
+races every 0.2.x and reads every file one wrote.
+
+### gliderGo plays in a browser (2026-11-16)
+
+The game now runs in a web page, from static files. `make web` builds the page and the game for it
+into `bin/web/`, which any static web server can serve. It is the same game. The browser build's
+frames are byte for byte the native build's, and its title screen is the same pixels but for one
+row. That row is Race..., greyed, because a page cannot open a connection to another machine, and
+`-host` and `-join` are refused there for the same reason. The rest is there. Sound plays through
+Web Audio, and letters follow the keyboard's layout as they do on the desktop builds. Settings, high
+scores and saved games are kept in the browser's own storage, which Safari clears after seven days
+without a visit. `docs/IMPROVEMENTS.md` 3.10 has that and everything else still open.
+
+A room's wipe is 116 or 160 presents inside one frame. In a browser, which paints only while the
+program sleeps, they froze the page for half a second. Now the browser's window asks for a present
+to wait when the one before it went out less than 8 ms earlier. The game then sends the last frame
+it presented before it next sleeps, which is the soonest a page could paint it. Native windows ask
+for nothing and are sent every present, as before.
+
+`make check` now builds the browser version and plays it in a headless Chrome against the native
+build (`tools/webcheck`). That Chrome runs with a profile and a home of its own and no display, and
+the check is skipped, with a note, on a machine with no Chrome. `make vet` checks the js/wasm build
+as well.
+
 ## `v0.2.1`
 
 Tagged on 2026-10-01.

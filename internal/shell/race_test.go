@@ -44,6 +44,42 @@ func TestRaceOpensOnRAndEscapeGoesBack(t *testing.T) {
 	}
 }
 
+// TestABuildThatCannotRaceSaysWhy: the browser's host sets NoRace, and the row is then greyed, has
+// no note promising a network, and says the host's reason when it is chosen -- by its key or by
+// Return on it -- instead of opening the screen.
+func TestABuildThatCannotRaceSaysWhy(t *testing.T) {
+	const why = "a browser cannot connect to the other machine -- racing needs the downloaded game"
+	s, f := shellOver(t, []string{"Slumberland"}, key(platform.KeyR))
+	s.host.NoRace = why
+	at := -1
+	for i, it := range s.menu() {
+		if it.label == "Race..." {
+			at = i
+			if it.ok || it.note != "" {
+				t.Errorf("the Race row is ok=%v with note %q; want it greyed with no note", it.ok, it.note)
+			}
+		}
+	}
+	if at < 0 {
+		t.Fatal("no Race row on the menu: a build that cannot race still shows it, greyed")
+	}
+	if err := s.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if s.mode != modeSplash || s.msg != why {
+		t.Errorf("after R: mode %v, band %q; want the title screen and the host's reason", s.mode, s.msg)
+	}
+	s.sel = at
+	s.msg = ""
+	s.splashKey(platform.KeyReturn)
+	if s.mode != modeSplash || s.msg != why {
+		t.Errorf("after Return on the row: mode %v, band %q", s.mode, s.msg)
+	}
+	if len(f.plays) != 0 {
+		t.Errorf("a build that cannot race played %v", f.plays)
+	}
+}
+
 func TestTheMenuHasARaceRow(t *testing.T) {
 	s, _ := shellOver(t, []string{"Slumberland"})
 	at := -1

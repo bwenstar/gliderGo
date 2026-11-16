@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="gliderGo, a Go port of Glider PRO (John Calhoun, 1994), played in a browser.">
+<title>gliderGo</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #ddd;
+               font: 16px/1.5 system-ui, sans-serif; }
+  body { display: grid; place-items: center; }
+  /* The canvas is the game's own 640x480; web.go sets its size on the page, and these two keep
+     every 1994 pixel a hard-edged square however far it is magnified. */
+  #glidergo { image-rendering: crisp-edges; image-rendering: pixelated; }
+  #cover { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; gap: 0.5em; padding: 1em; text-align: center;
+           background: rgba(0, 0, 0, 0.82); }
+  #cover[hidden] { display: none; }
+  #cover h1 { margin: 0; font-size: 2.6em; font-weight: 600; }
+  #play { font: inherit; font-size: 1.25em; min-width: 9em; padding: 0.35em 1.4em; cursor: pointer; }
+  #play:disabled { cursor: progress; }
+  #note { max-width: 42em; margin: 0; }
+  #note:empty { display: none; }
+  #report { max-width: 90vw; text-align: left; }
+  #report pre { max-height: 40vh; overflow: auto; font-size: 0.8em; background: #111; padding: 0.6em; }
+  .quiet { margin: 0; font-size: 0.85em; opacity: 0.75; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<canvas id="glidergo" width="640" height="480" tabindex="-1"></canvas>
+<div id="cover">
+  <h1>gliderGo</h1>
+  <p class="quiet">Glider PRO, John Calhoun's 1994 game, ported to Go and played in your browser.</p>
+  <button id="play" type="button" disabled>Loading…</button>
+  <p id="note"></p>
+  <details id="report" hidden><summary>The report, for a bug report</summary><pre id="report-text"></pre></details>
+  <p class="quiet">Left and right steer · up fires a rubber band · down uses a battery · Tab pauses ·
+    F11 is full screen</p>
+  <p class="quiet"><span id="version">gliderGo</span> ·
+    <a id="source" href="https://github.com/bwenstar/gliderGo">source</a> ·
+    <a href="LICENSE.txt">licence</a> · <a href="THIRD-PARTY-NOTICES.txt">notices</a> ·
+    <a href="https://github.com/bwenstar/gliderGo/issues">report a bug</a></p>
+</div>
+<noscript><p>gliderGo needs JavaScript and WebAssembly, and this browser has one of them switched off.</p></noscript>
+<script src="build.js"></script>
+<script src="fs.js"></script>
+<script src="wasm_exec.js"></script>
+<script src="audio.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

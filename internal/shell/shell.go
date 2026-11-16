@@ -157,6 +157,12 @@ type Host struct {
 	// status band in place of the opening line: that the last run crashed, and where its
 	// report is. Empty for none, which is almost always.
 	Notice string
+
+	// NoRace is why this build cannot race at all, or "" when it can. A build that cannot greys
+	// the Race... row and says this when it is chosen, rather than opening a screen whose every
+	// key would fail. A browser is the one: a page can open no connection to another machine
+	// (docs/IMPROVEMENTS.md 3.10).
+	NoRace string
 }
 
 // Choice is what the shell asks Play for.
@@ -552,8 +558,7 @@ func (s *Shell) menu() []item {
 		//
 		// R because the two-player row has already taken 2, and a race is not a second sort
 		// of it (see race.go, and Choice.Race).
-		{key: platform.KeyR, label: "Race...", ok: have, do: s.openRace,
-			note: "play the same house against another machine on this network"},
+		s.raceItem(have),
 		// Options > High Scores (Menu.c:417-419), which in the original is enabled
 		// whenever a house is open and does nothing else at all: it calls DoHighScores
 		// and returns. This is the item that makes the screen reachable without dying
@@ -564,6 +569,18 @@ func (s *Shell) menu() []item {
 		{key: platform.KeyA, label: "About...", ok: true, do: func() { s.mode = modeAbout }},
 		{key: platform.KeyQ, label: "Quit", ok: true, do: func() { s.quit = true }},
 	}
+}
+
+// raceItem is the Race... row: live when there is a house, and greyed with the host's reason in
+// a build that cannot race. The note goes with it, because "against another machine on this
+// network" is a promise that build cannot keep, and an unavailable row explains itself when it is
+// chosen, as every other one does.
+func (s *Shell) raceItem(have bool) item {
+	if s.host.NoRace != "" {
+		return item{key: platform.KeyR, label: "Race...", why: s.host.NoRace}
+	}
+	return item{key: platform.KeyR, label: "Race...", ok: have, do: s.openRace,
+		note: "play the same house against another machine on this network"}
 }
 
 func (s *Shell) splashKey(k platform.Key) {

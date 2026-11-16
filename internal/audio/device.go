@@ -9,7 +9,8 @@ package audio
 // and nothing above it learns which it got. internal/platform/backend does the same job for the
 // display, and for the same reason.
 //
-// Windows has such a driver, in waveout_windows.go. Linux deliberately does not: ALSA,
+// Windows has such a driver, in waveout_windows.go, and so does the browser, in device_js.go, where
+// there is no other: a page cannot start a program to pipe to. Linux deliberately does not: ALSA,
 // PulseAudio and PipeWire are C libraries, this port has no cgo on the audio path and no way to
 // dlopen one without it, and the subprocess it uses instead is both simpler and safer than a
 // hand-declared snd_pcm_* ABI would be -- a player that dies takes nothing with it. macOS is

@@ -133,6 +133,7 @@ Everything it does need is a host tool:
 | **gcc** + **pkg-config** | any | cgo, i.e. the x11 backend | as the next row: nothing that opens a window builds |
 | **libX11 headers** (`x11.pc`) | 1.8 | the x11 backend — the only one that opens a window | `make build`, `vet` and `test` **fail**, with pkg-config's own error. There is no silent fallback: the null backend is `make headless`, or `-tags nullbackend`, asked for by name |
 | **python3** | 3.6 (f-strings) | `make assets` / `assets-check` only | nothing — the assets those produce are committed. Needed to change the extractor or verify the tree |
+| Chrome or Chromium | — | `make web-check`, which plays the browser build headless against the native one | the check skips with a note: the browser build is compiled and not played. The build itself, `make web`, needs nothing but Go |
 | **git** | any | the version string only | the binary reports `version=dev` |
 | **make** | any | convenience | use `go build ./cmd/glidergo` directly |
 | `libXext` headers | — | *nothing* — MIT-SHM is deliberately unused | nothing |
@@ -409,6 +410,7 @@ gliderGo/
 ├── assets/levels/          #   gitignored: `make levels` compiles the text to here
 ├── assets/levels.zip       #   committed: that directory packed -- also inside every binary
 ├── scripts/                # bootstrap-dev-env.sh, env.sh (generated, gitignored)
+├── web/                    # the page the browser build runs in: `make web` -> bin/web/
 ├── .github/workflows/      # public CI -- see the caveat at the top of ci.yml
 └── .toolchain/             # gitignored: sysroot + deb cache
 ```

@@ -18,6 +18,7 @@
 //
 //	x11    cgo + Xlib + XPutImage      Linux
 //	win32  pure Go syscall to gdi32    Windows, no cgo and no dependencies
+//	web    syscall/js + a <canvas>     browsers, as GOOS=js GOARCH=wasm, in the page under web/
 //	sdl2   hand-written cgo binding    macOS/iOS/Android escape hatch
 //	null   headless, writes PNG/WAV    tests, CI, frame-diff fidelity checks
 //
@@ -289,6 +290,24 @@ type Window interface {
 	SetTitle(s string) error
 	// Close releases host resources.
 	Close() error
+}
+
+// Coalescer is a Window that would rather not be sent a present it cannot show yet.
+//
+// The browser backend is the one. A page is painted only while the program sleeps -- js/wasm has
+// one thread, and the browser gets it back only then -- so of the presents made between two
+// sleeps only the last can ever be seen. Usually that is one a frame. A room's wipe is 116 or 160
+// inside one frame (docs/IMPROVEMENTS.md 2.76), and each converts and compares a whole frame:
+// natively that is a blink, and in WebAssembly it froze the page for half a second
+// (docs/IMPROVEMENTS.md 3.10).
+//
+// So a host that finds this on its window asks before each present, and may leave out a present
+// the window says yes to -- but it then owes it, and sends it before it next sleeps, so that what
+// the window shows whenever it can show anything is the last frame the host presented. A window
+// without this is sent every present, as before.
+type Coalescer interface {
+	// Coalesce reports whether a present made now may be put off until the host next sleeps.
+	Coalesce() bool
 }
 
 // Config describes the window a backend should create.
