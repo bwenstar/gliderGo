@@ -135,6 +135,25 @@ this release runs on, on a network that carries TCP port 1994 between the two.
     After the undo, the join connects. Record whether the README's path to the setting is still
     what Windows calls it.
 
+## In a browser, from the rc's page
+
+An rc's Pages run builds the page and checks it in Chrome, and does not publish it. Its
+`github-pages` artifact is the site: a zip holding `artifact.tar`. Unpack both, serve the directory
+with `python3 -m http.server -d site 8000` or any static server, and open `http://localhost:8000/`.
+
+14. **Another browser.**
+    *Do:* open the page in Firefox, and in Safari if a Mac is to hand. Click **Play**, start Open
+    House, fly through two rooms, pause with Tab and save with S, then reload the page and resume
+    with O.
+    *Expect:* the title screen, the rooms and the sound are as they are in Chrome, a room's wipe
+    does not stall the page, the Race... row is greyed and says why, and the save resumes after the
+    reload. Record each browser's version.
+
+15. **A name typed in the page, on another layout.**
+    *Do:* step 11's letters, typed into Open House's name box in the page.
+    *Expect:* as step 11. On AZERTY the title screen's letters follow the keys, so the key engraved
+    Q quits, as in the Windows build.
+
 ## Not in this list yet
 
 - **`windows-arm64`.** No ARM64 Windows machine has been found to run it. Its row says so until one
@@ -165,3 +184,5 @@ build. Step 6's test-binary half has run, in CI and in the test suite on Windows
 | 12 A race, allowed | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | 13 A race, refused and undone | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | `windows-arm64` | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
+| 14 Another browser | none yet | — | not run: the page is new since `v0.2.1` |
+| 15 A name in the page | none yet | — | not run: the page is new since `v0.2.1` |

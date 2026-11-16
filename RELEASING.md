@@ -1,9 +1,11 @@
 # Releasing gliderGo
 
 `.github/workflows/release.yml` runs on any `v*` tag. It does the tests, the builds, the archives,
-the checksums and the GitHub Release. This file covers the rest: the steps a tag needs that the
-workflow cannot do. Most of them happen on another machine, because the one gliderGo is written on
-cannot reach GitHub. Each step says where it runs.
+the checksums and the GitHub Release. `.github/workflows/pages.yml` runs on the same tags and
+publishes the browser build to GitHub Pages; a tag with a hyphen in it builds and checks the page
+and does not publish it. This file covers the rest: the steps a tag needs that the workflows cannot
+do. Most of them happen on another machine, because the one gliderGo is written on cannot reach
+GitHub. Each step says where it runs.
 
 No test runs the commands in this file: `make docs-check` reads only README.md and CONTRIBUTING.md.
 
@@ -140,8 +142,23 @@ Each of these **needs a connected machine**.
    what the release notes say, and record this as the first run of steps 6 and 7. Step 8's list
    follows on the same archives, as the first work after that tag (`docs/PLAN.md` §4, step 6).
 
-5. **Fill in the tag's row** under "Record": the Release run's URL, whether the tag needed a
-   correction, the Go the release notes name, and what steps 6, 7 and 4 found.
+5. **The page.** `pages.yml`'s run for the tag plays the page in Chrome and then publishes it at
+   <https://bwenstar.github.io/gliderGo/>. Open it in a browser other than Chrome, play a room,
+   and check that the footer names the tag and that its source link opens the tag's commit. Then
+   check how the game file is served:
+
+   ```
+   curl -sI -H 'Accept-Encoding: gzip' https://bwenstar.github.io/gliderGo/glidergo.wasm
+   ```
+
+   It must say `content-type: application/wasm`. Whether it also says `content-encoding: gzip`
+   decides whether a first visit downloads 13 MB or 19, which `docs/IMPROVEMENTS.md` 3.10 is to
+   be told. The first tag after `pages.yml` landed is its first run, and the one-time settings
+   under "Still open" come before it.
+
+6. **Fill in the tag's row** under "Record": the Release run's URL, whether the tag needed a
+   correction, the Go the release notes name, and what steps 6, 7 and 4 found. Put the Pages
+   run's URL beside the Release run's.
 
 ## Still open, and each needs a connected machine once
 
@@ -157,6 +174,14 @@ Each of these **needs a connected machine**.
 
 - README has no word yet about Aerofoil, the other Glider PRO port. Every fact that paragraph
   would state is to be checked against Aerofoil's own pages first (`docs/IMPROVEMENTS.md` 5.13).
+
+- **Pages is switched on by hand, once, before the first tag that is to publish.** In the
+  repository's settings, Pages' "Build and deployment" source is **GitHub Actions**. Then, under
+  Environments, the `github-pages` environment that switching it on creates may allow
+  deployments from the default branch only. If it does, add `v*` to its deployment branches and
+  tags, as a tag rule, or every tag's deploy job is refused. A tag made before these two settings
+  publishes nothing. Its page can still be published afterwards from the Actions tab: run Pages
+  by hand and name the tag.
 
 ## Record
 

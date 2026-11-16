@@ -134,6 +134,13 @@ keep beside it and nothing to install. That is why it is 16 MB. `linux-amd64` an
 archives draw to a screen; the other three are marked `headless` and explain themselves in the
 archive. Every archive carries a `HOW-TO-RUN.txt`.
 
+Or play it in a browser, with nothing to download. Each release from `v0.3.0` on is also published
+at <https://bwenstar.github.io/gliderGo/>: the same game and the same houses, built for
+WebAssembly. It needs a keyboard, and it cannot race, because a web page cannot open a connection
+to another machine. It keeps your settings, scores and saves in the browser's own storage, which
+Safari clears after a week without a visit. It has been played in Chrome; Firefox and Safari have
+not run it yet ([docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) 3.10).
+
 Nothing is signed, so Windows and macOS warn the first time you open it, in words that read like a
 broken download. The release notes and `HOW-TO-RUN.txt` say what each warning is and the way past
 it. They also say what to do if Windows' antivirus removes `glidergo.exe`: check the zip

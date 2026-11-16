@@ -29,13 +29,14 @@ races every 0.2.x and reads every file one wrote.
 ### gliderGo plays in a browser (2026-11-16)
 
 The game now runs in a web page, from static files. `make web` builds the page and the game for it
-into `bin/web/`, which any static web server can serve. It is the same game. The browser build's
-frames are byte for byte the native build's, and its title screen is the same pixels but for one
-row. That row is Race..., greyed, because a page cannot open a connection to another machine, and
-`-host` and `-join` are refused there for the same reason. The rest is there. Sound plays through
-Web Audio, and letters follow the keyboard's layout as they do on the desktop builds. Settings, high
-scores and saved games are kept in the browser's own storage, which Safari clears after seven days
-without a visit. `docs/IMPROVEMENTS.md` 3.10 has that and everything else still open.
+into `bin/web/`, and from the next release tag `pages.yml` publishes them at
+<https://bwenstar.github.io/gliderGo/>. It is the same game. The browser build's frames are byte for
+byte the native build's, and its title screen is the same pixels but for one row. That row is
+Race..., greyed, because a page cannot open a connection to another machine, and `-host` and
+`-join` are refused there for the same reason. The rest is there. Sound plays through Web Audio, and
+letters follow the keyboard's layout as they do on the desktop builds. Settings, high scores and
+saved games are kept in the browser's own storage, which Safari clears after seven days without a
+visit. `docs/IMPROVEMENTS.md` 3.10 has that and everything else still open.
 
 A room's wipe is 116 or 160 presents inside one frame. In a browser, which paints only while the
 program sleeps, they froze the page for half a second. Now the browser's window asks for a present

@@ -3601,7 +3601,7 @@ and PLAN `:842-847`'s "offers less than the file holds". The `settings` referenc
 regenerated. That is routine, because the screen has no 1994 original. A test holds every page's
 last baseline above `setFootV`, and that test can land now, alone.
 
-### 3.10 The game had to be downloaded, and a browser could have played it — **the browser build DONE, for 0.3.0; publishing it, racing, touch and keeping saves still open**
+### 3.10 The game had to be downloaded, and a browser could have played it — **the browser build DONE, for 0.3.0; published by `pages.yml` from the next tag, which has never run; racing, touch and keeping saves still open**
 
 A release is six archives. A player picks one, unpacks it, and gets it past SmartScreen or
 Gatekeeper, whose warnings read like a broken download (5.12). A page asks for none of that, and
@@ -3643,8 +3643,8 @@ github.io a link is all a stranger needs to make one, and the game's flags can w
 over a saved game, `-prefs` moving one aside.
 
 **What is checked, and how.** `tools/webcheck` serves the site, opens it in a headless Chrome with a
-profile of its own and no display, and holds it to the native build. It is in `make check`, and so
-in CI. It checks six things:
+profile of its own and no display, and holds it to the native build. It is in `make check`, and in
+CI, which runs it again in `pages.yml` with the Go a release is built with. It checks six things:
 - the title screen is the native `-shot` in every pixel but the Race... row, greyed;
 - 120 frames from the null backend built for js/wasm, dumped into the page's storage, are byte for
   byte the native build's;
@@ -3706,9 +3706,11 @@ as before.
   Control bound as a control, Control+W closes the tab, and Control+T and Control+N open new ones.
 - **Firefox and Safari — note.** Nothing in the page is Chrome's own: AudioWorklet, streaming
   WebAssembly compilation with a fallback, and localStorage are in both. But neither has run it.
-- **Publishing it — planned, next.** A workflow that builds the page on each release tag, checks
-  it as `make check` does and publishes it to GitHub Pages, which serves static files and nothing
-  else, and so needs no server of this project's own.
+- **The first deploy — planned, at the next tag.** `pages.yml` has never run. Two Pages settings
+  are made by hand first, as `RELEASING.md` says. How GitHub Pages compresses a `.wasm` is checked
+  on the first deploy: 19 MB plain, 13 MB gzipped. Once a deploy has worked, the release notes can
+  link the page, which they do not yet, and `docs/RELEASE_TESTING.md` steps 14 and 15 are a person
+  playing an rc's page in the browsers CI does not have.
 
 ---
 
