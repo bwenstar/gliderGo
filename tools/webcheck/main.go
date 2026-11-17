@@ -381,18 +381,28 @@ func checkSave(e *env) (string, error) {
 	const save = "/browser storage/saves/Slumberland.save"
 	started := `glidergoLog.some((l) => /^glidergo: Slumberland -- .* rooms, first/.test(l))`
 	// Each key, then what it is waiting for: a line the game prints or a file it writes, where
-	// there is one, and a pause long enough for a frame or two where there is not.
+	// there is one, and a pause long enough for a frame or two where there is not. Each row's
+	// comment is on the line above it, because gofmt decides where a column of comments at the
+	// ends of rows breaks by comparing the rows' lengths, and Go 1.23 and 1.27 put this table's
+	// break in different places: no layout of that column satisfied both.
 	steps := []struct {
 		key, until string
 		pause      time.Duration
 	}{
-		{"", "document.title.includes('Slumberland')", 500 * time.Millisecond}, // the title screen
-		{"KeyN", started, 0},                                                               // New Game, and its banner
-		{"Space", "", time.Second},                                                         // past the banner, flying
-		{"Tab", "", 500 * time.Millisecond},                                                // pause
-		{"KeyS", "glidergoFS.nodes.has(" + jsString(save) + ")", 0},                        // save
-		{"KeyQ", "", 500 * time.Millisecond},                                               // give up...
-		{"KeyN", "glidergoLog.some((l) => / frames in /.test(l))", 500 * time.Millisecond}, // ...without saving again
+		// the title screen
+		{"", "document.title.includes('Slumberland')", 500 * time.Millisecond},
+		// New Game, and its banner
+		{"KeyN", started, 0},
+		// past the banner, flying
+		{"Space", "", time.Second},
+		// pause
+		{"Tab", "", 500 * time.Millisecond},
+		// save
+		{"KeyS", "glidergoFS.nodes.has(" + jsString(save) + ")", 0},
+		// give up...
+		{"KeyQ", "", 500 * time.Millisecond},
+		// ...without saving again
+		{"KeyN", "glidergoLog.some((l) => / frames in /.test(l))", 500 * time.Millisecond},
 	}
 	for _, s := range steps {
 		if s.key != "" {
