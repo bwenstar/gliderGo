@@ -3601,6 +3601,117 @@ and PLAN `:842-847`'s "offers less than the file holds". The `settings` referenc
 regenerated. That is routine, because the screen has no 1994 original. A test holds every page's
 last baseline above `setFootV`, and that test can land now, alone.
 
+### 3.10 The game had to be downloaded, and a browser could have played it — **the browser build DONE, for 0.3.0; published by `pages.yml` from the next tag, which has never run; racing, touch and keeping saves still open**
+
+A release is six archives. A player picks one, unpacks it, and gets it past SmartScreen or
+Gatekeeper, whose warnings read like a broken download (5.12). A page asks for none of that, and
+the game is standard-library Go, which compiles for `GOOS=js GOARCH=wasm` as it stands. So the same
+game now runs in a browser, from static files that any web server can serve. GitHub Pages is one,
+so it costs nothing and needs no server of its own.
+
+**What it is.** `make web` writes `bin/web/`:
+- the game, 19 MB, or about 13 MB compressed. Nearly all of that is the 1994 art and sound inside
+  the binary, which is compressed already;
+- the page, from `web/`;
+- Go's `wasm_exec.js`, from the toolchain that built the binary, since the two are one program;
+- the two licences, and `build.js`, which names the version and the commit for the page's source
+  link.
+
+`internal/platform/web` is the fourth backend: a canvas for the pixels and the page's keyboard
+events for the keys. A letter is the layout's letter, as it is on X11 and Windows, so the key a
+French keyboard engraves A is KeyA; every other key goes by its place, and the keypad with Num Lock
+off is the arrows, as a Windows virtual-key code says. A Mac's browsers send no keyup for a key let
+go of while Command is held, so Command's own release lets go of the keys it hid. The canvas is the
+game's own 640×480, and CSS magnifies it: to the magnification the setting asks for, measured
+against the screen as auto is anywhere else, and shrunk to fit when the page is smaller than that.
+Sound is Web Audio, through an AudioWorklet that keeps a 50–200 ms jitter buffer and resamples
+(`internal/audio/device_js.go`).
+
+The files the game writes, its settings, scores and saves, are in the browser's localStorage,
+through a small file system in `web/fs.js`. The game sees one directory there, which it calls
+`/browser storage`, so that "settings saved in /browser storage/prefs.json" says where they went.
+Only what changed is written, over the tree as it is stored at that moment. So a second tab's files
+survive the first tab's next save, and so does an entry this page could not read, which it leaves
+as it is stored. A tree that cannot be read at all is moved to a key of its own and never written
+over. A write the browser refuses is that call's own error: a full store is a full disk to Go and
+any other refusal a read-only one, so the pause says the game could not be saved rather than that
+it was.
+
+The page's query, `?arg=` for the command line and `?wasm=` for another binary beside the page, is
+for testing, and is honoured only when the page is served from the player's own machine. On
+github.io a link is all a stranger needs to make one, and the game's flags can write files: `-shot`
+over a saved game, `-prefs` moving one aside.
+
+**What is checked, and how.** `tools/webcheck` serves the site, opens it in a headless Chrome with a
+profile of its own and no display, and holds it to the native build. It is in `make check`, and in
+CI, which runs it again in `pages.yml` with the Go a release is built with. It checks six things:
+- the title screen is the native `-shot` in every pixel but the Race... row, greyed;
+- 120 frames from the null backend built for js/wasm, dumped into the page's storage, are byte for
+  byte the native build's;
+- a game started from the keyboard, paused and saved leaves its save in storage, and after a
+  reload O resumes it, with Web Audio running throughout;
+- steered across two rooms, the page never goes more than 250 ms without a paint;
+- `web/fs.js`, through the calls Go's runtime makes, keeps an unreadable entry and another tab's
+  files through a change, answers a full store with ENOSPC, and sets an unreadable tree aside;
+- reached by a name that is not localhost, the page ignores a query that would have written a
+  screenshot over a file.
+
+By hand, on the prototype the build grew from, typed text reached the high-score field (é
+included), and switching tabs paused the game. Nothing has tried Firefox, Safari, a phone, real
+speakers or a slow machine.
+
+**A room's wipe froze the page, and no longer does.** A wipe is 116 or 160 presents inside one
+frame (2.76), and each converts and compares the whole frame. Natively that is a blink. In
+WebAssembly the browser paints only while the program sleeps, so it took 483 ms of frozen page and
+dragged play to 25 fps. `platform.Coalescer` lets a window ask for a present to wait, and the
+browser's asks when the one before it went out less than 8 ms ago. `cmd/glidergo/present.go` then
+owes it, and pays it before the next sleep. What it pays is a copy of the frame as it was presented
+and not the screen as it stands, because the game draws on Main between presents without showing
+what it drew: an erase, or a game's teardown. A test that plays one game twice, to a window that
+takes every present and to one that puts every present off, found that. Play now holds 29.7 fps,
+with no gap between paints over 16.8 ms. Native windows ask for nothing and are sent every present,
+as before.
+
+**Still open:**
+- **Racing in a browser — decision needed.** A page can open no socket to another machine, and
+  js/wasm's `net` package is a stand-in in which `-host` waits for ever. So the Race... row is
+  greyed and says why, and `-host` and `-join` in the page's `?arg=` are refused with the same
+  sentence. A race through a WebSocket or WebRTC relay would mean a server to run, and the desktop
+  builds would have to learn the same transport before they could race a browser. Whether to run
+  one is the owner's call.
+- **Keeping saves — planned.** localStorage belongs to an origin, and on `bwenstar.github.io` that
+  is every project of the account; the key is namespaced, so they share space, not files. Safari
+  clears it after seven days without a visit, and any browser clears it with the site's data. The
+  page asks `navigator.storage.persist()`, which protects against eviction when the disk is short
+  and not against Safari's seven days. The answer is an export and an import of the
+  `/browser storage` tree on the page's cover. A custom domain would also give the page an origin
+  of its own. Two tabs of the page each see the files as they were when it loaded; each keeps what
+  it writes, and a file both of them write is the last one's.
+- **The last house — planned.** The house a player had open is remembered when the title screen
+  is quit, and closing a browser's tab never quits it, so the page opens on Slumberland again
+  unless they pressed Q. Saving it when a game starts would answer that, natively too, where a
+  killed process forgets it the same way.
+- **The settings footer — planned, with the export.** It says the rest of the settings are in
+  `/browser storage/prefs.json`. That is true, and a player has no way to act on it until the file
+  can be exported, edited and imported.
+- **Touch — note.** A phone has no keyboard, and the cover says so on a device with only a touch
+  screen. On-screen controls would be a design of their own, not a port.
+- **A machine too slow to keep up — note.** The frame limiter sleeps only when a frame finished
+  early, so on a machine that cannot make 30 fps the program never sleeps, and its page never
+  paints and never hears a key. Nothing measured is that slow: unpaced, the browser build runs at
+  about 585 fps. But a sleep owed once a frame would make such a machine run slow rather than
+  freeze.
+- **Input methods — note.** Composed text, Chinese or Japanese, is ignored, as it is on X11.
+- **Control bindings — note.** A browser keeps some chords for itself whatever a page does. With
+  Control bound as a control, Control+W closes the tab, and Control+T and Control+N open new ones.
+- **Firefox and Safari — note.** Nothing in the page is Chrome's own: AudioWorklet, streaming
+  WebAssembly compilation with a fallback, and localStorage are in both. But neither has run it.
+- **The first deploy — planned, at the next tag.** `pages.yml` has never run. Two Pages settings
+  are made by hand first, as `RELEASING.md` says. How GitHub Pages compresses a `.wasm` is checked
+  on the first deploy: 19 MB plain, 13 MB gzipped. Once a deploy has worked, the release notes can
+  link the page, which they do not yet, and `docs/RELEASE_TESTING.md` steps 14 and 15 are a person
+  playing an rc's page in the browsers CI does not have.
+
 ---
 
 ## 4. Tooling and content
@@ -8536,6 +8647,7 @@ run into 5.4's unsigned-binary warnings, so they are later and not part of the g
 | 2.79 `prefs.Save` writes back the keys it has no field for, so an older build that saves a newer build's file no longer deletes the newer build's settings | release gate, before the tag | this stage |
 | 2.80 An unreadable settings file is reported once, and the Windows auto-scale check names `-prefs none` rather than a directory | release gate, before the tag | this stage |
 | 2.81 Win32 sends no piece bigger than 64 KiB and sweeps the window a 64th a frame, so a driver that drops whole frames no longer leaves it white | after the `v0.2.0` tag, for 0.2.1 | this stage |
+| 3.10 (the build) The game in a browser: `internal/platform/web`, Web Audio, the page in `web/`, `make web`, and `tools/webcheck` holding it to the native build in `make check` — with a room's wipe put off to the next sleep so that it no longer freezes the page, and the Race... row greyed where there is no network to race over | after the `v0.2.1` tag, for 0.3.0 | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

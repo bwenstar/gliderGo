@@ -37,19 +37,20 @@ for a machine with no internet.
 ## `make check` is the gate
 
 ```
-embedded fmt-check vet test race build glidertool houses levels headless audio fidelity docs-check cross smoke
+embedded fmt-check vet test race build glidertool houses levels headless audio fidelity docs-check cross web-check smoke
 ```
 
-It compiles for Windows as well as this machine, round-trips every shipped house through both
-codecs, rebuilds the houses in `levels/` from their text and lints them, plays a headless session,
-renders and hashes seven screens, mixes audio to a WAV, and runs the command lines this file gives.
-`race` is the odd one out in the other direction: it runs the race detector over the three places
+It compiles for Windows and for browsers as well as this machine, round-trips every shipped house
+through both codecs, rebuilds the houses in `levels/` from their text and lints them, plays a
+headless session, renders and hashes seven screens, mixes audio to a WAV, plays the browser build
+in a headless Chrome against the native one, and runs the command lines this file gives.
+`race` is the odd one out in the other direction: it runs the race detector over the four places
 that start a goroutine and nothing else — `internal/netplay`, `internal/audio` (the pipe to the
-sound player) and the loopback race tests in `cmd/glidergo`. `test` deliberately runs without
-`-race` — the detector needs cgo and a C compiler and costs an order of magnitude — so if you add
-concurrency anywhere else, add it to that target in the same patch.
-Under a minute from a cold Go build cache on an eight-core machine and about a dozen seconds after
-that, and it is the whole contract — if it passes, CI will too.
+sound player), the loopback race tests in `cmd/glidergo` and `tools/webcheck`. `test` deliberately
+runs without `-race` — the detector needs cgo and a C compiler and costs an order of magnitude — so
+if you add concurrency anywhere else, add it to that target in the same patch.
+About two minutes from a cold Go build cache on an eight-core machine and about one after that,
+half of it the browser check, and it is the whole contract — if it passes, CI will too.
 
 `docs-check` is the odd one out: it runs the command lines this file and the README tell you to
 run, because those are claims too and for six stages nothing checked them. So if your patch adds a
@@ -59,8 +60,8 @@ in. A block fenced without the `bash` tag is read as sample output and left alon
 the tag is for.
 
 `make check` finishes by printing what it could *not* check on this machine (no `DISPLAY`, cgo off,
-no extracted asset tree — and something different on Windows and macOS, where a different backend is
-at stake). Read that list; a green run with three caveats is not the same as a green run.
+no extracted asset tree, no Chrome — and something different on Windows and macOS, where a different
+backend is at stake). Read that list; a green run with three caveats is not the same as a green run.
 
 `make fuzz` is not part of the gate. It runs every `func Fuzz` target under Go's fuzzing engine for
 30 s each, then plays 3,000 damaged houses, in about six minutes. Run it when your patch touches

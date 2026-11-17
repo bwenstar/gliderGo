@@ -93,7 +93,7 @@ export GOTOOLCHAIN
 
 .PHONY: all build glidertool houses levels levels-zip run bench smoke headless audio fidelity \
 	test race fuzz vet fmt fmt-check check check-caveats docs-check clean clean-assets cross cross-windows assets \
-	assets-zip assets-check embedded tools doctor help
+	assets-zip assets-check embedded tools doctor help web web-check
 
 ## all: compile both binaries -- the default target, so `make` on its own does this
 all: build glidertool
@@ -343,12 +343,17 @@ cross-windows: embedded
 #
 # What this proves and what it does not, because a green cross-build is easy to over-read.
 #
-# The three backend selectors are exact logical complements, so every row below resolves to
-# exactly one of them (internal/platform/backend/doc.go has them side by side):
+# The four backend selectors are exact logical complements, so every row below resolves to
+# exactly one of them (internal/platform/backend/doc.go has them side by side, and spells out the
+# null constraint):
 #
-#   backend_x11.go     linux && cgo && !nullbackend                              x11
-#   backend_win32.go   windows && !nullbackend                                   win32
-#   backend_null.go    nullbackend || (!linux && !windows) || (!cgo && !windows)  null
+#   backend_x11.go     linux && cgo && !nullbackend      x11
+#   backend_win32.go   windows && !nullbackend           win32
+#   backend_web.go     js && wasm && !nullbackend        web
+#   backend_null.go    nullbackend, and everything else  null
+#
+# No row here is js/wasm. The browser build is a page and not an archive, so it is `make web`'s,
+# and `check` builds it there.
 #
 # The windows rows carry a real backend even at CGO_ENABLED=0, because win32 is pure syscall.
 # The darwin rows and cross-compiled linux/arm64 resolve to null and compile happily, which
@@ -422,20 +427,95 @@ cross: embedded
 	fi; \
 	exit $$fail
 
+## web: build the browser version into bin/web/, a directory any static web server can serve
+#
+# GOOS=js GOARCH=wasm, with the page around it. web/ is the page, and this adds the four files
+# that are made rather than written:
+#
+#   glidergo.wasm             the game, with the same assets inside it as every other build, so
+#                             the whole site is one 19 MB binary and a handful of small files
+#   wasm_exec.js              Go's own half of a js/wasm program. It has to come from the toolchain
+#                             that built the binary beside it, because the two are one program, so
+#                             it is copied out of GOROOT and never committed: lib/wasm/ from Go
+#                             1.24, misc/wasm/ before that
+#   THIRD-PARTY-NOTICES.txt   the licence both of those are under, made the way release.yml makes
+#                             the archives' copy (docs/IMPROVEMENTS.md 1.4)
+#   build.js                  the version, the commit and the binary's size, for the page's footer
+#                             and its download meter. The footer's source link is the commit, so a
+#                             page links the exact source it was built from, as the archives' do
+#
+# plus LICENSE as LICENSE.txt, which a browser shows rather than downloads. Serve the directory and
+# open it -- `python3 -m http.server -d bin/web` is enough. Opening index.html as a file is not,
+# because a page loaded from file:// can fetch nothing.
+WEB := $(BIN)/web
+web: embedded
+	@rm -rf $(WEB) && mkdir -p $(WEB)
+	GOOS=js GOARCH=wasm $(GO) build -ldflags '$(STAMPED)' -o $(WEB)/glidergo.wasm ./cmd/glidergo
+	@cp web/*.html web/*.js $(WEB)/
+	@root=$$($(GO) env GOROOT); \
+	if [ -f "$$root/lib/wasm/wasm_exec.js" ]; then cp "$$root/lib/wasm/wasm_exec.js" $(WEB)/; \
+	elif [ -f "$$root/misc/wasm/wasm_exec.js" ]; then cp "$$root/misc/wasm/wasm_exec.js" $(WEB)/; \
+	else echo "web: $$root has no lib/wasm/wasm_exec.js or misc/wasm/wasm_exec.js"; exit 1; fi
+	@cp LICENSE $(WEB)/LICENSE.txt
+	@{ echo "glidergo.wasm has $$($(GO) env GOVERSION)'s runtime and standard library compiled in, and"; \
+	   echo "wasm_exec.js, which starts it, is Go's own. That code is distributed under the licence"; \
+	   echo "below. gliderGo's own licence is in LICENSE.txt."; \
+	   echo; cat "$$($(GO) env GOROOT)/LICENSE"; } > $(WEB)/THIRD-PARTY-NOTICES.txt
+	@commit=$$(git rev-parse HEAD 2>/dev/null); \
+	printf '// Written by `make web`.\nglobalThis.glidergoBuild = { version: "%s", source: "%s", wasmBytes: %s };\n' \
+		"$(VERSION)" "https://github.com/bwenstar/gliderGo$${commit:+/tree/$$commit}" \
+		"$$(wc -c < $(WEB)/glidergo.wasm | tr -d ' ')" > $(WEB)/build.js
+	@ls -l $(WEB)
+
+## web-check: play the browser build in headless Chrome and hold it to the native one
+#
+# The browser half of the web backend is syscall/js and JavaScript, and `go test` can run neither,
+# so tools/webcheck is where it is tested: the title screen pixel for pixel, 120 frames byte for
+# byte, a save that outlives the page, a room wipe that does not freeze it, a file system that
+# keeps what it is given or says it could not, and a page that ignores a stranger's query. It
+# needs Chrome and skips with a note where there is none, as `smoke` does without a display, and
+# `check-caveats` says so. CHROME names one that is not on PATH.
+#
+# Chrome runs with no display and with a profile and a home of its own in a temporary directory,
+# so a check on a machine where somebody's own Chrome is open leaves theirs alone
+# (tools/webcheck/chrome.go). The two null-backend builds are what it compares against: the
+# browser's frames come from the js/wasm one, the reference frames from the native one, and both
+# are stamped with the same VERSION as bin/web so that the title screens can agree.
+CHROME ?=
+HAVE_CHROME := { [ -n "$(CHROME)" ] || command -v google-chrome || command -v google-chrome-stable || \
+	command -v chromium || command -v chromium-browser || command -v chrome; } >/dev/null 2>&1
+web-check: web
+	@if $(HAVE_CHROME); then \
+		mkdir -p $(BIN)/webcheck && \
+		GOOS=js GOARCH=wasm $(GO) build -tags nullbackend -ldflags '$(STAMPED)' \
+			-o $(BIN)/webcheck/glidergo-null.wasm ./cmd/glidergo && \
+		$(GO) build -tags nullbackend -ldflags '$(STAMPED)' -o $(BIN)/webcheck/glidergo-null ./cmd/glidergo && \
+		$(GO) run ./tools/webcheck -site $(WEB) -null-wasm $(BIN)/webcheck/glidergo-null.wasm \
+			-native $(BIN)/webcheck/glidergo-null -chrome "$(CHROME)" -out $(OUT)/glidergo-webcheck; \
+	else \
+		echo "web-check: no Chrome on PATH -- skipped; the browser build was compiled and NOT run."; \
+		echo "           CHROME=/path/to/chrome names one."; \
+	fi
+
 ## test: run the test suite
 test:
 	$(GO) test $(PKG)
 
 ## race: run the code that starts goroutines under the race detector
 #
-# Three places start one, and this runs the tests that reach each of them:
+# Four places start one, and this runs the tests that reach each of them:
 #
 #   - `internal/netplay` reads on one goroutine and sends from another for the whole of a match;
 #   - `internal/audio`'s Pipe writes to the player on its own, so that the game never waits on a
 #     sound server (pipe_test.go; WaveOut, the Windows twin, cannot be raced from here);
 #   - `cmd/glidergo` shakes hands on one behind the race's waiting screen, and drives netplay
 #     from the frame loop -- the loopback tests, and only those, because the rest of that
-#     package is single-threaded and takes twenty seconds without the detector.
+#     package is single-threaded and takes twenty seconds without the detector;
+#   - `tools/webcheck` serves the browser build on one while it drives Chrome from the other, and
+#     its tests serve and fetch, and talk to a fake browser over a pipe pair.
+#
+# The browser's own half has none to race. js/wasm has one thread, and the page's listeners run
+# only while the game is asleep (internal/platform/web).
 #
 # Nothing else is concurrent. That is why `test` above does not pass -race and should not -- the
 # detector needs cgo and a C compiler, it costs an order of magnitude, and it would buy nothing on
@@ -452,7 +532,7 @@ test:
 # end so that a green run does not claim it.
 race:
 	@if $(CAN_RACE); then \
-		$(GO) test -race -count=2 ./internal/netplay/ ./internal/audio/ && \
+		$(GO) test -race -count=2 ./internal/netplay/ ./internal/audio/ ./tools/webcheck/ && \
 		$(GO) test -race -count=2 -run 'Race|Loopback' ./cmd/glidergo/; \
 	else \
 		echo "race: skipped -- the detector needs cgo and a C compiler, and this machine has"; \
@@ -492,9 +572,13 @@ fuzz:
 	if [ $$fail = 0 ]; then echo "fuzz: every target and the soak passed"; fi; \
 	exit $$fail
 
-## vet: static checks
+## vet: static checks, for this host and for the browser
+#
+# The second line is the browser's. GOOS=js compiles files nothing else does -- the web backend,
+# the Web Audio device -- and a vet of this host alone would never read them.
 vet:
 	$(GO) vet $(PKG)
+	GOOS=js GOARCH=wasm $(GO) vet $(PKG)
 
 ## fmt: gofmt the tree in place -- what to run when fmt-check complains
 fmt:
@@ -556,7 +640,7 @@ docs-check: build glidertool
 # nor how to get it back. Asking the guard first means the first thing printed is the sentence with
 # the `git checkout --` in it. Prerequisites are made left to right, which this list already
 # depends on elsewhere (build before the targets that run the binary).
-check: embedded fmt-check vet test race build glidertool houses levels headless audio fidelity docs-check cross smoke
+check: embedded fmt-check vet test race build glidertool houses levels headless audio fidelity docs-check cross web-check smoke
 	@echo
 	@echo "gliderGo: check passed"
 	@$(MAKE) --no-print-directory check-caveats
@@ -608,11 +692,15 @@ check-caveats:
 	esac; \
 	if ! $(CAN_RACE); then \
 		echo "  - the race detector did NOT run, so the code with goroutines (internal/netplay,"; \
-		echo "    internal/audio's Pipe and the race in cmd/glidergo) was not checked for races"; n=1; \
+		echo "    internal/audio's Pipe, the race in cmd/glidergo and tools/webcheck) was not checked"; \
+		echo "    for races"; n=1; \
 	fi; \
 	if ! $(HAVE_HOUSES) || ! $(HAVE_ART) || ! $(HAVE_SOUND); then \
 		echo "  - no extracted asset tree: the house round-trip and the pixel corpus were NOT"; \
 		echo "    checked (the runs above used the copy inside the binaries and are unaffected)"; n=1; \
+	fi; \
+	if ! $(HAVE_CHROME); then \
+		echo "  - no Chrome, so the browser build was compiled and NOT played (\`make web-check\`)"; n=1; \
 	fi; \
 	case $$os in \
 	linux) \
@@ -624,7 +712,7 @@ check-caveats:
 		echo "    here is \`make bench\` by hand"; n=1;; \
 	esac; \
 	if [ $$n -eq 0 ]; then \
-		echo "         toolchain, cgo, tests, races, houses, levels, headless, audio, pixels, cross-build and the blit path"; \
+		echo "         toolchain, cgo, tests, races, houses, levels, headless, audio, pixels, cross-build, the browser and the blit path"; \
 	else \
 		echo "         everything above ran, but note the gaps -- this was not a full check"; \
 	fi

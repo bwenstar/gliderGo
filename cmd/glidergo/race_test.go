@@ -55,6 +55,24 @@ func TestTheHostingLinesCanBePasted(t *testing.T) {
 	}
 }
 
+// TestABuildThatCannotRaceRefusesTheFlags: the page hands its query's ?arg= to the game when it is
+// served from the player's own machine, so -host and -join can reach a build that cannot race, and
+// they are refused with the sentence the title screen's greyed row says. cannotRace is set here to
+// what the browser's build has.
+func TestABuildThatCannotRaceRefusesTheFlags(t *testing.T) {
+	was := cannotRace
+	cannotRace = "a browser cannot connect to the other machine"
+	defer func() { cannotRace = was }()
+	for _, args := range [][]string{{"-host", "Slumberland"}, {"-join", "10.0.0.5", "Slumberland"}} {
+		if _, err := parseArgs(t, args...); err == nil || !strings.Contains(err.Error(), cannotRace) {
+			t.Errorf("glidergo %s: %v; want it refused with the reason", strings.Join(args, " "), err)
+		}
+	}
+	if _, err := parseArgs(t, "-house", "Slumberland"); err != nil {
+		t.Errorf("a game that is not a race was refused: %v", err)
+	}
+}
+
 // A listener on a port nobody asked for still has to be able to say which one it got, which is why
 // the port comes from the listener's address and not from the flag.
 func TestTheHostingLinesUseThePortTheListenerGot(t *testing.T) {

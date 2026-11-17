@@ -115,9 +115,10 @@ env:
   GOTOOLCHAIN: local
   # The Go a release is built with: a minor Go still patches, and not go.mod's `go 1.23`, which
   # is the oldest that can build the code (docs/IMPROVEMENTS.md 5.11). ci.yml's env says why at
-  # length, and the two lines move together. check-latest takes the newest patch, and the notes
-  # below name the one this run got. Moving the minor moves the oldest macOS and Windows a
-  # release runs on, so the notes, README and both HOW-TO-RUN.txt texts are re-read with it.
+  # length, and this line moves with the ones there and in pages.yml. check-latest takes the
+  # newest patch, and the notes below name the one this run got. Moving the minor moves the
+  # oldest macOS and Windows a release runs on, so the notes, README and both HOW-TO-RUN.txt
+  # texts are re-read with it.
   GO_RELEASE: "1.27.x"
 
 jobs:

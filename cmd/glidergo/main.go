@@ -1116,6 +1116,9 @@ func (a *app) shellHost() shell.Host {
 		Notify:    func(s string) { fmt.Fprintln(os.Stderr, s) },
 		Version:   version,
 		AutoScale: a.autoScale,
+
+		// The browser's, and "" everywhere else: see cannotRace.
+		NoRace: cannotRace,
 	}
 }
 

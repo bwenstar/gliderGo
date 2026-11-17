@@ -1,7 +1,7 @@
-//go:build nullbackend || (!linux && !windows) || (!cgo && !windows)
+//go:build nullbackend || (!linux && !windows && !(js && wasm)) || (!cgo && !windows && !(js && wasm))
 
-// This is the fallback selector, and its constraint is the negation of the other two rather than
-// anything meaningful on its own. See doc.go for the three read side by side.
+// This is the fallback selector, and its constraint is the negation of the other three rather than
+// anything meaningful on its own. See doc.go for the four read side by side.
 
 package backend
 

@@ -79,7 +79,7 @@ env:
   # 1.25 shipped. Built with it, the code reaches three standard-library vulnerabilities, in the
   # dialer, a directory walk and the zip reader, and the v0.1.x releases reach two. `check` and
   # `citations` stay on go.mod so the floor README promises is still tested; `cross`, `native`
-  # and `vuln` use this, and so does release.yml, which states it again. A newer Go keeps
+  # and `vuln` use this, and so do release.yml and pages.yml, which state it again. A newer Go keeps
   # 1.23's GODEBUG defaults, because those follow the `go` line, and the engine fingerprint
   # does not move (TestTheEngineFingerprintIsPinned), so a 1.27 build races a 1.23 one.
   #
@@ -157,8 +157,21 @@ jobs:
 
       # OUT keeps the scratch PNGs and WAVs out of /tmp, so two jobs on one self-hosted runner
       # cannot collide. On a GitHub-hosted runner each job has its own VM and this is free.
+      #
+      # This includes `web-check`, which plays the browser build in the runner image's
+      # google-chrome against the native one, built with go.mod's Go like everything else here.
+      # pages.yml runs the same check on GO_RELEASE before it publishes. A runner image without
+      # Chrome skips it, and the caveats at the end of the log say so.
       - name: make check
         run: make check OUT="$RUNNER_TEMP"
+
+      - name: Keep what a failed browser check left to be looked at
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: webcheck
+          path: ${{ runner.temp }}/glidergo-webcheck
+          if-no-files-found: ignore
 
       # The one thing `make check` cannot do without a display: put real pixels through
       # XPutImage. Depth matters and is the likeliest thing to break here --

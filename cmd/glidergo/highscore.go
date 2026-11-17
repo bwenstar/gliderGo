@@ -257,6 +257,8 @@ func (a *app) present(w *game.World) {
 		// reports the window closed, which is true.
 		w.Quitting = true
 	}
+	// What the window shows now is newer than anything the game's presenter owes it.
+	a.pres.superseded()
 	a.pump.ClockTick()
 }
 
