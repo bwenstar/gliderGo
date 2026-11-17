@@ -1704,6 +1704,17 @@ means the tag is better with it and does not wait.
    Windows 10 laptop, drawing only what moved. The fix is 2.81, for 0.2.1, and has not been run on
    that laptop. In CI's run for `7ec246e`, on 2026-10-01, the service-session bench's window opened
    and took its 300 frames through the fix, which says the window opens there, not what it shows.
+
+   **Moved out of `v0.2.1`'s gate by the owner, 2026-10-01.** `v0.2.1` is tagged without this
+   step, without `RELEASING.md` steps 6 and 7, and without waiting for the player to try the fix.
+   Its release notes say the fix has not been tried on that laptop.
+
+   **Moved out of `v0.3.0`'s gate by the owner, 2026-11-17.** `v0.3.0` is tagged without this
+   step and without `RELEASING.md` steps 6 and 7, as the two tags before it were. Its new part is
+   the browser build, and CI plays that in Chrome against the native build at every push
+   (`tools/webcheck`). The first time it meets another browser is `RELEASING.md`'s "After the
+   tag" step 5, on the published page, and `docs/RELEASE_TESTING.md` steps 14 and 15 wait for an
+   rc that somebody plays by hand.
 7. **Announced, last.** After step 6 and after 5.1's connected-host checks, because the
    announcement is when strangers arrive. Where to announce is the user's call. Package-manager
    manifests (winget, Scoop, Flathub, AUR) have to be updated for every tag and run into 5.4's

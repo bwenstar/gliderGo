@@ -756,6 +756,14 @@ jobs:
           macOS is stage 6. The headless builds are still useful: they run houses, take `-shot`
           screenshots and dump frames as PNGs.
 
+          ### Or play it in a browser
+
+          Every release from `v0.3.0` on is also a web page, with nothing to download:
+          <https://bwenstar.github.io/gliderGo/>. It is the same game and the same houses, built
+          for WebAssembly. It needs a keyboard, it keeps its settings and saves in the browser's
+          own storage, and it cannot race, because a page cannot open a connection to another
+          machine. It has been played in Chrome; Firefox and Safari have not run it yet.
+
           ### Your computer will try to stop you, once
 
           Nothing here is signed, and Windows and macOS both say so in a way that reads exactly
@@ -916,8 +924,9 @@ jobs:
 
           The tests cannot press keys, say whether a house is any fun, or answer a Windows
           dialog, so a person does those on a release candidate. `docs/RELEASE_TESTING.md` in the
-          source says what was checked, on which build, and what was not. For `v0.2.0` and
-          `v0.2.1` nothing on that list was checked, because both tags went ahead without it.
+          source says what was checked, on which build, and what was not. For `v0.2.0`, `v0.2.1`
+          and `v0.3.0` nothing on that list was checked, because all three tags went ahead without
+          it.
 
           ### Licence
 

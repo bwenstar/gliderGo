@@ -167,6 +167,11 @@ with `python3 -m http.server -d site 8000` or any static server, and open `http:
 `v0.2.0` went without this list. No Windows desktop was to hand, and on 2026-09-29 the owner moved
 it out of that tag's gate (`docs/PLAN.md` §4, step 6), so no step below has been run in full on any
 build. Step 6's test-binary half has run, in CI and in the test suite on Windows Server 2025.
+`v0.2.1` went without it too: on 2026-10-01 the owner moved it out of that tag's gate as well.
+
+`v0.3.0` went without it as well: on 2026-11-17 the owner moved it out of that tag's gate. The
+page's first run outside Chrome is `RELEASING.md`'s "After the tag" step 5, on the published page
+rather than on an rc.
 
 | Step | Build | Date | Result |
 |---|---|---|---|

@@ -20,11 +20,12 @@ come in 0.3.0, whose section here says what it no longer races or reads (`docs/P
 version number promises"). The section at the top says whether its tag has been made yet.
 `RELEASING.md` step 2 names it, and the commit the tag is made on dates it.
 
-## Unreleased
+## `v0.3.0`
 
-Not tagged yet. A browser build is a new feature, so by the rule above the tag it goes out in is a
-minor release, `v0.3.0`. It moves none of the numbers `cmd/glidergo/promises_test.go` pins, so it
-races every 0.2.x and reads every file one wrote.
+Not tagged yet.
+
+A minor release, because a browser build is a new feature. It moves none of the numbers
+`cmd/glidergo/promises_test.go` pins, so it races every 0.2.x and reads every file one wrote.
 
 ### gliderGo plays in a browser (2026-11-16)
 

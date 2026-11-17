@@ -3708,9 +3708,10 @@ as before.
   WebAssembly compilation with a fallback, and localStorage are in both. But neither has run it.
 - **The first deploy — planned, at the next tag.** `pages.yml` has never run. Two Pages settings
   are made by hand first, as `RELEASING.md` says. How GitHub Pages compresses a `.wasm` is checked
-  on the first deploy: 19 MB plain, 13 MB gzipped. Once a deploy has worked, the release notes can
-  link the page, which they do not yet, and `docs/RELEASE_TESTING.md` steps 14 and 15 are a person
-  playing an rc's page in the browsers CI does not have.
+  on the first deploy: 19 MB plain, 13 MB gzipped. The release notes link the page from `v0.3.0`
+  on, a link written before any deploy had been seen, so a first deploy that fails leaves the
+  published notes to be edited by hand until it is fixed. `docs/RELEASE_TESTING.md` steps 14 and
+  15 are a person playing an rc's page in the browsers CI does not have.
 
 ---
 
