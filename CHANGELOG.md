@@ -22,7 +22,7 @@ version number promises"). The section at the top says whether its tag has been 
 
 ## `v0.3.0`
 
-Not tagged yet.
+Tagged on 2026-11-17.
 
 A minor release, because a browser build is a new feature. It moves none of the numbers
 `cmd/glidergo/promises_test.go` pins, so it races every 0.2.x and reads every file one wrote.
