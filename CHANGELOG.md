@@ -27,6 +27,17 @@ Not tagged yet.
 A minor release, because a browser build is a new feature. It moves none of the numbers
 `cmd/glidergo/promises_test.go` pins, so it races every 0.2.x and reads every file one wrote.
 
+### A push meets the gofmt a release is checked with (2026-11-17)
+
+`v0.3.0-rc1` stopped in `release.yml`'s `verify` job, at `make check`'s `fmt-check`. Go 1.27's
+gofmt lays out a table in `tools/webcheck/main.go` differently from Go 1.23's, and on a push CI had
+run only go.mod's gofmt, Go 1.23's. Where a column of comments at the ends of rows breaks, gofmt
+decides by comparing each row's length with the rows above it. Go 1.27 makes that comparison with
+approximate logarithms, and that table's last row was close enough to the limit to land on the
+other side of it. Its comments are now on lines of their own, which leaves gofmt no column to line
+up. `ci.yml`'s `cross` job, which builds with `GO_RELEASE`, now runs `make fmt-check` too, so the
+next difference of this kind fails a push and not a tag.
+
 ### gliderGo plays in a browser (2026-11-16)
 
 The game now runs in a web page, from static files. `make web` builds the page and the game for it
