@@ -171,7 +171,7 @@ build. Step 6's test-binary half has run, in CI and in the test suite on Windows
 
 `v0.3.0` went without it as well: on 2026-11-17 the owner moved it out of that tag's gate. The
 page's first run outside Chrome is `RELEASING.md`'s "After the tag" step 5, on the published page
-rather than on an rc.
+rather than on an rc. It was in Firefox, on 2026-11-19, and step 14's row has what it found.
 
 | Step | Build | Date | Result |
 |---|---|---|---|
@@ -189,5 +189,5 @@ rather than on an rc.
 | 12 A race, allowed | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | 13 A race, refused and undone | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
 | `windows-arm64` | `v0.2.0-rc1` | 2026-09-29 | no machine for it |
-| 14 Another browser | none yet | — | not run: the page is new since `v0.2.1` |
+| 14 Another browser | `v0.3.0`, the published page and not an rc's | 2026-11-19 | Firefox, played by the owner: ran fine. Its version was not recorded, nor was whether the save resumed after a reload. Safari has not run it |
 | 15 A name in the page | none yet | — | not run: the page is new since `v0.2.1` |

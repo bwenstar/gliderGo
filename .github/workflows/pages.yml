@@ -1,19 +1,20 @@
 # gliderGo in a browser, published to GitHub Pages.
 #
 # HONEST CAVEAT, READ FIRST. Like ci.yml and release.yml this was written on a host that cannot
-# reach github.com, and unlike them it has never run: the first release tag after it lands is its
-# first run. What is verified is every command it invokes. `make web` builds the site
-# and `make web-check` plays it in headless Chrome against the native build, here, with Go 1.23
-# and Chrome 157. What is not is everything that belongs to GitHub: the two Pages actions and
-# their versions, the runner's Chrome, and the Pages settings below. RELEASING.md says what to
-# look at after the first run.
+# reach github.com. It first ran for v0.3.0-rc1, on 2026-11-17, and its runs for that, for rc2
+# and for v0.3.0 were green; v0.3.0's published the page. So what belongs to GitHub has worked
+# once: the two Pages actions at these versions, the runner's Chrome, and the Pages settings
+# below. Every command it invokes is also run here: `make web` builds the site, and
+# `make web-check` plays it in headless Chrome against the native build. RELEASING.md, "After the
+# tag", step 5, says what to look at after each run.
 #
 # WHAT IT PUBLISHES. bin/web/ as `make web` writes it: the game built for GOOS=js GOARCH=wasm, the
 # page around it (web/), Go's wasm_exec.js from the toolchain that built the binary, the licences,
 # and build.js, which names the version and the commit. The page's source link is that commit, so
 # what a player is running links the exact source it was built from (GPLv2 section 3, as the
-# release archives do). It is served at https://bwenstar.github.io/gliderGo/, and it is static:
-# nothing on the server runs, which is why a browser cannot race (docs/IMPROVEMENTS.md 3.10).
+# release archives do). It is served at https://bwenstar.github.io/gliderGo/, which GitHub
+# redirects to the account's custom domain while it has one. It is static: nothing on the server
+# runs, which is why a browser cannot race (docs/IMPROVEMENTS.md 3.10).
 #
 # WHEN. On the same `v*` tags release.yml builds archives from, so the page is always the latest
 # release and never a commit between two. A tag with a hyphen in it -- v0.3.0-rc1 -- builds and
@@ -22,7 +23,7 @@
 # first release when Pages is switched on after that tag was made, and how a deploy GitHub
 # refused is tried again.
 #
-# ONCE, BEFORE THE FIRST TAG, in the repository's settings (RELEASING.md has the clicks): Pages
+# ONCE, in the repository's settings, done before v0.3.0 (RELEASING.md has the clicks): Pages
 # takes its source from "GitHub Actions", and the github-pages environment allows deployments from
 # `v*` tags. A deploy refused for either is this workflow's deploy job failing on its first step.
 

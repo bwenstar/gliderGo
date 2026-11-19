@@ -94,9 +94,9 @@ No test runs the commands in this file: `make docs-check` reads only README.md a
    the Windows window, keys and firewall, and a race with Windows hosting. Fill in its "Last run"
    table. Anything it finds is fixed in the release notes' or the README's wording before the
    tag, or filed. Then make the notes' "What a person checked" agree with the table. That section
-   ends by saying `v0.2.0` went without the list, and the next tag says what the table records
-   instead. Steps 6 to 8 are left out only when the owner moves them out of the gate in
-   `docs/PLAN.md` §4, as for `v0.2.0`.
+   ends by saying `v0.2.0`, `v0.2.1` and `v0.3.0` went without the list, and the first tag that
+   runs it says what the table records instead. Steps 6 to 8 are left out only when the owner
+   moves them out of the gate in `docs/PLAN.md` §4, as for those three.
 
 Then date the section and tag, on the same day. The date is one command, for GNU `sed` as on
 Linux, and `git diff --stat` shows it changed one line of `CHANGELOG.md`:
@@ -138,23 +138,27 @@ Each of these **needs a connected machine**.
    which writes Mark of the Web itself. Double-clicking the exe should give what step 6 recorded,
    "Windows protected your PC" with **Run anyway** behind **More info**, and nothing from
    Defender. A file copied over `scp` carries no stream, which is why step 6 writes one by hand.
-   For `v0.2.0`, which left out steps 6 to 8, there is nothing recorded to compare with: expect
-   what the release notes say, and record this as the first run of steps 6 and 7. Step 8's list
-   follows on the same archives, as the first work after that tag (`docs/PLAN.md` §4, step 6).
+   `v0.2.0`, `v0.2.1` and `v0.3.0` left out steps 6 to 8, so there is nothing recorded to compare
+   with: expect what the release notes say, and record this as the first run of steps 6 and 7.
+   Step 8's list follows on the same archives, as the first work after that tag (`docs/PLAN.md`
+   §4, step 6).
 
 5. **The page.** `pages.yml`'s run for the tag plays the page in Chrome and then publishes it at
-   <https://bwenstar.github.io/gliderGo/>. Open it in a browser other than Chrome, play a room,
-   and check that the footer names the tag and that its source link opens the tag's commit. Then
-   check how the game file is served:
+   <https://bwenstar.github.io/gliderGo/>. While the account has a custom domain, as it did when
+   the first deploy was checked, GitHub answers that address with a redirect to the same path on
+   the domain, and a browser follows it unasked. Open the page in a browser other than Chrome,
+   play a room, and check that the footer names the tag and that its source link opens the tag's
+   commit. Then check how the game file is served, following the redirect as a browser does:
 
    ```
-   curl -sI -H 'Accept-Encoding: gzip' https://bwenstar.github.io/gliderGo/glidergo.wasm
+   curl -sL -D - -o /dev/null -H 'Accept-Encoding: gzip' \
+     https://bwenstar.github.io/gliderGo/glidergo.wasm
    ```
 
-   It must say `content-type: application/wasm`. Whether it also says `content-encoding: gzip`
-   decides whether a first visit downloads 13 MB or 19, which `docs/IMPROVEMENTS.md` 3.10 is to
-   be told. The first tag after `pages.yml` landed is its first run, and the one-time settings
-   under "Still open" come before it.
+   The last response must say `content-type: application/wasm` and `content-encoding: gzip`. At
+   `v0.3.0`, the first deploy, it said both, and a first visit downloaded 13.5 MB of the 20.4 MB
+   file (`docs/IMPROVEMENTS.md` 3.10). Without the gzip, every first visit costs half as much
+   again.
 
 6. **Fill in the tag's row** under "Record": the Release run's URL, whether the tag needed a
    correction, the Go the release notes name, and what steps 6, 7 and 4 found. Put the Pages
@@ -175,13 +179,15 @@ Each of these **needs a connected machine**.
 - README has no word yet about Aerofoil, the other Glider PRO port. Every fact that paragraph
   would state is to be checked against Aerofoil's own pages first (`docs/IMPROVEMENTS.md` 5.13).
 
-- **Pages is switched on by hand, once, before the first tag that is to publish.** In the
-  repository's settings, Pages' "Build and deployment" source is **GitHub Actions**. Then, under
-  Environments, the `github-pages` environment that switching it on creates may allow
-  deployments from the default branch only. If it does, add `v*` to its deployment branches and
-  tags, as a tag rule, or every tag's deploy job is refused. A tag made before these two settings
-  publishes nothing. Its page can still be published afterwards from the Actions tab: run Pages
-  by hand and name the tag.
+## Done once, and for a fork to do again
+
+- **Pages was switched on by hand before `v0.3.0`.** In the repository's settings, Pages' "Build
+  and deployment" source is **GitHub Actions**. Then, under Environments, the `github-pages`
+  environment that switching it on creates allows deployments from the default branch only, and
+  `v*` is added to its deployment branches and tags as a tag rule; without that rule every tag's
+  deploy job is refused. The default branch's rule stays: a tag made before these settings
+  publishes nothing, and its page is published afterwards from the Actions tab, by running Pages
+  by hand from the default branch and naming the tag.
 
 ## Record
 
@@ -191,3 +197,5 @@ Each of these **needs a connected machine**.
 | `v0.1.1` | not recorded here | not recorded here | Go 1.23, as above | not checked |
 | `v0.1.2` | not recorded here | not recorded here | Go 1.23, as above | not checked |
 | `v0.2.0` | green first time, 2026-09-29: <https://github.com/bwenstar/gliderGo/actions/runs/36516488437> | no; whether the published notes get a line by hand is the owner's call (`docs/IMPROVEMENTS.md` 5.11) | go1.27.1 | not checked yet, and the first work after this tag ("After the tag", step 4) |
+| `v0.2.1` | green first time, 2026-10-01: <https://github.com/bwenstar/gliderGo/actions/runs/36821624826> | no | go1.27.1 | not checked; steps 6 to 8 were moved out of its gate (`docs/PLAN.md` §4) |
+| `v0.3.0` | green first time, 2026-11-17: Release <https://github.com/bwenstar/gliderGo/actions/runs/44010367159>, Pages <https://github.com/bwenstar/gliderGo/actions/runs/44010367223>, its first deploy | no; `v0.3.0-rc1` did. Its `verify` stopped at `fmt-check`, because Go 1.27's gofmt lays out a table in `tools/webcheck/main.go` differently from Go 1.23's (<https://github.com/bwenstar/gliderGo/actions/runs/43998382627>). Two commits fixed it, and `v0.3.0-rc2` was green (<https://github.com/bwenstar/gliderGo/actions/runs/44008658993>) | go1.27.4 | not checked; steps 6 to 8 were moved out of its gate (`docs/PLAN.md` §4) |

@@ -3601,7 +3601,7 @@ and PLAN `:842-847`'s "offers less than the file holds". The `settings` referenc
 regenerated. That is routine, because the screen has no 1994 original. A test holds every page's
 last baseline above `setFootV`, and that test can land now, alone.
 
-### 3.10 The game had to be downloaded, and a browser could have played it — **the browser build DONE, for 0.3.0; published by `pages.yml` from the next tag, which has never run; racing, touch and keeping saves still open**
+### 3.10 The game had to be downloaded, and a browser could have played it — **the browser build DONE, in 0.3.0, and published by `pages.yml` from that tag on; racing, touch and keeping saves still open**
 
 A release is six archives. A player picks one, unpacks it, and gets it past SmartScreen or
 Gatekeeper, whose warnings read like a broken download (5.12). A page asks for none of that, and
@@ -3657,8 +3657,8 @@ CI, which runs it again in `pages.yml` with the Go a release is built with. It c
   screenshot over a file.
 
 By hand, on the prototype the build grew from, typed text reached the high-score field (é
-included), and switching tabs paused the game. Nothing has tried Firefox, Safari, a phone, real
-speakers or a slow machine.
+included), and switching tabs paused the game. Nothing tried Firefox, Safari, a phone, real
+speakers or a slow machine. Since then the owner has played the published page in Firefox (below).
 
 **A room's wipe froze the page, and no longer does.** A wipe is 116 or 160 presents inside one
 frame (2.76), and each converts and compares the whole frame. Natively that is a blink. In
@@ -3679,12 +3679,16 @@ as before.
   sentence. A race through a WebSocket or WebRTC relay would mean a server to run, and the desktop
   builds would have to learn the same transport before they could race a browser. Whether to run
   one is the owner's call.
-- **Keeping saves — planned.** localStorage belongs to an origin, and on `bwenstar.github.io` that
-  is every project of the account; the key is namespaced, so they share space, not files. Safari
-  clears it after seven days without a visit, and any browser clears it with the site's data. The
-  page asks `navigator.storage.persist()`, which protects against eviction when the disk is short
-  and not against Safari's seven days. The answer is an export and an import of the
-  `/browser storage` tree on the page's cover. A custom domain would also give the page an origin
+- **Keeping saves — planned.** localStorage belongs to an origin, and the page's is the account's:
+  `bwenstar.github.io`, or, while the account has a custom domain, as it does, that domain, to
+  which GitHub redirects the github.io address. Either way it is every project page of the
+  account; the key is namespaced, so they share space, not files. Because the origin holds them,
+  a change of domain leaves every player's saves behind at the old one. Safari clears it after
+  seven days without a visit, and any browser clears it with the site's data. The page asks
+  `navigator.storage.persist()`, which protects against eviction when the disk is short and not
+  against Safari's seven days. The answer is an export and an import of the `/browser storage`
+  tree on the page's cover, which would carry saves across a change of domain too. A custom
+  domain set on this repository alone, rather than on the account, would give the page an origin
   of its own. Two tabs of the page each see the files as they were when it loaded; each keeps what
   it writes, and a file both of them write is the last one's.
 - **The last house — planned.** The house a player had open is remembered when the title screen
@@ -3704,14 +3708,29 @@ as before.
 - **Input methods — note.** Composed text, Chinese or Japanese, is ignored, as it is on X11.
 - **Control bindings — note.** A browser keeps some chords for itself whatever a page does. With
   Control bound as a control, Control+W closes the tab, and Control+T and Control+N open new ones.
-- **Firefox and Safari — note.** Nothing in the page is Chrome's own: AudioWorklet, streaming
-  WebAssembly compilation with a fallback, and localStorage are in both. But neither has run it.
-- **The first deploy — planned, at the next tag.** `pages.yml` has never run. Two Pages settings
-  are made by hand first, as `RELEASING.md` says. How GitHub Pages compresses a `.wasm` is checked
-  on the first deploy: 19 MB plain, 13 MB gzipped. The release notes link the page from `v0.3.0`
-  on, a link written before any deploy had been seen, so a first deploy that fails leaves the
-  published notes to be edited by hand until it is fixed. `docs/RELEASE_TESTING.md` steps 14 and
+- **Firefox — DONE, 2026-11-19; Safari — note.** The owner played the published `v0.3.0` page in
+  Firefox, and it ran fine; `docs/RELEASE_TESTING.md` step 14's row says what that does not
+  cover. Nothing in the page is Chrome's own: AudioWorklet, streaming WebAssembly compilation with
+  a fallback, and localStorage are in Safari too. But Safari has not run it.
+- **The first deploy — DONE, `v0.3.0`, 2026-11-17.** `pages.yml` ran for `v0.3.0-rc1`,
+  `v0.3.0-rc2` and `v0.3.0`, green each time, and the last published the page. Its build with Go
+  1.27, which no CI run had made before rc1, passed `make web-check` in all three. GitHub serves
+  `glidergo.wasm` as `application/wasm`, and gzipped to a browser that accepts gzip: 13,539,695
+  bytes of 20,415,170, so a first visit is 13.5 MB. It offers no Brotli. It sends
+  `cache-control: max-age=600` with an ETag, so a browser that has the file asks whether it
+  changed rather than fetching it again. The account has a custom domain, so the github.io
+  address answers 301 with the same path there; `RELEASING.md`'s check follows it, and so does
+  the link the release notes have carried since `v0.3.0`. `docs/RELEASE_TESTING.md` steps 14 and
   15 are a person playing an rc's page in the browsers CI does not have.
+- **Bandwidth — note.** GitHub's "GitHub Pages limits" page gives a site a soft limit of 100 GB of
+  bandwidth a month (as remembered, because the host this was written on cannot read it). Going
+  past it brings no bill: GitHub may ask for a CDN in front of the site, or stop serving it. At
+  13.5 MB a first visit, that is about 7,400 first visits a month. A return visit costs a check
+  while the browser keeps the file, and each release is downloaded once more by everybody who
+  comes back. Nothing on GitHub counts the page's traffic, so the first sign would be GitHub's
+  email. The release archives come from Releases, which GitHub says has no bandwidth limit. If
+  the page outgrows the limit: a CDN in front of the custom domain, or a mirror on a host made for
+  browser games.
 
 ---
 
@@ -8649,6 +8668,7 @@ run into 5.4's unsigned-binary warnings, so they are later and not part of the g
 | 2.80 An unreadable settings file is reported once, and the Windows auto-scale check names `-prefs none` rather than a directory | release gate, before the tag | this stage |
 | 2.81 Win32 sends no piece bigger than 64 KiB and sweeps the window a 64th a frame, so a driver that drops whole frames no longer leaves it white | after the `v0.2.0` tag, for 0.2.1 | this stage |
 | 3.10 (the build) The game in a browser: `internal/platform/web`, Web Audio, the page in `web/`, `make web`, and `tools/webcheck` holding it to the native build in `make check` — with a room's wipe put off to the next sleep so that it no longer freezes the page, and the Race... row greyed where there is no network to race over | after the `v0.2.1` tag, for 0.3.0 | this stage |
+| 3.10 (the deploy) `pages.yml` publishes the page from each release tag; `v0.3.0` was its first deploy, and how GitHub serves the game file is recorded there | the `v0.3.0` tag | this stage |
 
 Five bugs found and fixed in the port itself while writing this, none of which is an
 "improvement" so much as a repair, all recorded here because the reason no test caught

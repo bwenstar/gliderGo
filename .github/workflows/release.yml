@@ -762,7 +762,7 @@ jobs:
           <https://bwenstar.github.io/gliderGo/>. It is the same game and the same houses, built
           for WebAssembly. It needs a keyboard, it keeps its settings and saves in the browser's
           own storage, and it cannot race, because a page cannot open a connection to another
-          machine. It has been played in Chrome; Firefox and Safari have not run it yet.
+          machine. It has been played in Chrome and Firefox; Safari has not run it yet.
 
           ### Your computer will try to stop you, once
 
